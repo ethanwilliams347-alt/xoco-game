@@ -1,13 +1,6 @@
 #include "physics/grid.h"
-#include <cstdio>
+#include "test_util.h"
 #include <string>
-
-static int failures = 0;
-
-static void check(const char* name, bool ok, const std::string& detail = "") {
-    std::printf("%s %-46s %s\n", ok ? "[PASS]" : "[FAIL]", name, detail.c_str());
-    if (!ok) failures++;
-}
 
 static void step(Grid& g, int n) {
     for (int i = 0; i < n; ++i) g.update();
@@ -292,6 +285,5 @@ int main() {
               "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
     }
 
-    std::printf("\n%s (%d failure%s)\n", failures ? "FAILURES" : "ALL PASS", failures, failures == 1 ? "" : "s");
-    return failures ? 1 : 0;
+    return report();
 }

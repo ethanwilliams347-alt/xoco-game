@@ -22,6 +22,7 @@ FetchContent_MakeAvailable(SDL2)
 # and tested headlessly. Only the shell (window, input, blitting) touches SDL.
 set(ENGINE_SOURCES
     src/physics/grid.cpp
+    src/physics/player.cpp
 )
 
 add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
@@ -38,11 +39,15 @@ option(BUILD_TESTING "Build the physics test harness" ON)
 if(BUILD_TESTING)
     enable_testing()
     add_executable(grid_test tests/test_grid.cpp ${ENGINE_SOURCES})
-    target_include_directories(grid_test PRIVATE src)
+    target_include_directories(grid_test PRIVATE src tests)
     add_test(NAME grid_test COMMAND grid_test)
+
+    add_executable(player_test tests/test_player.cpp ${ENGINE_SOURCES})
+    target_include_directories(player_test PRIVATE src tests)
+    add_test(NAME player_test COMMAND player_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
     add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES})
-    target_include_directories(grid_bench PRIVATE src)
+    target_include_directories(grid_bench PRIVATE src tests)
 endif()

@@ -54,3 +54,18 @@ static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(El
 inline constexpr const Material& material_of(ElementType type) {
     return MATERIALS[static_cast<size_t>(type)];
 }
+
+// What the player character collides with.
+//
+// Derived from the movement behaviour rather than listed per material, for the
+// same reason movement itself is: a new MATERIALS row then gets correct
+// collision for free instead of needing a second table kept in sync with the
+// first. Anything that holds its shape is solid -- static terrain, and powders,
+// which pile up and can be stood on. Liquids and gases are things you fall
+// through. Empty is Static in the table only because it never moves, so it has
+// to be excluded explicitly.
+inline constexpr bool is_solid(ElementType type) {
+    if (type == ElementType::Empty) return false;
+    const MoveKind move = material_of(type).move;
+    return move == MoveKind::Static || move == MoveKind::Powder;
+}

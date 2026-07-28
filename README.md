@@ -31,7 +31,9 @@ To survive, you must use mysterious ancient science to access different worlds. 
 
 ## Running the Tests
 
-The simulation has no SDL dependency, so it is tested headlessly:
+The simulation has no SDL dependency, so it is tested headlessly. There are two
+suites — `grid_test` for the cellular automata and `player_test` for the
+character physics — and CTest runs both:
 
 ```bash
 ctest --test-dir build -C Release --output-on-failure
@@ -52,6 +54,12 @@ is aiming at) across five scenarios and reports milliseconds per step against th
 to make the simulation faster.
 
 ## Controls
+
+**Player**
+- **`A` / `D`** or **arrow keys:** Walk left and right.
+- **`Space`** (or **`W`** / **up arrow**): Jump.
+
+**World**
 - **Left-Click & Drag:** Spawn elements onto the screen.
 - **Mouse Wheel:** Grow / shrink the brush.
 - **`1`**: **Sand** — powder, piles into a slope.
@@ -65,6 +73,8 @@ to make the simulation faster.
 - **`ESC`**: Quit the game.
 
 The window title shows the current framerate, selected material, and brush size.
+The player spawns in mid-air in the middle of the world; draw some terrain under
+it with the brush and it will land on it.
 
 ## Engine Architecture
 
@@ -135,3 +145,48 @@ deliberately narrow: Wood and Oil are only ever reaction *targets* of a
 catalyst-based row, never spontaneous, so idle Wood and Oil far from any fire
 stay fully sleep-eligible and chunking's performance for the common case is
 untouched.
+
+### The player
+
+The player is the one thing in the engine that is **not** a cell. It is a
+4x8 axis-aligned box in [player.h](src/physics/player.h) with its own position
+and velocity, and it only ever *reads* the grid — it never writes a cell, so it
+cannot break the "all writes go through `set_element`" rule.
+
+That split is deliberate. A cell moves at most one step per frame in one of
+eight directions, which is right for sand and useless for a character that needs
+sub-cell speed, a jump arc, and a body several cells tall that has to stay in one
+piece.
+
+Position is an **integer cell plus a sub-cell remainder**, not a float. Collision
+then only ever compares whole cells, so a resting player sits at an exact cell
+rather than a hair inside the floor, and the whole class of "the box is 0.0001
+into the wall" bugs never comes up. The remainder carries the fractional part of
+a move into the next step, which is what keeps motion smooth below one cell per
+step.
+
+Movement resolves one cell at a time, each axis separately. Sub-stepping makes
+tunnelling impossible by construction rather than by being fast enough — a
+player falling at terminal velocity still tests every cell it passes through.
+Resolving the axes separately is what lets the player slide along a surface
+instead of sticking to it.
+
+**What counts as solid** is derived from the material table, not listed
+separately: `Static` and `Powder` are solid, `Liquid` and `Gas` are not. So the
+player stands on sand and falls through water, and a new material gets correct
+collision the moment its row is added.
+
+Two rules do the rest:
+
+- **Step-up.** A blocked horizontal move retries with the body lifted up to 2
+  cells. That is the whole of "walking over uneven powder" — a settled sand
+  slope is a staircase of one-cell steps, and without this the player would have
+  to jump over every grain. Grounded only, so you cannot climb a shaft by
+  nudging into the wall mid-air.
+- **Unstuck.** The grid does not know the player exists and will drop sand into
+  the cells the body occupies, so "body overlaps terrain" is a state that occurs
+  in normal play, not just through a bug — and every direction being blocked
+  would freeze the player permanently. When it happens, the body searches
+  outward for the nearest position it fits in and takes it, preferring straight
+  up. Buried deeper than the search radius, it grinds upward a cell per step
+  until it reaches open air.

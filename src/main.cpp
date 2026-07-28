@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <string>
 #include "physics/grid.h"
+#include "physics/player.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -60,6 +61,11 @@ int main(int argc, char* argv[]) {
 
     Grid grid(GRID_WIDTH, GRID_HEIGHT); // starts fully Empty
 
+    // Spawned in mid-air over an empty world. There is no terrain to land on
+    // yet, but the world border reads as solid, so the player falls to the
+    // bottom edge rather than out of existence.
+    Player player(GRID_WIDTH / 2, GRID_HEIGHT / 4);
+
     bool running = true;
     SDL_Event e;
 
@@ -116,6 +122,15 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // Movement is read from the live key state rather than from key events,
+        // so holding a key keeps moving instead of firing once and repeating on
+        // the OS key-repeat delay.
+        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+        PlayerInput input;
+        input.left  = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT];
+        input.right = keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT];
+        input.jump  = keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP];
+
         const uint64_t now_counter = SDL_GetPerformanceCounter();
         double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
         prev_counter = now_counter;
@@ -124,6 +139,9 @@ int main(int argc, char* argv[]) {
         accumulator += frame_time;
         while (accumulator >= FIXED_DT) {
             grid.update();
+            // After the grid, so the player collides against the world as it
+            // now is rather than as it was a step ago.
+            player.update(grid, input, static_cast<float>(FIXED_DT));
             accumulator -= FIXED_DT;
         }
 
@@ -131,8 +149,21 @@ int main(int argc, char* argv[]) {
         const std::vector<uint32_t>& pixels = grid.get_pixels();
         SDL_UpdateTexture(texture, nullptr, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
 
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
+
+        // The player is not a cell, so it is not in the pixel buffer either -
+        // it is drawn on top of the world as its own rectangle.
+        SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
+        const SDL_Rect body{
+            player.cell_x() * PIXEL_SCALE,
+            player.cell_y() * PIXEL_SCALE,
+            Player::WIDTH * PIXEL_SCALE,
+            Player::HEIGHT * PIXEL_SCALE
+        };
+        SDL_RenderFillRect(renderer, &body);
+
         SDL_RenderPresent(renderer);
 
         // Surface the frame rate so performance regressions are visible while working.

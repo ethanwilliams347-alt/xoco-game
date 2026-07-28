@@ -1,0 +1,160 @@
+#include "player.h"
+#include <algorithm>
+#include <cmath>
+
+Player::Player(int start_x, int start_y) : pos_x(start_x), pos_y(start_y) {}
+
+bool Player::overlaps_solid(const Grid& grid, int px, int py) const {
+    for (int cy = py; cy < py + HEIGHT; ++cy) {
+        for (int cx = px; cx < px + WIDTH; ++cx) {
+            // get_element() reads out-of-bounds as Wall, which is exactly right
+            // here: the same border that seals the sand in also stops the
+            // player walking out of the world.
+            if (is_solid(grid.get_element(cx, cy).type)) return true;
+        }
+    }
+    return false;
+}
+
+void Player::move_x(const Grid& grid, int amount) {
+    const int sign = (amount > 0) ? 1 : -1;
+
+    for (int i = 0; i < std::abs(amount); ++i) {
+        if (!overlaps_solid(grid, pos_x + sign, pos_y)) {
+            pos_x += sign;
+            continue;
+        }
+
+        // Blocked at foot height. Before calling it a wall, try lifting the
+        // whole body by up to MAX_STEP_HEIGHT and re-testing: if the body fits
+        // there, what we hit was a step, not a wall. Testing the *destination*
+        // box rather than just the blocking cell is what makes this safe -- a
+        // position with no overlap anywhere cannot be inside geometry, so there
+        // is nothing to tunnel through.
+        //
+        // Grounded only, so the player cannot climb the side of a shaft by
+        // repeatedly nudging into it mid-air.
+        int climbed = 0;
+        if (on_ground) {
+            for (int up = 1; up <= MAX_STEP_HEIGHT; ++up) {
+                if (!overlaps_solid(grid, pos_x + sign, pos_y - up)) {
+                    climbed = up;
+                    break;
+                }
+            }
+        }
+
+        if (climbed == 0) {
+            // A real wall. Drop the leftover sub-cell motion too, otherwise it
+            // accumulates while held against the wall and fires the instant the
+            // wall is removed.
+            vel_x = 0.0f;
+            rem_x = 0.0f;
+            return;
+        }
+
+        pos_x += sign;
+        pos_y -= climbed;
+    }
+}
+
+void Player::move_y(const Grid& grid, int amount) {
+    const int sign = (amount > 0) ? 1 : -1;
+
+    for (int i = 0; i < std::abs(amount); ++i) {
+        if (overlaps_solid(grid, pos_x, pos_y + sign)) {
+            // Landed on something, or hit a ceiling. Either way the fall (or
+            // the jump) is over.
+            vel_y = 0.0f;
+            rem_y = 0.0f;
+            return;
+        }
+        pos_y += sign;
+    }
+}
+
+// The player is not a grid cell, so the grid does not know it is there and will
+// happily drop sand into the cells the body occupies. That is the cost of the
+// rigid-body split, and it means "body overlaps terrain" is a state that will
+// genuinely occur in normal play -- being buried by a collapse, or spawning
+// into a wall -- rather than only through a bug.
+//
+// Without a way out of it, every move is blocked in every direction and the
+// player is frozen for good. So: look outward for the nearest position the body
+// does fit in and take it, preferring straight up. If nothing is open within
+// the search radius the body is deeply buried, and it grinds upward one cell a
+// step until the search can reach open air.
+bool Player::resolve_overlap(const Grid& grid) {
+    if (!overlaps_solid(grid, pos_x, pos_y)) return false;
+
+    for (int r = 1; r <= MAX_UNSTUCK_RADIUS; ++r) {
+        for (int dy = -r; dy <= r; ++dy) {
+            for (int i = 0; i <= 2 * r; ++i) {
+                // Walk the ring row outward from the centre - 0, -1, 1, -2, 2 -
+                // rather than left to right. Both orders find a spot equally
+                // fast, but scanning from the left edge takes a diagonal escape
+                // whenever a straight-up one of the same distance exists, which
+                // reads on screen as the player being flicked sideways for no
+                // reason.
+                const int dx = (i % 2 == 0) ? (i / 2) : -(i / 2 + 1);
+
+                if (std::max(std::abs(dx), std::abs(dy)) != r) continue; // ring only
+                if (overlaps_solid(grid, pos_x + dx, pos_y + dy)) continue;
+
+                pos_x += dx;
+                pos_y += dy;
+                rem_x = 0.0f;
+                rem_y = 0.0f;
+                vel_y = 0.0f;
+                return true;
+            }
+        }
+    }
+
+    // Buried deeper than the search reaches. Climb, unless doing so would push
+    // the body out through the top of the world.
+    if (pos_y > 0) pos_y -= 1;
+    return true;
+}
+
+void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
+    // Running the normal movement code while inside terrain would just find
+    // every direction blocked, so digging out replaces this step entirely.
+    if (resolve_overlap(grid)) return;
+
+    // No acceleration curve: horizontal speed is a direct function of input.
+    // Barebones on purpose -- acceleration, friction and air control are feel
+    // work, and feel work is worth doing once there is something to feel.
+    vel_x = 0.0f;
+    if (input.left)  vel_x -= MOVE_SPEED;
+    if (input.right) vel_x += MOVE_SPEED;
+
+    if (input.jump && on_ground) vel_y = -JUMP_SPEED;
+
+    // Standing on the floor otherwise lets gravity pile up unbounded, which
+    // makes velocity_y() meaningless and gives a one-frame lurch when the floor
+    // is removed.
+    if (on_ground && vel_y > 0.0f) vel_y = 0.0f;
+
+    vel_y += GRAVITY * dt;
+    if (vel_y > MAX_FALL_SPEED) vel_y = MAX_FALL_SPEED;
+
+    // Axes are resolved separately, horizontal first, so that sliding along a
+    // surface works: being blocked vertically must not also cancel the
+    // horizontal move. The cast truncates toward zero, which is what the
+    // remainder scheme needs in both directions.
+    rem_x += vel_x * dt;
+    const int step_x = static_cast<int>(rem_x);
+    rem_x -= static_cast<float>(step_x);
+    if (step_x != 0) move_x(grid, step_x);
+
+    rem_y += vel_y * dt;
+    const int step_y = static_cast<int>(rem_y);
+    rem_y -= static_cast<float>(step_y);
+    if (step_y != 0) move_y(grid, step_y);
+
+    // Asked once, at the end, against the world the body actually ended up in.
+    // Deriving it from "did the downward move get blocked" instead would report
+    // false on any step slow enough not to attempt a whole cell of movement.
+    on_ground = overlaps_solid(grid, pos_x, pos_y + 1);
+}
