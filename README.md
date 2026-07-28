@@ -1,4 +1,4 @@
-# Xoco (working title)
+# Toop / Xoco (working title)
 
 A barebones, performant pixel-art destructible physics engine (cellular automata) built from scratch in C++ and SDL2.
 
