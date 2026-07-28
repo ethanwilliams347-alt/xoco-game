@@ -31,9 +31,10 @@ To survive, you must use mysterious ancient science to access different worlds. 
 
 ## Running the Tests
 
-The simulation has no SDL dependency, so it is tested headlessly. There are two
-suites — `grid_test` for the cellular automata and `player_test` for the
-character physics — and CTest runs both:
+The simulation has no SDL dependency, so it is tested headlessly. There are
+three suites, one per module — `grid_test` for the cellular automata,
+`player_test` for the character physics, and `tool_test` for digging — and
+CTest runs all of them:
 
 ```bash
 ctest --test-dir build -C Release --output-on-failure
@@ -59,8 +60,12 @@ to make the simulation faster.
 - **`A` / `D`** or **arrow keys:** Walk left and right.
 - **`Space`** (or **`W`** / **up arrow**): Jump.
 
-**World**
-- **Left-Click & Drag:** Spawn elements onto the screen.
+- **Left-Click:** Dig. Cuts a hole in whatever solid terrain the cursor is
+  aimed at, up to a limited range. The orange dot marks where the shot will
+  actually land.
+
+**World (development tools)**
+- **Right-Click & Drag:** Spawn elements onto the screen.
 - **Mouse Wheel:** Grow / shrink the brush.
 - **`1`**: **Sand** — powder, piles into a slope.
 - **`2`**: **Water** — liquid, spreads to find its level.
@@ -190,3 +195,40 @@ Two rules do the rest:
   outward for the nearest position it fits in and takes it, preferring straight
   up. Buried deeper than the search radius, it grinds upward a cell per step
   until it reaches open air.
+
+### Interaction
+
+Digging lives in [tool.h](src/physics/tool.h), **not** on `Player`. The body and
+the verb are separate concerns, and the split has a concrete payoff: `Player`
+holds only a `const Grid&`, so it cannot break the "all writes go through
+`set_element`" rule even by accident. Tools take a mutable `Grid&` and are the
+only player-side code that does.
+
+A dig is a **ray marched one cell at a time** from the player's centre toward
+the cursor, stopping at the first solid cell, which is then blown out to a small
+radius. One cell per step for the same reason the player's movement sub-steps: a
+ray that samples every Nth cell can pass straight through a thin wall and dig
+the terrain behind it — and that wall is exactly the one the player was
+sheltering behind. What stops the ray is the same `is_solid` the player collides
+against, so terrain and powder block a shot while water and fire do not. One
+definition, used twice.
+
+Range is measured as real distance rather than as a step count, so a diagonal
+dig does not reach 1.4x as far as a straight one. The cooldown is counted in
+fixed steps rather than seconds, so the tool fires at the same rate on every
+machine. A shot that connects with nothing costs no cooldown, which makes the
+limit read as tool speed instead of as a random input lockout.
+
+**Digging destroys matter, deliberately.** The conservation-of-matter test
+covers `Grid::update()` — the simulation itself still never creates or deletes a
+cell, and that invariant is intact. Digging is an *external* write that removes
+matter outright, which is correct for a tool and would be a bug anywhere inside
+the step loop. The two are testing different things; don't reconcile them.
+
+Removal goes through `set_element` like everything else, and that is the entire
+reason digging out the base of a sand pile makes the pile collapse instead of
+leaving it hanging over the hole — each removed cell wakes its 3x3
+neighbourhood. There is a test for exactly that.
+
+The world border cannot be dug through. `set_element` bounds-checks, so the part
+of a hole that falls outside the world is silently dropped.

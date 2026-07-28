@@ -3,6 +3,7 @@
 #include <string>
 #include "physics/grid.h"
 #include "physics/player.h"
+#include "physics/tool.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -65,6 +66,7 @@ int main(int argc, char* argv[]) {
     // yet, but the world border reads as solid, so the player falls to the
     // bottom edge rather than out of existence.
     Player player(GRID_WIDTH / 2, GRID_HEIGHT / 4);
+    DigTool dig_tool;
 
     bool running = true;
     SDL_Event e;
@@ -108,10 +110,13 @@ int main(int argc, char* argv[]) {
         int mouseX, mouseY;
         const uint32_t mouseState = SDL_GetMouseState(&mouseX, &mouseY);
 
-        if (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-            const int gridX = mouseX / PIXEL_SCALE;
-            const int gridY = mouseY / PIXEL_SCALE;
+        const int gridX = mouseX / PIXEL_SCALE;
+        const int gridY = mouseY / PIXEL_SCALE;
 
+        // Right-click, not left. Digging is the game's action and gets the
+        // primary button; the material brush is a development tool and moved
+        // out of its way.
+        if (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
             // Draw a brush circle
             for (int dy = -brush_size; dy <= brush_size; dy++) {
                 for (int dx = -brush_size; dx <= brush_size; dx++) {
@@ -130,6 +135,9 @@ int main(int argc, char* argv[]) {
         input.left  = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT];
         input.right = keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT];
         input.jump  = keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP];
+        input.aim_x = gridX;
+        input.aim_y = gridY;
+        input.dig   = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
 
         const uint64_t now_counter = SDL_GetPerformanceCounter();
         double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
@@ -142,6 +150,11 @@ int main(int argc, char* argv[]) {
             // After the grid, so the player collides against the world as it
             // now is rather than as it was a step ago.
             player.update(grid, input, static_cast<float>(FIXED_DT));
+            // Last, so the dig is aimed from where the body actually ended up
+            // this step. Called every step whether or not the button is held,
+            // because that is what advances the tool's cooldown.
+            dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
+                            input.aim_x, input.aim_y);
             accumulator -= FIXED_DT;
         }
 
@@ -163,6 +176,18 @@ int main(int argc, char* argv[]) {
             Player::HEIGHT * PIXEL_SCALE
         };
         SDL_RenderFillRect(renderer, &body);
+
+        // Where a dig would actually land. Without this the range limit is
+        // invisible and a shot that stopped short reads as the tool being
+        // broken rather than as the target being too far away.
+        int mark_x = 0;
+        int mark_y = 0;
+        dig_tool.aim_point(grid, player.center_x(), player.center_y(), gridX, gridY, mark_x, mark_y);
+        SDL_SetRenderDrawColor(renderer, 255, 106, 0, 255);
+        const SDL_Rect mark{
+            mark_x * PIXEL_SCALE, mark_y * PIXEL_SCALE, PIXEL_SCALE, PIXEL_SCALE
+        };
+        SDL_RenderFillRect(renderer, &mark);
 
         SDL_RenderPresent(renderer);
 

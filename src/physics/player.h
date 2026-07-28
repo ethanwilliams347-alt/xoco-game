@@ -11,6 +11,14 @@ struct PlayerInput {
     bool left = false;
     bool right = false;
     bool jump = false;
+
+    // Where the player is aiming, in absolute grid cells. Grid coordinates
+    // rather than a direction vector because the caller already has the cursor
+    // in world space and converting to an angle here would only throw away
+    // information the tool wants back.
+    int aim_x = 0;
+    int aim_y = 0;
+    bool dig = false;
 };
 
 // A rigid body that lives *outside* the cell grid.
@@ -61,6 +69,12 @@ public:
     // Top-left corner of the body, in cells.
     int cell_x() const { return pos_x; }
     int cell_y() const { return pos_y; }
+
+    // Centre of the body, in cells. Where tools originate from -- firing from
+    // the top-left corner would let the player dig through a wall its own body
+    // is flush against on the other side.
+    int center_x() const { return pos_x + WIDTH / 2; }
+    int center_y() const { return pos_y + HEIGHT / 2; }
 
     bool is_on_ground() const { return on_ground; }
     float velocity_y() const { return vel_y; }

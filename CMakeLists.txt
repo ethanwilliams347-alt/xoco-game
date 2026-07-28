@@ -23,6 +23,7 @@ FetchContent_MakeAvailable(SDL2)
 set(ENGINE_SOURCES
     src/physics/grid.cpp
     src/physics/player.cpp
+    src/physics/tool.cpp
 )
 
 add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
@@ -45,6 +46,10 @@ if(BUILD_TESTING)
     add_executable(player_test tests/test_player.cpp ${ENGINE_SOURCES})
     target_include_directories(player_test PRIVATE src tests)
     add_test(NAME player_test COMMAND player_test)
+
+    add_executable(tool_test tests/test_tool.cpp ${ENGINE_SOURCES})
+    target_include_directories(tool_test PRIVATE src tests)
+    add_test(NAME tool_test COMMAND tool_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
