@@ -1,4 +1,4 @@
-# SLOP / Xoco Game - Roadmap
+#  Game Roadmap
 
 This document tracks the immediate next steps and the long-term vision for the project. For deeper lore and feature brainstorming, see the `notes/` directory.
 
