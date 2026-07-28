@@ -1,6 +1,6 @@
-#  Game Roadmap
+# Game Roadmap
 
-This document tracks the immediate next steps and the long-term vision for the project. For deeper lore and feature brainstorming, see the `notes/` directory.
+This document tracks the immediate next steps and the long-term vision. For deeper lore and feature brainstorming, see the `notes/` directory.
 
 ## 🎯 Project Goals
 - **Core:** A production-level, barebones application.
@@ -8,26 +8,85 @@ This document tracks the immediate next steps and the long-term vision for the p
 - **Performance:** Strict no-bloat philosophy. Must run on low-end PCs (Windows/macOS/Linux).
 - **Architecture:** Keep design choices minimal, but architected to easily allow massive expansion later.
 
+## ⚖️ Scope Discipline (read before adding anything)
+
+This is the hard constraint the rest of the document is written against. It is a promotion of `notes/reality_check.txt` into the plan itself, because that note was correct and was being ignored by the roadmap below it.
+
+**Reference point:** Noita — the closest comparable — was built by a team of three over roughly eight years on a purpose-built engine. That is the cost of the physics pillar *alone*.
+
+**The verdict:**
+- **Achievable solo:** the pixel physics engine + one gameplay pillar + the extraction/agent loop. Ambitious, multi-year at part-time pace, but real. Solo games that ship succeed on *one* strong hook executed well.
+- **Not achievable solo:** the "Ideal Systems" list as written. A simulated stock market, factories, business ownership, farming, a developing society, and reputation mechanics are each a full game's worth of design, balance, and UI. Shipping all of them alongside a physics roguelite is not a scope problem, it is an arithmetic problem.
+
+**The rule going forward:** nothing from Long Term gets started until the v0.1 slice below is complete *and* playtested as fun. Ideas do not get implemented on arrival — they get **written down** in Long Term or `notes/brainstorm.txt` and wait there. Capturing an idea is free and worth doing generously; the discipline is only about what gets *built*, never about what gets *imagined*.
+
+**Guard against the real failure mode.** The risk here is not running out of ideas, it is spending three years on an engine that never becomes a game. The physics sandbox is the seductive part — it is fun to build and gives constant visible progress. Treat engine work as a means to the slice, and stop extending it the moment the slice does not require more.
+
+### 🚩 Definition of Done — v0.1 Vertical Slice
+The single milestone that matters. Everything before Long Term serves this:
+
+> The player enters **one** quantum world, uses physics-based movement and destruction to complete **one** objective type, extracts successfully or dies losing the run, and their pet ML agent visibly gains from the run and earns coins idly.
+
+If that loop is not fun, no amount of factories or stock markets will save it. If it *is* fun, it is a demo worth showing and a foundation worth expanding.
+
 ## 🟢 Current Status
 - [x] Initial GitHub Repo and CMake build system setup.
 - [x] Barebones C++/SDL2 pixel physics engine prototype built (Sand, Water, Wall interactions).
+- [x] **Data-driven material system.** Materials are rows in a table (`src/physics/material.h`), not branches in the update loop. Four generic behaviours — Static / Powder / Liquid / Gas — drive all movement, with density deciding what sinks through what.
+- [x] **Six materials** proving the above: Sand, Water, Wall, Wood, Oil (floats on water), Steam (rises). Each cost one table row, no engine changes.
+- [x] **Fixed timestep.** Simulation advances at a constant 60 Hz independent of render framerate, so the game behaves identically on a 60 Hz and a 144 Hz display.
+- [x] **Headless test harness.** The simulation has no SDL dependency and is covered by physics tests (`tests/test_grid.cpp`) wired into CTest — conservation of matter, density stratification, static materials, border sealing.
+- [x] **Chunked dirty-rect updates.** The world is split into 64x64 chunks, each tracking the bounds of the cells in it that can still move. Settled chunks are skipped entirely, so cost now scales with how much is *moving* rather than with world size. Every write wakes its 3x3 neighbourhood so nothing is left hanging in mid-air, and the awake-chunk count is on screen so culling bugs are visible rather than silent.
+- [x] **Benchmark.** `tests/bench_grid.cpp` measures a 960x540 world across four scenarios against the 60 Hz budget. Deliberately not a CTest test — timings inform, they do not gate.
+
+## 📊 Measured Performance
+Numbers from `grid_bench` on the dev machine, 960x540 (518,400 cells), against a 16.67 ms frame:
+
+| Scenario | Before chunking | After chunking | % of a 60 Hz frame |
+|---|---|---|---|
+| **settled** — a world at rest | 1.64 ms | **0.0001 ms** | ~0% |
+| **sparse** — static terrain, one small falling blob | 0.27 ms | **0.069 ms** | 0.4% |
+| **churning** — sand sinking through water, then settling | 2.59 ms | **2.83 ms** | 17% |
+| **cascading** — nothing ever settles, sustained worst case | — | **13.6 ms** | **82%** |
+
+**Read this honestly.** Chunking did exactly what it was supposed to and produced a five-order-of-magnitude win on a resting world, which is the state the game is in most of the time. It did **not** make the worst case faster, and by definition it never could — when everything is moving there is nothing to cull. `churning` is marginally *slower* than before, which is the bookkeeping cost of the dirty rects showing up when culling has nothing to skip.
+
+The number that matters is **cascading at 82% of the frame budget**. A world in continuous collapse does not leave room for rendering, entities, and gameplay at 960x540. That is a real ceiling, and it is now a measured fact rather than a guess.
+
+It is also not yet a crisis: the prototype runs at 200x150, real gameplay is far closer to `sparse` than to `cascading`, and the deferred optimisations in Engineering Notes below are untouched. Do not spend time on it now — spend it when a scenario the *game* actually produces goes over budget.
 
 ## 🔴 Short Term (Next Up)
-*The immediate technical steps to make the prototype a "game".*
-- [ ] **Player Character:** Implement a basic controllable player entity.
-- [ ] **Player Physics:** Make the player fall with gravity and collide properly with the solid pixel elements.
-- [ ] **Basic Interaction:** Allow the player to shoot or mine the destructible terrain.
-- [ ] **More Elements:** Add more physics elements (e.g., Fire, Steam, Wood) to test the engine's extensibility.
+*The engine foundations are done. What remains before the prototype becomes a "game" is one more engine axis and then the player.*
+
+- [ ] **Reactions.** Movement is data-driven; transformation is not yet. Add a reaction table (`A + B -> C + D` under conditions such as contact or heat) and use it to implement Fire, burning Wood, Oil igniting, and Water + Fire producing Steam. This is the second and last major engine axis. **Watch the benchmark while building it** — reactions add per-cell work to exactly the active cells that chunking cannot help, so `churning` and `cascading` are the numbers it will move.
+- [ ] **Player Character:** A controllable entity that is *not* a grid cell — a small rigid body sampling the grid for collision.
+- [ ] **Player Physics:** Gravity, walking over uneven powder, and correct collision against solid pixels.
+- [ ] **Basic Interaction:** Let the player dig or shoot the destructible terrain — the moment the sandbox becomes a game.
 
 ## 🟡 Medium Term (Core Gameplay Loop)
-*Tying the physics engine into the lore.*
-- [ ] **Quantum Worlds:** Implement a portal/level generation system where the player enters a new "trial".
-- [ ] **The Pet ML Agent:** Create the UI/system for the pet agent that "observes" the player.
-- [ ] **Proof-of-Work Economy:** Build the core extraction loop (complete a task in the trial -> extract -> agent earns a coin).
+*Tying the physics engine into the lore. This section is the v0.1 slice.*
+- [ ] **Quantum Worlds:** A portal/level generation system where the player enters a single "trial". One world, one generator — variety comes later.
+- [ ] **Objective + Extraction:** One objective type, and a run that ends in either successful extraction or death with loss.
+- [ ] **The Pet ML Agent:** The UI/system for the pet agent that "observes" the player and gains from completed runs.
+- [ ] **Proof-of-Work Economy:** The idle earning loop — agent performs tasks between runs and earns coins.
+- [ ] **Playtest gate:** Put the slice in front of people who did not build it. Do not proceed past this line on the strength of your own opinion.
 
 ## 🟣 Long Term (The "Ideal Systems" Vision)
-*Massive scope expansions to be tackled only after the core loop is incredibly fun and stable.*
+*A deliberate wish list, kept for motivation. **Add to it freely** — that is what it is for.*
+
+*The only rule attached to this section is that nothing in it gets **started** before the v0.1 slice is done and playtested. Most of these will never be built, and that is the expected and healthy outcome, not a failure. A list you enjoy adding to costs nothing; a half-finished feature branch costs everything.*
+
+- [ ] Itemization and grid-based inventory.
 - [ ] Base building and criminal/black market activities.
 - [ ] Complex simulated stock/crypto market.
 - [ ] Factories, Mining, and Business Ownership.
 - [ ] Passive developing society and reputation mechanics.
+
+## 🧭 Engineering Notes
+Deferred deliberately, recorded so they are not rediscovered later:
+- **Cell size.** `Element` is 8 bytes (type + colour + tag). Colour could be derived from the material table plus a small per-cell jitter seed, cutting the cell to ~2 bytes and roughly quartering the memory traffic of the hot loop. This is now the **first** thing to try if the worst case has to come down, because it targets active cells, which is where the remaining cost is.
+- **RNG cost.** `std::mt19937` is called several times per active cell — including once per row purely to pick a sweep direction. A xorshift would be materially faster in the inner loop, and the per-row direction call could be derived from the frame tag instead. Same category as above: cheap, and aimed at active cells.
+- **Threading.** Deliberately single-threaded. Chunked updates were the prerequisite, so this is now *possible* — but it is also the single largest source of subtle nondeterminism available, and the measured numbers do not justify it yet. Exhaust the two items above first.
+- **Cross-platform.** The build targets Windows/macOS/Linux and uses no platform-specific code, but has only been *built and run on Windows*. Verify on the other two before claiming support.
+- **Frame tag wraparound.** `Element::updated_tag` is one byte, so a cell asleep for an exact multiple of 256 steps is skipped for a single step and runs the next one. This is known, harmless, and cheaper than the alternatives — do not "fix" it with a wider counter without a measured reason.
+- **All writes must go through `set_element` / `swap_elements`.** They are the only two functions that call `mark_dirty`. A new code path that writes cells directly will produce material frozen in mid-air, and the tests that catch it are the chunk tests in `test_grid.cpp`.

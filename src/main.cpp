@@ -1,5 +1,6 @@
 #include <SDL.h>
-#include <iostream>
+#include <cstdio>
+#include <string>
 #include "physics/grid.h"
 
 const int WINDOW_WIDTH = 800;
@@ -8,65 +9,89 @@ const int PIXEL_SCALE = 4; // Each physics pixel is 4x4 screen pixels
 const int GRID_WIDTH = WINDOW_WIDTH / PIXEL_SCALE;
 const int GRID_HEIGHT = WINDOW_HEIGHT / PIXEL_SCALE;
 
+// The simulation advances in fixed steps so that sand falls at the same rate on
+// a 60 Hz and a 144 Hz display. Rendering still runs as fast as the display allows.
+const double FIXED_DT = 1.0 / 60.0;
+const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
+
 int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
+        std::fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
 
     SDL_Window* window = SDL_CreateWindow(
-        "SLOP Pixel Physics", 
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
-        WINDOW_WIDTH, WINDOW_HEIGHT, 
+        "SLOP Pixel Physics",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        WINDOW_WIDTH, WINDOW_HEIGHT,
         SDL_WINDOW_SHOWN
     );
-
     if (!window) {
-        std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+        std::fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_Quit();
         return 1;
     }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!renderer) {
-        std::cerr << "Renderer could not be created! SDL_Error: " << SDL_GetError() << std::endl;
+        std::fprintf(stderr, "Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
         return 1;
     }
 
     // ARGB8888 texture for direct pixel manipulation
     SDL_Texture* texture = SDL_CreateTexture(
-        renderer, 
-        SDL_PIXELFORMAT_ARGB8888, 
-        SDL_TEXTUREACCESS_STREAMING, 
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
         GRID_WIDTH, GRID_HEIGHT
     );
-
-    Grid grid(GRID_WIDTH, GRID_HEIGHT);
-
-    // Initialize all to empty explicitly
-    for (int y = 0; y < GRID_HEIGHT; y++) {
-        for (int x = 0; x < GRID_WIDTH; x++) {
-            grid.set_element(x, y, ElementType::Empty);
-        }
+    if (!texture) {
+        std::fprintf(stderr, "Texture could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
     }
+
+    Grid grid(GRID_WIDTH, GRID_HEIGHT); // starts fully Empty
 
     bool running = true;
     SDL_Event e;
-    
+
     ElementType current_brush = ElementType::Sand;
     int brush_size = 3;
+
+    uint64_t prev_counter = SDL_GetPerformanceCounter();
+    const double counter_freq = static_cast<double>(SDL_GetPerformanceFrequency());
+    double accumulator = 0.0;
+
+    int frames_this_second = 0;
+    double title_timer = 0.0;
 
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 running = false;
             }
-            // Switch elements with keys
+            else if (e.type == SDL_MOUSEWHEEL) {
+                brush_size += e.wheel.y;
+                if (brush_size < 1) brush_size = 1;
+                if (brush_size > 32) brush_size = 32;
+            }
             else if (e.type == SDL_KEYDOWN) {
-                switch(e.key.keysym.sym) {
-                    case SDLK_1: current_brush = ElementType::Sand; break;
+                switch (e.key.keysym.sym) {
+                    case SDLK_1: current_brush = ElementType::Sand;  break;
                     case SDLK_2: current_brush = ElementType::Water; break;
-                    case SDLK_3: current_brush = ElementType::Wall; break;
+                    case SDLK_3: current_brush = ElementType::Wall;  break;
                     case SDLK_4: current_brush = ElementType::Empty; break; // Eraser
+                    case SDLK_5: current_brush = ElementType::Wood;  break;
+                    case SDLK_6: current_brush = ElementType::Oil;   break;
+                    case SDLK_7: current_brush = ElementType::Steam; break;
                     case SDLK_ESCAPE: running = false; break;
                 }
             }
@@ -74,33 +99,54 @@ int main(int argc, char* argv[]) {
 
         // Handle continuous mouse pressing
         int mouseX, mouseY;
-        uint32_t mouseState = SDL_GetMouseState(&mouseX, &mouseY);
-        
+        const uint32_t mouseState = SDL_GetMouseState(&mouseX, &mouseY);
+
         if (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-            int gridX = mouseX / PIXEL_SCALE;
-            int gridY = mouseY / PIXEL_SCALE;
-            
+            const int gridX = mouseX / PIXEL_SCALE;
+            const int gridY = mouseY / PIXEL_SCALE;
+
             // Draw a brush circle
             for (int dy = -brush_size; dy <= brush_size; dy++) {
                 for (int dx = -brush_size; dx <= brush_size; dx++) {
-                    if (dx*dx + dy*dy <= brush_size*brush_size) {
+                    if (dx * dx + dy * dy <= brush_size * brush_size) {
                         grid.set_element(gridX + dx, gridY + dy, current_brush);
                     }
                 }
             }
         }
 
-        // Update physics
-        grid.update();
+        const uint64_t now_counter = SDL_GetPerformanceCounter();
+        double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
+        prev_counter = now_counter;
+        if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
+
+        accumulator += frame_time;
+        while (accumulator >= FIXED_DT) {
+            grid.update();
+            accumulator -= FIXED_DT;
+        }
 
         // Update texture with new pixels
         const std::vector<uint32_t>& pixels = grid.get_pixels();
         SDL_UpdateTexture(texture, nullptr, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
 
-        // Render
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
+
+        // Surface the frame rate so performance regressions are visible while working.
+        frames_this_second++;
+        title_timer += frame_time;
+        if (title_timer >= 1.0) {
+            // Awake chunks are shown because they explain the frame rate: if the
+            // world is idle and the count is not near zero, culling has a bug.
+            const std::string title = "SLOP Pixel Physics  |  " + std::to_string(frames_this_second) + " fps  |  " +
+                                      material_of(current_brush).name + "  (brush " + std::to_string(brush_size) + ")" +
+                                      "  |  " + std::to_string(grid.active_chunk_count()) + " chunks awake";
+            SDL_SetWindowTitle(window, title.c_str());
+            frames_this_second = 0;
+            title_timer = 0.0;
+        }
     }
 
     SDL_DestroyTexture(texture);

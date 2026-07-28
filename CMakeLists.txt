@@ -18,16 +18,31 @@ set(SDL_SHARED OFF CACHE BOOL "Build SDL shared library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build SDL static library" FORCE)
 FetchContent_MakeAvailable(SDL2)
 
-# Source files
-set(SOURCES
-    src/main.cpp
+# The simulation is deliberately free of any SDL dependency so it can be built
+# and tested headlessly. Only the shell (window, input, blitting) touches SDL.
+set(ENGINE_SOURCES
     src/physics/grid.cpp
 )
 
-add_executable(SlopPhysics ${SOURCES})
+add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
 
 # Link SDL2 (SDL2main is required on Windows to abstract WinMain)
 target_link_libraries(SlopPhysics PRIVATE SDL2main SDL2-static)
+
+# Physics tests. No test framework by design - the harness is plain C++ and
+# returns a non-zero exit code on failure, which is all CTest needs.
+option(BUILD_TESTING "Build the physics test harness" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(grid_test tests/test_grid.cpp ${ENGINE_SOURCES})
+    target_include_directories(grid_test PRIVATE src)
+    add_test(NAME grid_test COMMAND grid_test)
+
+    # Benchmark. Deliberately not an add_test() - timings are for reading, and a
+    # slow machine should not fail the build.
+    add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES})
+    target_include_directories(grid_bench PRIVATE src)
+endif()
