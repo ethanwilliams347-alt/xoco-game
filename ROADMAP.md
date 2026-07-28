@@ -61,6 +61,7 @@ The prototype runs at 200x150, real gameplay is far closer to `sparse`/`burning`
 
 - [ ] **Basic Interaction:** Let the player dig or shoot the destructible terrain — the moment the sandbox becomes a game. The plumbing is already there (the player holds a `Grid&`, and `set_element` is public); what needs deciding is aiming, range, and what a "shot" actually is.
 - [ ] **Player displaces material.** Currently the grid does not know the player exists, so sand falls straight through the body and the unstuck search cleans up afterwards. Fixing it properly means the player pushing material out of the way, which is a real design problem — it has to happen without destroying matter. Worth doing before Basic Interaction if digging makes the artifact obvious in practice, and worth leaving alone if it doesn't. See Engineering Notes.
+- [ ] **Structural collapse for Wood and Wall.** Both are `MoveKind::Static` today — permanently immovable no matter what's under them. That's invisible now, but the moment Basic Interaction lets the player dig, a chunk of Wall or Wood left unsupported will just hang in mid-air, which reads as a bug once destruction is real. Not a `MoveKind` flip: a solid chunk collapsing should behave like a falling mass or break into rubble, not disperse into loose sliding grains the way Powder does, so this needs its own design pass, not reuse of the powder behaviour.
 
 ## 🟡 Medium Term (Core Gameplay Loop)
 *Tying the physics engine into the lore. This section is the v0.1 slice.*
