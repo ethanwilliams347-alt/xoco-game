@@ -30,6 +30,37 @@ static double mean_row(Grid& g, ElementType t) {
     return n ? sum / n : -1.0;
 }
 
+// A small Wall-sealed box holding exactly two touching cells, `a` at (1,1) and
+// `b` at (2,1). Fire is a Gas and rises away from whatever it is next to
+// within a frame or two, so an open-field "place them touching" test measures
+// how long two things happen to stay adjacent, not the reaction's real odds.
+// Walling them in removes every legal move, pinning them in contact so the
+// reaction gets its full, repeated chance to fire.
+static Grid make_sealed_pair(ElementType a, ElementType b) {
+    Grid g(4, 3);
+    for (int y = 0; y < 3; ++y)
+        for (int x = 0; x < 4; ++x)
+            g.set_element(x, y, ElementType::Wall);
+    g.set_element(1, 1, a);
+    g.set_element(2, 1, b);
+    return g;
+}
+
+// Ignition is a race, not a certainty: a lone ember has some chance of
+// self-extinguishing (Fire's 6% spontaneous decay) before it manages to
+// ignite whatever it is touching, so a single sealed pair is not reliable
+// enough on its own - it can genuinely, correctly fail. Run many independent
+// pairs instead and require a safe fraction to ignite.
+static int count_ignitions(ElementType target, int steps, int trials) {
+    int ignited = 0;
+    for (int i = 0; i < trials; ++i) {
+        Grid g = make_sealed_pair(target, ElementType::Fire);
+        step(g, steps);
+        if (g.get_element(1, 1).type != target) ignited++;
+    }
+    return ignited;
+}
+
 // A settled powder should never have a gap directly beneath it. This is the
 // invariant that chunked updates break if a write fails to wake its neighbours.
 static bool no_floating_powder(Grid& g) {
@@ -186,6 +217,79 @@ int main() {
         check("water spreads past a chunk border", crossed);
         check("water is conserved across a chunk border", count_of(g, ElementType::Water) == 30,
               "count=" + std::to_string(count_of(g, ElementType::Water)));
+    }
+
+    // --- reactions: fire ignites adjacent wood ---
+    // Wood's 12%/step ignition chance races against Fire's 6%/step self-decay
+    // (roughly a 2:1 in wood's favour), so ~30 independent trials at a >=40%
+    // bar is the honest way to assert this rather than expecting near-certain
+    // single-trial success, which the odds do not actually support.
+    {
+        const int trials = 30;
+        const int ignited = count_ignitions(ElementType::Wood, 60, trials);
+        check("fire ignites adjacent wood", ignited >= 12,
+              "ignited=" + std::to_string(ignited) + "/" + std::to_string(trials));
+    }
+
+    // --- reactions: fire ignites adjacent oil ---
+    // Oil's 40%/step chance dominates the same 6% race far more comfortably
+    // (~87% per trial), so the pass bar can sit much closer to the mean.
+    {
+        const int trials = 30;
+        const int ignited = count_ignitions(ElementType::Oil, 40, trials);
+        check("fire ignites adjacent oil", ignited >= 18,
+              "ignited=" + std::to_string(ignited) + "/" + std::to_string(trials));
+    }
+
+    // --- reactions: water extinguishes fire into steam ---
+    {
+        Grid g = make_sealed_pair(ElementType::Fire, ElementType::Water);
+        step(g, 30);
+        check("water extinguishes fire into steam", g.get_element(1, 1).type == ElementType::Steam,
+              "type=" + std::string(material_of(g.get_element(1, 1).type).name));
+    }
+
+    // --- reactions: fire burns out on its own with no catalyst nearby ---
+    {
+        Grid g(20, 20);
+        g.set_element(10, 10, ElementType::Fire);
+        step(g, 150);
+        check("fire burns out with no catalyst nearby", g.get_element(10, 10).type == ElementType::Empty,
+              "type=" + std::string(material_of(g.get_element(10, 10).type).name));
+    }
+
+    // --- reactions: a trapped fire still ticks instead of freezing ---
+    // Regression test for the chunked-updates interaction: a spontaneous
+    // reaction (fire's self-decay) has no movement to piggyback a wake on, so
+    // try_react must self-mark every frame or a fire with nowhere to move
+    // freezes the instant its chunk goes back to sleep. Sealed in Wall (not
+    // Wood) to isolate pure self-decay from ignition, and run as 30 independent
+    // trials rather than one: a single trial would still get one free, fully
+    // -woken frame from its own placement, which is not a reliable regression
+    // signal on its own.
+    {
+        const int COLS = 6, ROWS = 5;
+        Grid g(COLS * 3 + 2, ROWS * 3 + 2);
+        for (int j = 0; j < ROWS; ++j) {
+            for (int i = 0; i < COLS; ++i) {
+                const int cx = i * 3 + 1;
+                const int cy = j * 3 + 1;
+                for (int dy = -1; dy <= 1; ++dy)
+                    for (int dx = -1; dx <= 1; ++dx)
+                        if (dx != 0 || dy != 0) g.set_element(cx + dx, cy + dy, ElementType::Wall);
+                g.set_element(cx, cy, ElementType::Fire);
+            }
+        }
+
+        step(g, 200);
+
+        int decayed = 0;
+        for (int j = 0; j < ROWS; ++j)
+            for (int i = 0; i < COLS; ++i)
+                if (g.get_element(i * 3 + 1, j * 3 + 1).type == ElementType::Empty) decayed++;
+
+        check("a trapped fire still burns out instead of freezing", decayed >= 25,
+              "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
     }
 
     std::printf("\n%s (%d failure%s)\n", failures ? "FAILURES" : "ALL PASS", failures, failures == 1 ? "" : "s");

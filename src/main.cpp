@@ -92,6 +92,7 @@ int main(int argc, char* argv[]) {
                     case SDLK_5: current_brush = ElementType::Wood;  break;
                     case SDLK_6: current_brush = ElementType::Oil;   break;
                     case SDLK_7: current_brush = ElementType::Steam; break;
+                    case SDLK_8: current_brush = ElementType::Fire;  break;
                     case SDLK_ESCAPE: running = false; break;
                 }
             }

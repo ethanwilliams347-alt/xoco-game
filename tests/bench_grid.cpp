@@ -68,6 +68,23 @@ void cascade(Grid& g) {
     }
 }
 
+// A large Wood slab, permanently on fire. Reactions add per-cell work to
+// exactly the cells that chunking cannot help - the active ones - so this is
+// the scenario that has to be measured, not assumed, per the roadmap note on
+// this item. A drip of fresh Fire along the top edge every step keeps
+// ignition, spread, and decay all happening at once for the whole run, so the
+// slab never fully burns down to Empty inside the measurement window.
+void build_burning(Grid& g) {
+    for (int y = BENCH_HEIGHT / 2; y < BENCH_HEIGHT; ++y)
+        for (int x = 0; x < BENCH_WIDTH; ++x)
+            g.set_element(x, y, ElementType::Wood);
+}
+
+void feed_fire(Grid& g) {
+    for (int x = 0; x < BENCH_WIDTH; x += 4)
+        g.set_element(x, BENCH_HEIGHT / 2, ElementType::Fire);
+}
+
 void run(const char* name, void (*build)(Grid&), int settle_steps, void (*on_step)(Grid&) = nullptr) {
     Grid g(BENCH_WIDTH, BENCH_HEIGHT);
     build(g);
@@ -111,6 +128,7 @@ int main() {
     run("sparse", build_sparse, 0);
     run("churning", build_churning, 0);
     run("cascading", build_settled, 120, cascade);
+    run("burning", build_burning, 60, feed_fire);
 
     std::printf("\n");
     return 0;

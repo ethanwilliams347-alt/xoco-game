@@ -47,7 +47,7 @@ build. The benchmark is a separate executable, run it by hand:
 ```
 
 It simulates a 960x540 grid (1920x1080 at a 2px scale, the resolution the project
-is aiming at) across four scenarios and reports milliseconds per step against the
+is aiming at) across five scenarios and reports milliseconds per step against the
 16.67 ms budget of a 60 Hz frame. Run it before and after any change that claims
 to make the simulation faster.
 
@@ -58,9 +58,10 @@ to make the simulation faster.
 - **`2`**: **Water** — liquid, spreads to find its level.
 - **`3`**: **Wall** — solid, immovable terrain.
 - **`4`**: **Eraser** — deletes pixels.
-- **`5`**: **Wood** — solid, will be flammable once reactions land.
-- **`6`**: **Oil** — liquid, lighter than water so it floats on top.
+- **`5`**: **Wood** — solid, catches fire from a touching flame.
+- **`6`**: **Oil** — liquid, lighter than water so it floats on top; ignites fast.
 - **`7`**: **Steam** — gas, rises and pools against the ceiling.
+- **`8`**: **Fire** — gas, ignites Wood and Oil on contact, extinguished by Water, burns out on its own.
 - **`ESC`**: Quit the game.
 
 The window title shows the current framerate, selected material, and brush size.
@@ -101,3 +102,36 @@ All writes go through `set_element` and `swap_elements`, and both call
 
 The window title shows how many chunks are awake. In an idle world it should sit
 at or near zero.
+
+### Reactions
+
+Movement is data-driven; transformation is the second axis. Each row in the
+`REACTIONS` table in [reaction.h](src/physics/reaction.h) is a rule of the
+shape `catalyst + target -> result`, rolled once per eligible cell per step:
+
+| Catalyst | Target | Chance | Result |
+|----------|--------|--------|--------|
+| Fire     | Wood   | 12%    | Fire   |
+| Fire     | Oil    | 40%    | Fire   |
+| Water    | Fire   | 90%    | Steam  |
+| *(none)* | Fire   | 6%     | Empty  |
+
+A catalyst of `Count` means "no neighbour required" — Fire's own burnout is
+spontaneous, not triggered by contact. Rows are checked in order; the first
+row whose target and catalyst condition both match is the only one considered
+that cell that step, which is what makes dousing (row 3) take priority over
+natural burnout (row 4) without any special-casing — as long as Water is
+adjacent, row 4 is never reached.
+
+**A second wake rule, alongside chunking's.** A cell that stops moving stops
+generating `mark_dirty` calls and its chunk goes back to sleep — that's the
+whole point of chunking. But Fire's burnout doesn't need movement to happen;
+if Fire is boxed in with nowhere to go, it would take its one shot at the 6%
+roll on the frame it was created and then freeze forever, un-woken, never
+given another chance to decay or to ignite what it's touching. So any cell
+that is a *spontaneous* reaction target (right now, only Fire) marks its own
+3x3 neighbourhood dirty every single step it exists, movement or not. This is
+deliberately narrow: Wood and Oil are only ever reaction *targets* of a
+catalyst-based row, never spontaneous, so idle Wood and Oil far from any fire
+stay fully sleep-eligible and chunking's performance for the common case is
+untouched.

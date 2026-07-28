@@ -103,6 +103,17 @@ private:
     bool step_powder(int x, int y, const Material& mat);
     bool step_fluid(int x, int y, const Material& mat, int dy);
 
+    // True if any of the 8 cells surrounding (x, y) is of type t. Reads cells[]
+    // directly rather than going through get_element(), which treats
+    // out-of-bounds as Wall - correct for physics sealing, wrong here since it
+    // would make every world edge silently act as a Wall catalyst.
+    bool has_neighbor(int x, int y, ElementType t) const;
+
+    // Checks (x, y) against the REACTIONS table and converts it via
+    // set_element() on success. Returns true if the cell was converted, in
+    // which case step_cell skips movement for it this frame.
+    bool try_react(int x, int y);
+
     uint32_t jittered_color(const Material& mat);
 
     // Random generator for scattering and colour variation

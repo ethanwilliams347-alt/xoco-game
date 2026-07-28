@@ -1,4 +1,5 @@
 #include "grid.h"
+#include "reaction.h"
 #include <algorithm>
 
 namespace {
@@ -174,6 +175,48 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
     return false;
 }
 
+bool Grid::has_neighbor(int x, int y, ElementType t) const {
+    for (int ny = y - 1; ny <= y + 1; ++ny) {
+        for (int nx = x - 1; nx <= x + 1; ++nx) {
+            if (nx == x && ny == y) continue;
+            if (!is_within_bounds(nx, ny)) continue;
+            if (cells[get_index(nx, ny)].type == t) return true;
+        }
+    }
+    return false;
+}
+
+bool Grid::try_react(int x, int y) {
+    Element& cell = cells[get_index(x, y)];
+
+    // Spontaneous-reaction targets must keep re-checking every frame even if
+    // they never move. Fire's own movement only calls mark_dirty when
+    // step_fluid actually relocates it; if Fire is fully boxed in (e.g.
+    // surrounded by Wood with no Empty cell to rise into), it would generate
+    // zero dirty marks after the frame it was created and freeze forever -
+    // never decaying, never given another chance to ignite the Wood it is
+    // touching. This unconditional self-mark is the fix, and it only applies
+    // to Fire (a spontaneous target), not to Wood/Oil, which stay fully
+    // sleep-eligible when no fire is nearby.
+    for (const Reaction& r : REACTIONS) {
+        if (r.catalyst == ElementType::Count && r.target == cell.type) {
+            mark_dirty(x, y);
+            break;
+        }
+    }
+
+    for (const Reaction& r : REACTIONS) {
+        if (r.target != cell.type) continue;
+        if (r.catalyst != ElementType::Count && !has_neighbor(x, y, r.catalyst)) continue;
+        if (static_cast<int>(rng() % 100) < static_cast<int>(r.chance_pct)) {
+            set_element(x, y, r.result);
+            return true;
+        }
+        return false; // first eligible row commits the cell for this frame, win or lose
+    }
+    return false;
+}
+
 void Grid::step_cell(int x, int y) {
     Element& current = cells[get_index(x, y)];
     if (current.type == ElementType::Empty || current.updated_tag == frame_tag) return;
@@ -181,6 +224,8 @@ void Grid::step_cell(int x, int y) {
     // Claim the cell for this step whether or not it ends up moving, so it is
     // never visited twice in one sweep.
     current.updated_tag = frame_tag;
+
+    if (try_react(x, y)) return; // converted; let the new material move starting next frame
 
     const Material& mat = material_of(current.type);
     switch (mat.move) {

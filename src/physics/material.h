@@ -10,6 +10,7 @@ enum class ElementType : uint8_t {
     Wood,
     Oil,
     Steam,
+    Fire,
     Count
 };
 
@@ -42,6 +43,9 @@ inline constexpr Material MATERIALS[] = {
     {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0 },
     {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3 },
     {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3 },
+    // Denser (less negative) than Steam so flame stays under a steam layer
+    // instead of punching through it - visually reads as fire boiling water.
+    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4 },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),

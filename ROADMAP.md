@@ -37,28 +37,27 @@ If that loop is not fun, no amount of factories or stock markets will save it. I
 - [x] **Fixed timestep.** Simulation advances at a constant 60 Hz independent of render framerate, so the game behaves identically on a 60 Hz and a 144 Hz display.
 - [x] **Headless test harness.** The simulation has no SDL dependency and is covered by physics tests (`tests/test_grid.cpp`) wired into CTest — conservation of matter, density stratification, static materials, border sealing.
 - [x] **Chunked dirty-rect updates.** The world is split into 64x64 chunks, each tracking the bounds of the cells in it that can still move. Settled chunks are skipped entirely, so cost now scales with how much is *moving* rather than with world size. Every write wakes its 3x3 neighbourhood so nothing is left hanging in mid-air, and the awake-chunk count is on screen so culling bugs are visible rather than silent.
-- [x] **Benchmark.** `tests/bench_grid.cpp` measures a 960x540 world across four scenarios against the 60 Hz budget. Deliberately not a CTest test — timings inform, they do not gate.
+- [x] **Benchmark.** `tests/bench_grid.cpp` measures a 960x540 world across scenarios against the 60 Hz budget. Deliberately not a CTest test — timings inform, they do not gate.
+- [x] **Reactions.** A data-driven `REACTIONS` table (`src/physics/reaction.h`, catalyst + target -> result, rolled per step) drives Fire: it ignites touching Wood and Oil, is doused into Steam by Water, and burns out on its own. Second and last major engine axis — transformation is now as data-driven as movement. The one non-obvious piece: Fire's self-decay is *spontaneous* (no neighbour required), which means it has no movement to piggyback a wake-up on, so a boxed-in Fire cell self-marks its own neighbourhood dirty every step purely to avoid freezing mid-burn. Covered by 5 new tests (25 total), including a dedicated regression test for that freeze case.
 
 ## 📊 Measured Performance
 Numbers from `grid_bench` on the dev machine, 960x540 (518,400 cells), against a 16.67 ms frame:
 
-| Scenario | Before chunking | After chunking | % of a 60 Hz frame |
-|---|---|---|---|
-| **settled** — a world at rest | 1.64 ms | **0.0001 ms** | ~0% |
-| **sparse** — static terrain, one small falling blob | 0.27 ms | **0.069 ms** | 0.4% |
-| **churning** — sand sinking through water, then settling | 2.59 ms | **2.83 ms** | 17% |
-| **cascading** — nothing ever settles, sustained worst case | — | **13.6 ms** | **82%** |
+| Scenario | Before chunking | After chunking | With reactions | % of a 60 Hz frame |
+|---|---|---|---|---|
+| **settled** — a world at rest | 1.64 ms | 0.0001 ms | **0.0001 ms** | ~0% |
+| **sparse** — static terrain, one small falling blob | 0.27 ms | 0.069 ms | **0.056 ms** | 0.3% |
+| **churning** — sand sinking through water, then settling | 2.59 ms | 2.83 ms | **2.41 ms** | 14.5% |
+| **cascading** — nothing ever settles, sustained worst case | — | 13.6 ms | **10.1 ms** | **61%** |
+| **burning** — a Wood slab permanently on fire | — | — | **0.42 ms** | 2.5% |
 
-**Read this honestly.** Chunking did exactly what it was supposed to and produced a five-order-of-magnitude win on a resting world, which is the state the game is in most of the time. It did **not** make the worst case faster, and by definition it never could — when everything is moving there is nothing to cull. `churning` is marginally *slower* than before, which is the bookkeeping cost of the dirty rects showing up when culling has nothing to skip.
+**Read this honestly.** `settled`/`sparse`/`churning`/`cascading` don't touch a reactive material (all Sand/Water/Wall), so the small movement in their numbers versus last session is run-to-run machine noise, not a code change — `try_react`'s target-type check is the first thing it does and exits immediately for every material with no reaction row, which is all of them here. Reactions cost real time only on cells that can actually react, which is exactly what `burning` measures: a Wood slab continuously on fire, ignition/spread/decay all happening at once, still comes in at 2.5% of the frame budget. The new axis did not move the ceiling found last session — `cascading` at ~60% of budget is still the number that matters, and it is still not yet a crisis for the reasons given below.
 
-The number that matters is **cascading at 82% of the frame budget**. A world in continuous collapse does not leave room for rendering, entities, and gameplay at 960x540. That is a real ceiling, and it is now a measured fact rather than a guess.
-
-It is also not yet a crisis: the prototype runs at 200x150, real gameplay is far closer to `sparse` than to `cascading`, and the deferred optimisations in Engineering Notes below are untouched. Do not spend time on it now — spend it when a scenario the *game* actually produces goes over budget.
+The prototype runs at 200x150, real gameplay is far closer to `sparse`/`burning` than to `cascading`, and the deferred optimisations in Engineering Notes below are untouched. Do not spend time on it now — spend it when a scenario the *game* actually produces goes over budget.
 
 ## 🔴 Short Term (Next Up)
-*The engine foundations are done. What remains before the prototype becomes a "game" is one more engine axis and then the player.*
+*Both engine axes — movement and transformation — are done. What remains is the player.*
 
-- [ ] **Reactions.** Movement is data-driven; transformation is not yet. Add a reaction table (`A + B -> C + D` under conditions such as contact or heat) and use it to implement Fire, burning Wood, Oil igniting, and Water + Fire producing Steam. This is the second and last major engine axis. **Watch the benchmark while building it** — reactions add per-cell work to exactly the active cells that chunking cannot help, so `churning` and `cascading` are the numbers it will move.
 - [ ] **Player Character:** A controllable entity that is *not* a grid cell — a small rigid body sampling the grid for collision.
 - [ ] **Player Physics:** Gravity, walking over uneven powder, and correct collision against solid pixels.
 - [ ] **Basic Interaction:** Let the player dig or shoot the destructible terrain — the moment the sandbox becomes a game.
