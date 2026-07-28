@@ -1,0 +1,15 @@
+Project Goals
+
+Core Implementation:
+- Build a production-level, barebones application.
+- Implement a pixel art destructible environment running on its own custom physics engine.
+- Include basic player functionality.
+
+Architecture & Extensibility:
+- Design and architect the application to easily allow for adding more features and complex mechanics later.
+- Keep design choices minimal: only implement what is necessary to achieve the current goals, but ensure the codebase can be significantly expanded upon in the future.
+
+Performance & Compatibility:
+- Must be able to run smoothly on low-end PCs.
+- Ensure cross-platform compatibility (Windows, macOS, Linux).
+- Strict no-bloat philosophy: include absolutely nothing unnecessary.

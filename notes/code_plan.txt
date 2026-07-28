@@ -1,0 +1,9 @@
+Code Plan
+
+First Steps:
+- Build the pixel physics engine for the game.
+- Create the pixel art environment.
+- Implement basic player physics (movement, shoot default gun, etc.).
+
+Next Steps:
+- Slowly implement and build the core game mechanics.

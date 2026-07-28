@@ -1,0 +1,22 @@
+# CMake build directory
+/build/
+/out/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
+
+# Build artifacts and compiled files
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.obj
+*.lib
+*.log
+
+# CMake dependencies
+_deps/

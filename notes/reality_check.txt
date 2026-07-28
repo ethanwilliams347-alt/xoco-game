@@ -1,0 +1,5 @@
+Reality Check
+
+Scope Constraints & Warnings:
+- The "Ideal Systems" list is massive. Implementing a physics-based extraction game alongside farming, mining, factories, business ownership, a simulated stock market, a developing society, and reputation mechanics is extreme scope creep.
+- Recommendation: Build the pixel physics engine and the core extraction + ML training loop first. Keep the codebase extensible, but do not start on farming or simulated markets until the core game is fun and stable.

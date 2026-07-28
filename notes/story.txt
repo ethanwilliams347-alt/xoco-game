@@ -1,0 +1,17 @@
+Story & Lore (Working Title: SLOP)
+
+Setting:
+- A dystopian United States where a clippy-like AI chat bot took over the government.
+- It is now illegal for humans to participate in the economy. All intellectual work must be done by AI agents because humans are deemed inefficient and untrustworthy.
+
+Protagonist:
+- A human, treated as a beast of burden by the ruling AI. 
+- Humans receive government allowance, rations, and healthcare, but it is wildly ineffective, designed to slowly phase out the human population.
+
+Lore & The Economy:
+- The AI economy works like Bitcoin proof-of-work mining: tasks must be completed to be awarded a coin.
+- Humans use "quantum magic" to access different worlds. By completing gameplay objectives in these worlds, they train their AI agents for specific proof-of-work tasks.
+- To survive and make money, humans must:
+  1. Secretly train AI agents to perform on the AI economy.
+  2. Sell illegally produced factory products or farming harvests on the black market or locally.
+  3. Steal from other humans, AI agents, and corporations.
