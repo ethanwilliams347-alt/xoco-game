@@ -18,6 +18,8 @@ Grid::Grid(int width, int height) : width(width), height(height) {
     chunk_next.resize(chunks_x * chunks_y);
     // Both start empty: a world of nothing but Empty has nothing to simulate.
 
+    support_visit.resize(width * height, 0);
+
     std::random_device rd;
     rng.seed(rd());
 }
@@ -76,6 +78,7 @@ uint32_t Grid::jittered_color(const Material& mat) {
 void Grid::set_element(int x, int y, ElementType type) {
     if (!is_within_bounds(x, y)) return;
     const int idx = get_index(x, y);
+    const ElementType old_type = cells[idx].type;
 
     Element el;
     el.type = type;
@@ -85,6 +88,16 @@ void Grid::set_element(int x, int y, ElementType type) {
     cells[idx] = el;
     pixels[idx] = el.color;
     mark_dirty(x, y);
+
+    // Structure was removed here, so anything that was leaning on it has to be
+    // re-examined. Removal only: placing a new structure cell does not trigger
+    // a check, which is what lets the brush draw a floating platform on purpose
+    // without it immediately falling apart.
+    if (!resolving_support && is_collapsible(old_type) && !is_collapsible(type)) {
+        for (int ny = y - 1; ny <= y + 1; ++ny)
+            for (int nx = x - 1; nx <= x + 1; ++nx)
+                queue_support_check(nx, ny);
+    }
 }
 
 void Grid::swap_elements(int x1, int y1, int x2, int y2) {
@@ -104,6 +117,114 @@ void Grid::swap_elements(int x1, int y1, int x2, int y2) {
     // what pulls the cells above it into motion behind it.
     mark_dirty(x1, y1);
     mark_dirty(x2, y2);
+
+    // The other way structure loses its footing: nothing was removed, but the
+    // sand that was holding a slab up just slid out from under it. Only the
+    // cell directly above each end can have been standing on what moved.
+    //
+    // This is the hottest path in the engine and the check is not free -- it
+    // costs about 6% of the worst-case scenario, see the benchmark table in
+    // ROADMAP.md. An early-out that skipped ends still holding something solid
+    // was tried and measured as noise, so it was removed again rather than kept
+    // on the theory that it ought to help.
+    if (!resolving_support) {
+        queue_support_check(x1, y1 - 1);
+        queue_support_check(x2, y2 - 1);
+    }
+}
+
+bool Grid::is_grounded(int x, int y) const {
+    const int below_y = y + 1;
+
+    // The bottom of the world holds everything up. Note that the side borders
+    // deliberately do not: a shelf bolted to the left edge with nothing beneath
+    // it is unsupported, same as anywhere else.
+    if (below_y >= height) return true;
+
+    const ElementType below = cells[get_index(x, below_y)].type;
+
+    // More of the same structure is not support -- whether *it* is held up is
+    // the question the flood fill is already answering.
+    if (is_collapsible(below)) return false;
+
+    return is_solid(below);
+}
+
+void Grid::queue_support_check(int x, int y) {
+    if (!is_within_bounds(x, y)) return;
+    const int idx = get_index(x, y);
+    if (!is_collapsible(cells[idx].type)) return;
+    pending_support.push_back(idx);
+}
+
+void Grid::resolve_support() {
+    if (pending_support.empty()) return;
+
+    resolving_support = true;
+    for (const int seed : pending_support) {
+        // Several queued cells usually belong to one structure. There is no
+        // need to dedupe them: if the first fill collapsed the structure, the
+        // rest are Rubble by now and fail this test, and if it did not, the
+        // repeat fills are the cheap case that finds ground immediately.
+        if (!is_collapsible(cells[seed].type)) continue;
+
+        const int y = seed / width;
+        collapse_if_unsupported(seed - y * width, y);
+    }
+    pending_support.clear();
+    resolving_support = false;
+}
+
+void Grid::collapse_if_unsupported(int x, int y) {
+    if (++support_epoch == 0) { // wrapped, so old marks are no longer distinguishable
+        std::fill(support_visit.begin(), support_visit.end(), uint8_t{0});
+        support_epoch = 1;
+    }
+
+    support_stack.clear();
+    support_component.clear();
+
+    const int seed = get_index(x, y);
+    support_stack.push_back(seed);
+    support_visit[seed] = support_epoch;
+
+    while (!support_stack.empty()) {
+        const int idx = support_stack.back();
+        support_stack.pop_back();
+
+        const int cy = idx / width;
+        const int cx = idx - cy * width;
+
+        // One grounded cell anywhere is enough to hold the whole structure up.
+        if (is_grounded(cx, cy)) return;
+
+        support_component.push_back(idx);
+        if (static_cast<int>(support_component.size()) > MAX_SUPPORT_CELLS) return;
+
+        // Neighbours are pushed in reading order, so the last ones pushed - and
+        // therefore the first ones popped off the stack - are the row below.
+        // The search runs downhill, which is where the ground is.
+        for (int ny = cy - 1; ny <= cy + 1; ++ny) {
+            for (int nx = cx - 1; nx <= cx + 1; ++nx) {
+                if (nx == cx && ny == cy) continue;
+                if (!is_within_bounds(nx, ny)) continue;
+
+                const int nidx = get_index(nx, ny);
+                if (support_visit[nidx] == support_epoch) continue;
+                if (!is_collapsible(cells[nidx].type)) continue;
+
+                support_visit[nidx] = support_epoch;
+                support_stack.push_back(nidx);
+            }
+        }
+    }
+
+    // The whole structure was explored and none of it was standing on anything.
+    for (const int idx : support_component) {
+        const int cy = idx / width;
+        const int cx = idx - cy * width;
+        set_element(cx, cy, material_of(cells[idx].type).debris);
+    }
 }
 
 bool Grid::can_displace(const Material& mover, int tx, int ty, int dy) const {
@@ -237,6 +358,11 @@ void Grid::step_cell(int x, int y) {
 }
 
 void Grid::update() {
+    // Before the sweep and before the chunk swap, so the debris a collapse
+    // produces lands in the bounds that are about to be simulated and starts
+    // falling on this step rather than the next one.
+    resolve_support();
+
     ++frame_tag;
 
     // Take the work that was accumulated during the previous step and start a

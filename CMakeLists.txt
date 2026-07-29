@@ -51,6 +51,10 @@ if(BUILD_TESTING)
     target_include_directories(tool_test PRIVATE src tests)
     add_test(NAME tool_test COMMAND tool_test)
 
+    add_executable(collapse_test tests/test_collapse.cpp ${ENGINE_SOURCES})
+    target_include_directories(collapse_test PRIVATE src tests)
+    add_test(NAME collapse_test COMMAND collapse_test)
+
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
     add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES})

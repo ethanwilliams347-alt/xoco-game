@@ -17,6 +17,15 @@ public:
     // of the world.
     static constexpr int CHUNK_SIZE = 64;
 
+    // Largest connected structure the collapse check will judge. Past this, the
+    // structure is assumed supported and left alone.
+    //
+    // The asymmetry is deliberate. A missed collapse is invisible - a slab that
+    // should have fallen simply doesn't. A wrong collapse turns a level into
+    // rubble. When the answer is too expensive to compute, guess the harmless
+    // way.
+    static constexpr int MAX_SUPPORT_CELLS = 4096;
+
     Grid(int width, int height);
     ~Grid() = default;
 
@@ -113,6 +122,48 @@ private:
     // set_element() on success. Returns true if the cell was converted, in
     // which case step_cell skips movement for it this frame.
     bool try_react(int x, int y);
+
+    // --- structural collapse ---
+    //
+    // Static materials hold their shape, which means they can also hold it
+    // somewhere they have no business holding it: dig the ground out from under
+    // a stone slab and it hangs in mid-air. Sand next to it collapses correctly,
+    // so the inconsistency is visible side by side.
+    //
+    // This is checked on **disturbance only**, never as a global truth. A
+    // sweep of the whole world every step would cost more than the simulation
+    // it is attached to, and a world as authored is assumed to be standing up
+    // on purpose. So a structure nobody has touched is never questioned; the
+    // moment part of one is removed, what was leaning on it gets re-examined.
+
+    // True if (x, y) is held up from directly below - by the floor of the world,
+    // or by something solid that is not part of the same structure. Powders
+    // bear load; liquids and gases do not.
+    bool is_grounded(int x, int y) const;
+
+    // Adds (x, y) to the list to re-examine, if it is a structure cell at all.
+    void queue_support_check(int x, int y);
+
+    // Works through that list. Called once per step, before the sweep.
+    void resolve_support();
+
+    // Flood-fills the structure containing (x, y). If no cell in it is grounded,
+    // the whole thing becomes its debris material.
+    void collapse_if_unsupported(int x, int y);
+
+    std::vector<int> pending_support;
+    std::vector<int> support_stack;     // scratch, reused across fills
+    std::vector<int> support_component; // scratch, reused across fills
+
+    // Per-cell "seen during the current fill" marker. One byte and an epoch
+    // counter rather than a bool array that would need clearing per fill; the
+    // whole thing is cleared once every 255 fills, when the epoch wraps.
+    std::vector<uint8_t> support_visit;
+    uint8_t support_epoch = 0;
+
+    // Collapsing writes cells, and those writes would otherwise queue more
+    // support checks for the collapse that is already in progress.
+    bool resolving_support = false;
 
     uint32_t jittered_color(const Material& mat);
 
