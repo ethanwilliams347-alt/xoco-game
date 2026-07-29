@@ -46,7 +46,18 @@ public:
     // Cells per step for a piece that has been falling for `ticks` steps.
     static int fall_speed(uint8_t ticks);
 
-    Grid(int width, int height);
+    // Used when a caller does not supply a seed. Any fixed value would do - the
+    // point is only that it is fixed, so that every test is reproducible without
+    // having to name a seed it does not care about.
+    static constexpr uint64_t DEFAULT_SEED = 1;
+
+    // The grid takes its seed rather than finding one. Nothing in here reads the
+    // clock or the OS entropy pool, so a given (seed, sequence of writes, number
+    // of steps) always produces the same world - which is what makes a save file,
+    // a shared level and a reproducible bug report possible. Deciding where the
+    // seed comes from is the caller's job, and `main.cpp` is the only place in
+    // the project that is allowed to be nondeterministic about it.
+    Grid(int width, int height, uint64_t seed = DEFAULT_SEED);
     ~Grid() = default;
 
     // Advances the simulation by exactly one fixed step. The caller is
@@ -61,6 +72,12 @@ public:
 
     int get_width() const { return width; }
     int get_height() const { return height; }
+
+    // Readable so it can be written to a save file, shown to a player, or quoted
+    // in a bug report. A seed that cannot be read back is only half of
+    // determinism: reproducing a run needs the number, not just the guarantee
+    // that one exists.
+    uint64_t seed() const { return world_seed; }
 
     // Number of chunks that will be simulated on the next step. Zero means the
     // world has come completely to rest. Exposed for tests and for the on-screen
@@ -237,6 +254,14 @@ private:
 
     uint32_t jittered_color(const Material& mat);
 
-    // Random generator for scattering and colour variation
+    uint64_t world_seed;
+
+    // Random generator for scattering and colour variation.
+    //
+    // Scheduled for removal (Foundations F1.6): a stateless hash of position and
+    // step number gives the same numbers without 2.5 KB of state that a save file
+    // would otherwise have to carry, and is faster in the inner loop besides. The
+    // seed is already owned above, so that change is confined to the five call
+    // sites and does not reach the constructor again.
     std::mt19937 rng;
 };

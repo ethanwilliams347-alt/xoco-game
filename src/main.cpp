@@ -1,5 +1,6 @@
 #include <SDL.h>
 #include <cstdio>
+#include <random>
 #include <string>
 #include "physics/grid.h"
 #include "physics/player.h"
@@ -60,7 +61,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    Grid grid(GRID_WIDTH, GRID_HEIGHT); // starts fully Empty
+    // This is the only nondeterministic line in the project, and it is here
+    // rather than inside Grid on purpose: the simulation is a pure function of
+    // its seed, and exactly one place gets to choose that seed. Two draws
+    // because std::random_device yields 32 bits at a time.
+    //
+    // Printed because a seed you cannot read is only half of determinism - this
+    // is the number that turns "it collapsed weirdly" into something that can be
+    // reproduced. It will belong in the title bar or a debug overlay once there
+    // is a UI to put it in; stdout will do until then.
+    std::random_device rd;
+    const uint64_t world_seed = (static_cast<uint64_t>(rd()) << 32) | rd();
+    std::printf("World seed: %llu\n", static_cast<unsigned long long>(world_seed));
+
+    Grid grid(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty
 
     // Spawned in mid-air over an empty world. There is no terrain to land on
     // yet, but the world border reads as solid, so the player falls to the

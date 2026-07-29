@@ -23,6 +23,43 @@ static double mean_row(Grid& g, ElementType t) {
     return n ? sum / n : -1.0;
 }
 
+// A scene that touches every part of the engine that consumes randomness:
+// colour jitter at placement, the per-row sweep direction, the powder and fluid
+// direction picks, and the reaction roll. A determinism test built on a quieter
+// scene would pass while most of the randomness in the engine sat unexercised.
+static void build_mixed(Grid& g) {
+    for (int y = 40; y < 44; ++y)
+        for (int x = 0; x < g.get_width(); ++x) g.set_element(x, y, ElementType::Water);
+    for (int y = 5; y < 15; ++y)
+        for (int x = 10; x < 40; ++x) g.set_element(x, y, ElementType::Sand);
+    for (int y = 20; y < 30; ++y)
+        for (int x = 50; x < 70; ++x) g.set_element(x, y, ElementType::Wood);
+    g.set_element(55, 19, ElementType::Fire);
+
+    // Structure placed with the brush is assumed to be standing on purpose, so
+    // the slab has to be knocked loose before it will fall. Put a cell under it
+    // and take it straight back out. This pulls the falling-structure state -
+    // support marks and fall_ticks - into the comparison as well.
+    g.set_element(50, 30, ElementType::Wall);
+    g.set_element(50, 30, ElementType::Empty);
+}
+
+// Compared field by field rather than with memcmp: Element carries padding, and
+// a difference in padding bytes is not a difference in the world.
+static bool worlds_match(const Grid& a, const Grid& b) {
+    if (a.get_pixels() != b.get_pixels()) return false;
+    for (int y = 0; y < a.get_height(); ++y) {
+        for (int x = 0; x < a.get_width(); ++x) {
+            const Element ea = a.get_element(x, y);
+            const Element eb = b.get_element(x, y);
+            if (ea.type != eb.type || ea.color != eb.color ||
+                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks)
+                return false;
+        }
+    }
+    return true;
+}
+
 // A small Wall-sealed box holding exactly two touching cells, `a` at (1,1) and
 // `b` at (2,1). Fire is a Gas and rises away from whatever it is next to
 // within a frame or two, so an open-field "place them touching" test measures
@@ -283,6 +320,28 @@ int main() {
 
         check("a trapped fire still burns out instead of freezing", decayed >= 25,
               "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
+    }
+
+    // --- determinism: the same seed produces the same world ---
+    // Three checks, and the middle one is what makes the first mean anything.
+    // Two worlds also match when nothing random ever happened, so an equality
+    // test on its own would pass against an engine with its randomness wired to
+    // a constant, or against an empty grid. Requiring that a *different* seed
+    // diverges is what pins down that the seed is actually reaching the work.
+    {
+        Grid a(80, 60, 4242); build_mixed(a); step(a, 200);
+        Grid b(80, 60, 4242); build_mixed(b); step(b, 200);
+        check("the same seed produces the same world", worlds_match(a, b));
+
+        Grid c(80, 60, 4243); build_mixed(c); step(c, 200);
+        check("a different seed produces a different world", !worlds_match(a, c));
+
+        // The high half of the seed must survive. std::mt19937 seeds from 32
+        // bits, so a seed handed straight to it would drop everything above bit
+        // 31 and these two worlds would come out identical.
+        Grid d(80, 60, 1ull); build_mixed(d); step(d, 200);
+        Grid e(80, 60, 1ull | (1ull << 40)); build_mixed(e); step(e, 200);
+        check("the whole 64-bit seed is used", !worlds_match(d, e));
     }
 
     return report();
