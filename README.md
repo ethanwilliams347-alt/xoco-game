@@ -75,7 +75,6 @@ to make the simulation faster.
 - **`6`**: **Oil** — liquid, lighter than water so it floats on top; ignites fast.
 - **`7`**: **Steam** — gas, rises and pools against the ceiling.
 - **`8`**: **Fire** — gas, ignites Wood and Oil on contact, extinguished by Water, burns out on its own.
-- **`9`**: **Rubble** — what Wall and Wood break into when they collapse. A powder, heavier than sand.
 - **`ESC`**: Quit the game.
 
 The window title shows the current framerate, selected material, and brush size.
@@ -92,8 +91,8 @@ generic behaviours it follows:
 
 | Behaviour | Movement |
 |-----------|----------|
-| `Static`  | never moves (Wall, Wood) |
-| `Powder`  | falls, then slides diagonally into a pile (Sand, Rubble) |
+| `Static`  | holds its shape; falls as a rigid piece if unsupported (Wall, Wood) |
+| `Powder`  | falls, then slides diagonally into a pile (Sand) |
 | `Liquid`  | falls, then spreads sideways to find its level (Water, Oil) |
 | `Gas`     | rises, then spreads (Steam) |
 
@@ -234,45 +233,63 @@ neighbourhood. There is a test for exactly that.
 The world border cannot be dug through. `set_element` bounds-checks, so the part
 of a hole that falls outside the world is silently dropped.
 
-### Structural collapse
+### Structures and falling
 
 `Static` materials hold their shape, which means they will also hold it
 somewhere they have no business holding it — dig the ground out from under a
-stone slab and it stays in mid-air, while the sand beside it collapses
-correctly. The inconsistency is visible side by side, which is what makes it
-read as a bug rather than as a rule.
+stone slab and it stays in mid-air, while the sand beside it falls correctly.
+The inconsistency is visible side by side, which is what makes it read as a bug
+rather than as a rule.
 
-So Wall and Wood can now lose support and break into **Rubble**, a powder
-denser than sand. Which materials collapse and what they break into is a
-`debris` column in the same `MATERIALS` table — `ElementType::Count` means
-"never collapses", which is the right answer for everything that already falls
-on its own. Same discipline as solidity: one table, not two.
+So Wall and Wood can now lose support, and when they do the whole connected
+piece **falls as one rigid body, keeping its shape the entire way down**. It is
+not converted into loose grains: a slab that dissolves into gravel the instant
+it comes free just reads as a different bug. The shape is what makes it look
+like masonry.
+
+The piece **stays in the cell grid while it falls**. It is a rigid body in how
+it *moves*, not in where it *lives* — so rendering, player collision, digging,
+fire and every other system keep working on it with no special case anywhere.
+Which materials count as structure is a `structural` flag in the same
+`MATERIALS` table. Same discipline as solidity: one table, not two.
 
 **Support is a flood fill.** From a disturbed structure cell, walk the connected
-structure looking for one cell that is *grounded* — meaning the bottom of the
-world, or something solid directly beneath it that is not part of the same
-structure. One grounded cell holds the whole thing up. If the fill explores the
-entire structure without finding one, all of it becomes debris at once, so a
-slab comes down as a slab rather than dissolving grain by grain from the edges.
-Powders bear load and liquids do not, so a slab resting on packed sand stands
-and the same slab resting on water does not.
+piece looking for one cell that is *grounded* — meaning the bottom of the world,
+or something solid directly beneath it that is not part of the same piece. One
+grounded cell holds the whole thing up. Powders bear load and liquids do not, so
+a slab resting on packed sand stands, and the same slab over water sinks through
+it.
+
+**Falling is a per-column, bottom-up shift of one cell per step.** Processing
+each column from its lowest cell upward means a cell only ever moves into space
+its lower neighbour has already left, and it handles a column containing two
+separate parts of the same piece — an arch — without having to find those parts
+explicitly. An L-shaped piece keeps its corner, which is the test that proves
+the piece moves as one rather than as independent columns.
+
+The move is always legal when the piece is unsupported, and that falls out of
+the definitions rather than needing a check: "unsupported" means nothing solid
+is under any part of it, so every cell is moving into empty space, into a fluid,
+or into space the piece itself just vacated. Because the move is a swap and
+structural materials are denser than every fluid, the water displaced from
+underneath surfaces on top of the slab instead of being deleted.
 
 Two decisions are worth knowing about, because both are visible in play:
 
 - **Support is checked on disturbance only, never as a global truth.** Sweeping
   the world every step would cost more than the simulation it is attached to,
-  and a world as authored is assumed to be standing up on purpose. A structure
+  and a world as authored is assumed to be standing up on purpose. A piece
   nobody has touched is never questioned — so a floating platform drawn with the
   brush stays exactly where it was put, and only starts falling once something
   removes part of it or slides out from under it. Placing structure never
   triggers a check; only removing it does.
-- **Structures over 4,096 cells are assumed supported rather than judged.** The
-  asymmetry is deliberate. A missed collapse is invisible — a slab that should
-  have fallen simply doesn't. A wrong collapse turns a level into rubble. When
-  the answer is too expensive to compute, guess the harmless way.
+- **Pieces over 4,096 cells are assumed supported rather than judged.** The
+  asymmetry is deliberate. A missed fall is invisible — a slab that should have
+  come down simply doesn't. A wrong fall drops the level. When the answer is too
+  expensive to compute, guess the harmless way.
 
 This is the first feature in the engine with a **measurable performance cost**.
 `swap_elements` now asks whether the cell above each end of a move is structure,
-and `swap_elements` is the hottest path there is — it costs about 6% of the
-worst-case benchmark scenario. That is documented in ROADMAP.md rather than
-hidden, and it is being paid on purpose.
+and `swap_elements` is the hottest path there is — about 5% of the worst-case
+benchmark scenario, measured against the same binary with the check compiled
+out. ROADMAP.md has the numbers and the method; it is being paid on purpose.

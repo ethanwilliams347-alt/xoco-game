@@ -93,7 +93,7 @@ void Grid::set_element(int x, int y, ElementType type) {
     // re-examined. Removal only: placing a new structure cell does not trigger
     // a check, which is what lets the brush draw a floating platform on purpose
     // without it immediately falling apart.
-    if (!resolving_support && is_collapsible(old_type) && !is_collapsible(type)) {
+    if (!resolving_support && is_structural(old_type) && !is_structural(type)) {
         for (int ny = y - 1; ny <= y + 1; ++ny)
             for (int nx = x - 1; nx <= x + 1; ++nx)
                 queue_support_check(nx, ny);
@@ -145,7 +145,7 @@ bool Grid::is_grounded(int x, int y) const {
 
     // More of the same structure is not support -- whether *it* is held up is
     // the question the flood fill is already answering.
-    if (is_collapsible(below)) return false;
+    if (is_structural(below)) return false;
 
     return is_solid(below);
 }
@@ -153,34 +153,36 @@ bool Grid::is_grounded(int x, int y) const {
 void Grid::queue_support_check(int x, int y) {
     if (!is_within_bounds(x, y)) return;
     const int idx = get_index(x, y);
-    if (!is_collapsible(cells[idx].type)) return;
+    if (!is_structural(cells[idx].type)) return;
     pending_support.push_back(idx);
 }
 
 void Grid::resolve_support() {
     if (pending_support.empty()) return;
 
-    resolving_support = true;
-    for (const int seed : pending_support) {
-        // Several queued cells usually belong to one structure. There is no
-        // need to dedupe them: if the first fill collapsed the structure, the
-        // rest are Rubble by now and fail this test, and if it did not, the
-        // repeat fills are the cheap case that finds ground immediately.
-        if (!is_collapsible(cells[seed].type)) continue;
+    // Taken by value: a piece that falls re-queues itself into pending_support
+    // for the next step, and that must not extend the loop running now, or one
+    // piece would fall the whole way down inside a single step.
+    std::vector<int> seeds;
+    seeds.swap(pending_support);
 
-        const int y = seed / width;
-        collapse_if_unsupported(seed - y * width, y);
-    }
-    pending_support.clear();
-    resolving_support = false;
-}
-
-void Grid::collapse_if_unsupported(int x, int y) {
-    if (++support_epoch == 0) { // wrapped, so old marks are no longer distinguishable
+    if (++support_epoch == 0) { // wrapped, so old marks can no longer be told apart
         std::fill(support_visit.begin(), support_visit.end(), uint8_t{0});
         support_epoch = 1;
     }
 
+    resolving_support = true;
+    for (const int seed : seeds) {
+        if (!is_structural(cells[seed].type)) continue;
+        if (support_visit[seed] == support_epoch) continue; // its piece already moved this step
+
+        const int y = seed / width;
+        fall_if_unsupported(seed - y * width, y);
+    }
+    resolving_support = false;
+}
+
+void Grid::fall_if_unsupported(int x, int y) {
     support_stack.clear();
     support_component.clear();
 
@@ -211,7 +213,7 @@ void Grid::collapse_if_unsupported(int x, int y) {
 
                 const int nidx = get_index(nx, ny);
                 if (support_visit[nidx] == support_epoch) continue;
-                if (!is_collapsible(cells[nidx].type)) continue;
+                if (!is_structural(cells[nidx].type)) continue;
 
                 support_visit[nidx] = support_epoch;
                 support_stack.push_back(nidx);
@@ -219,11 +221,40 @@ void Grid::collapse_if_unsupported(int x, int y) {
         }
     }
 
-    // The whole structure was explored and none of it was standing on anything.
+    // The whole piece was explored and none of it was standing on anything.
+    drop_component();
+}
+
+void Grid::drop_component() {
+    // Bottom-up within each column, so a cell is only ever moved into space its
+    // lower neighbour has already left. Doing this per column also handles a
+    // column that contains two separate parts of the same piece -- an arch, say
+    // -- without needing to find the runs explicitly.
+    std::sort(support_component.begin(), support_component.end(),
+              [w = width](int a, int b) {
+                  const int ax = a % w, ay = a / w;
+                  const int bx = b % w, by = b / w;
+                  return ax != bx ? ax < bx : ay > by;
+              });
+
     for (const int idx : support_component) {
         const int cy = idx / width;
         const int cx = idx - cy * width;
-        set_element(cx, cy, material_of(cells[idx].type).debris);
+
+        // Always legal. "Unsupported" means no cell of the piece has anything
+        // solid under it, so every cell about to move is moving into Empty, into
+        // a fluid, or into space another cell of the piece just left. Structural
+        // materials are denser than every fluid, so the swap sends whatever was
+        // below up to the top of the piece rather than deleting it -- which is
+        // also why a slab sinks through water instead of resting on it.
+        swap_elements(cx, cy, cx, cy + 1);
+
+        // Mark and re-queue the cell's new home, so the piece is recognised as
+        // already-moved for the rest of this step and gets another look on the
+        // next one. This is the only thing that makes it keep falling.
+        const int moved = get_index(cx, cy + 1);
+        support_visit[moved] = support_epoch;
+        pending_support.push_back(moved);
     }
 }
 
@@ -358,9 +389,10 @@ void Grid::step_cell(int x, int y) {
 }
 
 void Grid::update() {
-    // Before the sweep and before the chunk swap, so the debris a collapse
-    // produces lands in the bounds that are about to be simulated and starts
-    // falling on this step rather than the next one.
+    // Before the sweep and before the chunk swap, so the cells a falling piece
+    // vacates land in the bounds that are about to be simulated -- whatever was
+    // displaced out from under it starts flowing on this step rather than the
+    // next one.
     resolve_support();
 
     ++frame_tag;

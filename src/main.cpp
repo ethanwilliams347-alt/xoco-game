@@ -101,7 +101,6 @@ int main(int argc, char* argv[]) {
                     case SDLK_6: current_brush = ElementType::Oil;   break;
                     case SDLK_7: current_brush = ElementType::Steam; break;
                     case SDLK_8: current_brush = ElementType::Fire;  break;
-                    case SDLK_9: current_brush = ElementType::Rubble; break;
                     case SDLK_ESCAPE: running = false; break;
                 }
             }

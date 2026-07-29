@@ -17,7 +17,7 @@ public:
     // of the world.
     static constexpr int CHUNK_SIZE = 64;
 
-    // Largest connected structure the collapse check will judge. Past this, the
+    // Largest connected structure the support check will judge. Past this, the
     // structure is assumed supported and left alone.
     //
     // The asymmetry is deliberate. A missed collapse is invisible - a slab that
@@ -123,14 +123,23 @@ private:
     // which case step_cell skips movement for it this frame.
     bool try_react(int x, int y);
 
-    // --- structural collapse ---
+    // --- structures and falling ---
     //
     // Static materials hold their shape, which means they can also hold it
     // somewhere they have no business holding it: dig the ground out from under
-    // a stone slab and it hangs in mid-air. Sand next to it collapses correctly,
-    // so the inconsistency is visible side by side.
+    // a stone slab and it hangs in mid-air. Sand next to it falls correctly, so
+    // the inconsistency is visible side by side.
     //
-    // This is checked on **disturbance only**, never as a global truth. A
+    // An unsupported structure falls **as one rigid piece**, keeping its shape
+    // the whole way down. It is not converted into loose grains: a stone slab
+    // that dissolves the moment it comes free reads as a bug of a different
+    // kind, and the shape is the thing that makes it look like masonry rather
+    // than gravel. The piece stays in the cell grid while it falls, which is
+    // what keeps rendering, player collision and digging working on it
+    // unchanged - it is a rigid body only in how it moves, not in where it
+    // lives.
+    //
+    // Support is checked on **disturbance only**, never as a global truth. A
     // sweep of the whole world every step would cost more than the simulation
     // it is attached to, and a world as authored is assumed to be standing up
     // on purpose. So a structure nobody has touched is never questioned; the
@@ -148,21 +157,31 @@ private:
     void resolve_support();
 
     // Flood-fills the structure containing (x, y). If no cell in it is grounded,
-    // the whole thing becomes its debris material.
-    void collapse_if_unsupported(int x, int y);
+    // the whole piece moves down exactly one cell, shape intact.
+    void fall_if_unsupported(int x, int y);
+
+    // Translates the piece currently in support_component down by one cell and
+    // re-queues it so it keeps falling on the next step.
+    void drop_component();
 
     std::vector<int> pending_support;
     std::vector<int> support_stack;     // scratch, reused across fills
     std::vector<int> support_component; // scratch, reused across fills
 
-    // Per-cell "seen during the current fill" marker. One byte and an epoch
-    // counter rather than a bool array that would need clearing per fill; the
-    // whole thing is cleared once every 255 fills, when the epoch wraps.
+    // Per-cell "seen this step" marker. One byte and an epoch counter rather
+    // than a bool array that would need clearing every time; the whole thing is
+    // cleared once every 255 steps, when the epoch wraps.
+    //
+    // The epoch advances once per *step*, not once per fill, and that is what
+    // stops one piece being dropped twice in a step when several of its cells
+    // were queued: a flood fill only ever reaches cells of one piece, so a
+    // second seed finding itself already marked is proof it belongs to a piece
+    // that has already been dealt with.
     std::vector<uint8_t> support_visit;
     uint8_t support_epoch = 0;
 
-    // Collapsing writes cells, and those writes would otherwise queue more
-    // support checks for the collapse that is already in progress.
+    // Falling writes cells, and those writes would otherwise queue support
+    // checks for the fall that is already in progress.
     bool resolving_support = false;
 
     uint32_t jittered_color(const Material& mat);

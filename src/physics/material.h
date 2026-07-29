@@ -11,7 +11,6 @@ enum class ElementType : uint8_t {
     Oil,
     Steam,
     Fire,
-    Rubble,
     Count
 };
 
@@ -33,32 +32,28 @@ struct Material {
     int16_t density;      // denser sinks through lighter; Empty is 0, gases negative
     uint8_t spread;       // cells a liquid/gas may travel sideways per step
 
-    // What this material breaks into when it loses structural support.
-    // ElementType::Count means "never collapses" and is the right answer for
-    // everything that already falls on its own.
-    ElementType debris;
+    // Whether this material holds itself and its neighbours up, and therefore
+    // has to fall as one piece when nothing holds *it* up. True for the
+    // structural materials only; everything that already falls on its own is
+    // false.
+    bool structural;
 };
 
 // Indexed by ElementType. Keep rows in the same order as the enum.
 inline constexpr Material MATERIALS[] = {
-    // name      colour       jitter  move              density  spread  debris
-    {  "Empty",  0xFF000000,      0,  MoveKind::Static,       0,      0,  ElementType::Count  },
-    {  "Sand",   0xFFEEDD82,     18,  MoveKind::Powder,     150,      0,  ElementType::Count  },
-    {  "Water",  0xFF4444FF,     10,  MoveKind::Liquid,     100,      5,  ElementType::Count  },
-    // The two structural materials, and the only two that can collapse. Both
-    // break into the same Rubble: a second debris type is one more table row
-    // whenever splintered wood is worth telling apart from broken stone.
-    {  "Wall",   0xFF888888,     12,  MoveKind::Static,   32000,      0,  ElementType::Rubble },
-    {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0,  ElementType::Rubble },
-    {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3,  ElementType::Count  },
-    {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3,  ElementType::Count  },
+    // name      colour       jitter  move              density  spread  structural
+    {  "Empty",  0xFF000000,      0,  MoveKind::Static,       0,      0,  false },
+    {  "Sand",   0xFFEEDD82,     18,  MoveKind::Powder,     150,      0,  false },
+    {  "Water",  0xFF4444FF,     10,  MoveKind::Liquid,     100,      5,  false },
+    // The two structural materials. Density is what lets an unsupported slab
+    // sink through any fluid it lands in rather than perching on top of it.
+    {  "Wall",   0xFF888888,     12,  MoveKind::Static,   32000,      0,  true  },
+    {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0,  true  },
+    {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3,  false },
+    {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3,  false },
     // Denser (less negative) than Steam so flame stays under a steam layer
     // instead of punching through it - visually reads as fire boiling water.
-    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4,  ElementType::Count  },
-    // Denser than Sand so a collapse settles through a sand pile rather than
-    // perching on top of it. Debris is Count: rubble has already fallen apart,
-    // and rubble that could collapse again would be a loop.
-    {  "Rubble", 0xFF7A6E62,     16,  MoveKind::Powder,     160,      0,  ElementType::Count  },
+    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4,  false },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),
@@ -77,11 +72,11 @@ inline constexpr const Material& material_of(ElementType type) {
 // which pile up and can be stood on. Liquids and gases are things you fall
 // through. Empty is Static in the table only because it never moves, so it has
 // to be excluded explicitly.
-// True if this material holds itself up and can therefore fall down when it
-// stops being held up. Derived from the debris column so that, like solidity,
-// it stays one table rather than a second list kept in sync with the first.
-inline constexpr bool is_collapsible(ElementType type) {
-    return material_of(type).debris != ElementType::Count;
+// True if this material is part of a structure: it holds its neighbours up, and
+// when nothing holds it up in turn, the whole connected piece falls together
+// rather than each cell falling on its own.
+inline constexpr bool is_structural(ElementType type) {
+    return material_of(type).structural;
 }
 
 inline constexpr bool is_solid(ElementType type) {
