@@ -1,0 +1,191 @@
+Art Pipeline / First Test Scene
+================================
+
+Plan for authoring the first pixel art scene and making the existing
+materials and player read as part of it. Reference target: detailed snowy
+Japanese railway-crossing scenes, roughly 640x400, cold desaturated
+blue-grey palette with warm sodium and signal accents, heavy ordered
+dithering in the sky and snow.
+
+Nothing here is started until Short Term and Medium Term in ROADMAP.md are
+clear. This is a written-down plan, not a work queue.
+
+
+THE KEY INSIGHT: THE ENGINE CAN ALREADY RENDER AUTHORED ART
+------------------------------------------------------------
+
+Element carries a per-cell colour (element.h), and every move preserves it:
+swap_elements swaps whole Elements and re-reads cells[idx].color into the
+pixel buffer (grid.cpp), and drop_component falls through that same swap.
+
+So a hand-painted stone slab keeps its hand-painted pixels while it falls
+as a rigid body. Terrain drawn in an external editor reads as authored art
+while it is static, and the moment it is disturbed it collapses carrying
+its own shading. The engine is already ~95% of the way to this; it was
+never designed for it, it just falls out of storing colour per cell and
+moving cells by swapping.
+
+The one gap: set_element overwrites colour with jittered_color(). It needs
+a sibling that takes an explicit colour. That is the single API addition in
+this entire plan.
+
+Known consequence, accepted: shading is baked per cell, so a lit top edge
+travels with the cell and can end up on the side of a fallen slab. At this
+scale it reads as material texture, which is what Noita looks like. It only
+breaks down under dramatic large-scale gradients painted into terrain --
+so do not paint those into the simulated layer.
+
+
+THIS FORKS A DECISION ALREADY IN THE ROADMAP
+---------------------------------------------
+
+Engineering Notes proposes shrinking Element to ~2 bytes by deriving colour
+from the material table plus a per-cell jitter seed, and calls it the first
+thing to try if the worst case has to come down.
+
+That optimisation and authored per-cell colour are mutually exclusive.
+
+The call: authoring wins. It is the entire visual pillar, and the note
+itself says to spend the optimisation only when a scenario the *game*
+produces goes over budget -- which has not happened. But this needs to be
+struck deliberately rather than discovered later, and the RNG-cost item is
+untouched and remains available as the cheap win instead.
+
+
+LAYER MODEL
+-----------
+
+Most of what makes the references beautiful is in things that would never
+be simulated anyway. Three layers:
+
+  Backdrop  - dusk gradient, mountain, treeline, train car, power lines.
+              Static image behind the cell texture. Not simulated.
+  Terrain   - snowbank, embankment, rocks, fence posts, sleepers, water
+              channel. Cells, with authored colour. Simulated.
+  Props     - crossing signal, signs, barrier, chain-link fence.
+              Drawn on top. Not simulated.
+
+Backdrop and props cost one SDL_RenderCopy each.
+
+Non-obvious prerequisite: Empty is currently opaque black (0xFF000000), so
+the cell texture would paint over the backdrop. Empty must become
+0x00000000 and the texture needs SDL_SetTextureBlendMode(BLENDMODE_BLEND).
+Two lines, affects no physics, but nothing composites until it is done.
+
+
+SCENE FORMAT
+------------
+
+Two same-size images per scene: a MATERIAL MAP and an ALBEDO. The material
+map uses flat legend colours, one per ElementType. The albedo is the actual
+art. Load both; each pixel becomes paint(x, y, type_from_legend,
+colour_from_albedo).
+
+Why two files rather than one: the art can be repainted without touching
+the physics layout, and the layout can change without a repaint. Encoding
+the material in an alpha channel is cleverer and miserable to author in
+every editor that exists.
+
+Use BMP via SDL_LoadBMP, not PNG. Zero new dependencies -- it is in core
+SDL2, which is already fetched. PNG means pulling in SDL_image or zlib, and
+a 640x400 BMP is about 750 KB for a test fixture. Aseprite, GIMP and
+Photoshop all export BMP. Revisit only if the art pipeline genuinely needs
+PNG.
+
+Loading must not break the headless rule. src/physics/ stays SDL-free, so
+the loader in src/scene/ takes plain (type[], colour[]) buffers and writes
+to the grid, and a ~15-line SDL-side function in main.cpp turns a BMP into
+those buffers. Scene loading then stays testable headlessly from an
+in-memory buffer, the same as everything else in the project.
+
+
+THE SCENE IS A TEST FIXTURE WEARING ART
+----------------------------------------
+
+This is what keeps it on the right side of Scope Discipline. A snowy
+railway crossing built from the references also exercises every system
+shipped so far:
+
+  snowbank on a slope       -> powder piling, and the player's 2-cell
+                               step-up over uneven powder
+  wooden fence posts        -> dig the base, watch a structure collapse
+                               while keeping its shape
+  concrete platform, gap
+  underneath                -> the support flood fill, and an L-piece
+                               keeping its corner
+  water channel             -> liquid levelling, density, player falling
+                               through
+  sleepers beside the water -> ignite wood, watch water douse it to steam
+  ledges at mixed heights   -> jump arc tuning
+
+If the scene does not exercise a system, it is decoration and belongs in
+the backdrop layer instead.
+
+Author at 640x400. Matches the references, and is PIXEL_SCALE 2 in a
+1280x800 window. 256,000 cells -- half of what grid_bench already measures,
+so comfortably inside budget. It is exactly one screen, so it does not
+pre-empt the camera decision in Medium Term; when the camera lands, the
+same loader handles a larger-than-screen world with no changes to it.
+
+
+MAKING THE PLAYER BELONG
+-------------------------
+
+The body is a 4x8 white rectangle. The reference character is a
+recognisable human around 24px tall. A person cannot be drawn in 4x8.
+
+Decouple the sprite from the hitbox. Keep collision at 4x8 -- it is tuned
+to the physics and 18 tests stand on it -- and draw a ~10x14 sprite
+anchored to the box's bottom-centre with an offset. Standard practice,
+touches no physics, breaks no tests, and puts the player at roughly the
+reference's proportion of screen height.
+
+
+MAKING SAND / WOOD / STONE BELONG
+----------------------------------
+
+Once terrain is authored, MATERIALS colours only govern brush-placed cells
+and REACTION PRODUCTS -- wood that catches fire, water that becomes steam.
+So there is a seam: authored scene-coloured wood burns into generic orange
+fire. For fire that is arguably correct, since it should be the bright
+accent in a cold scene. It is still why the palette pass matters.
+
+Current colours are saturated primaries -- Water #4444FF, Sand #EEDD82 --
+and will read as a debug view against the reference art no matter what else
+is done. Retune each base colour into the scene palette.
+
+Cut color_jitter hard. Sand's 18 is a lot of random noise, and authored
+pixel art uses deliberate ordered dithering. Random per-cell jitter
+actively fights hand-placed dither patterns rather than adding to them.
+
+One tempting one-liner: Snow is a Powder row with lower density than Sand.
+A single table entry, and the single most on-theme material for these
+references.
+
+
+PHASING
+-------
+
+  0  Grid::paint(x, y, type, colour) + test           ~10 lines
+  1  Scene format + headless loader in src/scene/     ~120 lines
+  2  BMP -> buffers in main.cpp, load at startup      ~30 lines
+  3  Transparent Empty + backdrop render              ~10 lines
+  4  Palette and jitter pass on MATERIALS             table only
+  5  Player sprite decoupled from hitbox              ~40 lines
+  6  Props overlay, Snow material                     optional
+
+Phases 0-3 give a loadable authored scene. 4-5 are what make it cohere.
+
+
+DELIBERATELY DEFERRED
+----------------------
+
+The pixel art EDITOR. ROADMAP.md is right that it is a second application
+with its own UI, file format and edit loop, and it is the exact seductive
+side-build Scope Discipline warns about. An external editor plus this
+loader covers authoring until art volume is measurably the bottleneck.
+
+Note that phases 0-2 are not part of that deferral and are not wasted work:
+a scene loader is a hard prerequisite for Quantum Worlds in Medium Term,
+which needs some way to get a level into the grid regardless of whether the
+level is authored or generated.

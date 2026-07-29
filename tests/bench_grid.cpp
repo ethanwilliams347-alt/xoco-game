@@ -85,6 +85,57 @@ void feed_fire(Grid& g) {
         g.set_element(x, BENCH_HEIGHT / 2, ElementType::Fire);
 }
 
+// Rigid pieces in permanent free fall.
+//
+// Structural material is the only thing in the engine that gets re-derived
+// rather than simply stepped: a piece at MAX_FALL_SPEED runs eight flood fills
+// over the whole of itself every step, one per cell of travel. No other
+// scenario in this file contains a falling structure at all, so none of them
+// can see that cost -- which is exactly why this one exists.
+//
+// Slabs are kept well under MAX_SUPPORT_CELLS, or they would be waved through
+// as too big to judge and never fall at all.
+constexpr int SLAB_W = 100;
+constexpr int SLAB_H = 4;
+constexpr int SLAB_SLOTS = 8;
+constexpr int DRAIN_TOP = 400; // slabs are removed here rather than being allowed to land
+
+void spawn_slab(Grid& g, int slot) {
+    const int x0 = slot * (BENCH_WIDTH / SLAB_SLOTS) + 4;
+    for (int y = 2; y < 2 + SLAB_H; ++y)
+        for (int x = x0; x < x0 + SLAB_W; ++x)
+            g.set_element(x, y, ElementType::Wall);
+
+    // Placing structure deliberately never queues a support check - that is what
+    // lets the brush draw a floating platform on purpose - so the slab has to be
+    // knocked loose. Put a cell under it and take it straight back out.
+    g.set_element(x0, 2 + SLAB_H, ElementType::Wall);
+    g.set_element(x0, 2 + SLAB_H, ElementType::Empty);
+}
+
+// A slab that lands goes quiet, and a scenario whose subject falls asleep
+// measures nothing. This drains them at DRAIN_TOP instead and feeds a
+// replacement in at the ceiling, so eight are always in the air. The band is
+// deeper than MAX_FALL_SPEED because a slab at full speed would step over a
+// thinner one. Reading before writing keeps the drain nearly free while it is
+// empty, which is most of it, most of the time.
+void churn_slabs(Grid& g) {
+    static int tick = 0;
+
+    for (int y = DRAIN_TOP; y < DRAIN_TOP + 12; ++y)
+        for (int x = 0; x < BENCH_WIDTH; ++x)
+            if (g.get_element(x, y).type != ElementType::Empty)
+                g.set_element(x, y, ElementType::Empty);
+
+    // One new slab every 8 steps, cycling the slots. A slab needs 64 steps to
+    // accelerate its way down to the drain, which is exactly how long a slot
+    // waits its turn, so a slot is always clear when its next slab arrives.
+    if (tick % 8 == 0) spawn_slab(g, (tick / 8) % SLAB_SLOTS);
+    tick++;
+}
+
+void build_collapsing(Grid&) {} // the hook does all of it
+
 void run(const char* name, void (*build)(Grid&), int settle_steps, void (*on_step)(Grid&) = nullptr) {
     Grid g(BENCH_WIDTH, BENCH_HEIGHT);
     build(g);
@@ -129,6 +180,7 @@ int main() {
     run("churning", build_churning, 0);
     run("cascading", build_settled, 120, cascade);
     run("burning", build_burning, 60, feed_fire);
+    run("collapsing", build_collapsing, 70, churn_slabs); // settle: fill the pipeline first
 
     std::printf("\n");
     return 0;

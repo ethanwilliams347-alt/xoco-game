@@ -50,9 +50,15 @@ build. The benchmark is a separate executable, run it by hand:
 ```
 
 It simulates a 960x540 grid (1920x1080 at a 2px scale, the resolution the project
-is aiming at) across five scenarios and reports milliseconds per step against the
+is aiming at) across six scenarios and reports milliseconds per step against the
 16.67 ms budget of a 60 Hz frame. Run it before and after any change that claims
 to make the simulation faster.
+
+Read `ROADMAP.md` before trusting a number out of it. Timings from different
+sittings on the same machine have been seen to differ by more than 2x on
+identical code, so a comparison is only worth anything if both sides were
+measured back to back — and that section explains how a claim in these docs got
+that wrong once already.
 
 ## Controls
 
@@ -260,12 +266,53 @@ grounded cell holds the whole thing up. Powders bear load and liquids do not, so
 a slab resting on packed sand stands, and the same slab over water sinks through
 it.
 
-**Falling is a per-column, bottom-up shift of one cell per step.** Processing
+**A fill records what it concluded, not merely where it went** — and that is
+load-bearing rather than an optimisation. One disturbance queues many cells to
+re-check, and a fill stops the instant it finds one grounded cell, so it leaves
+a partial trail of marks across a piece it has just decided is held up. If the
+marks only said "seen", the next queued cell would start its own fill, find that
+trail in the way, never reach the grounded cell behind it, conclude the piece is
+unsupported, and drop whichever fragment it could reach. A wall standing on
+solid ground would shed chunks of itself for no visible reason, one chunk per
+step, which looks exactly like the material particlising instead of holding
+together. So each mark carries its verdict, and a fill that runs into a settled
+cell adopts that verdict instead of re-deriving it — two connected cells are the
+same piece, so its answer is already this piece's answer. It also makes the
+common case cheap, since the hundreds of cells queued off one piece now cost one
+fill between them rather than one fill each.
+
+**Falling is a per-column, bottom-up shift of one cell.** Processing
 each column from its lowest cell upward means a cell only ever moves into space
 its lower neighbour has already left, and it handles a column containing two
 separate parts of the same piece — an arch — without having to find those parts
 explicitly. An L-shaped piece keeps its corner, which is the test that proves
 the piece moves as one rather than as independent columns.
+
+**A falling piece accelerates by falling repeatedly, not by falling further.**
+Everything above happens once per *cell of travel*, and a piece gets more than
+one cell of travel in a step by having the entire question — flood fill,
+grounded check, shift — run over again from scratch. It comes loose at one cell
+per step, gains a cell for every four steps in the air, and tops out at eight.
+
+Doing it this way is not a shortcut, it is the point. Because a piece never
+moves a cell without first re-deriving what is holding it up, it is
+*structurally* incapable of stepping over a floor thinner than its speed. Write
+it the obvious way instead — look once, then move eight cells — and a slab at
+full pelt sails straight through a one-cell shelf, which then needs its own
+special-case guard, which then has to be got right. The cost is that speed 8
+means eight times the work in that step; the ceiling exists to bound exactly
+that, and it is the constant to reach for if falling rubble ever shows up in a
+profile.
+
+Speed lives on the cells, as a count of steps spent falling. That is not where
+you would put it if you had a choice — it belongs to the piece — but a piece
+has **no identity between steps**. It is re-discovered by flood fill every
+time, so the cells are the only thing that persists. Moving a cell carries the
+count along for free, since a move is a swap of whole elements. The count is
+zeroed by the same code path that concludes a piece is supported, which is the
+only way a piece ever stops falling — without that, a slab that fell a hundred
+cells and landed would still be "at speed" whenever it was next dug free, and
+would leave the ledge like it had been fired rather than tipping off it.
 
 The move is always legal when the piece is unsupported, and that falls out of
 the definitions rather than needing a check: "unsupported" means nothing solid
@@ -288,8 +335,11 @@ Two decisions are worth knowing about, because both are visible in play:
   come down simply doesn't. A wrong fall drops the level. When the answer is too
   expensive to compute, guess the harmless way.
 
-This is the first feature in the engine with a **measurable performance cost**.
 `swap_elements` now asks whether the cell above each end of a move is structure,
-and `swap_elements` is the hottest path there is — about 5% of the worst-case
-benchmark scenario, measured against the same binary with the check compiled
-out. ROADMAP.md has the numbers and the method; it is being paid on purpose.
+and `swap_elements` is the hottest path there is, so this was expected to cost
+something. It does not measurably: a bracketed A/B against the same binary with
+the check compiled out cannot separate the two. An earlier revision of the docs
+claimed about 5%, which turned out to be the benchmark measuring the machine
+rather than the code. ROADMAP.md has the numbers, the method, and why the old
+figure was wrong — it is worth reading before trusting any timing in this
+project.

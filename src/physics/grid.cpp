@@ -19,6 +19,7 @@ Grid::Grid(int width, int height) : width(width), height(height) {
     // Both start empty: a world of nothing but Empty has nothing to simulate.
 
     support_visit.resize(width * height, 0);
+    support_state.resize(width * height, 0);
 
     std::random_device rd;
     rng.seed(rd());
@@ -122,11 +123,13 @@ void Grid::swap_elements(int x1, int y1, int x2, int y2) {
     // sand that was holding a slab up just slid out from under it. Only the
     // cell directly above each end can have been standing on what moved.
     //
-    // This is the hottest path in the engine and the check is not free -- it
-    // costs about 6% of the worst-case scenario, see the benchmark table in
-    // ROADMAP.md. An early-out that skipped ends still holding something solid
-    // was tried and measured as noise, so it was removed again rather than kept
-    // on the theory that it ought to help.
+    // This is the hottest path in the engine, so the check was expected to be
+    // expensive and was written to be cheap. A bracketed A/B (hook in, out, in)
+    // cannot measure it at all -- see the benchmark table in ROADMAP.md, which
+    // also records the earlier 5% figure this replaced and why that was wrong.
+    // An early-out that skipped ends still holding something solid was tried and
+    // measured as noise too, so it was removed rather than kept on the theory
+    // that it ought to help.
     if (!resolving_support) {
         queue_support_check(x1, y1 - 1);
         queue_support_check(x2, y2 - 1);
@@ -157,29 +160,96 @@ void Grid::queue_support_check(int x, int y) {
     pending_support.push_back(idx);
 }
 
+int Grid::fall_speed(uint8_t ticks) {
+    const int s = 1 + static_cast<int>(ticks) / TICKS_PER_SPEEDUP;
+    return s < MAX_FALL_SPEED ? s : MAX_FALL_SPEED;
+}
+
 void Grid::resolve_support() {
     if (pending_support.empty()) return;
 
-    // Taken by value: a piece that falls re-queues itself into pending_support
-    // for the next step, and that must not extend the loop running now, or one
-    // piece would fall the whole way down inside a single step.
-    std::vector<int> seeds;
-    seeds.swap(pending_support);
-
-    if (++support_epoch == 0) { // wrapped, so old marks can no longer be told apart
-        std::fill(support_visit.begin(), support_visit.end(), uint8_t{0});
-        support_epoch = 1;
-    }
-
     resolving_support = true;
-    for (const int seed : seeds) {
-        if (!is_structural(cells[seed].type)) continue;
-        if (support_visit[seed] == support_epoch) continue; // its piece already moved this step
 
-        const int y = seed / width;
-        fall_if_unsupported(seed - y * width, y);
+    std::vector<int> seeds;
+    std::vector<int> deferred; // still falling, but not fast enough for this pass
+
+    // One pass per cell of travel. Everything queued gets the first pass; each
+    // pass after that is only for the pieces that have been in the air long
+    // enough to have earned it. Re-running the whole question rather than
+    // taking a longer stride is what keeps a piece at speed 8 from stepping
+    // over a floor one cell thick.
+    for (int pass = 0; pass < MAX_FALL_SPEED && !pending_support.empty(); ++pass) {
+        // Taken by value: a piece that falls re-queues itself into
+        // pending_support, and that must not extend the loop running now, or
+        // one piece would fall the whole way down inside a single pass.
+        seeds.clear();
+        seeds.swap(pending_support);
+
+        // A fresh epoch per pass. Every cell of travel is a new question about
+        // a world that has just changed, so last pass's verdicts must not be
+        // read as answers to this one.
+        if (++support_epoch == 0) { // wrapped, so old marks can no longer be told apart
+            std::fill(support_visit.begin(), support_visit.end(), uint8_t{0});
+            support_epoch = 1;
+        }
+
+        for (const int seed : seeds) {
+            if (!is_structural(cells[seed].type)) continue;
+            if (support_visit[seed] == support_epoch) continue; // its piece already moved this pass
+
+            // Too slow for this pass. It keeps its place in the queue so the
+            // next step picks it up again; it just does not travel any further
+            // this one.
+            if (fall_speed(cells[seed].fall_ticks) <= pass) {
+                deferred.push_back(seed);
+                continue;
+            }
+
+            const int y = seed / width;
+            fall_if_unsupported(seed - y * width, y);
+        }
     }
+
+    for (const int idx : deferred) pending_support.push_back(idx);
+
+    // Whatever is still queued moved at some point during this step, so it is
+    // in the air and has now been for one step longer. A tick is a step, not a
+    // cell: speed has to follow time in the air, or a piece would speed up
+    // because it was already fast. Pieces that came to rest are not here -
+    // settle_marks() put them back to zero and stopped re-queueing them.
+    for (const int idx : pending_support) {
+        if (cells[idx].fall_ticks < 255) cells[idx].fall_ticks++;
+    }
+
     resolving_support = false;
+}
+
+void Grid::settle_marks(SupportState state, int extra) {
+    const uint8_t s = static_cast<uint8_t>(state);
+
+    // Settling on Supported is the only way a piece ever stops falling, so it
+    // is also where the clock goes back to zero. Without that, a slab that fell
+    // a long way and landed would keep the speed it landed at, and digging it
+    // free a minute later would have it leave at full pelt instead of tipping
+    // off the ledge.
+    //
+    // Adopting a neighbour's Moved verdict lands here too, and zeroes a piece
+    // that is genuinely still falling. That costs it its run-up, which is a
+    // visible stutter but a rare one - it needs two separate pieces to touch
+    // mid-fall - and erring towards slower is the same direction every other
+    // guess in this file errs in.
+    const bool at_rest = (state == SupportState::Supported);
+
+    // Every cell this fill marked is either already filed in the component or
+    // still waiting on the stack; between them they are the whole marked set.
+    const auto settle = [&](int idx) {
+        support_state[idx] = s;
+        if (at_rest) cells[idx].fall_ticks = 0;
+    };
+
+    if (extra >= 0) settle(extra);
+    for (const int idx : support_component) settle(idx);
+    for (const int idx : support_stack) settle(idx);
 }
 
 void Grid::fall_if_unsupported(int x, int y) {
@@ -189,6 +259,7 @@ void Grid::fall_if_unsupported(int x, int y) {
     const int seed = get_index(x, y);
     support_stack.push_back(seed);
     support_visit[seed] = support_epoch;
+    support_state[seed] = static_cast<uint8_t>(SupportState::Pending);
 
     while (!support_stack.empty()) {
         const int idx = support_stack.back();
@@ -198,10 +269,19 @@ void Grid::fall_if_unsupported(int x, int y) {
         const int cx = idx - cy * width;
 
         // One grounded cell anywhere is enough to hold the whole structure up.
-        if (is_grounded(cx, cy)) return;
+        // Everything reached on the way here is part of that same piece, so it
+        // is held up too -- recording that is what stops a later seed from
+        // re-deciding the question with half the piece walled off from it.
+        if (is_grounded(cx, cy)) {
+            settle_marks(SupportState::Supported, idx);
+            return;
+        }
 
         support_component.push_back(idx);
-        if (static_cast<int>(support_component.size()) > MAX_SUPPORT_CELLS) return;
+        if (static_cast<int>(support_component.size()) > MAX_SUPPORT_CELLS) {
+            settle_marks(SupportState::Supported, -1); // too big to judge: assume held up
+            return;
+        }
 
         // Neighbours are pushed in reading order, so the last ones pushed - and
         // therefore the first ones popped off the stack - are the row below.
@@ -212,10 +292,24 @@ void Grid::fall_if_unsupported(int x, int y) {
                 if (!is_within_bounds(nx, ny)) continue;
 
                 const int nidx = get_index(nx, ny);
-                if (support_visit[nidx] == support_epoch) continue;
                 if (!is_structural(cells[nidx].type)) continue;
 
+                if (support_visit[nidx] == support_epoch) {
+                    if (static_cast<SupportState>(support_state[nidx]) == SupportState::Pending) {
+                        continue; // already in this fill
+                    }
+                    // Touching a cell an earlier fill already settled. The two
+                    // are adjacent, so they are one piece, and its answer is
+                    // this piece's answer: Supported means held up, and Moved
+                    // means it has already had its turn this pass, so this half
+                    // waits for the next one rather than falling on its own.
+                    // Either way nothing here moves now.
+                    settle_marks(SupportState::Supported, idx);
+                    return;
+                }
+
                 support_visit[nidx] = support_epoch;
+                support_state[nidx] = static_cast<uint8_t>(SupportState::Pending);
                 support_stack.push_back(nidx);
             }
         }
@@ -250,10 +344,19 @@ void Grid::drop_component() {
         swap_elements(cx, cy, cx, cy + 1);
 
         // Mark and re-queue the cell's new home, so the piece is recognised as
-        // already-moved for the rest of this step and gets another look on the
-        // next one. This is the only thing that makes it keep falling.
+        // already-moved for the rest of this pass and gets another look on the
+        // next one. This is the only thing that makes it keep falling, and it
+        // is what a pass costs: the queue it leaves behind is the input to
+        // whichever pass comes next, in this step or the following one.
+        //
+        // The vacated cell is marked too. Anything of this piece still above it
+        // is about to move into it, and until this pass is over no other fill
+        // should treat that space as a fresh question.
         const int moved = get_index(cx, cy + 1);
         support_visit[moved] = support_epoch;
+        support_state[moved] = static_cast<uint8_t>(SupportState::Moved);
+        support_visit[idx] = support_epoch;
+        support_state[idx] = static_cast<uint8_t>(SupportState::Moved);
         pending_support.push_back(moved);
     }
 }

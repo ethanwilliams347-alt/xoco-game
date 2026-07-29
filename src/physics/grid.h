@@ -26,6 +26,26 @@ public:
     // way.
     static constexpr int MAX_SUPPORT_CELLS = 4096;
 
+    // A falling structure speeds up. It moves one cell on the step it comes
+    // loose and gains a cell per step for every TICKS_PER_SPEEDUP steps it
+    // stays in the air, up to MAX_FALL_SPEED.
+    //
+    // Speed is repetition, not a longer stride: a piece never travels a cell
+    // without first re-deriving what is holding it up, so moving at 8 costs
+    // eight flood fills in a step. That is the whole reason there is a ceiling.
+    // It also means a fast piece cannot pass through a floor thinner than its
+    // speed, which a "move N cells then look" implementation would have to
+    // guard against explicitly.
+    //
+    // Read against 1 cell = 1 cm: at 60 Hz, +1 cell/step every 4 steps is
+    // ~15 m/s^2 and the ceiling is 4.8 m/s. Heavier than real gravity, which
+    // suits masonry, and it reaches the ceiling in about half a second.
+    static constexpr int MAX_FALL_SPEED = 8;
+    static constexpr int TICKS_PER_SPEEDUP = 4;
+
+    // Cells per step for a piece that has been falling for `ticks` steps.
+    static int fall_speed(uint8_t ticks);
+
     Grid(int width, int height);
     ~Grid() = default;
 
@@ -153,7 +173,10 @@ private:
     // Adds (x, y) to the list to re-examine, if it is a structure cell at all.
     void queue_support_check(int x, int y);
 
-    // Works through that list. Called once per step, before the sweep.
+    // Works through that list. Called once per step, before the sweep, and
+    // internally runs up to MAX_FALL_SPEED passes over it -- one cell of travel
+    // each -- so that pieces already up to speed get further in the step than
+    // ones that have just come loose.
     void resolve_support();
 
     // Flood-fills the structure containing (x, y). If no cell in it is grounded,
@@ -164,20 +187,48 @@ private:
     // re-queues it so it keeps falling on the next step.
     void drop_component();
 
+    // What a fill concluded about a cell. Only meaningful while that cell's
+    // support_visit stamp holds the current epoch.
+    //
+    // Recording the conclusion and not merely "seen" is load-bearing. A fill
+    // stops the instant it finds one grounded cell, so it leaves a partial
+    // trail of marks across a piece it has just decided is held up. Without a
+    // reason attached, a later seed from that same piece starts its own fill,
+    // cannot cross that trail, never reaches the grounded cell, and drops
+    // whatever subset it could reach - a structure standing on solid ground
+    // sheds chunks of itself for no visible reason.
+    enum class SupportState : uint8_t {
+        Pending,   // reached by the fill running right now
+        Supported, // its piece will not fall this step
+        Moved,     // its piece already fell this step
+    };
+
+    // Stamps every cell this fill has marked with `state`, plus `extra` if it is
+    // not negative (the cell in hand, popped but not yet filed anywhere).
+    // Settling on Supported also puts those cells back at rest, since that is
+    // the only way a piece ever stops falling.
+    void settle_marks(SupportState state, int extra);
+
     std::vector<int> pending_support;
     std::vector<int> support_stack;     // scratch, reused across fills
     std::vector<int> support_component; // scratch, reused across fills
 
-    // Per-cell "seen this step" marker. One byte and an epoch counter rather
+    // Per-cell "seen this pass" marker. One byte and an epoch counter rather
     // than a bool array that would need clearing every time; the whole thing is
-    // cleared once every 255 steps, when the epoch wraps.
+    // cleared once every 255 passes, when the epoch wraps.
     //
-    // The epoch advances once per *step*, not once per fill, and that is what
-    // stops one piece being dropped twice in a step when several of its cells
-    // were queued: a flood fill only ever reaches cells of one piece, so a
-    // second seed finding itself already marked is proof it belongs to a piece
-    // that has already been dealt with.
+    // The epoch advances once per *pass*, not once per fill. Marks therefore
+    // outlive the fill that made them, which is what lets one fill answer for
+    // the next: a fill that runs into a cell an earlier one already settled
+    // adopts that answer instead of re-deriving it, because two connected cells
+    // are by definition the same piece. It is a memo, so it also makes the
+    // common case - hundreds of seeds queued off one piece - cheap.
+    //
+    // They must *not* outlive the pass: the world has moved by then, so an
+    // answer from the previous cell of travel is about a world that no longer
+    // exists.
     std::vector<uint8_t> support_visit;
+    std::vector<uint8_t> support_state;
     uint8_t support_epoch = 0;
 
     // Falling writes cells, and those writes would otherwise queue support

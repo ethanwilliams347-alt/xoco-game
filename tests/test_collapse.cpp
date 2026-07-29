@@ -10,7 +10,10 @@
 
 #include "physics/grid.h"
 #include "test_util.h"
+#include <algorithm>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -47,6 +50,38 @@ bool rect_exactly_at(const Grid& g, int x0, int y0, int x1, int y1, ElementType 
         }
     }
     return true;
+}
+
+// Every cell of type `t`, measured from the corner of its bounding box, sorted.
+// Two of these compare equal exactly when the material has the same shape in
+// both, wherever it happens to have ended up -- which is the whole claim being
+// made about a rigid piece.
+std::vector<std::pair<int, int>> shape_of(const Grid& g, ElementType t) {
+    std::vector<std::pair<int, int>> pts;
+    int min_x = g.get_width(), min_y = g.get_height();
+    for (int y = 0; y < g.get_height(); ++y) {
+        for (int x = 0; x < g.get_width(); ++x) {
+            if (g.get_element(x, y).type != t) continue;
+            pts.emplace_back(x, y);
+            min_x = std::min(min_x, x);
+            min_y = std::min(min_y, y);
+        }
+    }
+    for (std::pair<int, int>& p : pts) {
+        p.first -= min_x;
+        p.second -= min_y;
+    }
+    std::sort(pts.begin(), pts.end());
+    return pts;
+}
+
+// Puts a structure cell down and takes it straight back out again. The removal
+// queues support checks on everything around it, so this disturbs a piece into
+// being re-examined without altering the piece itself -- which matters when the
+// thing under test is how far it travels.
+void nudge(Grid& g, int x, int y) {
+    g.set_element(x, y, ElementType::Wall);
+    g.set_element(x, y, ElementType::Empty);
 }
 
 // Top row of the topmost cell of `t`, or -1.
@@ -86,6 +121,87 @@ int main() {
               g.get_element(20, 40).type == ElementType::Wall &&
               g.get_element(30, 49).type == ElementType::Wall &&
               g.get_element(25, 45).type == ElementType::Empty);
+    }
+
+    // --- digging a real hole in a grounded wall does not break pieces off it ---
+    // The other tests here erase a single cell. The player's dig erases a whole
+    // disc at once, which queues hundreds of support checks spread over several
+    // rows, and that is a different thing to ask of the resolver. Every cell of
+    // the wall that was not dug out has to still be exactly where it was.
+    {
+        Grid g(60, 60);
+        fill(g, 10, 20, 50, 59, ElementType::Wall); // wall standing on the world floor
+
+        const int hx = 30, hy = 35, r = 3;
+        for (int oy = -r; oy <= r; ++oy)
+            for (int ox = -r; ox <= r; ++ox)
+                if (ox * ox + oy * oy <= r * r)
+                    g.set_element(hx + ox, hy + oy, ElementType::Empty);
+
+        step(g, 120);
+
+        bool intact = true;
+        for (int y = 20; y <= 59; ++y) {
+            for (int x = 10; x <= 50; ++x) {
+                const int ox = x - hx, oy = y - hy;
+                const bool dug = (ox * ox + oy * oy <= r * r);
+                const ElementType want = dug ? ElementType::Empty : ElementType::Wall;
+                if (g.get_element(x, y).type != want) intact = false;
+            }
+        }
+        check("digging a hole in a grounded wall leaves the rest of it standing",
+              intact,
+              std::to_string(count_of(g, ElementType::Wall)) + " wall cells left");
+    }
+
+    // --- a round piece keeps its exact shape all the way down and after landing ---
+    // The rectangles elsewhere in this file are too forgiving: a rectangle still
+    // looks like a rectangle after a row of it slips. A disc has a different
+    // number of cells in every row, so any part of it moving without the rest
+    // shows up immediately. Landing is included on purpose -- coming to rest on
+    // a few contact cells is when a piece is most likely to shed the rest.
+    {
+        Grid g(34, 26);
+        const int cx = 17, cy = 8, r = 6;
+        for (int oy = -r; oy <= r; ++oy)
+            for (int ox = -r; ox <= r; ++ox)
+                if (ox * ox + oy * oy <= r * r)
+                    g.set_element(cx + ox, cy + oy, ElementType::Wood);
+
+        // Bite a chunk out of the side, which is both what frees it and what
+        // makes the shape asymmetric.
+        for (int oy = -3; oy <= 3; ++oy)
+            for (int ox = -3; ox <= 3; ++ox)
+                if (ox * ox + oy * oy <= 9)
+                    g.set_element(12 + ox, 8 + oy, ElementType::Empty);
+
+        const std::vector<std::pair<int, int>> before = shape_of(g, ElementType::Wood);
+        step(g, 4);
+        check("a round piece is unchanged in shape while falling",
+              shape_of(g, ElementType::Wood) == before);
+
+        step(g, 60); // long enough to reach the floor and settle
+        check("a round piece is unchanged in shape once it has landed",
+              shape_of(g, ElementType::Wood) == before);
+    }
+
+    // --- a piece resting on one contact cell does not shed the rest of itself ---
+    // A big piece touching down on a single cell is the worst case for the
+    // support search: one cell of it answers "grounded" and the other few
+    // hundred have to be judged from that one answer.
+    {
+        Grid g(60, 60);
+        fill(g, 0, 55, 59, 59, ElementType::Wall); // floor
+        g.set_element(30, 54, ElementType::Wall);  // a one-cell stub on top of it
+        fill(g, 20, 40, 40, 44, ElementType::Wood); // slab, floating
+        fill(g, 20, 45, 20, 54, ElementType::Wood); // the leg holding it up
+
+        fill(g, 20, 45, 20, 54, ElementType::Empty); // kick the leg out
+
+        step(g, 200);
+        check("a slab landing on a single stub stays a slab",
+              rect_exactly_at(g, 20, 49, 40, 53, ElementType::Wood),
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
     }
 
     // --- cutting a slab free drops it, shape intact ---
@@ -217,6 +333,112 @@ int main() {
         check("the slab comes down once the sand under it falls away",
               top_row_of(g, ElementType::Wall) > 40,
               "top wall row " + std::to_string(top_row_of(g, ElementType::Wall)));
+    }
+
+    // --- a falling piece picks up speed ---
+    // At a flat one cell per step everything drifts down at the same rate
+    // whatever it is and however far it has fallen, which reads as floating
+    // rather than falling. Speed has to start at one -- a piece must not jump
+    // the moment it comes loose -- rise, and stop rising at the ceiling.
+    {
+        Grid g(20, 300);
+        fill(g, 5, 2, 10, 6, ElementType::Wall);
+        nudge(g, 8, 7); // touch the cell under it, not the piece
+
+        std::vector<int> delta;
+        int prev = top_row_of(g, ElementType::Wall);
+        for (int i = 0; i < 40; ++i) {
+            g.update();
+            const int now = top_row_of(g, ElementType::Wall);
+            delta.push_back(now - prev);
+            prev = now;
+        }
+
+        check("a piece comes loose at one cell per step", delta.front() == 1,
+              "first step moved " + std::to_string(delta.front()));
+
+        bool monotonic = true, capped = true;
+        for (size_t i = 0; i < delta.size(); ++i) {
+            if (i > 0 && delta[i] < delta[i - 1]) monotonic = false;
+            if (delta[i] > Grid::MAX_FALL_SPEED) capped = false;
+        }
+        check("it never slows down on the way", monotonic);
+        check("it never travels further in a step than the ceiling allows", capped);
+        check("it reaches the ceiling and stays there",
+              delta.back() == Grid::MAX_FALL_SPEED,
+              "last step moved " + std::to_string(delta.back()));
+        check("acceleration actually gets it somewhere a flat rate would not",
+              prev - 2 > 40,
+              "fell " + std::to_string(prev - 2) + " cells in 40 steps");
+    }
+
+    // --- a piece at full speed does not step over a floor thinner than its speed ---
+    // The reason a fall is eight passes of one cell rather than one pass of
+    // eight. A piece moving 8 cells at a time in a single write would clear a
+    // one-cell shelf without ever touching it.
+    {
+        Grid g(20, 300);
+        fill(g, 0, 200, 19, 200, ElementType::Wall);   // shelf, exactly one cell thick
+        fill(g, 0, 201, 0, 299, ElementType::Wall);    // leg holding the shelf up
+        fill(g, 5, 2, 10, 6, ElementType::Wood);       // the piece, 193 cells above it
+        nudge(g, 8, 7);
+
+        step(g, 60); // long enough to reach the shelf at full speed and stop
+
+        check("a piece at full speed lands on a one-cell shelf instead of through it",
+              top_row_of(g, ElementType::Wood) == 195,
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
+
+        bool shelf_intact = true, nothing_below = true;
+        for (int x = 0; x < 20; ++x)
+            if (g.get_element(x, 200).type != ElementType::Wall) shelf_intact = false;
+        for (int y = 201; y <= 299; ++y)
+            for (int x = 1; x < 20; ++x)
+                if (g.get_element(x, y).type != ElementType::Empty) nothing_below = false;
+        check("the shelf it landed on is untouched", shelf_intact);
+        check("nothing got past the shelf", nothing_below);
+
+        // --- and the clock resets when it lands ---
+        // A piece that kept the speed it landed at would leave the ledge at
+        // full pelt the next time it was dug free, minutes later.
+        fill(g, 0, 200, 19, 200, ElementType::Empty); // pull the shelf out
+        g.update();
+        check("a piece that has landed comes loose from rest again",
+              top_row_of(g, ElementType::Wood) == 196,
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
+    }
+
+    // --- shape survives the whole speed range ---
+    // Everything above about rigid shape was measured at one cell per step. A
+    // piece moving eight is re-resolved eight times in a step, so it has eight
+    // times as many chances to shear.
+    {
+        Grid g(40, 300);
+        fill(g, 0, 290, 39, 299, ElementType::Wall); // floor
+        const int cx = 20, cy = 10, r = 6;
+        for (int oy = -r; oy <= r; ++oy)
+            for (int ox = -r; ox <= r; ++ox)
+                if (ox * ox + oy * oy <= r * r)
+                    g.set_element(cx + ox, cy + oy, ElementType::Wood);
+
+        // Bite a chunk out of the side: frees it, and makes it asymmetric.
+        for (int oy = -3; oy <= 3; ++oy)
+            for (int ox = -3; ox <= 3; ++ox)
+                if (ox * ox + oy * oy <= 9)
+                    g.set_element(15 + ox, 10 + oy, ElementType::Empty);
+
+        const std::vector<std::pair<int, int>> before = shape_of(g, ElementType::Wood);
+        step(g, 30); // well past the point where it is moving several cells a step
+        check("a round piece is unchanged in shape at full speed",
+              shape_of(g, ElementType::Wood) == before,
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
+
+        step(g, 90); // reach the floor and settle
+        check("a round piece that fell a long way lands unchanged in shape",
+              shape_of(g, ElementType::Wood) == before);
+        check("and it is actually on the floor",
+              top_row_of(g, ElementType::Wood) == 277,
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
     }
 
     // --- a piece too large to judge is left alone ---
