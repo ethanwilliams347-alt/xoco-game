@@ -25,6 +25,7 @@ set(ENGINE_SOURCES
     src/physics/player.cpp
     src/physics/tool.cpp
     src/game/run.cpp
+    src/scene/scene.cpp
 )
 
 add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
@@ -59,6 +60,10 @@ if(BUILD_TESTING)
     add_executable(run_test tests/test_run.cpp ${ENGINE_SOURCES})
     target_include_directories(run_test PRIVATE src tests)
     add_test(NAME run_test COMMAND run_test)
+
+    add_executable(scene_test tests/test_scene.cpp ${ENGINE_SOURCES})
+    target_include_directories(scene_test PRIVATE src tests)
+    add_test(NAME scene_test COMMAND scene_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.

@@ -533,5 +533,23 @@ int main() {
         check("a reset run matches a fresh run built with the same seed", worlds_match(a, b));
     }
 
+    // --- Grid::paint ---
+    {
+        Grid g(20, 20, 123);
+        check("grid starts with 0 active chunks", g.active_chunk_count() == 0);
+        
+        for (int y = 9; y <= 11; ++y)
+            for (int x = 9; x <= 11; ++x)
+                g.paint(x, y, ElementType::Wood, 0xFF123456);
+        
+        Element el = g.get_element(10, 10);
+        check("paint sets exactly the specified color without jitter", el.color == 0xFF123456);
+        check("paint sets the specified element type", el.type == ElementType::Wood);
+        check("paint wakes the chunk", g.active_chunk_count() > 0);
+        
+        g.paint(10, 10, ElementType::Empty, 0x00000000);
+        check("paint over structure with non-structure queues support checks", g.has_pending_support_checks());
+    }
+
     return report();
 }

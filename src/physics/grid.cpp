@@ -144,6 +144,27 @@ void Grid::set_element(int x, int y, ElementType type) {
     }
 }
 
+void Grid::paint(int x, int y, ElementType type, uint32_t color) {
+    if (!is_within_bounds(x, y)) return;
+    const int idx = get_index(x, y);
+    const ElementType old_type = cells[idx].type;
+
+    Element el;
+    el.type = type;
+    el.color = color;
+    el.updated_tag = frame_tag;
+
+    cells[idx] = el;
+    pixels[idx] = el.color;
+    mark_dirty(x, y);
+
+    if (!resolving_support && is_structural(old_type) && !is_structural(type)) {
+        for (int ny = y - 1; ny <= y + 1; ++ny)
+            for (int nx = x - 1; nx <= x + 1; ++nx)
+                queue_support_check(nx, ny);
+    }
+}
+
 void Grid::swap_elements(int x1, int y1, int x2, int y2) {
     const int idx1 = get_index(x1, y1);
     const int idx2 = get_index(x2, y2);

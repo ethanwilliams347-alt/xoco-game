@@ -82,6 +82,7 @@ public:
     void update();
 
     void set_element(int x, int y, ElementType type);
+    void paint(int x, int y, ElementType type, uint32_t color);
     Element get_element(int x, int y) const;
 
     // Get raw pixel colors for rendering to SDL Texture

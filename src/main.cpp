@@ -5,6 +5,7 @@
 #include <string>
 #include "game/camera.h"
 #include "game/run.h"
+#include "scene/scene.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -35,6 +36,75 @@ const int VIEWPORT_WIDTH = WINDOW_WIDTH / Camera::SCALE;
 const int VIEWPORT_HEIGHT = WINDOW_HEIGHT / Camera::SCALE;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
+
+Scene load_scene_from_bmp(const char* material_path, const char* albedo_path) {
+    Scene scene;
+    SDL_Surface* mat_surf = SDL_LoadBMP(material_path);
+    SDL_Surface* alb_surf = SDL_LoadBMP(albedo_path);
+
+    if (!mat_surf || !alb_surf) {
+        if (mat_surf) SDL_FreeSurface(mat_surf);
+        if (alb_surf) SDL_FreeSurface(alb_surf);
+        std::fprintf(stderr, "Failed to load scene BMPs\n");
+        return scene;
+    }
+
+    if (mat_surf->w != alb_surf->w || mat_surf->h != alb_surf->h) {
+        SDL_FreeSurface(mat_surf);
+        SDL_FreeSurface(alb_surf);
+        std::fprintf(stderr, "Scene BMP dimensions do not match\n");
+        return scene;
+    }
+
+    scene.width = mat_surf->w;
+    scene.height = mat_surf->h;
+    scene.materials.resize(scene.width * scene.height, ElementType::Empty);
+    scene.albedo.resize(scene.width * scene.height, 0);
+
+    // Assuming 24-bit or 32-bit BMPs.
+    // We should lock surfaces if needed, but SDL_LoadBMP gives 24-bit or 8-bit.
+    // For simplicity, we convert both to 32-bit ARGB.
+    SDL_Surface* mat_32 = SDL_ConvertSurfaceFormat(mat_surf, SDL_PIXELFORMAT_ARGB8888, 0);
+    SDL_Surface* alb_32 = SDL_ConvertSurfaceFormat(alb_surf, SDL_PIXELFORMAT_ARGB8888, 0);
+
+    SDL_FreeSurface(mat_surf);
+    SDL_FreeSurface(alb_surf);
+
+    if (!mat_32 || !alb_32) {
+        if (mat_32) SDL_FreeSurface(mat_32);
+        if (alb_32) SDL_FreeSurface(alb_32);
+        return scene;
+    }
+
+    const uint32_t* mat_pixels = static_cast<const uint32_t*>(mat_32->pixels);
+    const uint32_t* alb_pixels = static_cast<const uint32_t*>(alb_32->pixels);
+
+    for (int y = 0; y < scene.height; ++y) {
+        for (int x = 0; x < scene.width; ++x) {
+            int idx = y * scene.width + x;
+            uint32_t m_col = mat_pixels[idx];
+            uint32_t a_col = alb_pixels[idx];
+            
+            // Map m_col to ElementType. Match RGB only.
+            ElementType type = ElementType::Empty;
+            uint32_t m_rgb = m_col & 0xFFFFFF;
+            for (int i = 0; i < static_cast<int>(ElementType::Count); ++i) {
+                if ((material_of(static_cast<ElementType>(i)).color & 0xFFFFFF) == m_rgb) {
+                    type = static_cast<ElementType>(i);
+                    break;
+                }
+            }
+            
+            scene.materials[idx] = type;
+            scene.albedo[idx] = a_col | 0xFF000000; // force alpha
+        }
+    }
+
+    SDL_FreeSurface(mat_32);
+    SDL_FreeSurface(alb_32);
+
+    return scene;
+}
 
 int main(int argc, char* argv[]) {
     (void)argc;
@@ -95,6 +165,13 @@ int main(int argc, char* argv[]) {
     std::printf("World seed: %llu\n", static_cast<unsigned long long>(world_seed));
 
     Run run(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty, player mid-air
+    
+    // Load F4 test scene
+    Scene scene = load_scene_from_bmp("assets/test_material.bmp", "assets/test_albedo.bmp");
+    if (scene.width > 0) {
+        load_scene(run.grid, scene, 0, 0);
+    }
+    
     Camera camera;
 
     bool running = true;
