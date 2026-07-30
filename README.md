@@ -157,6 +157,48 @@ catalyst-based row, never spontaneous, so idle Wood and Oil far from any fire
 stay fully sleep-eligible and chunking's performance for the common case is
 untouched.
 
+### Determinism
+
+`Grid` is a pure function of its seed. There is no random generator anywhere
+in the simulation — `src/physics/random.h` holds a stateless hash instead,
+and every random value is a pure function of `(seed, step, index, stream)`.
+Nothing carries state between draws, so two grids built with the same seed
+and stepped the same number of times are byte-identical, and a save file
+only ever needs to record the seed and the step count to say where a run
+had got to.
+
+**The write rule has a counterpart for randomness: every random draw goes
+through `Grid::coin` / `Grid::chance`, and no other code calls the hash
+directly.** That is what keeps the invariant checkable rather than assumed
+— a stray call reaching for its own randomness would not look wrong at the
+call site, only in a diverged replay much later.
+
+Each call site is tagged with its own `Stream` (colour jitter, sweep
+direction, powder/fluid direction, reactions), so two decisions about the
+same cell on the same step never draw the same number — without that, a
+cell that rolled to move left would always roll the same side of its
+reaction check too, a permanent correlation rather than a one-off
+coincidence. World generation, when it exists, gets its own separate range
+of streams reserved for exactly this reason: generating one extra cave
+must never change how sand falls somewhere that cave doesn't touch.
+
+One deliberate exception: colour jitter hashes on position only, with no
+step in the input, because it's a one-time authored value rather than a
+per-step decision — a cell erased and repainted in the same spot comes
+back the same shade instead of a new one.
+
+**This covers the simulation, not yet the game.** The brush is painted
+once per rendered frame outside the fixed-step loop, and a held key is
+sampled once per rendered frame and applied to every fixed step inside
+it — so the same seed and the same physical input can still produce a
+different world at a different framerate. Closing that gap means moving
+input onto a per-step log rather than sampling it in the render loop, which
+is separate, not-yet-built work.
+
+Replacing the generator with the hash cost a small amount rather than
+saving one — see the RNG entry under Engineering Notes in `ROADMAP.md` for
+the measured number and why it was recorded rather than assumed.
+
 ### The player
 
 The player is the one thing in the engine that is **not** a cell. It is a
