@@ -2,23 +2,25 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include "game/camera.h"
 #include "game/run.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
-const int PIXEL_SCALE = 4; // Each physics pixel is 4x4 screen pixels
 
-// The simulated world's size, in cells - independent of the window as of this
-// step (F3.1). Equal to WINDOW_WIDTH/PIXEL_SCALE and WINDOW_HEIGHT/PIXEL_SCALE
-// today only because nothing has needed them to differ yet; there is no
-// relationship between them beyond that coincidence now.
+// The simulated world's size, in cells - independent of the window since F3.1.
+// Equal to WINDOW_WIDTH/Camera::SCALE and WINDOW_HEIGHT/Camera::SCALE today
+// only because nothing has needed them to differ yet; there is no
+// relationship between them beyond that coincidence.
 //
 // SDL_RenderCopy below still stretches the whole grid-sized texture across the
 // whole window (two null rects, unchanged), so a grid that does not match the
 // window's proportions renders squashed or cropped as of this step - that is
-// correct and expected here, not a bug to chase. A Camera that knows the real
-// screen-to-world scale (F3.2) and a texture sized to the viewport rather than
-// the whole grid (F3.3) are what turn this back into a proper view.
+// correct and expected here, not a bug to chase. Camera (F3.2) now owns every
+// screen-to-world and world-to-screen conversion, so mouse/render coordinates
+// are correct at any grid size; a texture sized to the viewport rather than
+// the whole grid (F3.3) is what turns "the whole world, squashed" into a real
+// view of part of a world.
 const int GRID_WIDTH = 200;
 const int GRID_HEIGHT = 150;
 
@@ -82,6 +84,7 @@ int main(int argc, char* argv[]) {
     std::printf("World seed: %llu\n", static_cast<unsigned long long>(world_seed));
 
     Run run(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty, player mid-air
+    Camera camera;
 
     bool running = true;
     SDL_Event e;
@@ -125,8 +128,8 @@ int main(int argc, char* argv[]) {
         int mouseX, mouseY;
         const uint32_t mouseState = SDL_GetMouseState(&mouseX, &mouseY);
 
-        const int gridX = mouseX / PIXEL_SCALE;
-        const int gridY = mouseY / PIXEL_SCALE;
+        const int gridX = camera.screen_to_world(mouseX);
+        const int gridY = camera.screen_to_world(mouseY);
 
         // Sampled once per rendered frame, same as before - a real mouse and
         // keyboard cannot be sampled at the simulation's fixed rate, since
@@ -175,10 +178,10 @@ int main(int argc, char* argv[]) {
         // it is drawn on top of the world as its own rectangle.
         SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
         const SDL_Rect body{
-            run.player.cell_x() * PIXEL_SCALE,
-            run.player.cell_y() * PIXEL_SCALE,
-            Player::WIDTH * PIXEL_SCALE,
-            Player::HEIGHT * PIXEL_SCALE
+            camera.world_to_screen(run.player.cell_x()),
+            camera.world_to_screen(run.player.cell_y()),
+            camera.world_to_screen(Player::WIDTH),
+            camera.world_to_screen(Player::HEIGHT)
         };
         SDL_RenderFillRect(renderer, &body);
 
@@ -190,7 +193,8 @@ int main(int argc, char* argv[]) {
         run.dig_tool.aim_point(run.grid, run.player.center_x(), run.player.center_y(), gridX, gridY, mark_x, mark_y);
         SDL_SetRenderDrawColor(renderer, 255, 106, 0, 255);
         const SDL_Rect mark{
-            mark_x * PIXEL_SCALE, mark_y * PIXEL_SCALE, PIXEL_SCALE, PIXEL_SCALE
+            camera.world_to_screen(mark_x), camera.world_to_screen(mark_y),
+            camera.cell_size(), camera.cell_size()
         };
         SDL_RenderFillRect(renderer, &mark);
 
