@@ -122,11 +122,27 @@ uint32_t Grid::jittered_color(const Material& mat, uint64_t index) const {
 void Grid::set_element(int x, int y, ElementType type) {
     if (!is_within_bounds(x, y)) return;
     const int idx = get_index(x, y);
+    place(x, y, type, jittered_color(material_of(type), static_cast<uint64_t>(idx)));
+}
+
+void Grid::paint(int x, int y, ElementType type, uint32_t color) {
+    if (!is_within_bounds(x, y)) return;
+    place(x, y, type, color);
+}
+
+// Shared by set_element and paint, which differ only in where the colour comes
+// from - a jittered draw from the material table versus one the caller names
+// outright. Everything downstream of "here is the colour" - the write rule,
+// the wake, the support re-check - has to stay identical between the two, or
+// authored terrain and brush-placed terrain would silently behave differently
+// the moment someone touched one write path without the other.
+void Grid::place(int x, int y, ElementType type, uint32_t color) {
+    const int idx = get_index(x, y);
     const ElementType old_type = cells[idx].type;
 
     Element el;
     el.type = type;
-    el.color = jittered_color(material_of(type), static_cast<uint64_t>(idx));
+    el.color = color;
     el.updated_tag = frame_tag; // freshly placed cells wait until the next step to move
 
     cells[idx] = el;
@@ -137,27 +153,6 @@ void Grid::set_element(int x, int y, ElementType type) {
     // re-examined. Removal only: placing a new structure cell does not trigger
     // a check, which is what lets the brush draw a floating platform on purpose
     // without it immediately falling apart.
-    if (!resolving_support && is_structural(old_type) && !is_structural(type)) {
-        for (int ny = y - 1; ny <= y + 1; ++ny)
-            for (int nx = x - 1; nx <= x + 1; ++nx)
-                queue_support_check(nx, ny);
-    }
-}
-
-void Grid::paint(int x, int y, ElementType type, uint32_t color) {
-    if (!is_within_bounds(x, y)) return;
-    const int idx = get_index(x, y);
-    const ElementType old_type = cells[idx].type;
-
-    Element el;
-    el.type = type;
-    el.color = color;
-    el.updated_tag = frame_tag;
-
-    cells[idx] = el;
-    pixels[idx] = el.color;
-    mark_dirty(x, y);
-
     if (!resolving_support && is_structural(old_type) && !is_structural(type)) {
         for (int ny = y - 1; ny <= y + 1; ++ny)
             for (int nx = x - 1; nx <= x + 1; ++nx)

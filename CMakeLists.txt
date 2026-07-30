@@ -36,6 +36,17 @@ target_include_directories(SlopPhysics PRIVATE src)
 # Link SDL2 (SDL2main is required on Windows to abstract WinMain)
 target_link_libraries(SlopPhysics PRIVATE SDL2main SDL2-static)
 
+# main.cpp loads the F4 scene by a path relative to the working directory
+# ("assets/..."), not relative to the source tree, so the assets have to sit
+# next to the built executable or a normal run from build/Debug/ can't find
+# them. Copied post-build rather than referenced in place so the exe stays
+# runnable from a copied build directory too.
+add_custom_command(TARGET SlopPhysics POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:SlopPhysics>/assets
+)
+
 # Physics tests. No test framework by design - the harness is plain C++ and
 # returns a non-zero exit code on failure, which is all CTest needs.
 option(BUILD_TESTING "Build the physics test harness" ON)

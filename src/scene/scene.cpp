@@ -12,8 +12,15 @@ void load_scene(Grid& grid, const Scene& scene, int offset_x, int offset_y) {
             int grid_y = y + offset_y;
             
             ElementType type = scene.materials[scene_idx];
+
+            // Empty carries no authored colour - the material map's legend has
+            // no entry for it, so its albedo pixel is whatever the art file
+            // happens to hold there, not a deliberate choice. Skipping it also
+            // means stamping a scene onto a grid that already has something in
+            // it doesn't clear untouched-looking background back to black.
+            if (type == ElementType::Empty) continue;
+
             uint32_t color = scene.albedo[scene_idx];
-            
             grid.paint(grid_x, grid_y, type, color);
         }
     }

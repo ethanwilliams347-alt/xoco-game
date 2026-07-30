@@ -1,6 +1,7 @@
 #include "physics/grid.h"
 #include "physics/random.h"
 #include "test_util.h"
+#include <cstdint>
 #include <set>
 #include <string>
 
@@ -549,6 +550,31 @@ int main() {
         
         g.paint(10, 10, ElementType::Empty, 0x00000000);
         check("paint over structure with non-structure queues support checks", g.has_pending_support_checks());
+    }
+
+    // A painted cell with nothing under it has to fall, per F4.1's verify note
+    // - the actual proof that paint's write wakes the chunk, rather than the
+    // proxy of merely observing active_chunk_count() above. Sand, not Wood:
+    // a powder's movement is evaluated every awake step on its own, with no
+    // queued check involved, so it is the shape that isolates "did the write
+    // wake the chunk" from structural falling's separate disturbance-only
+    // trigger (see the comment on Grid::place - a freshly placed structural
+    // cell is deliberately left standing, precisely so a scene can paint a
+    // platform without it collapsing on load).
+    {
+        Grid g(20, 20, 123);
+        g.paint(10, 10, ElementType::Sand, 0xFFABCDEF);
+
+        check("a freshly painted cell starts exactly where it was painted",
+              g.get_element(10, 10).type == ElementType::Sand);
+
+        step(g, 40);
+
+        check("a painted cell with nothing under it falls",
+              g.get_element(10, 10).type == ElementType::Empty);
+        check("...landing at the bottom of the world, keeping its colour",
+              g.get_element(10, 19).type == ElementType::Sand &&
+              g.get_element(10, 19).color == 0xFFABCDEF);
     }
 
     return report();

@@ -34,5 +34,25 @@ int main() {
         check("outside scene remains empty", g.get_element(1, 1).type == ElementType::Empty);
     }
 
+    {
+        // Empty is a background colour someone painted in an editor, not a
+        // material with a legend entry - loading it must not stamp its albedo
+        // pixel over whatever the grid already had there.
+        Grid g(10, 10, 123);
+        g.set_element(5, 5, ElementType::Wall);
+        const uint32_t before = g.get_element(5, 5).color;
+
+        Scene s;
+        s.width = 1;
+        s.height = 1;
+        s.materials = { ElementType::Empty };
+        s.albedo = { 0xFF999999 };
+
+        load_scene(g, s, 5, 5);
+
+        check("scene Empty leaves existing type untouched", g.get_element(5, 5).type == ElementType::Wall);
+        check("scene Empty leaves existing color untouched", g.get_element(5, 5).color == before);
+    }
+
     return report();
 }

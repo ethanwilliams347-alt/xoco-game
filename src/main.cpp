@@ -11,9 +11,13 @@ const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 
 // The simulated world's size, in cells - independent of the window since F3.1.
-// Equal to WINDOW_WIDTH/Camera::SCALE and WINDOW_HEIGHT/Camera::SCALE today
-// only because nothing has needed them to differ yet; there is no
-// relationship between them beyond that coincidence.
+// No longer equal to WINDOW_WIDTH/HEIGHT divided by Camera::SCALE: that was
+// only ever a coincidence of nothing having needed them to differ yet, and F4's
+// scene is authored at 640x400 (notes/art_pipeline.txt's reference resolution),
+// bigger than the 200x150 viewport below. That is deliberate, not a mismatch to
+// fix - it is what exercises the panning half of the camera (F3.4) rather than
+// just the decoupling half (F3.1-F3.3), which a world equal to the viewport
+// never did.
 //
 // SDL_RenderCopy below still stretches the whole viewport-sized texture across
 // the whole window (two null rects, unchanged), so a grid that does not match
@@ -26,8 +30,8 @@ const int WINDOW_HEIGHT = 600;
 // and the viewport now follows the player and clamps at the world's edges
 // (F3.4) rather than staying pinned at the origin - the two together are what
 // turn "the whole world, squashed" into a real view of part of a larger one.
-const int GRID_WIDTH = 200;
-const int GRID_HEIGHT = 150;
+const int GRID_WIDTH = 640;
+const int GRID_HEIGHT = 400;
 
 // How many world cells actually fit on screen at once - independent of
 // GRID_WIDTH/HEIGHT, which is the whole point of F3.3: a world bigger than
@@ -76,15 +80,21 @@ Scene load_scene_from_bmp(const char* material_path, const char* albedo_path) {
         return scene;
     }
 
-    const uint32_t* mat_pixels = static_cast<const uint32_t*>(mat_32->pixels);
-    const uint32_t* alb_pixels = static_cast<const uint32_t*>(alb_32->pixels);
+    // Indexed via pitch rather than width * 4: SDL_ConvertSurfaceFormat is free
+    // to pad each row for alignment, and reading straight across the buffer as
+    // if pitch == width * 4 would drift a row further off with every line on
+    // any width where that assumption doesn't hold.
+    const uint8_t* mat_base = static_cast<const uint8_t*>(mat_32->pixels);
+    const uint8_t* alb_base = static_cast<const uint8_t*>(alb_32->pixels);
 
     for (int y = 0; y < scene.height; ++y) {
+        const uint32_t* mat_row = reinterpret_cast<const uint32_t*>(mat_base + y * mat_32->pitch);
+        const uint32_t* alb_row = reinterpret_cast<const uint32_t*>(alb_base + y * alb_32->pitch);
         for (int x = 0; x < scene.width; ++x) {
             int idx = y * scene.width + x;
-            uint32_t m_col = mat_pixels[idx];
-            uint32_t a_col = alb_pixels[idx];
-            
+            uint32_t m_col = mat_row[x];
+            uint32_t a_col = alb_row[x];
+
             // Map m_col to ElementType. Match RGB only.
             ElementType type = ElementType::Empty;
             uint32_t m_rgb = m_col & 0xFFFFFF;

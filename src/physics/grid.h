@@ -164,6 +164,11 @@ private:
     int get_index(int x, int y) const;
     void swap_elements(int x1, int y1, int x2, int y2);
 
+    // The body shared by set_element and paint once each has resolved its own
+    // colour and confirmed the write is in bounds. See the definition for why
+    // this is one function rather than two copies.
+    void place(int x, int y, ElementType type, uint32_t color);
+
     // Runs the one cell at (x, y) through its material's behaviour.
     void step_cell(int x, int y);
 
