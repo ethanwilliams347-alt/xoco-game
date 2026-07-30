@@ -176,6 +176,27 @@ PHASING
 
 Phases 0-3 give a loadable authored scene. 4-5 are what make it cohere.
 
+ALL SIX PHASES ARE NOW SCHEDULED IN ROADMAP.md. This note is the reasoning;
+the roadmap is the task list, and where the two disagree the roadmap wins.
+
+  0-2  ->  F4 in Foundations. Built and closed.
+  3-6  ->  V1-V4 in Engine & Visual Depth, which sits between Foundations
+           and Medium Term.
+
+Both halves left Presentation & Tooling rather than being built while still
+filed behind that section's "nothing starts here yet" rule - see the note on
+that in VISION.md's Scope Discipline. Phases 3-6 moved for a reason this
+note did not anticipate: the visual design became a stated selling point in
+VISION.md rather than a finish applied after the loop worked, which is what
+promoted them out of "presentation, later."
+
+One ordering change the roadmap makes and this note does not: phase 6's Snow
+is sequenced after heat lands (E2), because with a temperature in the engine
+snow melting is a thermal row rather than a hand-written special case.
+
+Per-cell emissive lighting is not in this note at all and is the next visual
+item after V1-V4 - gated on there being authored art worth lighting.
+
 
 DELIBERATELY DEFERRED
 ----------------------
