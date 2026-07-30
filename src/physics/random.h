@@ -81,4 +81,68 @@ inline constexpr int spread(int range, uint64_t seed, uint64_t step, uint64_t in
     return static_cast<int>(bits(seed, step, index, stream) % span) - range;
 }
 
+// ---------------------------------------------------------------------------
+// Reserved for world generation. Nothing draws from this yet.
+//
+// The rule, written down before there is a generator to break it: **world
+// generation draws only from streams minted by worldgen(), and the simulation
+// draws only from the tags declared above. Neither borrows the other's.**
+//
+// The point is not tidiness. A generator sharing the simulation's streams would
+// mean that generating one extra cave changes the values the simulation reads
+// for those same cells, so a terrain tweak silently alters how sand falls in
+// parts of the world it never touched - and the two would be impossible to tell
+// apart from a bug in the sand.
+//
+// Two notes for whoever writes the generator:
+//
+//   - Generation is authored, not per-step. Pass **step 0**, the same as colour
+//     jitter does, so a feature's shape does not depend on which step happened
+//     to generate it.
+//   - `index` means "which thing am I asking about", not necessarily a cell. A
+//     draw about the seventh cave passes 7.
+//
+// Streams are minted rather than hand-written so the generator can take as many
+// as it needs without anyone picking further magic constants by eye. All of this
+// is one function and one constant, which is a large part of why the hash is the
+// right shape: with a stateful generator, a separate salt space would be a
+// second generator object to own, seed, save and keep in lockstep with the first.
+inline constexpr Stream worldgen(uint64_t n) {
+    return static_cast<Stream>(mix(0x5851F42D4C957F2Dull ^ (n * 0x2545F4914F6CDD1Dull)));
+}
+
+// Every simulation stream, listed once so the check below can see them all. A
+// new tag has to be added here as well as to the enum - the same duty MATERIALS
+// has towards ElementType, and enforced the same way.
+inline constexpr Stream SIM_STREAMS[] = {
+    Stream::ColorJitter,
+    Stream::SweepDirection,
+    Stream::PowderDirection,
+    Stream::FluidDirection,
+    Stream::Reaction,
+};
+
+// Two streams sharing a value are one stream, silently. Nothing about that looks
+// wrong from the outside - the world still runs, it just has a correlation in it
+// that no assertion is placed to catch - so it is checked at compile time, where
+// it cannot be skipped. Covers the declared tags against each other and against
+// the first sixteen minted generation streams.
+namespace detail {
+constexpr bool streams_distinct() {
+    constexpr int sim_n = sizeof(SIM_STREAMS) / sizeof(SIM_STREAMS[0]);
+    constexpr int gen_n = 16;
+    uint64_t all[sim_n + gen_n] = {};
+    for (int i = 0; i < sim_n; ++i) all[i] = static_cast<uint64_t>(SIM_STREAMS[i]);
+    for (int i = 0; i < gen_n; ++i)
+        all[sim_n + i] = static_cast<uint64_t>(worldgen(static_cast<uint64_t>(i)));
+
+    for (int i = 0; i < sim_n + gen_n; ++i)
+        for (int j = i + 1; j < sim_n + gen_n; ++j)
+            if (all[i] == all[j]) return false;
+    return true;
+}
+} // namespace detail
+
+static_assert(detail::streams_distinct(), "two streams share a value and are therefore one stream");
+
 } // namespace sim_random
