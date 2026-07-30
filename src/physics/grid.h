@@ -3,7 +3,6 @@
 #include "random.h"
 #include <vector>
 #include <cstdint>
-#include <random>
 
 class Grid {
 public:
@@ -301,14 +300,9 @@ private:
 
     uint32_t jittered_color(const Material& mat, uint64_t index) const;
 
+    // The seed and the step count are the whole of what randomness depends on.
+    // There is no generator here any more, which is what makes that sentence
+    // true: nothing carries state between draws, so a save file that records
+    // these two numbers records everything.
     uint64_t world_seed;
-
-    // Random generator for scattering and colour variation.
-    //
-    // Scheduled for removal (Foundations F1.6): a stateless hash of position and
-    // step number gives the same numbers without 2.5 KB of state that a save file
-    // would otherwise have to carry, and is faster in the inner loop besides. The
-    // seed is already owned above, so that change is confined to the five call
-    // sites and does not reach the constructor again.
-    std::mt19937 rng;
 };

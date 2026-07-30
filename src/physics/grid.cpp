@@ -21,13 +21,11 @@ Grid::Grid(int width, int height, uint64_t seed) : width(width), height(height),
     support_visit.resize(width * height, 0);
     support_state.resize(width * height, 0);
 
-    // Both halves of the seed go in. std::mt19937 seeds from a single 32-bit
-    // value, so passing the seed straight in would silently ignore the top half
-    // and make two seeds that differ only up there behave identically - a trap
-    // worth avoiding even though the generator itself is on its way out (F1.6).
-    std::seed_seq seq{ static_cast<uint32_t>(world_seed),
-                       static_cast<uint32_t>(world_seed >> 32) };
-    rng.seed(seq);
+    // Nothing to seed. The seed is stored and read straight out of world_seed by
+    // the hash in random.h, so the whole 64 bits reach the work by construction -
+    // where std::mt19937 needed a seed_seq to stop its 32-bit seeding from
+    // silently discarding the top half. The test for that (F1.1) still stands and
+    // still passes; it now checks a property the code cannot lose.
 }
 
 // Waking only the cell that changed is the classic dirty-rect bug. Erase a grain
