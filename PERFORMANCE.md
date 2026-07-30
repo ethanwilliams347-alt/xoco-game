@@ -1,0 +1,38 @@
+# Performance
+
+Benchmark numbers, the method behind them, and the mistakes that method exists to prevent. Extracted out of [ROADMAP.md](ROADMAP.md) so a roadmap item that makes or corrects a performance claim can point here instead of carrying the methodology inline. See `tests/bench_grid.cpp` / [Running the Benchmark](README.md#running-the-benchmark) for how to reproduce these numbers yourself.
+
+Numbers from `grid_bench` on the dev machine, 960x540 (518,400 cells), against a 16.67 ms frame:
+
+| Scenario | ms/step | % of a 60 Hz frame |
+|---|---|---|
+| **settled** — a world at rest | 0.0001 ms | ~0% |
+| **sparse** — static terrain, one small falling blob | 0.063 ms | 0.4% |
+| **burning** — a Wood slab permanently on fire | 0.457 ms | 2.7% |
+| **collapsing** — 3,200 cells of rigid structure in free fall at once | 1.672 ms | 10.0% |
+| **churning** — sand sinking through water, then settling | 2.668 ms | 16.0% |
+| **cascading** — nothing ever settles, sustained worst case | 11.853 ms | **71.1%** |
+
+Since F1.1 the benchmark runs on a fixed seed, so every run of it simulates the same world. That removes one source of spread but not the one that matters — see the machine-state note below, which is much larger.
+
+**Each number is the fastest of 5 runs, not an average.** A run can only be made slower by interference, never faster, so the minimum is the closest thing to a measurement of the code rather than of the machine. Averaging mixes the two together.
+
+**Never compare a number here against one from a different sitting.** Absolute timings are not portable across sittings — see below for how badly. Anything claiming a cost has to be an A/B measured back to back, and the ones that have been are written out in full below rather than folded into this table, because a single column of numbers cannot show its own method.
+
+**`collapsing` exists because every other scenario is blind to falling structure.** None of the other five contains a single cell of Wall or Wood that can move, so none of them can price the one part of the engine that is re-derived rather than stepped. Eight independent slabs of 400 cells each, permanently in the air at full speed, cost 1.67 ms — 25,600 cell-moves in a step, each one a flood fill's worth of re-deriving what is holding it up, at about 65 ns apiece. Note the awake-chunk count: **zero**. Rigid falling runs entirely outside the chunk system, before the sweep, driven by its own queue, so the on-screen chunk counter says nothing about it.
+
+**The support check's cost is below the noise floor.** Earlier revisions of this file claimed about 5%, measured back-to-back and believed on that basis. It does not survive a better method. The A/B was re-run bracketed — on, off, on — and `cascading` came out at 11.53, 11.61, 11.59 ms: the "off" reading lands *between* the two "on" readings. Whatever the hook costs, it is smaller than what this benchmark can see. `churning` agrees, at 2.790 against 2.788. The claim of 5% was measurement error, not a cost that has since been optimised away.
+
+**Machine state moves this benchmark more than any feature has.** In a single sitting, one unchanged binary measured `cascading` at 27 ms, then 15 ms, then 11.5 ms, as background load on the machine drained away — a 2.3x spread, on the same code, within an hour. Meanwhile `churning` barely moved, because it is the scenario that fits in cache; `cascading` keeps 105 of 135 chunks awake and is bandwidth-bound, so it is the one that notices what else the machine is doing.
+
+**Removing the generator (F1.6) was not the free win it was expected to be.** `ENGINEERING_NOTES.md` had this filed as a performance item — `std::mt19937` replaced by a stateless hash, materially faster in the inner loop. Bracketed properly (five runs each, alternating hash/generator/hash/generator/…, minimum of each) `cascading` gives the generator a range of `11.6376`–`11.7399` ms against the hash's `11.8529`–`11.9704` ms, and **those two ranges do not overlap.** That is a real, repeatable **regression of about 1.7–1.9%**, not noise — `churning`'s ranges *do* overlap (`2.6529`–`2.6834` against `2.6680`–`2.6890`), which is what a non-effect looks like under this method, and is the contrast that makes the `cascading` result trustworthy rather than a hopeful reading of overlapping noise. The likely reason: the hash spends roughly six multiplies recomputing every draw from scratch, where `std::mt19937`'s `operator()` is a cheap step against already-resident state — determinism was never a promise that recomputing from nothing is free, and `cascading` is the one scenario with enough active cells per step to make that cost visible. **The trade was made for correctness, not speed, and the record should say so rather than quietly keep the old story.** Nothing here threatens the 71% budget — the change is a fraction of a percent of the frame — but the RNG entry in `ENGINEERING_NOTES.md` used to claim a speed-up and is corrected there rather than deleted.
+
+Two rules follow, and they are the whole reason this document exists:
+- **Bracket every A/B (on, off, on).** Drift during a sitting is monotonic as the machine settles, so an unbracketed pair silently charges the second measurement for the drift between them. This is exactly how the 5% figure got in here.
+- **A number without a matching control is not evidence.** When a scenario looks like it regressed, first check whether a scenario that *cannot* be affected moved too. `churning` and `cascading` contain no Wall or Wood at all, so nothing in either can ever fall — if they move when the falling code changes, the machine moved, not the code. This has already earned its keep twice: once against a phantom 2x regression, and again when fall acceleration landed and `cascading` read 17.8, then 27.4, then 12.0 ms across three consecutive runs of the same binary.
+
+**Acceleration is priced per cell of travel, not per step.** A piece at speed 8 costs eight times what a piece at speed 1 costs *in that step*, because it does the work eight times — one full re-derivation per cell moved, which is what stops it stepping over a thin floor. The total cost of falling a given distance is therefore unchanged by acceleration; it is spent sooner and in fewer steps. That follows from the structure of the loop rather than from a measurement, and it is why `MAX_FALL_SPEED` is the knob to reach for if `collapsing` ever matters: it is a direct multiplier on the worst case.
+
+Affordable either way. `cascading` is a synthetic worst case the game does not produce, the prototype runs at 200x150 rather than 960x540, real gameplay sits near `sparse`/`burning`, and `ENGINEERING_NOTES.md` had two items filed as cheap wins aimed squarely at this loop. **Neither survived contact with a measurement.** Cell size stays off the table for the authored-colour reason, and RNG — F1.6, in `ROADMAP.md` — turned out to cost a small amount rather than save one. The ladder some future revision of this document might reach for is therefore one rung shorter than it looked: both items that used to sit on it are now closed, and neither paid for itself in speed. Which is fine — determinism was the point of F1.6, not speed, and it is a fraction of a percent of the frame either way — but the next answer to "`cascading` is slow" is a real optimisation with a real design cost, not a line item already sitting in this file. At 71% of frame, `cascading` does not have much headroom, and it is the number to watch.
+
+The one to watch *second* is `collapsing`, for a different reason: it is the only scenario whose cost is set by a tuning constant rather than by how much material is moving. Raising `MAX_FALL_SPEED` to make things feel heavier multiplies it directly.

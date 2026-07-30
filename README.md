@@ -54,11 +54,35 @@ is aiming at) across six scenarios and reports milliseconds per step against the
 16.67 ms budget of a 60 Hz frame. Run it before and after any change that claims
 to make the simulation faster.
 
-Read `ROADMAP.md` before trusting a number out of it. Timings from different
+Read `PERFORMANCE.md` before trusting a number out of it. Timings from different
 sittings on the same machine have been seen to differ by more than 2x on
 identical code, so a comparison is only worth anything if both sides were
-measured back to back — and that section explains how a claim in these docs got
+measured back to back — and that document explains how a claim in these docs got
 that wrong once already.
+
+## Manual Testing
+
+`ctest` proves each mechanic is correct in isolation, headlessly, one suite per concern. It cannot prove they still *compose* — that digging near falling sand near fire near water still feels and looks right together — because nothing about running in a window, taking real input, and rendering a frame is exercised by a suite that never opens one. The checklist below is the other half. It is not the playtest gate in `ROADMAP.md`'s Medium Term section, which is about whether the game is *fun* for someone who did not build it; this is about whether it is still *correct*, run by whoever just built the feature, in the two or three minutes before calling it done.
+
+**Run this after any change that touches `src/physics/`, `src/game/` or `main.cpp` and is not fully exercised by the automated suites** — which in practice means anything touching rendering, input, or feel, since those are exactly what a headless test cannot see. Skip it for test-only or documentation-only commits; there is nothing here those could break. Each item names the regression it exists to catch, most of them things that have actually gone wrong once already in this project — a floating pile, a seam at a chunk border, a fire that never dies — so a "looks fine" pass is a real signal, not a formality.
+
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). Title bar shows fps, current material, brush size, and chunks awake, and the awake count sits at 0 against an empty world.
+
+2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
+
+3. **Digging (`DigTool`).** Left-click cuts a circular hole where the orange aim marker sits. Aim at something past `RANGE` and confirm the marker stops short rather than reading as broken. Dig the bottom out of a standing Sand pile and confirm everything above it falls in — a gap left hanging is the classic dirty-rect bug ([Chunked updates](#chunked-updates)). Fire at a wall from behind cover and confirm the shot stops at the near face rather than tunnelling through to whatever is behind it.
+
+4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the title bar name agrees. Sand piles into a slope. Water spreads flat. Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
+
+5. **Reactions.** Ignite a Wood block with Fire (`8`) and watch it catch, spread, and eventually burn down to `Empty`. Same against Oil — should catch far faster. Pour Water onto Fire and confirm it becomes Steam rather than just vanishing. Place one Fire cell with nothing nearby and confirm it burns itself out on its own. **Then box a Fire cell in on all sides with Wall and confirm it still burns out** — this is the self-wake regression specifically: a fire with nowhere to move and nothing to check its own decay against will otherwise freeze forever with its chunk asleep ([Reactions](#reactions)).
+
+6. **Chunking / sleep-wake.** Let a mixed scene (sand, water, a fire) run to rest and confirm the awake-chunk count in the title bar returns to at or near zero — a nonzero idle count means something is being woken that should not be. Build a flat sand floor wide enough to cross a chunk boundary (chunks are 64 cells) and confirm it settles into one continuous surface with no step or seam at the boundary.
+
+7. **Structures ([Structures and falling](#structures-and-falling)).** Place a Wall or Wood shape with nothing under it and confirm it falls as one rigid piece, keeping its shape, rather than crumbling into loose grains or hanging in the air. Rest a shape on solid ground and confirm it stays put indefinitely — no spontaneous twitching. Dig one support cell out from under a large structure and confirm the whole thing drops promptly and lands clean, nothing left floating.
+
+8. **Performance sanity.** Paint a large, actively-falling scene (a wide sand-over-water fill is close to `grid_bench`'s `churning`) and watch the title bar fps stay near the display's refresh rather than cratering. If something feels newly slow, that is a lead, not a verdict — follow it up with `grid_bench`, bracketed, per `PERFORMANCE.md`; a felt slowdown on its own is exactly the kind of unbracketed reading that document warns against trusting.
+
+9. **Stability.** A few minutes of doing several of the above at once — digging near falling sand near fire near water, brush strokes back to back, movement keys held through a collapse — without a crash. There is one unexplained `0xC0000409` on record, seen twice under heavy machine load and never reproduced; if it recurs, note what else was running on the machine at the time and fold it into the crash-diagnosis item in `ROADMAP.md`'s Presentation & Tooling section rather than letting it evaporate again.
 
 ## Controls
 
@@ -196,7 +220,7 @@ input onto a per-step log rather than sampling it in the render loop, which
 is separate, not-yet-built work.
 
 Replacing the generator with the hash cost a small amount rather than
-saving one — see the RNG entry under Engineering Notes in `ROADMAP.md` for
+saving one — see the RNG entry in `ENGINEERING_NOTES.md` for
 the measured number and why it was recorded rather than assumed.
 
 ### The player
@@ -382,6 +406,6 @@ and `swap_elements` is the hottest path there is, so this was expected to cost
 something. It does not measurably: a bracketed A/B against the same binary with
 the check compiled out cannot separate the two. An earlier revision of the docs
 claimed about 5%, which turned out to be the benchmark measuring the machine
-rather than the code. ROADMAP.md has the numbers, the method, and why the old
+rather than the code. PERFORMANCE.md has the numbers, the method, and why the old
 figure was wrong — it is worth reading before trusting any timing in this
 project.
