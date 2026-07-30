@@ -1,4 +1,5 @@
 #include <SDL.h>
+#include <algorithm>
 #include <cstdio>
 #include <random>
 #include <string>
@@ -13,16 +14,24 @@ const int WINDOW_HEIGHT = 600;
 // only because nothing has needed them to differ yet; there is no
 // relationship between them beyond that coincidence.
 //
-// SDL_RenderCopy below still stretches the whole grid-sized texture across the
-// whole window (two null rects, unchanged), so a grid that does not match the
-// window's proportions renders squashed or cropped as of this step - that is
-// correct and expected here, not a bug to chase. Camera (F3.2) now owns every
+// SDL_RenderCopy below still stretches the whole viewport-sized texture across
+// the whole window (two null rects, unchanged), so a grid that does not match
+// the window's proportions renders squashed or cropped as of this step - that
+// is correct and expected here, not a bug to chase. Camera (F3.2) owns every
 // screen-to-world and world-to-screen conversion, so mouse/render coordinates
-// are correct at any grid size; a texture sized to the viewport rather than
-// the whole grid (F3.3) is what turns "the whole world, squashed" into a real
-// view of part of a world.
+// are correct at any grid size. The texture is now sized to the viewport
+// rather than the whole grid (F3.3), so upload cost stops scaling with world
+// size; it does not yet turn into a real view of *part* of a larger world,
+// because the visible rect's origin is pinned at (0, 0) until the camera
+// follows the player (F3.4).
 const int GRID_WIDTH = 200;
 const int GRID_HEIGHT = 150;
+
+// How many world cells actually fit on screen at once - independent of
+// GRID_WIDTH/HEIGHT, which is the whole point of F3.3: a world bigger than
+// this no longer costs more to upload just for existing off-screen.
+const int VIEWPORT_WIDTH = WINDOW_WIDTH / Camera::SCALE;
+const int VIEWPORT_HEIGHT = WINDOW_HEIGHT / Camera::SCALE;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
@@ -55,12 +64,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ARGB8888 texture for direct pixel manipulation
+    // ARGB8888 texture for direct pixel manipulation, sized to the viewport
+    // (F3.3) rather than the whole grid - see VIEWPORT_WIDTH/HEIGHT above.
     SDL_Texture* texture = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
-        GRID_WIDTH, GRID_HEIGHT
+        VIEWPORT_WIDTH, VIEWPORT_HEIGHT
     );
     if (!texture) {
         std::fprintf(stderr, "Texture could not be created! SDL_Error: %s\n", SDL_GetError());
@@ -166,9 +176,19 @@ int main(int argc, char* argv[]) {
             accumulator -= Run::FIXED_DT;
         }
 
-        // Update texture with new pixels
+        // Upload only the visible rect (F3.3), not the whole grid. The source
+        // pitch stays GRID_WIDTH wide even though the rect is narrower, so SDL
+        // reads the right columns out of each grid row and skips the rest -
+        // one call, no intermediate buffer. Clamped to the grid's own size so
+        // this stays correct if the grid is ever smaller than the viewport;
+        // the case this step exists for is the opposite one, a grid larger
+        // than the viewport, where the clamp is a no-op and the rect is the
+        // full viewport every frame.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
-        SDL_UpdateTexture(texture, nullptr, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
+        const int visible_w = std::min(VIEWPORT_WIDTH, GRID_WIDTH);
+        const int visible_h = std::min(VIEWPORT_HEIGHT, GRID_HEIGHT);
+        const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
+        SDL_UpdateTexture(texture, &visible_rect, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
