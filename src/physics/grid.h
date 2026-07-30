@@ -79,6 +79,13 @@ public:
     // that one exists.
     uint64_t seed() const { return world_seed; }
 
+    // Steps completed since construction - and, while a step is in progress, the
+    // 1-based index of that step. Readable for the same reason the seed is: a
+    // save file needs both numbers to say where a run had got to, and together
+    // they are the whole of what the simulation's randomness will depend on once
+    // the generator is gone (F1.3).
+    uint64_t steps() const { return step_count; }
+
     // Number of chunks that will be simulated on the next step. Zero means the
     // world has come completely to rest. Exposed for tests and for the on-screen
     // diagnostic, so "is anything actually sleeping?" is observable rather than
@@ -139,6 +146,24 @@ private:
     // 256, which is harmless: a cell that has been asleep for an exact multiple
     // of 256 steps is skipped for a single step and runs the next one.
     uint8_t frame_tag = 0;
+
+    // The simulation's clock. Distinct from `frame_tag` above despite both being
+    // counters, and the two must not be merged into one.
+    //
+    // `frame_tag` is a skip flag - its only question is "has this cell already
+    // moved this step" - and one byte is the right size for it, since a cell
+    // asleep for an exact multiple of 256 steps simply waits one extra step. This
+    // is a clock, and it will be the time input to the hash that replaces `rng`
+    // (F1.3), where a byte would be actively wrong: randomness for a given cell
+    // would repeat every 256 steps, which is visible periodicity rather than
+    // noise.
+    //
+    // Incremented at the very top of update(), before resolve_support(), so that
+    // everything happening within one step agrees on which step it is. Note that
+    // `frame_tag` deliberately does *not* move up there with it - it is stamped
+    // after support resolves so that cells a falling structure just moved are not
+    // marked as already updated, and still get their turn in the sweep.
+    uint64_t step_count = 0;
 
     // True if the cell at (x, y) may move into (tx, ty). Vertical moves are
     // allowed only when gravitationally favourable: a mover travelling down

@@ -322,6 +322,30 @@ int main() {
               "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
     }
 
+    // --- the step clock ---
+    // Nothing reads this yet; it exists so the hash that replaces the generator
+    // has a wide time input, and so a save file can say where a run had got to.
+    // Checked anyway, because a counter nothing observes is a counter that can be
+    // quietly wrong right up until the thing depending on it is built - at which
+    // point the bug looks like it is in the new code.
+    {
+        Grid g(32, 32);
+        check("a fresh grid has taken no steps", g.steps() == 0,
+              "steps=" + std::to_string(g.steps()));
+        step(g, 5);
+        check("the step clock counts every update", g.steps() == 5,
+              "steps=" + std::to_string(g.steps()));
+
+        // A step that does no work still happened. The world here is empty, so
+        // every chunk is asleep and the sweep touches nothing - the clock must
+        // advance regardless, or it would measure activity rather than time and
+        // two runs paused for different lengths would disagree about "when" it is.
+        const uint64_t before = g.steps();
+        step(g, 3);
+        check("an idle step still advances the clock", g.steps() == before + 3,
+              "steps=" + std::to_string(g.steps()));
+    }
+
     // --- determinism: the same seed produces the same world ---
     // Three checks, and the middle one is what makes the first mean anything.
     // Two worlds also match when nothing random ever happened, so an equality

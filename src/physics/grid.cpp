@@ -497,6 +497,13 @@ void Grid::step_cell(int x, int y) {
 }
 
 void Grid::update() {
+    // First of all, so that every part of this step agrees on which step it is:
+    // the support resolve below, the sweep after it, and the hash that will read
+    // this once the generator is gone. It deliberately does not sit next to
+    // ++frame_tag further down - that one has to stay below resolve_support(),
+    // and the two counters answer different questions.
+    ++step_count;
+
     // Before the sweep and before the chunk swap, so the cells a falling piece
     // vacates land in the bounds that are about to be simulated -- whatever was
     // displaced out from under it starts flowing on this step rather than the
