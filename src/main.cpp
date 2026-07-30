@@ -7,8 +7,20 @@
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
 const int PIXEL_SCALE = 4; // Each physics pixel is 4x4 screen pixels
-const int GRID_WIDTH = WINDOW_WIDTH / PIXEL_SCALE;
-const int GRID_HEIGHT = WINDOW_HEIGHT / PIXEL_SCALE;
+
+// The simulated world's size, in cells - independent of the window as of this
+// step (F3.1). Equal to WINDOW_WIDTH/PIXEL_SCALE and WINDOW_HEIGHT/PIXEL_SCALE
+// today only because nothing has needed them to differ yet; there is no
+// relationship between them beyond that coincidence now.
+//
+// SDL_RenderCopy below still stretches the whole grid-sized texture across the
+// whole window (two null rects, unchanged), so a grid that does not match the
+// window's proportions renders squashed or cropped as of this step - that is
+// correct and expected here, not a bug to chase. A Camera that knows the real
+// screen-to-world scale (F3.2) and a texture sized to the viewport rather than
+// the whole grid (F3.3) are what turn this back into a proper view.
+const int GRID_WIDTH = 200;
+const int GRID_HEIGHT = 150;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
