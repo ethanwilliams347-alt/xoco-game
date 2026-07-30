@@ -28,7 +28,9 @@ set(ENGINE_SOURCES
     src/scene/scene.cpp
 )
 
-add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
+# src/ui is SDL-side, like main.cpp - built only into the game executable,
+# not ENGINE_SOURCES, which stays what the headless test suites link against.
+add_executable(SlopPhysics src/main.cpp src/ui/text.cpp ${ENGINE_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)

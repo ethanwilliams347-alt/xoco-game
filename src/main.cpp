@@ -6,6 +6,7 @@
 #include "game/camera.h"
 #include "game/run.h"
 #include "scene/scene.h"
+#include "ui/text.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -197,6 +198,12 @@ int main(int argc, char* argv[]) {
     int frames_this_second = 0;
     double title_timer = 0.0;
 
+    // Recomputed once a second, same as the title bar readout it replaces,
+    // but drawn every frame - a string this cheap to format is not worth
+    // reformatting 60x/sec, and it costs nothing to redraw from the cached
+    // copy in between.
+    std::string hud_text = "FPS:0 BRUSH:SAND(3) CHUNKS:0";
+
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -314,6 +321,22 @@ int main(int argc, char* argv[]) {
         };
         SDL_RenderFillRect(renderer, &mark);
 
+        // The UI layer decision (ENGINEERING_NOTES.md): drawn here, in the
+        // game window, rather than left to the OS title bar - a solid backing
+        // rect first so the text stays readable over whatever the simulation
+        // is doing underneath it.
+        const int hud_scale = 2;
+        const int hud_x = 8, hud_y = 8;
+        const SDL_Rect hud_backing{
+            hud_x - 4, hud_y - 4,
+            ui::text_width(hud_text, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
+        };
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_RenderFillRect(renderer, &hud_backing);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
+
         SDL_RenderPresent(renderer);
 
         // Surface the frame rate so performance regressions are visible while working.
@@ -322,10 +345,9 @@ int main(int argc, char* argv[]) {
         if (title_timer >= 1.0) {
             // Awake chunks are shown because they explain the frame rate: if the
             // world is idle and the count is not near zero, culling has a bug.
-            const std::string title = "SLOP Pixel Physics  |  " + std::to_string(frames_this_second) + " fps  |  " +
-                                      material_of(current_brush).name + "  (brush " + std::to_string(brush_size) + ")" +
-                                      "  |  " + std::to_string(run.grid.active_chunk_count()) + " chunks awake";
-            SDL_SetWindowTitle(window, title.c_str());
+            hud_text = "FPS:" + std::to_string(frames_this_second) +
+                       " BRUSH:" + material_of(current_brush).name + "(" + std::to_string(brush_size) + ")" +
+                       " CHUNKS:" + std::to_string(run.grid.active_chunk_count());
             frames_this_second = 0;
             title_timer = 0.0;
         }
