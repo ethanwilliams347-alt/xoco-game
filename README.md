@@ -28,6 +28,7 @@ To survive, you must use mysterious ancient science to access different worlds. 
    ```bash
    .\build\Release\SlopPhysics.exe
    ```
+   (`.\build\Debug\SlopPhysics.exe` if you built with `--config Debug` instead — whichever config you built is the one whose folder has the exe.) The build step above also copies `assets/` next to the executable automatically, which is what the F4 test scene loads at startup; nothing extra to run first.
 
 ## Running the Tests
 
@@ -66,21 +67,21 @@ that wrong once already.
 
 **Run this after any change that touches `src/physics/`, `src/game/` or `main.cpp` and is not fully exercised by the automated suites** — which in practice means anything touching rendering, input, or feel, since those are exactly what a headless test cannot see. Skip it for test-only or documentation-only commits; there is nothing here those could break. Each item names the regression it exists to catch, most of them things that have actually gone wrong once already in this project — a floating pile, a seam at a chunk border, a fire that never dies — so a "looks fine" pass is a real signal, not a formality.
 
-1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). Title bar shows fps, current material, brush size, and chunks awake, and the awake count sits at 0 against an empty world.
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
 
 3. **Digging (`DigTool`).** Left-click cuts a circular hole where the orange aim marker sits. Aim at something past `RANGE` and confirm the marker stops short rather than reading as broken. Dig the bottom out of a standing Sand pile and confirm everything above it falls in — a gap left hanging is the classic dirty-rect bug ([Chunked updates](#chunked-updates)). Fire at a wall from behind cover and confirm the shot stops at the near face rather than tunnelling through to whatever is behind it.
 
-4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the title bar name agrees. Sand piles into a slope. Water spreads flat. Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
+4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the HUD's material name agrees. Sand piles into a slope. Water spreads flat. Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
 
 5. **Reactions.** Ignite a Wood block with Fire (`8`) and watch it catch, spread, and eventually burn down to `Empty`. Same against Oil — should catch far faster. Pour Water onto Fire and confirm it becomes Steam rather than just vanishing. Place one Fire cell with nothing nearby and confirm it burns itself out on its own. **Then box a Fire cell in on all sides with Wall and confirm it still burns out** — this is the self-wake regression specifically: a fire with nowhere to move and nothing to check its own decay against will otherwise freeze forever with its chunk asleep ([Reactions](#reactions)).
 
-6. **Chunking / sleep-wake.** Let a mixed scene (sand, water, a fire) run to rest and confirm the awake-chunk count in the title bar returns to at or near zero — a nonzero idle count means something is being woken that should not be. Build a flat sand floor wide enough to cross a chunk boundary (chunks are 64 cells) and confirm it settles into one continuous surface with no step or seam at the boundary.
+6. **Chunking / sleep-wake.** Let a mixed scene (sand, water, a fire) run to rest and confirm the awake-chunk count in the HUD returns to at or near zero — a nonzero idle count means something is being woken that should not be. Build a flat sand floor wide enough to cross a chunk boundary (chunks are 64 cells) and confirm it settles into one continuous surface with no step or seam at the boundary.
 
 7. **Structures ([Structures and falling](#structures-and-falling)).** Place a Wall or Wood shape with nothing under it and confirm it falls as one rigid piece, keeping its shape, rather than crumbling into loose grains or hanging in the air. Rest a shape on solid ground and confirm it stays put indefinitely — no spontaneous twitching. Dig one support cell out from under a large structure and confirm the whole thing drops promptly and lands clean, nothing left floating.
 
-8. **Performance sanity.** Paint a large, actively-falling scene (a wide sand-over-water fill is close to `grid_bench`'s `churning`) and watch the title bar fps stay near the display's refresh rather than cratering. If something feels newly slow, that is a lead, not a verdict — follow it up with `grid_bench`, bracketed, per `PERFORMANCE.md`; a felt slowdown on its own is exactly the kind of unbracketed reading that document warns against trusting.
+8. **Performance sanity.** Paint a large, actively-falling scene (a wide sand-over-water fill is close to `grid_bench`'s `churning`) and watch the HUD fps stay near the display's refresh rather than cratering. If something feels newly slow, that is a lead, not a verdict — follow it up with `grid_bench`, bracketed, per `PERFORMANCE.md`; a felt slowdown on its own is exactly the kind of unbracketed reading that document warns against trusting.
 
 9. **Stability.** A few minutes of doing several of the above at once — digging near falling sand near fire near water, brush strokes back to back, movement keys held through a collapse — without a crash. There is one unexplained `0xC0000409` on record, seen twice under heavy machine load and never reproduced; if it recurs, note what else was running on the machine at the time and fold it into the crash-diagnosis item in `ROADMAP.md`'s Presentation & Tooling section rather than letting it evaporate again.
 
@@ -107,9 +108,12 @@ that wrong once already.
 - **`8`**: **Fire** — gas, ignites Wood and Oil on contact, extinguished by Water, burns out on its own.
 - **`ESC`**: Quit the game.
 
-The window title shows the current framerate, selected material, and brush size.
-The player spawns in mid-air in the middle of the world; draw some terrain under
-it with the brush and it will land on it.
+The HUD in the top-left corner of the window shows the current framerate,
+selected material, brush size, and awake-chunk count (see [Chunked
+updates](#chunked-updates)); the window title bar itself is just a static
+label. The player spawns in mid-air in the middle of the world; the F4 test
+scene loaded at startup gives it plenty to land on, and the brush still works
+for drawing more terrain anywhere else.
 
 ## Engine Architecture
 
@@ -145,8 +149,8 @@ bug reappearing as seams along the invisible chunk lines.
 All writes go through `set_element` and `swap_elements`, and both call
 `mark_dirty`. Any new code that mutates cells must go through them too.
 
-The window title shows how many chunks are awake. In an idle world it should sit
-at or near zero.
+The HUD (top-left corner of the window) shows how many chunks are awake. In an
+idle world it should sit at or near zero.
 
 ### Reactions
 
