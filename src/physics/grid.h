@@ -1,5 +1,6 @@
 #pragma once
 #include "element.h"
+#include "random.h"
 #include <vector>
 #include <cstdint>
 #include <random>
@@ -276,6 +277,18 @@ private:
     // Falling writes cells, and those writes would otherwise queue support
     // checks for the fall that is already in progress.
     bool resolving_support = false;
+
+    // Randomness for the step in progress. These fold in the seed and the step
+    // count so that a call site names only what varies: where it is asking from,
+    // and which decision it is making. Defined in the header rather than the
+    // .cpp because the remaining call sites (F1.4) run per active cell, and an
+    // out-of-line call would cost more than the mix itself.
+    bool coin(uint64_t index, sim_random::Stream s) const {
+        return sim_random::coin(world_seed, step_count, index, s);
+    }
+    bool chance(int pct, uint64_t index, sim_random::Stream s) const {
+        return sim_random::chance(pct, world_seed, step_count, index, s);
+    }
 
     uint32_t jittered_color(const Material& mat);
 

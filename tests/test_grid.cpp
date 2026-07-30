@@ -1,4 +1,5 @@
 #include "physics/grid.h"
+#include "physics/random.h"
 #include "test_util.h"
 #include <string>
 
@@ -320,6 +321,54 @@ int main() {
 
         check("a trapped fire still burns out instead of freezing", decayed >= 25,
               "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
+    }
+
+    // --- the hash behind the randomness ---
+    // Tested directly, and not only through the world, because the failure mode
+    // that matters is invisible from the outside. A mixer that is merely *poor* -
+    // biased, or correlated between streams, or repeating for a cell across steps
+    // - still produces a world that settles, stratifies and burns exactly as
+    // every other test in this file expects. It would just look subtly wrong in
+    // motion, which is not a thing an assertion can notice. So the mixer is
+    // checked on its own terms rather than through its consequences.
+    {
+        using namespace sim_random;
+        const uint64_t seed = 0xC0FFEEull;
+
+        check("the hash is a function of its inputs",
+              bits(seed, 7, 99, Stream::Reaction) == bits(seed, 7, 99, Stream::Reaction));
+
+        // Balance across neighbouring cells on one step, and across consecutive
+        // steps for one cell. Both matter and they fail differently: the first
+        // going wrong looks like diagonal banding in falling powder, the second
+        // looks like a cell that has made its mind up and stopped rerolling.
+        int across_cells = 0, across_steps = 0, stream_disagreements = 0;
+        for (uint64_t i = 0; i < 10000; ++i) {
+            if (coin(seed, 1, i, Stream::PowderDirection)) across_cells++;
+            if (coin(seed, i, 1, Stream::PowderDirection)) across_steps++;
+            if (coin(seed, 1, i, Stream::PowderDirection) != coin(seed, 1, i, Stream::FluidDirection))
+                stream_disagreements++;
+        }
+        check("neighbouring cells get unrelated values", across_cells > 4500 && across_cells < 5500,
+              std::to_string(across_cells) + "/10000");
+        check("consecutive steps get unrelated values", across_steps > 4500 && across_steps < 5500,
+              std::to_string(across_steps) + "/10000");
+
+        // Two streams reading the same cell on the same step must disagree about
+        // half the time. Sharing a value here would not look random-ish and wrong,
+        // it would look like a permanent correlation between two unrelated rules.
+        check("separate streams do not track each other",
+              stream_disagreements > 4500 && stream_disagreements < 5500,
+              std::to_string(stream_disagreements) + "/10000");
+
+        check("chance(0) never fires", !chance(0, seed, 3, 4, Stream::Reaction));
+        check("chance(100) always fires", chance(100, seed, 3, 4, Stream::Reaction));
+
+        int hits = 0;
+        for (uint64_t i = 0; i < 10000; ++i)
+            if (chance(25, seed, 1, i, Stream::Reaction)) hits++;
+        check("chance(pct) fires at about the rate asked for", hits > 2300 && hits < 2700,
+              std::to_string(hits) + "/10000, wanted ~2500");
     }
 
     // --- the step clock ---

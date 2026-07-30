@@ -542,7 +542,14 @@ void Grid::update() {
 
         for (int y = row_max_y; y >= row_min_y; --y) {
             // Alternate the sweep direction to stop piles leaning one way.
-            const bool leftward = (rng() % 2 == 0);
+            //
+            // Keyed on the row, and it takes a stream tag anyway. F1.3 in the
+            // roadmap says this site "needs no salt" because its input is
+            // already a row and a step - but row y and cell index y are the same
+            // number, and cell index y is a real cell, so without a tag a row's
+            // direction would be drawn from the same value as that cell's own
+            // decisions. The tag is free; the collision would not have been.
+            const bool leftward = coin(static_cast<uint64_t>(y), sim_random::Stream::SweepDirection);
 
             for (int i = 0; i < chunks_x; ++i) {
                 const int cx = leftward ? (chunks_x - 1 - i) : i;
