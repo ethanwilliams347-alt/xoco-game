@@ -290,7 +290,16 @@ private:
         return sim_random::chance(pct, world_seed, step_count, index, s);
     }
 
-    uint32_t jittered_color(const Material& mat);
+    // The exception among these three: no step input, pinned at 0 instead.
+    //
+    // Colour jitter is not a decision the cell retakes every step, it is a
+    // property of the material at that spot, so the clock has no business in it.
+    // Feeding the step in would repaint the whole world every frame.
+    int authored_spread(int range, uint64_t index, sim_random::Stream s) const {
+        return sim_random::spread(range, world_seed, 0, index, s);
+    }
+
+    uint32_t jittered_color(const Material& mat, uint64_t index) const;
 
     uint64_t world_seed;
 

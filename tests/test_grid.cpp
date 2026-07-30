@@ -1,6 +1,7 @@
 #include "physics/grid.h"
 #include "physics/random.h"
 #include "test_util.h"
+#include <set>
 #include <string>
 
 static void step(Grid& g, int n) {
@@ -67,8 +68,8 @@ static bool worlds_match(const Grid& a, const Grid& b) {
 // how long two things happen to stay adjacent, not the reaction's real odds.
 // Walling them in removes every legal move, pinning them in contact so the
 // reaction gets its full, repeated chance to fire.
-static Grid make_sealed_pair(ElementType a, ElementType b) {
-    Grid g(4, 3);
+static Grid make_sealed_pair(ElementType a, ElementType b, uint64_t seed = Grid::DEFAULT_SEED) {
+    Grid g(4, 3, seed);
     for (int y = 0; y < 3; ++y)
         for (int x = 0; x < 4; ++x)
             g.set_element(x, y, ElementType::Wall);
@@ -82,10 +83,18 @@ static Grid make_sealed_pair(ElementType a, ElementType b) {
 // ignite whatever it is touching, so a single sealed pair is not reliable
 // enough on its own - it can genuinely, correctly fail. Run many independent
 // pairs instead and require a safe fraction to ignite.
+//
+// Each trial needs its own seed, and that is not decoration. These grids are
+// identical down to the cell, so trials sharing a seed are not thirty samples of
+// a 2:1 race - they are one sample counted thirty times, and the result can only
+// ever be 0/30 or 30/30. That is what this looked like between F1.1 (which made
+// the seed fixed) and F1.4 (which changed the numbers it produces, turning a
+// silent 30/30 into a loud 0/30). The test was wrong the whole time; only its
+// answer changed.
 static int count_ignitions(ElementType target, int steps, int trials) {
     int ignited = 0;
     for (int i = 0; i < trials; ++i) {
-        Grid g = make_sealed_pair(target, ElementType::Fire);
+        Grid g = make_sealed_pair(target, ElementType::Fire, 9000 + static_cast<uint64_t>(i));
         step(g, steps);
         if (g.get_element(1, 1).type != target) ignited++;
     }
@@ -393,6 +402,42 @@ int main() {
         step(g, 3);
         check("an idle step still advances the clock", g.steps() == before + 3,
               "steps=" + std::to_string(g.steps()));
+    }
+
+    // --- colour jitter ---
+    // Two checks because F1.4 deliberately changed what a player sees, and an
+    // untested behaviour change is indistinguishable from a bug. Jitter is now
+    // hashed on position with no step input, so it is fixed to the spot rather
+    // than drawn fresh on every write.
+    {
+        Grid g(32, 32, 777);
+
+        // Still live. The cheapest way to break jitter while passing every other
+        // test in this file is to flatten it to the table colour, which nothing
+        // about the physics would notice.
+        std::set<uint32_t> shades;
+        for (int x = 0; x < 32; ++x) {
+            g.set_element(x, 0, ElementType::Sand);
+            shades.insert(g.get_element(x, 0).color);
+        }
+        check("jitter varies between neighbouring cells", shades.size() >= 8,
+              std::to_string(shades.size()) + " distinct shades across 32 cells");
+
+    }
+    {
+        // The change itself, pinned down. A fresh grid so the falling sand above
+        // cannot wander into the cell under test. Steps run between the two
+        // writes so the clock has moved on: if the step number were still
+        // reaching the jitter hash, the repainted cell would come back a
+        // different colour and this would fail.
+        Grid g(32, 32, 777);
+        g.set_element(5, 5, ElementType::Sand);
+        const uint32_t first = g.get_element(5, 5).color;
+        g.set_element(5, 5, ElementType::Empty);
+        step(g, 7);
+        g.set_element(5, 5, ElementType::Sand);
+        check("a cell repainted in the same spot comes back the same shade",
+              g.get_element(5, 5).color == first);
     }
 
     // --- determinism: the same seed produces the same world ---

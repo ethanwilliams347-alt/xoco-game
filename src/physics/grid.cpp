@@ -68,11 +68,22 @@ Element Grid::get_element(int x, int y) const {
     return cells[get_index(x, y)];
 }
 
-uint32_t Grid::jittered_color(const Material& mat) {
+// The shade is a function of the cell's position and nothing else, so a cell
+// erased and repainted in the same spot comes back the same colour instead of a
+// new one. That is a deliberate change of behaviour, not a side effect: a
+// one-time authored value has no business moving every time the world is
+// touched, and pinning it to the spot means the look of a scene is reproducible
+// from the seed alone. If it ever reads as too regular under a slow brush, mix
+// a placement counter into the index rather than reaching back for a generator.
+//
+// Cells carry their colour when they move, because swap_elements moves the whole
+// Element - so a falling grain keeps the shade it was painted with rather than
+// flickering to whatever its new index would hash to.
+uint32_t Grid::jittered_color(const Material& mat, uint64_t index) const {
     if (mat.color_jitter == 0) return mat.color;
 
     const int j = static_cast<int>(mat.color_jitter);
-    const int delta = static_cast<int>(rng() % (2 * j + 1)) - j;
+    const int delta = authored_spread(j, index, sim_random::Stream::ColorJitter);
 
     const int r = clamp_channel(static_cast<int>((mat.color >> 16) & 0xFF) + delta);
     const int g = clamp_channel(static_cast<int>((mat.color >> 8) & 0xFF) + delta);
@@ -88,7 +99,7 @@ void Grid::set_element(int x, int y, ElementType type) {
 
     Element el;
     el.type = type;
-    el.color = jittered_color(material_of(type));
+    el.color = jittered_color(material_of(type), static_cast<uint64_t>(idx));
     el.updated_tag = frame_tag; // freshly placed cells wait until the next step to move
 
     cells[idx] = el;
@@ -388,7 +399,7 @@ bool Grid::step_powder(int x, int y, const Material& mat) {
         return true;
     }
 
-    const int dir = (rng() % 2 == 0) ? -1 : 1;
+    const int dir = coin(static_cast<uint64_t>(get_index(x, y)), sim_random::Stream::PowderDirection) ? -1 : 1;
     if (can_displace(mat, x + dir, y + 1, 1)) {
         swap_elements(x, y, x + dir, y + 1);
         return true;
@@ -407,7 +418,10 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
         return true;
     }
 
-    const int dir = (rng() % 2 == 0) ? -1 : 1;
+    // Its own stream, separate from the powder pick. A cell is only ever one or
+    // the other, so the two never collide in practice - but the tag costs one xor
+    // and means neither function's behaviour depends on the other's existing.
+    const int dir = coin(static_cast<uint64_t>(get_index(x, y)), sim_random::Stream::FluidDirection) ? -1 : 1;
     if (can_displace(mat, x + dir, y + dy, dy)) {
         swap_elements(x, y, x + dir, y + dy);
         return true;
@@ -468,7 +482,11 @@ bool Grid::try_react(int x, int y) {
     for (const Reaction& r : REACTIONS) {
         if (r.target != cell.type) continue;
         if (r.catalyst != ElementType::Count && !has_neighbor(x, y, r.catalyst)) continue;
-        if (static_cast<int>(rng() % 100) < static_cast<int>(r.chance_pct)) {
+        // One roll per cell per step: the loop commits to the first eligible row
+        // and returns either way, so this never draws twice from the same
+        // coordinates - which it would otherwise do, getting the same answer.
+        if (chance(static_cast<int>(r.chance_pct), static_cast<uint64_t>(get_index(x, y)),
+                   sim_random::Stream::Reaction)) {
             set_element(x, y, r.result);
             return true;
         }
