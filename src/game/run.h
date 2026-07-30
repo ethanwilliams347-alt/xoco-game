@@ -20,6 +20,13 @@ public:
     // bottom edge rather than out of existence.
     Run(int width, int height, uint64_t seed = Grid::DEFAULT_SEED);
 
+    // Puts the run back to what a fresh `Run(width, height, seed)` would be:
+    // `grid` goes through `Grid::reset(seed)` rather than being reallocated,
+    // and `player`/`dig_tool` are replaced outright since neither owns anything
+    // a wipe would need to preserve. Grid size cannot change through a reset,
+    // for the same reason `Grid::reset()` cannot change it - see there.
+    void reset(uint64_t seed);
+
     Grid grid;
     Player player;
     DigTool dig_tool;

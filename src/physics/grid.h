@@ -60,6 +60,23 @@ public:
     Grid(int width, int height, uint64_t seed = DEFAULT_SEED);
     ~Grid() = default;
 
+    // Puts the grid back to exactly the state a fresh `Grid(width, height,
+    // seed)` would be in, without reallocating `cells`/`pixels`/the chunk and
+    // support vectors - only clearing what they hold. Written as an explicit
+    // member-by-member wipe rather than `*this = Grid(width, height, seed)` on
+    // purpose: the compiler-generated assignment that shortcut would use cannot
+    // forget a member, which would make the whole point of the test below - "a
+    // field left out of the wipe" - impossible to demonstrate. A hand-written
+    // wipe can forget one, so the test that catches that is worth keeping honest.
+    //
+    // Takes a seed rather than keeping the old one, because `Run::reset(seed)`
+    // needs to hand the player a new world, and because the seed has to be one
+    // of the things this clears for "reset run == fresh run with the same seed"
+    // to mean anything - compare `seed()` unchanged with a fresh grid built on
+    // a *different* seed and the two would trivially fail to match for a reason
+    // that has nothing to do with whether the wipe worked.
+    void reset(uint64_t seed);
+
     // Advances the simulation by exactly one fixed step. The caller is
     // responsible for calling this at a fixed rate, not once per rendered frame.
     void update();
@@ -91,6 +108,13 @@ public:
     // diagnostic, so "is anything actually sleeping?" is observable rather than
     // assumed.
     int active_chunk_count() const;
+
+    // Whether a structure removal is still waiting to be re-examined by
+    // `resolve_support()`. Exposed for the same reason `active_chunk_count()`
+    // is: it is the one piece of internal state a reset test needs to see to
+    // prove the queue was actually cleared, not just that it looked cleared
+    // because nothing was stepping it.
+    bool has_pending_support_checks() const { return !pending_support.empty(); }
 
 private:
     // Bounds of the cells within one chunk that may still move, in world

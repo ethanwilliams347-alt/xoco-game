@@ -28,6 +28,35 @@ Grid::Grid(int width, int height, uint64_t seed) : width(width), height(height),
     // still passes; it now checks a property the code cannot lose.
 }
 
+void Grid::reset(uint64_t seed) {
+    world_seed = seed;
+
+    std::fill(cells.begin(), cells.end(), Element{});
+    std::fill(pixels.begin(), pixels.end(), material_of(ElementType::Empty).color);
+
+    // Both go back to empty, same as a fresh grid's - see the comment on these
+    // two members for why there are two rather than one.
+    std::fill(chunk_current.begin(), chunk_current.end(), DirtyRect{});
+    std::fill(chunk_next.begin(), chunk_next.end(), DirtyRect{});
+
+    pending_support.clear();
+    support_stack.clear();
+    support_component.clear();
+    std::fill(support_visit.begin(), support_visit.end(), 0);
+    std::fill(support_state.begin(), support_state.end(), 0);
+    support_epoch = 0;
+    resolving_support = false;
+
+    frame_tag = 0;
+    step_count = 0;
+
+    // width, height, chunks_x and chunks_y are not here on purpose: the vectors
+    // above are cleared in place rather than resized, which is only correct as
+    // long as the grid's dimensions never change out from under them. Nothing
+    // in this class exposes a way to change them after construction, and reset()
+    // must not become the first.
+}
+
 // Waking only the cell that changed is the classic dirty-rect bug. Erase a grain
 // from under a settled pile and the grains above it are still asleep, so the pile
 // hangs in the air over the hole. Every write therefore wakes its 3x3

@@ -480,5 +480,58 @@ int main() {
         check("the whole 64-bit seed is used", !worlds_match(d, e));
     }
 
+    // --- Grid::reset ---
+    {
+        // A queued-but-not-yet-resolved support check, built without ever
+        // calling update(): a floating Wood block, then one cell knocked out
+        // of it. Removal queues a check for the 3x3 neighbourhood immediately;
+        // resolve_support() would not run until the next step, which never
+        // happens here. This is the one piece of state reset() can only prove
+        // it cleared by looking at directly - nothing about an Empty world
+        // with zero awake chunks would tell you the queue was still holding
+        // stale entries.
+        Grid g(20, 20, 42);
+        for (int y = 5; y <= 7; ++y)
+            for (int x = 5; x <= 7; ++x)
+                g.set_element(x, y, ElementType::Wood);
+        g.set_element(6, 6, ElementType::Empty);
+        check("building the scene actually queues a support check",
+              g.has_pending_support_checks());
+        check("building the scene actually wakes chunks",
+              g.active_chunk_count() > 0);
+
+        g.reset(42);
+
+        bool all_empty = true;
+        for (int y = 0; y < g.get_height() && all_empty; ++y)
+            for (int x = 0; x < g.get_width() && all_empty; ++x)
+                if (g.get_element(x, y).type != ElementType::Empty) all_empty = false;
+        check("reset clears every cell back to Empty", all_empty);
+        check("reset puts every chunk back to sleep", g.active_chunk_count() == 0);
+        check("reset clears the queued support check", !g.has_pending_support_checks());
+    }
+    {
+        // The one check that can actually catch a member left out of the wipe.
+        // A stale step_count is the example the roadmap names: it would not
+        // show up as a non-Empty cell or an awake chunk, only as a divergence
+        // once the reset grid starts rolling randomness again from the wrong
+        // step. So the two worlds are not just reset and compared - they are
+        // reset, driven through the same scripted scene as a fresh grid, and
+        // then compared, which is what gives a forgotten field somewhere to
+        // actually show up.
+        Grid a(80, 60, 9090);
+        build_mixed(a);
+        step(a, 100);
+        a.reset(9090);
+        build_mixed(a);
+        step(a, 100);
+
+        Grid b(80, 60, 9090);
+        build_mixed(b);
+        step(b, 100);
+
+        check("a reset run matches a fresh run built with the same seed", worlds_match(a, b));
+    }
+
     return report();
 }
