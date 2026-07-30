@@ -18,12 +18,13 @@ const int WINDOW_HEIGHT = 600;
 // the whole window (two null rects, unchanged), so a grid that does not match
 // the window's proportions renders squashed or cropped as of this step - that
 // is correct and expected here, not a bug to chase. Camera (F3.2) owns every
-// screen-to-world and world-to-screen conversion, so mouse/render coordinates
-// are correct at any grid size. The texture is now sized to the viewport
-// rather than the whole grid (F3.3), so upload cost stops scaling with world
-// size; it does not yet turn into a real view of *part* of a larger world,
-// because the visible rect's origin is pinned at (0, 0) until the camera
-// follows the player (F3.4).
+// screen-to-world and world-to-screen conversion, and (F3.4) the viewport's
+// position in the world, so mouse/render coordinates are correct at any grid
+// size and any camera offset. The texture is sized to the viewport rather
+// than the whole grid (F3.3), so upload cost does not scale with world size,
+// and the viewport now follows the player and clamps at the world's edges
+// (F3.4) rather than staying pinned at the origin - the two together are what
+// turn "the whole world, squashed" into a real view of part of a larger one.
 const int GRID_WIDTH = 200;
 const int GRID_HEIGHT = 150;
 
@@ -134,12 +135,18 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // The viewport follows the player, clamped at the world's edges
+        // (F3.4). Recomputed once per rendered frame, same as the mouse and
+        // keyboard samples below it - "the player's position this frame" has
+        // exactly the same one-sample-per-frame character as those do.
+        camera.follow(run.player.center_x(), run.player.center_y(), VIEWPORT_WIDTH, VIEWPORT_HEIGHT, GRID_WIDTH, GRID_HEIGHT);
+
         // Handle continuous mouse pressing
         int mouseX, mouseY;
         const uint32_t mouseState = SDL_GetMouseState(&mouseX, &mouseY);
 
-        const int gridX = camera.screen_to_world(mouseX);
-        const int gridY = camera.screen_to_world(mouseY);
+        const int gridX = camera.screen_to_world_x(mouseX);
+        const int gridY = camera.screen_to_world_y(mouseY);
 
         // Sampled once per rendered frame, same as before - a real mouse and
         // keyboard cannot be sampled at the simulation's fixed rate, since
@@ -176,19 +183,21 @@ int main(int argc, char* argv[]) {
             accumulator -= Run::FIXED_DT;
         }
 
-        // Upload only the visible rect (F3.3), not the whole grid. The source
-        // pitch stays GRID_WIDTH wide even though the rect is narrower, so SDL
-        // reads the right columns out of each grid row and skips the rest -
-        // one call, no intermediate buffer. Clamped to the grid's own size so
-        // this stays correct if the grid is ever smaller than the viewport;
-        // the case this step exists for is the opposite one, a grid larger
-        // than the viewport, where the clamp is a no-op and the rect is the
-        // full viewport every frame.
+        // Upload only the visible rect (F3.3), not the whole grid, starting
+        // from the camera's current view (F3.4) rather than always (0, 0).
+        // The source pitch stays GRID_WIDTH wide even though the rect is
+        // narrower, so SDL reads the right columns out of each grid row and
+        // skips the rest - one call, no intermediate buffer. Clamped to the
+        // grid's own size so this stays correct if the grid is ever smaller
+        // than the viewport; the case this step exists for is the opposite
+        // one, a grid larger than the viewport, where the clamp is a no-op
+        // and the rect is the full viewport every frame.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
         const int visible_w = std::min(VIEWPORT_WIDTH, GRID_WIDTH);
         const int visible_h = std::min(VIEWPORT_HEIGHT, GRID_HEIGHT);
         const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
-        SDL_UpdateTexture(texture, &visible_rect, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
+        const uint32_t* visible_pixels = pixels.data() + camera.view_y() * GRID_WIDTH + camera.view_x();
+        SDL_UpdateTexture(texture, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
@@ -198,10 +207,10 @@ int main(int argc, char* argv[]) {
         // it is drawn on top of the world as its own rectangle.
         SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
         const SDL_Rect body{
-            camera.world_to_screen(run.player.cell_x()),
-            camera.world_to_screen(run.player.cell_y()),
-            camera.world_to_screen(Player::WIDTH),
-            camera.world_to_screen(Player::HEIGHT)
+            camera.world_to_screen_x(run.player.cell_x()),
+            camera.world_to_screen_y(run.player.cell_y()),
+            camera.scale_length(Player::WIDTH),
+            camera.scale_length(Player::HEIGHT)
         };
         SDL_RenderFillRect(renderer, &body);
 
@@ -213,7 +222,7 @@ int main(int argc, char* argv[]) {
         run.dig_tool.aim_point(run.grid, run.player.center_x(), run.player.center_y(), gridX, gridY, mark_x, mark_y);
         SDL_SetRenderDrawColor(renderer, 255, 106, 0, 255);
         const SDL_Rect mark{
-            camera.world_to_screen(mark_x), camera.world_to_screen(mark_y),
+            camera.world_to_screen_x(mark_x), camera.world_to_screen_y(mark_y),
             camera.cell_size(), camera.cell_size()
         };
         SDL_RenderFillRect(renderer, &mark);
