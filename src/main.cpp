@@ -2,9 +2,7 @@
 #include <cstdio>
 #include <random>
 #include <string>
-#include "physics/grid.h"
-#include "physics/player.h"
-#include "physics/tool.h"
+#include "game/run.h"
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 600;
@@ -74,13 +72,7 @@ int main(int argc, char* argv[]) {
     const uint64_t world_seed = (static_cast<uint64_t>(rd()) << 32) | rd();
     std::printf("World seed: %llu\n", static_cast<unsigned long long>(world_seed));
 
-    Grid grid(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty
-
-    // Spawned in mid-air over an empty world. There is no terrain to land on
-    // yet, but the world border reads as solid, so the player falls to the
-    // bottom edge rather than out of existence.
-    Player player(GRID_WIDTH / 2, GRID_HEIGHT / 4);
-    DigTool dig_tool;
+    Run run(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty, player mid-air
 
     bool running = true;
     SDL_Event e;
@@ -135,7 +127,7 @@ int main(int argc, char* argv[]) {
             for (int dy = -brush_size; dy <= brush_size; dy++) {
                 for (int dx = -brush_size; dx <= brush_size; dx++) {
                     if (dx * dx + dy * dy <= brush_size * brush_size) {
-                        grid.set_element(gridX + dx, gridY + dy, current_brush);
+                        run.grid.set_element(gridX + dx, gridY + dy, current_brush);
                     }
                 }
             }
@@ -160,20 +152,20 @@ int main(int argc, char* argv[]) {
 
         accumulator += frame_time;
         while (accumulator >= FIXED_DT) {
-            grid.update();
+            run.grid.update();
             // After the grid, so the player collides against the world as it
             // now is rather than as it was a step ago.
-            player.update(grid, input, static_cast<float>(FIXED_DT));
+            run.player.update(run.grid, input, static_cast<float>(FIXED_DT));
             // Last, so the dig is aimed from where the body actually ended up
             // this step. Called every step whether or not the button is held,
             // because that is what advances the tool's cooldown.
-            dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
+            run.dig_tool.update(run.grid, input.dig, run.player.center_x(), run.player.center_y(),
                             input.aim_x, input.aim_y);
             accumulator -= FIXED_DT;
         }
 
         // Update texture with new pixels
-        const std::vector<uint32_t>& pixels = grid.get_pixels();
+        const std::vector<uint32_t>& pixels = run.grid.get_pixels();
         SDL_UpdateTexture(texture, nullptr, pixels.data(), GRID_WIDTH * sizeof(uint32_t));
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -184,8 +176,8 @@ int main(int argc, char* argv[]) {
         // it is drawn on top of the world as its own rectangle.
         SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
         const SDL_Rect body{
-            player.cell_x() * PIXEL_SCALE,
-            player.cell_y() * PIXEL_SCALE,
+            run.player.cell_x() * PIXEL_SCALE,
+            run.player.cell_y() * PIXEL_SCALE,
             Player::WIDTH * PIXEL_SCALE,
             Player::HEIGHT * PIXEL_SCALE
         };
@@ -196,7 +188,7 @@ int main(int argc, char* argv[]) {
         // broken rather than as the target being too far away.
         int mark_x = 0;
         int mark_y = 0;
-        dig_tool.aim_point(grid, player.center_x(), player.center_y(), gridX, gridY, mark_x, mark_y);
+        run.dig_tool.aim_point(run.grid, run.player.center_x(), run.player.center_y(), gridX, gridY, mark_x, mark_y);
         SDL_SetRenderDrawColor(renderer, 255, 106, 0, 255);
         const SDL_Rect mark{
             mark_x * PIXEL_SCALE, mark_y * PIXEL_SCALE, PIXEL_SCALE, PIXEL_SCALE
@@ -213,7 +205,7 @@ int main(int argc, char* argv[]) {
             // world is idle and the count is not near zero, culling has a bug.
             const std::string title = "SLOP Pixel Physics  |  " + std::to_string(frames_this_second) + " fps  |  " +
                                       material_of(current_brush).name + "  (brush " + std::to_string(brush_size) + ")" +
-                                      "  |  " + std::to_string(grid.active_chunk_count()) + " chunks awake";
+                                      "  |  " + std::to_string(run.grid.active_chunk_count()) + " chunks awake";
             SDL_SetWindowTitle(window, title.c_str());
             frames_this_second = 0;
             title_timer = 0.0;

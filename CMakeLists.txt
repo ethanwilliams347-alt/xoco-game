@@ -24,6 +24,7 @@ set(ENGINE_SOURCES
     src/physics/grid.cpp
     src/physics/player.cpp
     src/physics/tool.cpp
+    src/game/run.cpp
 )
 
 add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES})
