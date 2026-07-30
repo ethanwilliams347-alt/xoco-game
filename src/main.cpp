@@ -10,9 +10,6 @@ const int PIXEL_SCALE = 4; // Each physics pixel is 4x4 screen pixels
 const int GRID_WIDTH = WINDOW_WIDTH / PIXEL_SCALE;
 const int GRID_HEIGHT = WINDOW_HEIGHT / PIXEL_SCALE;
 
-// The simulation advances in fixed steps so that sand falls at the same rate on
-// a 60 Hz and a 144 Hz display. Rendering still runs as fast as the display allows.
-const double FIXED_DT = 1.0 / 60.0;
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
 int main(int argc, char* argv[]) {
@@ -119,31 +116,29 @@ int main(int argc, char* argv[]) {
         const int gridX = mouseX / PIXEL_SCALE;
         const int gridY = mouseY / PIXEL_SCALE;
 
-        // Right-click, not left. Digging is the game's action and gets the
-        // primary button; the material brush is a development tool and moved
-        // out of its way.
-        if (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT)) {
-            // Draw a brush circle
-            for (int dy = -brush_size; dy <= brush_size; dy++) {
-                for (int dx = -brush_size; dx <= brush_size; dx++) {
-                    if (dx * dx + dy * dy <= brush_size * brush_size) {
-                        run.grid.set_element(gridX + dx, gridY + dy, current_brush);
-                    }
-                }
-            }
-        }
-
-        // Movement is read from the live key state rather than from key events,
-        // so holding a key keeps moving instead of firing once and repeating on
-        // the OS key-repeat delay.
+        // Sampled once per rendered frame, same as before - a real mouse and
+        // keyboard cannot be sampled at the simulation's fixed rate, since
+        // there is no such thing as "the input for a step that has not
+        // happened yet". What changed is what happens to this sample: every
+        // fixed step this frame accumulates gets its own call to run.step()
+        // with it, rather than the brush being painted once up here before
+        // the loop even starts. Movement is read from live key state rather
+        // than key events, so holding a key keeps moving instead of firing
+        // once and repeating on the OS key-repeat delay.
         const uint8_t* keys = SDL_GetKeyboardState(nullptr);
-        PlayerInput input;
+        Input input;
         input.left  = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT];
         input.right = keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT];
         input.jump  = keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP];
-        input.aim_x = gridX;
-        input.aim_y = gridY;
+        input.cursor_x = gridX;
+        input.cursor_y = gridY;
         input.dig   = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+        // Right-click, not left. Digging is the game's action and gets the
+        // primary button; the material brush is a development tool and moved
+        // out of its way.
+        input.brush_active = (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+        input.brush_type = current_brush;
+        input.brush_size = brush_size;
 
         const uint64_t now_counter = SDL_GetPerformanceCounter();
         double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
@@ -151,17 +146,9 @@ int main(int argc, char* argv[]) {
         if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
 
         accumulator += frame_time;
-        while (accumulator >= FIXED_DT) {
-            run.grid.update();
-            // After the grid, so the player collides against the world as it
-            // now is rather than as it was a step ago.
-            run.player.update(run.grid, input, static_cast<float>(FIXED_DT));
-            // Last, so the dig is aimed from where the body actually ended up
-            // this step. Called every step whether or not the button is held,
-            // because that is what advances the tool's cooldown.
-            run.dig_tool.update(run.grid, input.dig, run.player.center_x(), run.player.center_y(),
-                            input.aim_x, input.aim_y);
-            accumulator -= FIXED_DT;
+        while (accumulator >= Run::FIXED_DT) {
+            run.step(input);
+            accumulator -= Run::FIXED_DT;
         }
 
         // Update texture with new pixels

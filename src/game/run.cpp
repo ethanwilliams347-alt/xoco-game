@@ -11,3 +11,40 @@ void Run::reset(uint64_t seed) {
     player = Player(grid.get_width() / 2, grid.get_height() / 4);
     dig_tool = DigTool();
 }
+
+void Run::step(const Input& input) {
+    // Matches main.cpp's old brush loop exactly: a filled circle of radius
+    // brush_size, painted before physics runs so a freshly placed cell does
+    // not move on the same step it was placed.
+    if (input.brush_active) {
+        for (int dy = -input.brush_size; dy <= input.brush_size; ++dy) {
+            for (int dx = -input.brush_size; dx <= input.brush_size; ++dx) {
+                if (dx * dx + dy * dy <= input.brush_size * input.brush_size) {
+                    grid.set_element(input.cursor_x + dx, input.cursor_y + dy, input.brush_type);
+                }
+            }
+        }
+    }
+
+    grid.update();
+
+    // After the grid, so the player collides against the world as it now is
+    // rather than as it was a step ago. Player::update() takes its own
+    // PlayerInput rather than an Input - built here rather than widening
+    // PlayerInput's job, since the brush is a run-level concern the player
+    // itself has no business knowing about.
+    PlayerInput player_input;
+    player_input.left = input.left;
+    player_input.right = input.right;
+    player_input.jump = input.jump;
+    player_input.aim_x = input.cursor_x;
+    player_input.aim_y = input.cursor_y;
+    player_input.dig = input.dig;
+    player.update(grid, player_input, static_cast<float>(FIXED_DT));
+
+    // Last, so the dig is aimed from where the body actually ended up this
+    // step. Called every step whether or not the button is held, because
+    // that is what advances the tool's cooldown.
+    dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
+                     input.cursor_x, input.cursor_y);
+}

@@ -3,17 +3,56 @@
 #include "physics/player.h"
 #include "physics/tool.h"
 
+// Everything outside the run that one fixed step needs - filled from SDL by
+// `main.cpp`, and filled by hand in `tests/test_run.cpp`. This is the
+// boundary F1 could not close from inside `Grid`: the simulation was already
+// a pure function of its seed, but input still arrived by sampling the
+// keyboard once per *rendered* frame and replaying that one sample into every
+// fixed step the frame happened to contain - so the framerate was quietly an
+// input to the simulation. One `Input` now drives exactly one fixed step, so
+// a recorded sequence of them replays to the same result regardless of how
+// the original session was paced across frames.
+//
+// A plain struct of button and cursor state rather than SDL types, for the
+// same reason `PlayerInput` already was: it keeps everything under
+// `src/game/` and `src/physics/` testable without a window.
+struct Input {
+    bool left = false;
+    bool right = false;
+    bool jump = false;
+    bool dig = false;
+
+    // Cursor position in grid cells, shared by the dig tool's aim and by
+    // where the brush paints - both come from the same mouse position in
+    // `main.cpp`, so one pair of coordinates covers both.
+    int cursor_x = 0;
+    int cursor_y = 0;
+
+    // The world-editing brush. Folded in here rather than kept as the special
+    // case it used to be: it was painted once per rendered frame, before the
+    // fixed-step loop even started, which made the amount of material laid
+    // down while the button was held depend on render framerate rather than
+    // on how much simulated time actually passed. It is now just three more
+    // fields on the struct that drives a step, painted once per step like
+    // everything else.
+    bool brush_active = false;
+    ElementType brush_type = ElementType::Sand;
+    int brush_size = 1;
+};
+
 // Everything one play session needs, held as a single object instead of three
 // locals `main.cpp` had to thread through by hand. SDL-free for the same
 // reason `src/physics/` is: a run that needs a window cannot be driven by a
 // test.
-//
-// This step (F2.1) only moves the three locals `main.cpp` already had into
-// one place - no behaviour change. `Grid::reset()` / `Run::reset(seed)`
-// (F2.2) and `Run::step(const Input&)` (F2.3) are what make this class earn
-// its name.
 class Run {
 public:
+    // The simulation advances in fixed steps so that sand falls at the same
+    // rate on a 60 Hz and a 144 Hz display; rendering runs as fast as the
+    // display allows and calls `step()` as many times as have accumulated.
+    // Owned here rather than by `main.cpp` now that `Run` is what actually
+    // advances by this amount each call.
+    static constexpr double FIXED_DT = 1.0 / 60.0;
+
     // Matches how `main.cpp` built these three before this step existed: the
     // player spawns in mid-air over the middle of the world. There is no
     // terrain yet, but the world border reads as solid, so it falls to the
@@ -26,6 +65,13 @@ public:
     // a wipe would need to preserve. Grid size cannot change through a reset,
     // for the same reason `Grid::reset()` cannot change it - see there.
     void reset(uint64_t seed);
+
+    // Advances grid, player and dig tool by exactly one fixed step, in that
+    // order - matching the order `main.cpp` ran them in before this step
+    // existed. The brush paints first, before the grid steps, for the same
+    // reason `main.cpp` used to paint before physics ran: a cell should not
+    // move on the same step it was placed.
+    void step(const Input& input);
 
     Grid grid;
     Player player;
