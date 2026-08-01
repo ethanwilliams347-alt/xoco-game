@@ -70,27 +70,52 @@ struct Material {
 };
 
 // Indexed by ElementType. Keep rows in the same order as the enum.
+//
+// The colours are chosen as a *set*, not row by row (V2). Two things force
+// that. Reaction products take their colour from this table, so wood burns into
+// whatever Fire's row says and nothing about the burning wood carries over -
+// rows that were picked independently show that seam plainly. And every
+// material is now composited over V1's backdrop rather than over black, so what
+// a row reads as depends on what is behind it: the backdrop is a cool dark
+// blue, so the world sits warm and desaturated against it and the two things
+// that must never be missed on screen - Fire and Water - are the only rows that
+// keep any real saturation.
+//
+// Jitter is small everywhere it is not zero. It was 8-24 across the table,
+// which is per-cell random noise, and random noise does not combine with the
+// hand-placed ordered dithering the art is going to use - it fights it, and the
+// result reads as static rather than as texture. What is left is enough to stop
+// a flat fill looking like a flat fill and no more. Fire keeps the widest range
+// of anything, because there its variation is the thing being drawn.
 inline constexpr Material MATERIALS[] = {
     // name      colour       jitter  move              density  spread  structural  cond  spawn  source
-    {  "Empty",  0xFF000000,      0,  MoveKind::Static,       0,      0,  false,        0,    20,      0 },
-    {  "Sand",   0xFFEEDD82,     18,  MoveKind::Powder,     150,      0,  false,       30,     0,      0 },
-    {  "Water",  0xFF4444FF,     10,  MoveKind::Liquid,     100,      5,  false,      120,     0,      0 },
+    // Empty is the one row whose colour is fully transparent rather than a
+    // colour at all (V1): nothing is there, so whatever is drawn behind the
+    // cell texture shows through. Every other row is opaque - alpha is a
+    // property of *absence* here, not a per-material effect, and a translucent
+    // material would need the pixel buffer to composite rather than overwrite.
+    {  "Empty",  0x00000000,      0,  MoveKind::Static,       0,      0,  false,        0,    20,      0 },
+    {  "Sand",   0xFFC6A970,      6,  MoveKind::Powder,     150,      0,  false,       30,     0,      0 },
+    // Water is teal rather than blue, and that is a compositing decision rather
+    // than a taste one: the backdrop behind it is a cool blue, and a blue liquid
+    // seen through a gap in the terrain read as a hole in the world.
+    {  "Water",  0xFF2E7F96,      5,  MoveKind::Liquid,     100,      5,  false,      120,     0,      0 },
     // The two structural materials. Density is what lets an unsupported slab
     // sink through any fluid it lands in rather than perching on top of it.
     // Wall conducts poorly on purpose: a good conductor here would make every
     // wall a heat sink large enough to quench any fire touching it, since a
     // wall is usually the biggest connected body in a scene.
-    {  "Wall",   0xFF888888,     12,  MoveKind::Static,   32000,      0,  true,        30,     0,      0 },
-    {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0,  true,        90,     0,      0 },
-    {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0 },
+    {  "Wall",   0xFF6F6A63,      5,  MoveKind::Static,   32000,      0,  true,        30,     0,      0 },
+    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        90,     0,      0 },
+    {  "Oil",    0xFF2C2620,      3,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0 },
     // Spawns hot, holds no heat of its own, and conducts slowly - so a puff of
     // steam cools over a couple of hundred steps and condenses back to water
     // rather than lasting forever or vanishing on the step it is made.
-    {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3,  false,       40,   220,      0 },
+    {  "Steam",  0xFFC4D2D8,      4,  MoveKind::Gas,        -20,      3,  false,       40,   220,      0 },
     // Denser (less negative) than Steam so flame stays under a steam layer
     // instead of punching through it - visually reads as fire boiling water.
     // The only heat source in the table.
-    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4,  false,      200,   250,    250 },
+    {  "Fire",   0xFFF07A22,     16,  MoveKind::Gas,        -10,      4,  false,      200,   250,    250 },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),

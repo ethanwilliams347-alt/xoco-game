@@ -162,6 +162,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // V1: Empty is 0x00000000 in MATERIALS, so an empty cell is transparent
+    // rather than black - but only if the texture is composited rather than
+    // blitted. Without this line the alpha is carried all the way to the screen
+    // and then ignored, which looks exactly like the opaque black the table
+    // used to hold, so the two changes are only meaningful together.
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
     // This is the only nondeterministic line in the project, and it is here
     // rather than inside Grid on purpose: the simulation is a pure function of
     // its seed, and exactly one place gets to choose that seed. Two draws
@@ -293,8 +300,33 @@ int main(int argc, char* argv[]) {
         const uint32_t* visible_pixels = pixels.data() + camera.view_y() * GRID_WIDTH + camera.view_x();
         SDL_UpdateTexture(texture, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
+        // The backdrop layer (V1). Drawn before the cell texture, which now
+        // composites over it wherever a cell is Empty. It is a placeholder
+        // gradient rather than authored art on purpose: what this step delivers
+        // is the *layer* - somewhere for a painted background to go and a
+        // guarantee that it is not painted over - and the art that eventually
+        // fills it is the art pipeline's job, not this one's.
+        //
+        // Bands rather than a per-pixel gradient because the whole point is
+        // that this costs nothing: sixty-four filled rects a frame against a
+        // renderer that is already vsync-bound. Sixteen was tried first and the
+        // steps between bands were visible on screen, which reads as a
+        // rendering bug rather than as a placeholder.
+        constexpr int BACKDROP_BANDS = 64;
+        const int band_height = (WINDOW_HEIGHT + BACKDROP_BANDS - 1) / BACKDROP_BANDS;
+        for (int band = 0; band < BACKDROP_BANDS; ++band) {
+            const int t = band * 255 / (BACKDROP_BANDS - 1);
+            SDL_SetRenderDrawColor(
+                renderer,
+                static_cast<Uint8>(18 + (46 - 18) * t / 255),
+                static_cast<Uint8>(20 + (52 - 20) * t / 255),
+                static_cast<Uint8>(34 + (74 - 34) * t / 255),
+                255
+            );
+            const SDL_Rect band_rect{0, band * band_height, WINDOW_WIDTH, band_height};
+            SDL_RenderFillRect(renderer, &band_rect);
+        }
+
         SDL_RenderCopy(renderer, texture, nullptr, nullptr);
 
         // The player is not a cell, so it is not in the pixel buffer either -
