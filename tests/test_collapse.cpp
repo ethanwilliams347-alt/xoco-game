@@ -180,9 +180,19 @@ int main() {
         check("a round piece is unchanged in shape while falling",
               shape_of(g, ElementType::Wood) == before);
 
+        const int cells_before = count_of(g, ElementType::Wood);
         step(g, 60); // long enough to reach the floor and settle
-        check("a round piece is unchanged in shape once it has landed",
-              shape_of(g, ElementType::Wood) == before);
+
+        // Landing no longer preserves the shape - E3 breaks a piece that
+        // arrives with speed on it, and a disc lands on a handful of contact
+        // cells, which is the most uneven landing there is. What still has to
+        // hold is that it *broke* rather than *smeared*: nothing lost, and no
+        // fragment left grinding away against another.
+        check("a round piece loses no cells when it lands and breaks",
+              count_of(g, ElementType::Wood) == cells_before,
+              std::to_string(count_of(g, ElementType::Wood)) + " of " + std::to_string(cells_before));
+        check("a round piece settles rather than shedding cells forever",
+              !g.has_pending_support_checks());
     }
 
     // --- a piece resting on one contact cell does not shed the rest of itself ---
@@ -433,12 +443,124 @@ int main() {
               shape_of(g, ElementType::Wood) == before,
               "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
 
+        const int cells_before = count_of(g, ElementType::Wood);
         step(g, 90); // reach the floor and settle
-        check("a round piece that fell a long way lands unchanged in shape",
-              shape_of(g, ElementType::Wood) == before);
-        check("and it is actually on the floor",
-              top_row_of(g, ElementType::Wood) == 277,
+
+        // This used to assert the piece landed unchanged in shape, and that
+        // assertion is the thing E3 exists to remove: a boulder that falls 280
+        // cells and arrives pristine is the elevator problem in its purest
+        // form. What has to survive is everything *except* the shape - and on a
+        // dead-flat floor the shape may well survive too, since both halves of
+        // a break land on the same level. That is why the *positive* case for
+        // fracture is tested against uneven ground further down and not here.
+        check("breaking creates and destroys nothing",
+              count_of(g, ElementType::Wood) == cells_before,
+              std::to_string(count_of(g, ElementType::Wood)) + " of " + std::to_string(cells_before));
+        check("the broken pieces come to rest rather than grinding on",
+              !g.has_pending_support_checks());
+        check("and the wreckage is on the floor",
+              top_row_of(g, ElementType::Wood) >= 277,
               "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
+    }
+
+    // --- fracture: it never starts a collapse, only finishes one unevenly ---
+    // The negative case first, as ROADMAP.md's note on MAX_SUPPORT_CELLS
+    // demands: a missed fracture is invisible, a wrong one turns a level into
+    // rubble. Nothing here is falling, so nothing here may break, and the way
+    // that is guaranteed is that fracture is reachable only from a landing with
+    // speed on it - a piece at rest has fall_ticks of zero and never gets near
+    // the code.
+    {
+        Grid g(60, 60);
+        fill(g, 0, 55, 59, 59, ElementType::Wall);   // floor
+        fill(g, 10, 45, 50, 54, ElementType::Wood);  // a big slab sitting on it
+
+        const std::vector<std::pair<int, int>> before = shape_of(g, ElementType::Wood);
+        step(g, 200);
+        check("a large piece at rest is never broken",
+              shape_of(g, ElementType::Wood) == before);
+
+        // Disturb it hard: dig a hole right through the middle of it. Removing
+        // structure is what queues support checks in the first place, so this is
+        // the case most likely to reach fracture by accident.
+        fill(g, 28, 45, 32, 54, ElementType::Empty);
+        step(g, 200);
+        bool intact = true;
+        for (int y = 45; y <= 54; ++y)
+            for (int x = 10; x <= 27; ++x)
+                if (g.get_element(x, y).type != ElementType::Wood) intact = false;
+        check("digging into a grounded piece does not break the rest of it", intact);
+    }
+
+    // --- fracture: a short drop lands intact ---
+    // FRACTURE_MIN_TICKS is what separates "it tipped off a ledge" from "it came
+    // down". A piece that falls a single cell must arrive whole, or every minor
+    // settle in a level turns into rubble.
+    {
+        Grid g(60, 60);
+        fill(g, 0, 50, 59, 59, ElementType::Wall);   // floor
+        fill(g, 20, 48, 45, 49, ElementType::Wood);  // slab one cell above the floor
+        fill(g, 20, 45, 45, 47, ElementType::Wood);
+        fill(g, 20, 45, 20, 49, ElementType::Empty); // free it
+
+        const int cells_before = count_of(g, ElementType::Wood);
+        step(g, 200);
+        check("a piece that drops one cell onto the floor lands intact",
+              rect_exactly_at(g, 21, 45, 45, 49, ElementType::Wood),
+              "top wood row " + std::to_string(top_row_of(g, ElementType::Wood)));
+        check("and nothing was lost doing it",
+              count_of(g, ElementType::Wood) == cells_before);
+    }
+
+    // --- fracture: a slab dropped onto a step comes apart over the drop ---
+    // The positive case, and it doubles as the proof that a crack **persists**,
+    // which is the property the entire design rests on.
+    //
+    // Rigid, this slab lands on the high side of the step and stays perfectly
+    // level, with the whole overhang held in the air by the far end - the
+    // elevator. Broken, the half over the low side is a piece of its own with
+    // nothing under it, so it carries on down and the slab ends up at two
+    // heights.
+    //
+    // And it can only carry on down if the crack outlived the step it was made
+    // on: the fill that runs on the *following* step starts from a cell in the
+    // overhang, and unless it refuses to cross the crack it walks straight into
+    // the grounded half, concludes "supported", and nothing ever moves. A break
+    // that did not persist would leave this test looking exactly like no break
+    // at all - which is precisely what happened to the first design, where the
+    // split was made in mid-air and both halves fell in lockstep.
+    {
+        Grid g(80, 80);
+        fill(g, 40, 60, 79, 79, ElementType::Wall);  // high ground, right half only
+        fill(g, 0, 75, 39, 79, ElementType::Wall);   // low ground, left half
+        fill(g, 10, 20, 69, 26, ElementType::Wood);  // a wide slab, high up
+        // Placing structure deliberately does not queue a support check - that
+        // is what lets the brush draw a floating platform on purpose - so the
+        // slab has to be disturbed before it is asked whether it is standing on
+        // anything.
+        g.set_element(10, 20, ElementType::Empty);
+
+        const int cells_before = count_of(g, ElementType::Wood);
+        step(g, 300);
+
+        // Deepest and shallowest column the wood reaches, over the two sides.
+        int lowest = -1, highest = 80;
+        for (int y = 0; y < 80; ++y)
+            for (int x = 0; x < 80; ++x)
+                if (g.get_element(x, y).type == ElementType::Wood) {
+                    if (y > lowest) lowest = y;
+                    if (y < highest) highest = y;
+                }
+
+        check("a slab dropped across a step does not stay one rigid level",
+              lowest - highest > 6, // taller than the slab's own 7 rows
+              "rows " + std::to_string(highest) + ".." + std::to_string(lowest));
+        check("the piece over the drop actually went down it",
+              lowest >= 70, "lowest wood row " + std::to_string(lowest));
+        check("a crack neither creates nor destroys matter",
+              count_of(g, ElementType::Wood) == cells_before,
+              std::to_string(count_of(g, ElementType::Wood)) + " of " + std::to_string(cells_before));
+        check("the wreckage comes to rest", !g.has_pending_support_checks());
     }
 
     // --- a piece too large to judge is left alone ---

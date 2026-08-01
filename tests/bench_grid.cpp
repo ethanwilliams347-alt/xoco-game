@@ -136,6 +136,48 @@ void churn_slabs(Grid& g) {
 
 void build_collapsing(Grid&) {} // the hook does all of it
 
+// `collapsing` prices pieces *in the air*, and it says so: it drains them at
+// DRAIN_TOP "rather than being allowed to land". That is the right design for
+// what it measures and it is exactly why it cannot price E3 - fracture fires on
+// landing and on nothing else, so a bracketed A/B against `collapsing` runs the
+// feature zero times and returns a confidently flat number. Which it did.
+//
+// This scenario is the landing. Same slabs, no drain, and a deliberately jagged
+// floor so that every one of them comes down across a support boundary and
+// therefore actually breaks - a flat floor would land them evenly and skip the
+// crack entirely, which is correct behaviour and useless as a measurement. The
+// wreckage is cleared on a cycle so the pile does not grow until it reaches the
+// ceiling and the scenario quietly becomes a different one.
+constexpr int SHATTER_FLOOR = 300;
+
+void build_shattering(Grid& g) {
+    // A sawtooth: steps eight cells deep every thirty-two across, so a 100-wide
+    // slab always spans several of them.
+    for (int x = 0; x < BENCH_WIDTH; ++x) {
+        const int top = SHATTER_FLOOR + ((x / 32) % 2 == 0 ? 0 : 8);
+        for (int y = top; y < BENCH_HEIGHT; ++y) g.set_element(x, y, ElementType::Wall);
+    }
+}
+
+void shatter_slabs(Grid& g) {
+    static int tick = 0;
+
+    // Clear the heap every 60 steps, floor included, and rebuild the sawtooth.
+    // Cheaper and more honest than draining a band: it puts the scenario back to
+    // the state its name describes instead of letting it drift into "a deep pile
+    // of rubble settling", which is a different measurement.
+    if (tick % 60 == 59) {
+        for (int y = SHATTER_FLOOR - 40; y < BENCH_HEIGHT; ++y)
+            for (int x = 0; x < BENCH_WIDTH; ++x)
+                if (g.get_element(x, y).type != ElementType::Empty)
+                    g.set_element(x, y, ElementType::Empty);
+        build_shattering(g);
+    } else if (tick % 8 == 0) {
+        spawn_slab(g, (tick / 8) % SLAB_SLOTS);
+    }
+    tick++;
+}
+
 void run(const char* name, void (*build)(Grid&), int settle_steps, void (*on_step)(Grid&) = nullptr) {
     Grid g(BENCH_WIDTH, BENCH_HEIGHT);
     build(g);
@@ -180,7 +222,8 @@ int main() {
     run("churning", build_churning, 0);
     run("cascading", build_settled, 120, cascade);
     run("burning", build_burning, 60, feed_fire);
-    run("collapsing", build_collapsing, 70, churn_slabs); // settle: fill the pipeline first
+    run("collapsing", build_collapsing, 70, churn_slabs);      // settle: fill the pipeline first
+    run("shattering", build_shattering, 70, shatter_slabs);    // the same slabs, allowed to land
 
     std::printf("\n");
     return 0;

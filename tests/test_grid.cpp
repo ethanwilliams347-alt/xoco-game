@@ -2,6 +2,7 @@
 #include "physics/random.h"
 #include "test_util.h"
 #include <cstdint>
+#include <cstdlib>
 #include <set>
 #include <string>
 
@@ -56,7 +57,8 @@ static bool worlds_match(const Grid& a, const Grid& b) {
             const Element ea = a.get_element(x, y);
             const Element eb = b.get_element(x, y);
             if (ea.type != eb.type || ea.color != eb.color ||
-                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks)
+                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks ||
+                ea.temperature != eb.temperature || ea.piece_tag != eb.piece_tag)
                 return false;
         }
     }
@@ -79,27 +81,37 @@ static Grid make_sealed_pair(ElementType a, ElementType b, uint64_t seed = Grid:
     return g;
 }
 
-// Ignition is a race, not a certainty: a lone ember has some chance of
-// self-extinguishing (Fire's 6% spontaneous decay) before it manages to
-// ignite whatever it is touching, so a single sealed pair is not reliable
-// enough on its own - it can genuinely, correctly fail. Run many independent
-// pairs instead and require a safe fraction to ignite.
+// Steps a sealed pair takes to ignite `target` from the Fire beside it, or
+// `limit` if it never does.
 //
-// Each trial needs its own seed, and that is not decoration. These grids are
-// identical down to the cell, so trials sharing a seed are not thirty samples of
-// a 2:1 race - they are one sample counted thirty times, and the result can only
-// ever be 0/30 or 30/30. That is what this looked like between F1.1 (which made
-// the seed fixed) and F1.4 (which changed the numbers it produces, turning a
-// silent 30/30 into a loud 0/30). The test was wrong the whole time; only its
-// answer changed.
-static int count_ignitions(ElementType target, int steps, int trials) {
-    int ignited = 0;
-    for (int i = 0; i < trials; ++i) {
-        Grid g = make_sealed_pair(target, ElementType::Fire, 9000 + static_cast<uint64_t>(i));
-        step(g, steps);
-        if (g.get_element(1, 1).type != target) ignited++;
+// **This used to be a statistical test and no longer is, and that is the point
+// of E2 rather than a convenience.** Ignition was a 12%-per-step dice roll
+// racing Fire's own 6% burnout, so the honest assertion was thirty independent
+// seeds and a bar at 40% - a test that could correctly fail. It is now a
+// threshold: heat conducts into the wood at a rate the table sets, the wood
+// crosses its ignition point, and it catches. Same seed, same answer, every
+// time, and the *number of steps* is now a meaningful quantity to assert on,
+// which is exactly the state between "wood" and "on fire" that was missing.
+//
+// The per-trial seeds are gone with the statistics. They were load-bearing when
+// this measured a race - trials sharing a seed are one sample counted thirty
+// times, and this test was silently 30/30 between F1.1 and F1.4 for that reason.
+// With no roll left to sample there is nothing for them to vary.
+// The flame is re-placed every step so that it is a source rather than
+// something with a lifetime of its own. Without that, this measures Fire's 6%
+// burnout as much as it measures ignition, and it fails outright for any seed
+// whose ember happens to die during the handful of steps the target needs to
+// come up to temperature - which is what it did on the first run of this test,
+// with Wood at 60/60 and Oil at 4. That is not a bug in either material; it is
+// the last piece of dice in this path being measured by accident.
+static int steps_to_ignite(ElementType target, int limit) {
+    Grid g = make_sealed_pair(target, ElementType::Fire);
+    for (int i = 1; i <= limit; ++i) {
+        g.set_element(2, 1, ElementType::Fire);
+        g.update();
+        if (g.get_element(1, 1).type != target) return i;
     }
-    return ignited;
+    return limit;
 }
 
 // A settled powder should never have a gap directly beneath it. This is the
@@ -149,6 +161,100 @@ int main() {
         check("water is conserved", count_of(g, ElementType::Water) == 20);
     }
 
+    // --- a U-tube equalizes (E1) ---
+    //
+    // The one scene that could not work before liquids were allowed to rise:
+    // the two arms are joined only at the bottom, so the short arm can only gain
+    // a cell by pushing one up against gravity. Before E1 the right arm stayed
+    // empty forever no matter how long it ran.
+    //
+    // Paired with the conservation count below, which is the check that actually
+    // matters here: the obvious way to make water level is to invent some, and a
+    // rule that equalizes by creating cells passes the level test and fails the
+    // engine. Both, or neither counts.
+    {
+        Grid g(40, 40);
+
+        // Two 1-cell-wide arms at x=10 and x=20, joined by a tunnel along y=38.
+        //
+        // Every wall cell has to belong to one connected piece that reaches the
+        // world's bottom row, which is why there is a lid: the divider between
+        // the arms sits over the tunnel, so on its own it is a slab hanging in
+        // mid-air, and the first swap of water underneath it queues the support
+        // check that drops it a cell onto the floor. That is the collapse rule
+        // working exactly as specified - the fixture was wrong, not the engine -
+        // but a container that rearranges itself mid-test proves nothing about
+        // water.
+        for (int x = 9; x <= 21; ++x) { g.set_element(x, 18, ElementType::Wall);   // lid
+                                        g.set_element(x, 39, ElementType::Wall); } // floor
+        for (int y = 18; y <= 39; ++y) { g.set_element(9, y, ElementType::Wall);
+                                         g.set_element(21, y, ElementType::Wall); }
+        for (int y = 19; y <= 37; ++y)
+            for (int x = 11; x <= 19; ++x) g.set_element(x, y, ElementType::Wall); // divider
+
+        // All the water on the left: the tunnel plus fourteen cells of column.
+        for (int x = 10; x <= 20; ++x) g.set_element(x, 38, ElementType::Water);
+        for (int y = 24; y <= 37; ++y) g.set_element(10, y, ElementType::Water);
+        const int placed = count_of(g, ElementType::Water);
+
+        step(g, 200);
+
+        // Topmost water in each arm. 40 means the arm is empty, which is what
+        // this test failed with before the rule existed.
+        const auto surface = [&](int x) {
+            for (int y = 0; y < 40; ++y) if (g.get_element(x, y).type == ElementType::Water) return y;
+            return 40;
+        };
+        const int left = surface(10), right = surface(20);
+
+        check("a U-tube equalizes", left < 40 && right < 40 && std::abs(left - right) <= 1,
+              "left surface row=" + std::to_string(left) + " right=" + std::to_string(right));
+        check("a U-tube conserves water", count_of(g, ElementType::Water) == placed,
+              "placed=" + std::to_string(placed) +
+              " after=" + std::to_string(count_of(g, ElementType::Water)));
+        // Level is only half of it: a rule that equalizes and then keeps
+        // trading cells back and forth across the join is level on average and
+        // costs full price forever. MIN_PRESSURE_HEAD is what this checks.
+        check("a U-tube stops once it is level", g.active_chunk_count() == 0,
+              "awake=" + std::to_string(g.active_chunk_count()));
+    }
+
+    // --- a level pool stays put, and stays asleep ---
+    //
+    // The negative case, and the one that stops the rule above from being a
+    // machine for jitter: every surface cell of a settled pool asks the pressure
+    // question every step it is awake, and has to keep answering no. If it ever
+    // says yes, the pool never sleeps - which is both a visible shimmer and a
+    // chunk that costs full price forever.
+    {
+        // Full width and a whole number of rows, so the pool is already level
+        // and already at rest. A pool with a partial top row is a different and
+        // much older question - those leftover cells slide back and forth across
+        // an open surface forever, with or without this rule.
+        Grid g(40, 40);
+        for (int y = 30; y < 40; ++y)
+            for (int x = 0; x < 40; ++x) g.set_element(x, y, ElementType::Water);
+        step(g, 200);
+        const int before = count_of(g, ElementType::Water);
+        const int top = [&] {
+            for (int y = 0; y < 40; ++y)
+                for (int x = 0; x < 40; ++x)
+                    if (g.get_element(x, y).type == ElementType::Water) return y;
+            return 40;
+        }();
+        step(g, 100);
+        int top_after = 40;
+        for (int y = 0; y < 40 && top_after == 40; ++y)
+            for (int x = 0; x < 40; ++x)
+                if (g.get_element(x, y).type == ElementType::Water) { top_after = y; break; }
+
+        check("a level pool does not climb", top_after == top,
+              "top=" + std::to_string(top) + " after=" + std::to_string(top_after));
+        check("a level pool still conserves water", count_of(g, ElementType::Water) == before);
+        check("a level pool goes back to sleep", g.active_chunk_count() == 0,
+              "awake=" + std::to_string(g.active_chunk_count()));
+    }
+
     // --- sand sinks through water (denser) ---
     {
         Grid g(20, 40);
@@ -179,7 +285,11 @@ int main() {
     {
         Grid g(20, 40);
         for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
-        step(g, 300);
+        // 100 steps, not 300. Steam spawns hot and cools, so past ~140 steps it
+        // has condensed back to water and there is no steam left to measure the
+        // height of - which is E2 working, not this test failing, and the
+        // condensing behaviour gets its own check below.
+        step(g, 100);
         const double steam = mean_row(g, ElementType::Steam);
         check("steam rises", steam >= 0.0 && steam < 5.0, "steam row=" + std::to_string(steam));
         check("steam is conserved", count_of(g, ElementType::Steam) == 4);
@@ -260,33 +370,37 @@ int main() {
               "count=" + std::to_string(count_of(g, ElementType::Water)));
     }
 
-    // --- reactions: fire ignites adjacent wood ---
-    // Wood's 12%/step ignition chance races against Fire's 6%/step self-decay
-    // (roughly a 2:1 in wood's favour), so ~30 independent trials at a >=40%
-    // bar is the honest way to assert this rather than expecting near-certain
-    // single-trial success, which the odds do not actually support.
+    // --- reactions: fire ignites adjacent wood and oil, by heat ---
+    // Both now catch every time rather than most of the time, and oil still
+    // catches sooner than wood - which used to be a difference of odds (40%
+    // against 12%) and is now a difference of ignition point (90 against 120).
+    // The upper bound matters as much as the fact of ignition: it is what says
+    // the flame front actually advances rather than eventually getting there.
     {
-        const int trials = 30;
-        const int ignited = count_ignitions(ElementType::Wood, 60, trials);
-        check("fire ignites adjacent wood", ignited >= 12,
-              "ignited=" + std::to_string(ignited) + "/" + std::to_string(trials));
-    }
-
-    // --- reactions: fire ignites adjacent oil ---
-    // Oil's 40%/step chance dominates the same 6% race far more comfortably
-    // (~87% per trial), so the pass bar can sit much closer to the mean.
-    {
-        const int trials = 30;
-        const int ignited = count_ignitions(ElementType::Oil, 40, trials);
-        check("fire ignites adjacent oil", ignited >= 18,
-              "ignited=" + std::to_string(ignited) + "/" + std::to_string(trials));
+        const int wood = steps_to_ignite(ElementType::Wood, 60);
+        const int oil = steps_to_ignite(ElementType::Oil, 60);
+        check("fire ignites adjacent wood", wood < 60, "steps=" + std::to_string(wood));
+        check("fire ignites adjacent oil", oil < 60, "steps=" + std::to_string(oil));
+        check("oil ignites sooner than wood", oil < wood,
+              "oil=" + std::to_string(oil) + " wood=" + std::to_string(wood));
     }
 
     // --- reactions: water extinguishes fire into steam ---
     {
+        // Asserted as "it passed through Steam" rather than "it is Steam after
+        // N steps", and E2 is why the distinction now matters. A puff of steam
+        // pinned against cold stone and cold water dumps its heat into both in
+        // a handful of steps and condenses, so there is no fixed N at which the
+        // old form of this check is reliable - it read Steam at 30 steps before
+        // heat existed and Water at 5 steps after. Watching the transition is
+        // the thing this test was ever actually about.
         Grid g = make_sealed_pair(ElementType::Fire, ElementType::Water);
-        step(g, 30);
-        check("water extinguishes fire into steam", g.get_element(1, 1).type == ElementType::Steam,
+        bool steamed = false;
+        for (int i = 0; i < 30 && !steamed; ++i) {
+            step(g, 1);
+            steamed = g.get_element(1, 1).type == ElementType::Steam;
+        }
+        check("water extinguishes fire into steam", steamed,
               "type=" + std::string(material_of(g.get_element(1, 1).type).name));
     }
 
@@ -331,6 +445,148 @@ int main() {
 
         check("a trapped fire still burns out instead of freezing", decayed >= 25,
               "decayed=" + std::to_string(decayed) + "/" + std::to_string(COLS * ROWS));
+    }
+
+    // --- heat: the byte is free, and a fresh world is cold ---
+    // The size is asserted at compile time in element.h too. It is repeated here
+    // because a static_assert that quietly stops being tight is invisible, and
+    // because 12 is the number the whole argument for spending a seventh axis
+    // rested on: temperature had to land in padding the struct already carried.
+    {
+        check("temperature costs no memory", sizeof(Element) == 12,
+              "sizeof(Element)=" + std::to_string(sizeof(Element)));
+
+        Grid g(20, 20);
+        bool all_ambient = true;
+        for (int y = 0; y < 20; ++y)
+            for (int x = 0; x < 20; ++x)
+                if (g.get_element(x, y).temperature != AMBIENT_TEMPERATURE) all_ambient = false;
+        check("a fresh world starts at ambient", all_ambient);
+    }
+
+    // --- heat: conduction carries heat away from a flame and runs out ---
+    // The flame is re-placed every step so it is a source rather than a thing
+    // with a lifetime; this is the same trick bench_grid.cpp uses to keep its
+    // `burning` scenario burning, and without it the test would be measuring
+    // Fire's 6% burnout instead of conduction.
+    //
+    // A Wall bar, not Wood: Wall has no ignition row, so what is measured is
+    // heat moving and nothing else. That heat *stops* is as much the point as
+    // that it moves - the bleed back to ambient is the only thing removing heat
+    // from the world, and without it a single candle eventually cooks the map.
+    {
+        // On the world's bottom row, not floating in the middle of it. Wall is
+        // structural, and a bar with nothing under it is an unsupported piece
+        // that collapses one row on the first disturbance - the same fixture
+        // mistake E1's U-tube made twice, and it would have left this test
+        // measuring the temperature of the empty cell the bar used to be in.
+        Grid g(40, 10);
+        for (int x = 0; x < 40; ++x) g.set_element(x, 9, ElementType::Wall);
+        for (int i = 0; i < 300; ++i) {
+            g.set_element(1, 8, ElementType::Fire);
+            g.update();
+        }
+        const int near = g.get_element(2, 9).temperature;
+        const int far = g.get_element(30, 9).temperature;
+        check("heat conducts out of a flame into what it touches", near > AMBIENT_TEMPERATURE + 5,
+              "near=" + std::to_string(near));
+        check("heat falls off with distance", near > far,
+              "near=" + std::to_string(near) + " far=" + std::to_string(far));
+        check("heat does not reach the far end of the bar", far <= AMBIENT_TEMPERATURE + 1,
+              "far=" + std::to_string(far));
+    }
+
+    // --- heat: a flame burns *through* a beam ---
+    // The observation E2 exists to answer, asserted directly: the near end of a
+    // wooden beam is consumed and the far end is untouched, so there is a front
+    // that advances rather than a beam that lights up all over at once. The
+    // negative half is the one that would catch a runaway conduction constant.
+    {
+        Grid g(60, 10);
+        for (int x = 0; x < 60; ++x) g.set_element(x, 9, ElementType::Wood);
+        for (int i = 0; i < 200; ++i) {
+            g.set_element(1, 8, ElementType::Fire);
+            g.update();
+        }
+        check("a beam burns away at the end the flame is on",
+              g.get_element(2, 9).type != ElementType::Wood,
+              "type=" + std::string(material_of(g.get_element(2, 9).type).name));
+        check("the far end of the beam is untouched",
+              g.get_element(55, 9).type == ElementType::Wood &&
+              g.get_element(55, 9).temperature <= AMBIENT_TEMPERATURE + 1,
+              "type=" + std::string(material_of(g.get_element(55, 9).type).name) +
+              " temp=" + std::to_string(g.get_element(55, 9).temperature));
+    }
+
+    // --- heat: water boils ---
+    // Water has no contact reaction with Fire that produces Steam *from the
+    // water's side* - the dousing row transforms the Fire cell, not this one -
+    // so the only route from Water to Steam here is the temperature-gated boil
+    // row. Sealed so neither cell can move away from the other.
+    {
+        Grid g(5, 3);
+        for (int y = 0; y < 3; ++y)
+            for (int x = 0; x < 5; ++x) g.set_element(x, y, ElementType::Wall);
+        g.set_element(2, 1, ElementType::Water);
+        int boiled = 0;
+        for (int i = 1; i <= 60; ++i) {
+            g.set_element(1, 1, ElementType::Fire);
+            g.update();
+            if (boiled == 0 && g.get_element(2, 1).type == ElementType::Steam) boiled = i;
+        }
+        check("water heated by a flame boils into steam", boiled > 0 && boiled < 60,
+              "step=" + std::to_string(boiled));
+    }
+
+    // --- heat: steam condenses as it cools ---
+    // The other end of the same cycle, and the reason Steam spawns hot rather
+    // than at ambient: steam that is not above condensing point is water, so a
+    // puff created at room temperature would turn back on the step it was made.
+    //
+    // In open air rather than sealed in a Wall box, which is the fixture the
+    // first version of this test used and the wrong one. Empty has conductivity
+    // zero, so steam surrounded by air cools only by the slow bleed to ambient
+    // and lives a couple of hundred steps; steam packed against stone dumps its
+    // heat into the stone and is gone in ten. Both are correct, and the one
+    // worth asserting on is the one a player ever sees.
+    {
+        Grid g(20, 40);
+        for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
+        step(g, 60);
+        check("steam does not condense the moment it is made",
+              count_of(g, ElementType::Steam) == 4,
+              "steam=" + std::to_string(count_of(g, ElementType::Steam)));
+        step(g, 340);
+        check("steam condenses once it has cooled",
+              count_of(g, ElementType::Steam) == 0, // and matter is conserved across the change
+              "steam=" + std::to_string(count_of(g, ElementType::Steam)) +
+              " water=" + std::to_string(count_of(g, ElementType::Water)));
+        check("condensing steam conserves matter", count_of(g, ElementType::Water) == 4,
+              "water=" + std::to_string(count_of(g, ElementType::Water)));
+    }
+
+    // --- heat: a burnt-out world cools back to ambient and sleeps ---
+    // The check the whole axis stands or falls on. Heat that never settles is
+    // heat that keeps a chunk awake forever, which would hand back the entire
+    // saving the chunk system exists for - and it would do it silently, since a
+    // world that is merely warm looks identical to one that is not.
+    //
+    // Ambient+1, not ambient: the dead band in heat_flow stops an exchange once
+    // two temperatures are within one of each other, which is precisely what
+    // makes this terminate at all. "Level to within a cell" was the same trade
+    // in E1, for the same reason.
+    {
+        Grid g(20, 20);
+        g.set_element(10, 10, ElementType::Fire);
+        step(g, 600);
+        int hottest = 0;
+        for (int y = 0; y < 20; ++y)
+            for (int x = 0; x < 20; ++x)
+                hottest = std::max(hottest, static_cast<int>(g.get_element(x, y).temperature));
+        check("a burnt-out world cools back to ambient", hottest <= AMBIENT_TEMPERATURE + 1,
+              "hottest=" + std::to_string(hottest));
+        check("a burnt-out world goes back to sleep", g.active_chunk_count() == 0,
+              "awake=" + std::to_string(g.active_chunk_count()));
     }
 
     // --- the hash behind the randomness ---

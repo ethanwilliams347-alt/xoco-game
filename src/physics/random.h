@@ -34,6 +34,7 @@ enum class Stream : uint64_t {
     PowderDirection = 0xA0761D6478BD642Full,
     FluidDirection  = 0xE7037ED1A0B428DBull,
     Reaction        = 0x8EBC6AF09C88C6E3ull,
+    Fracture        = 0xC2B2AE3D27D4EB4Full,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -120,6 +121,7 @@ inline constexpr Stream SIM_STREAMS[] = {
     Stream::PowderDirection,
     Stream::FluidDirection,
     Stream::Reaction,
+    Stream::Fracture,
 };
 
 // Two streams sharing a value are one stream, silently. Nothing about that looks

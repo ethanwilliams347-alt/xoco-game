@@ -37,23 +37,60 @@ struct Material {
     // structural materials only; everything that already falls on its own is
     // false.
     bool structural;
+
+    // --- thermal ---
+
+    // How readily heat moves through this material, 0-255. Used for both
+    // conduction between neighbours (the pair moves heat at the *lower* of the
+    // two, so an insulator stops a conductor) and for the bleed back to
+    // ambient, so one number sets both how fast a material heats and how fast
+    // it forgets. Zero means the material takes no part in heat at all, which
+    // is what `Empty` is: air is not simulated, so heat travels through matter
+    // in contact and nowhere else. That is a deliberate simplification and it
+    // is the reason the thermal pass is affordable - a settled pool of water is
+    // hundreds of cells, the air above it is tens of thousands.
+    uint8_t conductivity;
+
+    // Temperature a freshly placed cell of this material gets. Zero means "keep
+    // whatever the spot was already at", which is the right default: heat
+    // belongs to the place, so material dug out of a hot wall arrives hot.
+    // Non-zero is for materials that are hot *by definition* - there is no such
+    // thing as cold Fire, and Steam that is not above condensing point is
+    // water. `Empty` names ambient explicitly so that erasing a cell also
+    // clears the heat that was in it.
+    uint8_t spawn_temperature;
+
+    // Temperature this material holds itself at, every step, regardless of what
+    // it is losing to its surroundings. Zero for everything that is merely warm.
+    // Fire is the one thing in the table that is a source rather than a
+    // conductor - it is what heats the world, not something the world heats -
+    // and this is what stops a flame being quenched by the cold wall it is
+    // sitting against.
+    uint8_t heat_source;
 };
 
 // Indexed by ElementType. Keep rows in the same order as the enum.
 inline constexpr Material MATERIALS[] = {
-    // name      colour       jitter  move              density  spread  structural
-    {  "Empty",  0xFF000000,      0,  MoveKind::Static,       0,      0,  false },
-    {  "Sand",   0xFFEEDD82,     18,  MoveKind::Powder,     150,      0,  false },
-    {  "Water",  0xFF4444FF,     10,  MoveKind::Liquid,     100,      5,  false },
+    // name      colour       jitter  move              density  spread  structural  cond  spawn  source
+    {  "Empty",  0xFF000000,      0,  MoveKind::Static,       0,      0,  false,        0,    20,      0 },
+    {  "Sand",   0xFFEEDD82,     18,  MoveKind::Powder,     150,      0,  false,       30,     0,      0 },
+    {  "Water",  0xFF4444FF,     10,  MoveKind::Liquid,     100,      5,  false,      120,     0,      0 },
     // The two structural materials. Density is what lets an unsupported slab
     // sink through any fluid it lands in rather than perching on top of it.
-    {  "Wall",   0xFF888888,     12,  MoveKind::Static,   32000,      0,  true  },
-    {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0,  true  },
-    {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3,  false },
-    {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3,  false },
+    // Wall conducts poorly on purpose: a good conductor here would make every
+    // wall a heat sink large enough to quench any fire touching it, since a
+    // wall is usually the biggest connected body in a scene.
+    {  "Wall",   0xFF888888,     12,  MoveKind::Static,   32000,      0,  true,        30,     0,      0 },
+    {  "Wood",   0xFF6B4423,     14,  MoveKind::Static,   32000,      0,  true,        90,     0,      0 },
+    {  "Oil",    0xFF3A2E22,      8,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0 },
+    // Spawns hot, holds no heat of its own, and conducts slowly - so a puff of
+    // steam cools over a couple of hundred steps and condenses back to water
+    // rather than lasting forever or vanishing on the step it is made.
+    {  "Steam",  0xFFBFD8E8,      6,  MoveKind::Gas,        -20,      3,  false,       40,   220,      0 },
     // Denser (less negative) than Steam so flame stays under a steam layer
     // instead of punching through it - visually reads as fire boiling water.
-    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4,  false },
+    // The only heat source in the table.
+    {  "Fire",   0xFFFF6A00,     24,  MoveKind::Gas,        -10,      4,  false,      200,   250,    250 },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),

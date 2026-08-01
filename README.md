@@ -33,9 +33,11 @@ To survive, you must use mysterious ancient science to access different worlds. 
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-four suites, one per concern — `grid_test` for the cellular automata,
-`player_test` for the character physics, `tool_test` for digging, and
-`collapse_test` for structural support — and CTest runs all of them:
+six suites, one per concern — `grid_test` for the cellular automata,
+`player_test` for the character physics, `tool_test` for digging,
+`collapse_test` for structural support, `run_test` for the three of them driven
+together through one `Run::step()`, and `scene_test` for the level loader — and
+CTest runs all of them:
 
 ```bash
 ctest --test-dir build -C Release --output-on-failure
@@ -51,7 +53,7 @@ build. The benchmark is a separate executable, run it by hand:
 ```
 
 It simulates a 960x540 grid (1920x1080 at a 2px scale, the resolution the project
-is aiming at) across six scenarios and reports milliseconds per step against the
+is aiming at) across seven scenarios and reports milliseconds per step against the
 16.67 ms budget of a 60 Hz frame. Run it before and after any change that claims
 to make the simulation faster.
 
@@ -73,13 +75,13 @@ that wrong once already.
 
 3. **Digging (`DigTool`).** Left-click cuts a circular hole where the orange aim marker sits. Aim at something past `RANGE` and confirm the marker stops short rather than reading as broken. Dig the bottom out of a standing Sand pile and confirm everything above it falls in — a gap left hanging is the classic dirty-rect bug ([Chunked updates](#chunked-updates)). Fire at a wall from behind cover and confirm the shot stops at the near face rather than tunnelling through to whatever is behind it.
 
-4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the HUD's material name agrees. Sand piles into a slope. Water spreads flat. Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
+4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the HUD's material name agrees. Sand piles into a slope. Water spreads flat. Pour Water into one side of a container whose two halves are joined only at the bottom and confirm both sides come level and then *stop* — a surface that keeps trading cells back and forth is level on average and never sleeps ([Liquids find their level](#liquids-find-their-level)). Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
 
-5. **Reactions.** Ignite a Wood block with Fire (`8`) and watch it catch, spread, and eventually burn down to `Empty`. Same against Oil — should catch far faster. Pour Water onto Fire and confirm it becomes Steam rather than just vanishing. Place one Fire cell with nothing nearby and confirm it burns itself out on its own. **Then box a Fire cell in on all sides with Wall and confirm it still burns out** — this is the self-wake regression specifically: a fire with nowhere to move and nothing to check its own decay against will otherwise freeze forever with its chunk asleep ([Reactions](#reactions)).
+5. **Reactions and heat.** Ignite a Wood block with Fire (`8`) and watch it catch, spread, and eventually burn down to `Empty`. Same against Oil — should catch sooner. **Watch a long beam rather than a block**: what you want to see is a front that advances along it, not the whole beam lighting up at once and not a fire that stops dead after one cell ([Heat](#heat)). Drop Fire next to Water and confirm the water boils off into Steam as well as dousing the flame; leave the Steam alone and confirm it eventually condenses back to Water rather than drifting at the ceiling forever. Place one Fire cell with nothing nearby and confirm it burns itself out on its own. **Then box a Fire cell in on all sides with Wall and confirm it still burns out** — this is the self-wake regression specifically: a fire with nowhere to move and nothing to check its own decay against will otherwise freeze forever with its chunk asleep ([Reactions](#reactions)).
 
-6. **Chunking / sleep-wake.** Let a mixed scene (sand, water, a fire) run to rest and confirm the awake-chunk count in the HUD returns to at or near zero — a nonzero idle count means something is being woken that should not be. Build a flat sand floor wide enough to cross a chunk boundary (chunks are 64 cells) and confirm it settles into one continuous surface with no step or seam at the boundary.
+6. **Chunking / sleep-wake.** Let a mixed scene (sand, water, a fire) run to rest and confirm the awake-chunk count in the HUD returns to at or near zero — a nonzero idle count means something is being woken that should not be. **Burn something first, then wait**: heat keeps cells awake while it is still moving, by design, so the count should stay up for a while after the flames are gone and then come down as the scene cools. A count that never comes down means heat is not settling, which costs full price forever and is invisible to look at. Build a flat sand floor wide enough to cross a chunk boundary (chunks are 64 cells) and confirm it settles into one continuous surface with no step or seam at the boundary.
 
-7. **Structures ([Structures and falling](#structures-and-falling)).** Place a Wall or Wood shape with nothing under it and confirm it falls as one rigid piece, keeping its shape, rather than crumbling into loose grains or hanging in the air. Rest a shape on solid ground and confirm it stays put indefinitely — no spontaneous twitching. Dig one support cell out from under a large structure and confirm the whole thing drops promptly and lands clean, nothing left floating.
+7. **Structures ([Structures and falling](#structures-and-falling)).** Place a Wall or Wood shape with nothing under it and confirm it falls as one rigid piece, keeping its shape, rather than crumbling into loose grains or hanging in the air. Rest a shape on solid ground and confirm it stays put indefinitely — no spontaneous twitching. Dig one support cell out from under a large structure and confirm the whole thing drops promptly and lands clean, nothing left floating. **Then build a ledge with a drop beside it and cut a wide slab loose above the join**: it should come apart over the edge rather than perching level across it, and the two halves should stay apart afterwards. The negative half of that is the one to be fussy about — nothing that was standing still should ever break, so watch a settled structure through several of these and confirm it never so much as shifts.
 
 8. **Performance sanity.** Paint a large, actively-falling scene (a wide sand-over-water fill is close to `grid_bench`'s `churning`) and watch the HUD fps stay near the display's refresh rather than cratering. If something feels newly slow, that is a lead, not a verdict — follow it up with `grid_bench`, bracketed, per `PERFORMANCE.md`; a felt slowdown on its own is exactly the kind of unbracketed reading that document warns against trusting.
 
@@ -120,8 +122,9 @@ for drawing more terrain anywhere else.
 The simulation lives in `src/physics/` and knows nothing about SDL — `main.cpp` is the only file that opens a window or reads input.
 
 Materials are **data, not code**. Each one is a row in the `MATERIALS` table in
-[material.h](src/physics/material.h) describing its colour, density, and which of four
-generic behaviours it follows:
+[material.h](src/physics/material.h) describing its colour, density, thermal
+properties (see [Heat](#heat)), and which of four generic behaviours it
+follows:
 
 | Behaviour | Movement |
 |-----------|----------|
@@ -133,6 +136,51 @@ generic behaviours it follows:
 Density decides what sinks through what, so sand sinking in water and oil floating on
 water both fall out of the same rule rather than being special-cased. Adding a material
 means adding a table row, not editing the update loop.
+
+### Liquids find their level
+
+Falling and spreading sideways is not enough to make something read as a fluid.
+The density rule refuses every upward move unless the mover is lighter than its
+target, and `Empty` has density 0, so a liquid can never rise under any
+circumstances — which means a U-bend can never equalize. The short arm has no way
+to gain a cell. Water ends up behaving like a powder that happens to flow.
+
+So a liquid cell that has run out of ordinary moves, and has `Empty` directly
+above it, searches its own connected body for **another surface at least two rows
+lower**, and moves there. It is not a pressure field: a real solve is a second
+simulation with its own convergence behaviour and its own state to save, and this
+buys the same visible result for a bounded search — 64 cells, orthogonally
+connected, same material only.
+
+**The tall side moves down; the short side does not rise.** That direction is the
+whole design, and the other one was tried first. Rising is a swap, so it leaves a
+bubble of `Empty` *inside* the body, and the transfer is not finished until the
+ordinary fall and spread rules have walked that bubble back down the arm, across
+the join and up the far side — twenty-odd steps, during which the bubble cuts the
+body in two, the search transiently answers "no", the cells stop marking
+themselves dirty, and the chunk sleeps with the world still out of level. Every
+fix for that amounts to keeping unlevel bodies awake, which charges every pool in
+the world for the one that needs it. Moving the tall cell instead makes each
+transfer a single atomic swap, so there is no journey to stay awake for, and the
+wake-up is automatic: the vacated cell's 3x3 mark is exactly the cell below it,
+which is the next surface cell and the next one to move. A body equalizes at one
+cell per step and then sleeps, with no self-wake rule of its own.
+
+Two consequences worth knowing:
+
+- **Level means level to within one cell.** The two-row threshold is hysteresis,
+  not a tuning preference. Each transfer moves the two surfaces one cell towards
+  each other, so a one-row threshold would flip which side was high, forever —
+  level on average, awake and costing full price the whole time.
+- **A cell can travel further than one cell in a step.** Bounded by the search,
+  and only ever between two points of one connected body of the same liquid. What
+  it looks like is one side dropping while the other rises, which is what a U-tube
+  does.
+
+Conservation is what keeps the whole thing honest, because the obvious way to make
+water level is to invent some: the move is a swap with the `Empty` above the
+receiving surface, so nothing is created and nothing is deleted, and there is a
+test that says so alongside the one that says it levels.
 
 ### Chunked updates
 
@@ -156,34 +204,104 @@ idle world it should sit at or near zero.
 
 Movement is data-driven; transformation is the second axis. Each row in the
 `REACTIONS` table in [reaction.h](src/physics/reaction.h) is a rule of the
-shape `catalyst + target -> result`, rolled once per eligible cell per step:
+shape `catalyst + target -> result`, gated on the target's temperature and
+rolled once per eligible cell per step:
 
-| Catalyst | Target | Chance | Result |
-|----------|--------|--------|--------|
-| Fire     | Wood   | 12%    | Fire   |
-| Fire     | Oil    | 40%    | Fire   |
-| Water    | Fire   | 90%    | Steam  |
-| *(none)* | Fire   | 6%     | Empty  |
+| Catalyst | Target | Temperature | Chance | Result |
+|----------|--------|-------------|--------|--------|
+| Water    | Fire   | any         | 90%    | Steam  |
+| *(none)* | Wood   | ≥ 120       | 100%   | Fire   |
+| *(none)* | Oil    | ≥ 90        | 100%   | Fire   |
+| *(none)* | Water  | ≥ 100       | 100%   | Steam  |
+| *(none)* | Steam  | ≤ 80        | 100%   | Water  |
+| *(none)* | Fire   | any         | 6%     | Empty  |
 
-A catalyst of `Count` means "no neighbour required" — Fire's own burnout is
-spontaneous, not triggered by contact. Rows are checked in order; the first
-row whose target and catalyst condition both match is the only one considered
-that cell that step, which is what makes dousing (row 3) take priority over
-natural burnout (row 4) without any special-casing — as long as Water is
-adjacent, row 4 is never reached.
+A catalyst of `Count` means "no neighbour required". Rows are checked in order;
+the first row whose target, catalyst and temperature conditions all match is
+the only one considered that cell that step, which is what makes dousing (row
+1) take priority over natural burnout (row 6) without any special-casing — as
+long as Water is adjacent, row 6 is never reached.
+
+**Only one row still rolls dice, and that is the point of the table above.**
+Ignition used to be a 12%-per-step chance for Wood touching Fire, which is why
+fire spread by luck rather than by heat and never looked like it was burning
+*through* anything — there was no state between "wood" and "on fire" for the
+eye to follow. Wood now ignites because it got hot, and how long that takes is
+set by its conductivity. Dousing keeps its chance and is deliberately *not*
+temperature-gated: water puts a flame out because it is water, and a cold
+splash should not be less effective than a warm one. Fire's burnout keeps its
+6% because a lifetime is not a threshold and has nothing to gate on.
 
 **A second wake rule, alongside chunking's.** A cell that stops moving stops
 generating `mark_dirty` calls and its chunk goes back to sleep — that's the
 whole point of chunking. But Fire's burnout doesn't need movement to happen;
 if Fire is boxed in with nowhere to go, it would take its one shot at the 6%
 roll on the frame it was created and then freeze forever, un-woken, never
-given another chance to decay or to ignite what it's touching. So any cell
-that is a *spontaneous* reaction target (right now, only Fire) marks its own
-3x3 neighbourhood dirty every single step it exists, movement or not. This is
-deliberately narrow: Wood and Oil are only ever reaction *targets* of a
-catalyst-based row, never spontaneous, so idle Wood and Oil far from any fire
-stay fully sleep-eligible and chunking's performance for the common case is
-untouched.
+given another chance to decay or to ignite what it's touching. So a cell that
+is a *spontaneous* reaction target **and is currently inside that row's
+temperature window** marks its own 3x3 neighbourhood dirty every step,
+movement or not. Both halves of that are load-bearing: without the first, Fire
+freezes; without the second, every wooden beam and every pool in the world
+would self-mark forever, since they are spontaneous targets too, and chunking
+would be handed back its entire saving. Cold Wood, cold Water and cold Steam
+stay fully sleep-eligible.
+
+### Heat
+
+Every cell carries a `uint8_t temperature`, ambient (20) unless something has
+heated it. It rides in padding `Element` already had, so it cost no memory —
+`sizeof(Element)` is still 12, asserted at compile time rather than counted.
+The scale is read as degrees Celsius so the constants mean something: water
+boils at 100, wood catches at 120, a flame holds 250.
+
+Three columns in `MATERIALS` drive it. `conductivity` sets both how fast a
+material takes heat on and how fast it sheds it; a pair of neighbours exchanges
+at the *lower* of the two, so an insulator between two conductors stops the
+heat rather than averaging with it. `spawn_temperature` is what a freshly
+placed cell gets, and defaults to "whatever the spot was already at" — heat
+belongs to the place, so material dug out of a hot wall arrives hot, and an
+ignited Wood cell becomes Fire that is already burning rather than a flame
+starting from room temperature. `heat_source` is the temperature a material
+holds itself at regardless of its surroundings, and Fire is the only row in
+the table that has one.
+
+`Empty` has conductivity zero: air is not simulated, so heat travels through
+matter in contact and nowhere else. That is a deliberate simplification and it
+is most of why the pass is affordable — a settled pool is hundreds of cells,
+the air above it is tens of thousands.
+
+**Integer arithmetic only**, because floating-point diffusion would put
+cross-platform nondeterminism straight back into `Grid`. Three properties fall
+out of the integer form and each one is doing a job:
+
+- **A dead band.** Two cells within one degree exchange nothing. Without it a
+  pair would trade a unit back and forth forever and no chunk containing
+  anything warm could ever sleep. The cost is that "ambient" means ambient to
+  within a degree — the same trade [Liquids find their
+  level](#liquids-find-their-level) makes for "level".
+- **A floor of one unit**, so a slow conductor across a small difference does
+  not truncate to zero and stall partway.
+- **A ceiling of half the difference**, so an exchange never overshoots and
+  turns into an oscillation.
+
+Heat conducts across all **eight** neighbours, unlike the pressure search,
+which is orthogonal only. The difference is not inconsistency: a diagonal step
+there would move *matter* through a seam with no contact area, whereas heat
+through a corner is harmless — and refusing it breaks the feature outright.
+An ignited Wood cell becomes Fire, Fire is a gas, so it rises out of the beam
+on the next step, leaving the flame that should light the next cell along
+sitting diagonally above it and nowhere else. With four neighbours the fire
+front stalls after exactly one cell, and no conductivity fixes it.
+
+**A cell sitting at exactly ambient does no thermal work at all.** This is the
+difference between heat costing 18% of the worst-case frame and costing 2%,
+and it is exact rather than an approximation: conduction writes both ends of an
+exchange by the same amount, so it does not matter which of a pair initiates
+it, and a cell cannot be off ambient and asleep. Heat is also the only thing in
+the engine that *leaves* — every cell bleeds slowly back towards ambient, which
+is what stops a single candle eventually cooking the map, and what lets a
+burnt-out scene go back to sleep. See [PERFORMANCE.md](PERFORMANCE.md) for the
+bracketed numbers.
 
 ### Determinism
 
@@ -328,6 +446,35 @@ it *moves*, not in where it *lives* — so rendering, player collision, digging,
 fire and every other system keep working on it with no special case anywhere.
 Which materials count as structure is a `structural` flag in the same
 `MATERIALS` table. Same discipline as solidity: one table, not two.
+
+**A piece that lands with speed on it breaks.** Dropping rigidly with the shape
+perfectly intact is what made masonry descend like an elevator, so a piece that
+comes down across uneven ground splits into two that are separate from then on:
+the half over the drop carries on down, the half that landed stays. Fracture,
+not rotation — true rigid-body rotation on a cell grid means resampling the
+piece every step it turns, which destroys the exact authored pixels that are
+the whole visual pillar, and masonry mostly breaks rather than tips anyway.
+
+**The crack goes where the support ends.** It is not a random line through the
+piece; it is the boundary between the columns that landed on something and the
+columns that landed on nothing, which is the only place a break changes
+anything. A piece landing flat on flat ground does not break at all.
+
+**A crack is a disagreement between two cells, not a line between them.** Each
+cell carries a `piece_tag`, and the support fill only crosses between cells
+whose tags match. That is what makes a crack survive the piece moving — cells
+carry their tag when they move, the same way they carry their colour — and
+persistence is the entire feature. Breaking a piece in mid-air instead would do
+nothing at all: both halves are unsupported, so both fall on exactly the same
+steps, and the next fill finds them touching and treats them as one piece
+again.
+
+**Fracture can never start a collapse, only finish one unevenly.** It is
+reachable only from a landing that arrived with speed, and a piece at rest has
+`fall_ticks` of zero, so nothing that was standing still can be broken by it.
+That matters more than it sounds: a missed collapse is invisible, while a wrong
+one turns a level into rubble, and this is the change in the engine most able
+to get that wrong. The guarantee is structural rather than a matter of care.
 
 **Support is a flood fill.** From a disturbed structure cell, walk the connected
 piece looking for one cell that is *grounded* — meaning the bottom of the world,

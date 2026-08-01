@@ -204,6 +204,116 @@ private:
     bool step_powder(int x, int y, const Material& mat);
     bool step_fluid(int x, int y, const Material& mat, int dy);
 
+    // --- liquids find their level ---
+    //
+    // can_displace refuses every upward move unless the mover is lighter than
+    // its target, and Empty has density 0, so a liquid can *never* rise under
+    // any circumstances. It falls and it spreads sideways into Empty, which is a
+    // powder that happens to flow, not a fluid: a U-bend cannot equalize,
+    // because the short arm has no way to gain a cell.
+    //
+    // **The rule below moves the tall arm's surface cell down onto the short
+    // arm's surface, rather than making the short arm rise.** The substitution
+    // is the design decision and not an approximation of one, so it is worth
+    // being clear about what was tried first: letting a cell rise into the Empty
+    // above it. That version worked, briefly, and then stopped. Rising is a
+    // swap, so it leaves a bubble of Empty inside the body, and the transfer is
+    // only finished once the ordinary fall and spread rules have walked that
+    // bubble back down the arm, along the join and up the far side -- twenty-odd
+    // steps, during which the bubble itself cuts the body in two, so the search
+    // below transiently answers "no head" and the cells stop marking themselves
+    // dirty. The chunk sleeps, and the U-tube parks itself two cells out of
+    // level with nothing left awake to notice. Every fix for that is a way of
+    // keeping a body awake while it is unlevel, which is a standing cost paid by
+    // every pool in the world to serve the case that is out of level.
+    //
+    // Moving the tall cell instead makes each transfer a single atomic swap, so
+    // there is no journey to stay awake for, and the wake-up is local and
+    // automatic: the vacated cell's 3x3 mark is exactly the cell below it, which
+    // is the next surface cell and the next one to transfer. A body equalizes at
+    // one cell per step and then sleeps, with no self-wake rule of its own.
+    //
+    // The visible cost is that a cell can travel further than a cell should in
+    // one step. It is bounded by the search below, it only ever happens between
+    // two points of one connected body of the same liquid, and what it looks
+    // like is one side dropping while the other rises -- which is what a U-tube
+    // does. Conservation is what keeps this honest, and it is exactly the swap
+    // that gives it: the obvious way to make water level is to invent some.
+
+    // How far the connected-liquid search may look before giving up. Bounded for
+    // the usual reason -- a settled pool's every surface cell asks this question
+    // on every step it is awake, so the cost has to be a constant rather than
+    // the size of the pool. Giving up too early is the harmless direction: a
+    // body wider than this equalizes in several hops instead of one.
+    static constexpr int MAX_PRESSURE_CELLS = 64;
+
+    // How much lower the receiving surface has to be before a cell will move to
+    // it, in cells. Two, not one, and that is hysteresis rather than a tuning
+    // preference: each transfer moves the two surfaces one cell towards each
+    // other, so at a threshold of one a body one cell out of level would swap
+    // which side was high, forever. Two settles, at the cost of "level" meaning
+    // level to within a cell.
+    static constexpr int MIN_PRESSURE_HEAD = 2;
+
+    // Searches the body of `type` connected to (x, y) for a surface cell -- one
+    // with Empty directly above it -- at least MIN_PRESSURE_HEAD rows lower.
+    // Returns its index, or -1. Breadth-first and orthogonally connected:
+    // nearest-first is what makes the cap bite evenly in every direction rather
+    // than all down one arm, and a diagonal step would let two pools that merely
+    // touch at a corner equalize into each other.
+    int find_lower_surface(int x, int y, ElementType type);
+
+    // The move itself: one cell from (x, y) onto whatever lower surface the
+    // search found. Returns true if the cell moved.
+    bool seek_level(int x, int y);
+
+    std::vector<int> pressure_queue;     // scratch, reused across searches
+    std::vector<uint8_t> pressure_visit; // same epoch trick as support_visit
+    uint8_t pressure_epoch = 0;
+
+    // --- heat ---
+    //
+    // Fire used to spread by dice: a Wood cell touching a flame rolled 12% a
+    // step and either caught or did not, which is why it never looked like it
+    // was burning *through* anything - there was no state between "wood" and
+    // "on fire" for the eye to follow. Nothing in the world had a temperature,
+    // so nothing could warm, char, or cool.
+    //
+    // Heat is the seventh axis, and Foundations was explicitly forbidden from
+    // adding one. This is the considered decision to spend it, and what keeps
+    // it affordable is that it stays a *number on a cell that flows downhill*
+    // and nothing more: no energy, no mass, no phase state, no second pass over
+    // the world. It rides the existing sweep, one visit per awake cell, and it
+    // reaches equilibrium and stops, which is the property everything else here
+    // depends on.
+    //
+    // **Integer arithmetic only.** Floating-point diffusion would put
+    // cross-platform nondeterminism back into `Grid`, which is exactly the
+    // property F1 spent seven steps establishing and F1.7 wrote down as an
+    // invariant. There is no float anywhere below and there must not be one.
+
+    // The two rates, as reciprocals: heat moved per step is
+    // `(difference * conductivity) / divisor`. Conduction between neighbours is
+    // eight times faster than the bleed back to ambient, which is what lets a
+    // flame push heat into a wall faster than the wall can shed it - the other
+    // way round and nothing would ever get hot enough to ignite.
+    static constexpr int CONDUCTION_DIVISOR = 1024;
+    static constexpr int AMBIENT_DIVISOR = 8192;
+
+    // Runs conduction, the ambient bleed and the heat-source clamp for one cell,
+    // and marks it dirty if any of the three changed a temperature. Returns
+    // whether anything changed.
+    //
+    // **A cell whose temperature is still changing has to stay awake**, and that
+    // mark is the whole of how. It is the write rule and the wake rule in new
+    // clothes: heat that diffuses into a sleeping chunk and stops is the same
+    // bug as material frozen in mid-air, and the same bug as the boxed-in Fire
+    // cell that froze forever before its self-wake fix. What makes it terminate
+    // rather than keeping the world awake for good is the dead band in
+    // `heat_flow` - two neighbours within one degree exchange nothing, so a warm
+    // world settles and sleeps instead of trading a unit back and forth forever.
+    bool step_thermal(int x, int y, const Material& mat);
+
     // True if any of the 8 cells surrounding (x, y) is of type t. Reads cells[]
     // directly rather than going through get_element(), which treats
     // out-of-bounds as Wall - correct for physics sealing, wrong here since it
@@ -236,6 +346,66 @@ private:
     // it is attached to, and a world as authored is assumed to be standing up
     // on purpose. So a structure nobody has touched is never questioned; the
     // moment part of one is removed, what was leaning on it gets re-examined.
+
+    // --- fracture ---
+    //
+    // `drop_component` translates an unsupported piece straight down with its
+    // shape perfectly intact, so masonry descends like an elevator. Fracture is
+    // the answer rather than rotation, and that substitution is the decision:
+    // true rigid-body rotation on a cell grid means resampling the piece every
+    // step it turns, which destroys the exact authored pixels
+    // notes/art_pipeline.txt calls the entire visual pillar. Masonry mostly
+    // breaks rather than tips anyway.
+    //
+    // **A piece breaks when it lands, not while it falls**, and that timing is
+    // what makes the whole feature safe. Every "nothing must move here" test in
+    // the suite is about a piece at rest, and a piece at rest has `fall_ticks`
+    // of zero and never reaches this code at all. Fracture cannot start a
+    // collapse; it can only let a collapse that was already happening finish
+    // unevenly. `Grid`'s comment on MAX_SUPPORT_CELLS says a missed collapse is
+    // invisible while a wrong one turns a level into rubble, and this item was
+    // flagged in ROADMAP.md as the single change most able to violate that -
+    // tying the trigger to landing speed is how the asymmetry is kept by
+    // construction rather than by care.
+    //
+    // **Splitting a falling piece would have been a no-op, and that is worth
+    // recording because it was the obvious design.** Break a piece in mid-air
+    // into two and both halves are unsupported, so both fall by exactly one cell
+    // on exactly the same steps: identical to not having split it. Worse, the
+    // fill re-discovers them as one component next step, because they are still
+    // adjacent. **Fracture without persistent state is impossible on this
+    // representation** - the crack has to survive into the next fill or it never
+    // had any effect - which is what `Element::piece_tag` is and why a byte was
+    // spent on it.
+
+    // Smallest piece worth breaking. Below this, a break produces two fragments
+    // small enough that the result reads as gravel rather than as masonry
+    // coming apart, which is the failure mode the rigid drop was chosen over in
+    // the first place. It also terminates the recursion in practice: each break
+    // halves the piece, so a slab fragments a bounded number of times and then
+    // stops being eligible.
+    static constexpr int MIN_FRACTURE_CELLS = 20;
+
+    // How long a piece must have been falling before landing can break it. Four
+    // steps is one TICKS_PER_SPEEDUP interval, so this reads as "it was moving
+    // at more than the speed it comes loose at". A piece that tips off a ledge
+    // and drops one cell settles intact; one that has been accelerating breaks.
+    static constexpr int FRACTURE_MIN_TICKS = 4;
+
+    // Splits the piece that has just landed at (x, y) along a vertical seam,
+    // giving everything on one side a fresh tag. Runs its own flood fill rather
+    // than reusing the one in progress: the fill that detected the landing
+    // stopped at the first grounded cell and holds only a partial trail, and a
+    // partial piece is exactly the input that would put a crack in the wrong
+    // place. Costs a full fill, once, per landing.
+    void fracture_landing(int x, int y);
+
+    // Tags handed out by fracture. Starts at 1 because 0 means "never broken",
+    // and wraps past 255 back to 1 rather than to 0 - see Element::piece_tag for
+    // what a collision costs.
+    uint8_t next_piece_tag = 1;
+
+    std::vector<int> fracture_component; // scratch, reused across breaks
 
     // True if (x, y) is held up from directly below - by the floor of the world,
     // or by something solid that is not part of the same structure. Powders
