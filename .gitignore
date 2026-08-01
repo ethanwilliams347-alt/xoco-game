@@ -9,6 +9,10 @@ Thumbs.db
 # VS Code settings
 .vscode/
 
+# clangd settings (Antigravity/clangd editors) - contains machine-specific paths
+.clangd
+.cache/
+
 # Build artifacts and compiled files
 *.exe
 *.dll
