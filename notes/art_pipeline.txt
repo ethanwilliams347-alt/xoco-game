@@ -7,8 +7,16 @@ Japanese railway-crossing scenes, roughly 640x400, cold desaturated
 blue-grey palette with warm sodium and signal accents, heavy ordered
 dithering in the sky and snow.
 
-Nothing here is started until Short Term and Medium Term in ROADMAP.md are
-clear. This is a written-down plan, not a work queue.
+This is the reasoning; ROADMAP.md is the work queue. All six phases are now
+scheduled there (see the bottom of this note), and the roadmap wins wherever
+the two disagree.
+
+The reference target above is a reference for ONE TEST SCENE and was written
+to justify a test fixture. It has since become the de facto art direction for
+the whole game by nobody deciding anything -- and it does not match the
+fiction in story.txt, which is a dystopian United States rather than a snowy
+Japanese level crossing. That is V5 in ROADMAP.md: pick a direction in
+writing, or two, before anything else is authored against neither.
 
 
 THE KEY INSIGHT: THE ENGINE CAN ALREADY RENDER AUTHORED ART
@@ -150,9 +158,23 @@ So there is a seam: authored scene-coloured wood burns into generic orange
 fire. For fire that is arguably correct, since it should be the bright
 accent in a cold scene. It is still why the palette pass matters.
 
-Current colours are saturated primaries -- Water #4444FF, Sand #EEDD82 --
-and will read as a debug view against the reference art no matter what else
-is done. Retune each base colour into the scene palette.
+DONE, as V2. This paragraph used to read "current colours are saturated
+primaries -- Water #4444FF, Sand #EEDD82 -- and will read as a debug view
+against the reference art"; those are no longer the palette, and the two
+values are kept here only because of what happened next.
+
+They are now the SCENE LEGEND colours instead (src/scene/legend.h), which
+is a different job entirely: the arbitrary marker a material map uses to
+name a material, with no visual meaning at all. That split exists because
+the retune broke every authored scene the moment it landed -- the loader
+identified materials by matching the material map against the RENDER
+palette, so changing the palette made all 27,192 authored pixels match
+nothing, load as Empty, and the game booted to a blank world with every
+test still green.
+
+The rule that came out of it, and it binds the rest of this note: A PALETTE
+PASS MUST NEVER TOUCH THE LEGEND. V6 in ROADMAP.md is a second deliberate
+retune and would have done exactly the same thing again.
 
 Cut color_jitter hard. Sand's 18 is a lot of random noise, and authored
 pixel art uses deliberate ordered dithering. Random per-cell jitter
