@@ -24,3 +24,8 @@ Thumbs.db
 
 # CMake dependencies
 _deps/
+
+# Reference footage and extracted frames (see notes/reference_observations.txt).
+# Deliberately not versioned: frames are large, perishable, and not ours. What
+# survives is the written observation, not the still it came from.
+/reference/

@@ -1,0 +1,98 @@
+Reference Observations
+======================
+
+What was seen in reference footage, what it implies for a scheduled item, and
+what it does NOT justify. Reference for this project is currently Noita
+gameplay capture, plus the snowy-level-crossing stills that art_pipeline.txt
+opens with.
+
+THIS FILE IS THE ARTIFACT. THE FRAMES ARE NOT.
+----------------------------------------------
+
+Frames live in reference/, which is gitignored. They are large, perishable,
+and not ours. What survives a session is the written observation, which is why
+this file exists at all -- the same reason PERFORMANCE.md keeps a wrong
+prediction next to the number that corrected it. If an observation is worth
+acting on it gets written here; if it is not worth writing here it was not
+worth the disk.
+
+Extraction, for whoever needs it next (ffmpeg, not currently on PATH):
+
+  stills, one every five seconds:
+    ffmpeg -i clip.mp4 -vf fps=1/5 reference/frames/still_%03d.png
+
+  a burst around one event, for reading behaviour rather than look:
+    ffmpeg -ss 4:10 -to 4:14 -i clip.mp4 -vf fps=10 reference/burst_x/%03d.png
+
+The burst form is the one that matters for physics. A single frame of an
+explosion says nothing; six frames a tenth of a second apart say whether debris
+is thrown ballistically, how far it goes, whether it lands as material or
+disappears, and whether the light is on the fire or on the terrain around it.
+
+
+WHAT REFERENCE IS ALLOWED TO DO, AND WHAT IT IS NOT
+----------------------------------------------------
+
+ROADMAP.md's Engine & Visual Depth section admits an item on two answers: what
+was observed in the built game, and what it makes possible. The first is
+explicitly NOT "a feature another game has". Reference footage is exactly that
+second thing, so it cannot admit an E item, and the failure mode is cheap to
+walk into: watch an hour of capture, come away with eleven engine items, none
+of which can name anything wrong with THIS game. That is breadth spending
+wearing engine clothes, and reality_check.txt is the note it would be ignoring.
+
+The legitimate use in the E track is the opposite direction. E5, E6 and E8 are
+already admitted on observations from this project. What footage is good for is
+answering HOW FAR, HOW FAST, HOW LONG -- numbers those items would otherwise
+guess. Reference sets the target for an item that has already earned its place.
+It does not create items.
+
+The V track is different and reference is a primary input there, because a look
+cannot be derived from your own bugs. V5 is the item that consumes it. The
+caveat is craft rather than process: the output is our direction informed by
+theirs, not their palette lifted, and V6's locked palette is where that stops
+being a good intention and becomes checkable.
+
+
+ENTRY FORMAT
+------------
+
+  DATE / SOURCE
+  Seen:      what is actually in the frames, described plainly.
+  Implies:   which scheduled item, and what it changes about that item.
+  Does not:  what someone might reach for on the strength of this and should
+             not, with the reason.
+
+The third line is not filler. It is the one that stops this file becoming a
+wish list, and an entry without it has not finished thinking.
+
+
+OBSERVATIONS
+------------
+
+(none yet -- nothing has been captured or watched at the time of writing)
+
+
+WORTH CAPTURING, MAPPED TO ITEMS THAT ARE ALREADY SCHEDULED
+------------------------------------------------------------
+
+Not a viewing list to be completed. These are the items whose specification is
+currently a guess, so a burst aimed at one of them is worth more than an hour
+of general footage.
+
+  E5  free particles     - a burst where material is thrown. How far, how fast,
+                           does it bounce, does it land as material or expire.
+  E6  explosions         - radius against falloff, what is destroyed versus
+                           what is merely thrown, how heat and light overlap it.
+  E7  breadth            - which material interactions are legible to a player
+                           on sight, which need to be told to you.
+  E8  toppling           - whether pieces actually tip, or whether it reads as
+                           break-and-fall, which is what E3 already ships.
+  V5  art direction      - the whole point. Palette, contrast, what is readable
+                           at a glance against a busy background.
+  V7  lighting           - whether fire lights the terrain around it or only
+                           glows, and how far the falloff reaches in cells.
+  V8  backdrop           - parallax depth, and how much of the frame is not
+                           simulated at all.
+  V9  effects            - what reads as impact, and how much of it is a
+                           particle that expires rather than matter that lands.
