@@ -53,7 +53,7 @@ Grid::Grid(int width, int height, uint64_t seed) : width(width), height(height),
 
     support_visit.resize(width * height, 0);
     support_state.resize(width * height, 0);
-    pressure_visit.resize(width * height, 0);
+    scratch_visit.resize(width * height, 0);
 
     // Nothing to seed. The seed is stored and read straight out of world_seed by
     // the hash in random.h, so the whole 64 bits reach the work by construction -
@@ -82,8 +82,8 @@ void Grid::reset(uint64_t seed) {
     resolving_support = false;
 
     pressure_queue.clear();
-    std::fill(pressure_visit.begin(), pressure_visit.end(), 0);
-    pressure_epoch = 0;
+    std::fill(scratch_visit.begin(), scratch_visit.end(), 0);
+    scratch_epoch = 0;
 
     fracture_component.clear();
     next_piece_tag = 1;
@@ -194,6 +194,23 @@ void Grid::place(int x, int y, ElementType type, uint32_t color) {
     // ambient there, which is what makes erasing a cell also clear its heat.
     const uint8_t spawn = material_of(type).spawn_temperature;
     el.temperature = spawn != 0 ? spawn : cells[idx].temperature;
+
+    // **`fall_ticks` and `piece_tag` are reset here, and that is a decision
+    // rather than an oversight** - `el` is a fresh Element, so every field not
+    // named above goes back to its default, and only `temperature` argues for
+    // itself. Worth saying out loud because the other two are invisible: a cell
+    // written into a broken piece does not join it, it becomes a piece of its
+    // own with tag 0, so patching a crack with the brush leaves a seam the
+    // support fill can see and nobody else can.
+    //
+    // Harmless today, because nothing can reach the case that would hurt.
+    // Reactions go through here, but no row in REACTIONS turns one structural
+    // material into another - Wood burns to Fire, which is not structural, so
+    // the tag it loses meant nothing. **E7 is what makes this live**: a row like
+    // molten stone freezing back to stone is structural-to-structural, and it
+    // would silently reset the tag of every cell it touched, re-welding pieces
+    // that had come apart. If that row is ever written, decide here whether the
+    // tag survives a transformation before writing it.
 
     cells[idx] = el;
     pixels[idx] = el.color;
@@ -317,9 +334,9 @@ void Grid::resolve_support() {
         // step where the most work is already happening. Sharing the buffer with
         // the E1 pressure search is safe because that search only ever runs
         // inside the cell sweep, and support resolves before the sweep starts.
-        if (++pressure_epoch == 0) {
-            std::fill(pressure_visit.begin(), pressure_visit.end(), uint8_t{0});
-            pressure_epoch = 1;
+        if (++scratch_epoch == 0) {
+            std::fill(scratch_visit.begin(), scratch_visit.end(), uint8_t{0});
+            scratch_epoch = 1;
         }
 
         for (const int seed : seeds) {
@@ -482,11 +499,11 @@ void Grid::fracture_landing(int x, int y) {
     // which is also what makes this early return work -- every other cell of a
     // piece that has already been through here is stamped, so a landing costs
     // one fill however many of its cells were queued.
-    if (pressure_visit[seed] == pressure_epoch) return;
+    if (scratch_visit[seed] == scratch_epoch) return;
 
     fracture_component.clear();
     fracture_component.push_back(seed);
-    pressure_visit[seed] = pressure_epoch;
+    scratch_visit[seed] = scratch_epoch;
 
     int min_x = x, max_x = x;
 
@@ -521,8 +538,8 @@ void Grid::fracture_landing(int x, int y) {
                 // been moving, and it is read here before settle_marks clears
                 // it, which is why fracture_landing is called where it is.
                 if (cells[nidx].fall_ticks == 0) continue;
-                if (pressure_visit[nidx] == pressure_epoch) continue;
-                pressure_visit[nidx] = pressure_epoch;
+                if (scratch_visit[nidx] == scratch_epoch) continue;
+                scratch_visit[nidx] = scratch_epoch;
                 fracture_component.push_back(nidx);
             }
         }
@@ -716,16 +733,45 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
 
     // Blocked vertically, so flow sideways to find a level. Travelling several
     // cells per step is what makes a pool settle quickly instead of oozing.
+    //
+    // **A lateral move has to land somewhere it can rest or descend from**, and
+    // that condition is the whole of why a pool can sleep. Without it, the last
+    // partial row of any body of liquid slides back and forth across its own
+    // flat surface forever: it cannot sink (equal density fails can_displace),
+    // and seek_level will not take it either, because a one-cell head is inside
+    // MIN_PRESSURE_HEAD's hysteresis. But bare Empty to the side was always
+    // reason enough to move, so it moved, every step, at up to `spread` cells a
+    // time and in a direction drawn fresh each step. A tank filled to an exact
+    // multiple of its width slept; one cell more and it never did - two chunks
+    // awake and ~34 cells changing places per step, forever, on a body of water
+    // that had visibly finished settling.
+    //
+    // Resting on something solid still counts, which is what keeps a puddle
+    // spreading across a floor: that move is refused only when the destination
+    // would be perched on more of the same liquid with nowhere to go, which is
+    // precisely the move that achieves nothing. The cost is that a body is
+    // level to within one cell rather than exactly - the same trade
+    // MIN_PRESSURE_HEAD already makes, and it now buys a surface that is
+    // *still* rather than merely level on average.
+    const auto can_rest_at = [&](int nx) {
+        if (can_displace(mat, nx, y + 1, 1)) return true;      // it can carry on down
+        return is_solid(get_element(nx, y + 1).type);          // or it has a floor (OOB reads as Wall)
+    };
+
     for (const int d : {dir, -dir}) {
         int cx = x;
+        int best = x;
         for (int i = 0; i < mat.spread; ++i) {
             const int nx = cx + d;
             if (!is_within_bounds(nx, y)) break;
             if (cells[get_index(nx, y)].type != ElementType::Empty) break;
             cx = nx;
+            // Furthest *usable* landing, not merely furthest reachable: a cell
+            // may pass over a stretch it could not stop on to get to one it can.
+            if (can_rest_at(cx)) best = cx;
         }
-        if (cx != x) {
-            swap_elements(x, y, cx, y);
+        if (best != x) {
+            swap_elements(x, y, best, y);
             return true;
         }
     }
@@ -744,9 +790,9 @@ int Grid::find_lower_surface(int x, int y, ElementType type) {
     // outlive the one search that made them: two adjacent surface cells of the
     // same body ask genuinely different questions, because the threshold is
     // measured from the asking cell's own row.
-    if (++pressure_epoch == 0) { // wrapped, so old marks can no longer be told apart
-        std::fill(pressure_visit.begin(), pressure_visit.end(), uint8_t{0});
-        pressure_epoch = 1;
+    if (++scratch_epoch == 0) { // wrapped, so old marks can no longer be told apart
+        std::fill(scratch_visit.begin(), scratch_visit.end(), uint8_t{0});
+        scratch_epoch = 1;
     }
 
     const int target_row = y + MIN_PRESSURE_HEAD;
@@ -754,7 +800,7 @@ int Grid::find_lower_surface(int x, int y, ElementType type) {
     pressure_queue.clear();
     const int seed = get_index(x, y);
     pressure_queue.push_back(seed);
-    pressure_visit[seed] = pressure_epoch;
+    scratch_visit[seed] = scratch_epoch;
 
     for (size_t head = 0; head < pressure_queue.size(); ++head) {
         const int idx = pressure_queue[head];
@@ -779,9 +825,9 @@ int Grid::find_lower_surface(int x, int y, ElementType type) {
 
             const int nidx = get_index(nx, ny);
             if (cells[nidx].type != type) continue;
-            if (pressure_visit[nidx] == pressure_epoch) continue;
+            if (scratch_visit[nidx] == scratch_epoch) continue;
 
-            pressure_visit[nidx] = pressure_epoch;
+            scratch_visit[nidx] = scratch_epoch;
             pressure_queue.push_back(nidx);
         }
     }
@@ -840,9 +886,22 @@ bool Grid::step_thermal(int x, int y, const Material& mat) {
     // neighbour is more than a degree from ambient then that neighbour is off
     // ambient, is therefore not skipped here, and will do the exchange itself
     // when the sweep reaches it. If it is within a degree, the dead band means
-    // there was nothing to do either way. Nothing can be off ambient and asleep,
-    // because a cell only stops marking itself dirty once every gradient around
-    // it is inside that band.
+    // there was nothing to do either way.
+    //
+    // **This used to claim that nothing can be off ambient and asleep, and that
+    // is not true** - it is the dead band that makes it false, and the dead band
+    // is also what makes a warm world settle at all. A cell one degree off
+    // ambient exchanges nothing with ambient and nothing with a neighbour at the
+    // same temperature, so it stops marking itself dirty and sleeps sitting at
+    // 19 or 21. Measured rather than argued: a burnt-out 100x100 world sleeps
+    // completely with 200,009 total heat against the 200,000 a uniformly ambient
+    // one would hold - nine units stranded in cells that will never give them up.
+    //
+    // Harmless, and worth stating correctly anyway, because the skip above is
+    // sound for the *symmetry* reason and not for the stronger claim. What
+    // actually has to hold is only this: a cell with somewhere for its heat to
+    // go is awake. A cell whose every gradient is inside the dead band has
+    // nowhere for it to go, which is why it is allowed to sleep holding it.
     //
     // Heat sources are excluded: Fire is at ambient for exactly one moment, the
     // step it is placed, and skipping it then would leave it cold forever.

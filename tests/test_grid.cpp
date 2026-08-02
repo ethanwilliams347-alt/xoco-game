@@ -228,9 +228,8 @@ int main() {
     // chunk that costs full price forever.
     {
         // Full width and a whole number of rows, so the pool is already level
-        // and already at rest. A pool with a partial top row is a different and
-        // much older question - those leftover cells slide back and forth across
-        // an open surface forever, with or without this rule.
+        // and already at rest. The partial-top-row case is the test immediately
+        // below, and it used to be excluded here rather than tested.
         Grid g(40, 40);
         for (int y = 30; y < 40; ++y)
             for (int x = 0; x < 40; ++x) g.set_element(x, y, ElementType::Water);
@@ -253,6 +252,64 @@ int main() {
         check("a level pool still conserves water", count_of(g, ElementType::Water) == before);
         check("a level pool goes back to sleep", g.active_chunk_count() == 0,
               "awake=" + std::to_string(g.active_chunk_count()));
+    }
+
+    // --- a pool with a PARTIAL top row also settles, and also sleeps ---
+    //
+    // The case the test above used to dodge, and it was not a corner: a body of
+    // water only had a whole number of full rows if its cell count happened to
+    // divide by its container's width, so almost every real puddle landed here.
+    // Those leftover cells slid back and forth across their own flat surface
+    // forever - a tank filled to an exact multiple slept, one cell more and it
+    // never did, with two chunks awake and about thirty cells changing places
+    // every step on water that had visibly finished moving.
+    //
+    // The rule that fixed it is in step_fluid: a lateral move has to land
+    // somewhere it can rest or descend from, so a cell perched on more of its
+    // own liquid with nowhere to go stays put. What that rule costs is checked
+    // here too, because the fix has an obvious wrong version - refuse those
+    // moves outright and a poured column settles into a permanent heap, since
+    // the same sideways walk was also how cells got off the top of a mound.
+    // Hence the flatness assertion below, which the wrong version fails at a
+    // spread of 5 while still passing every sleep check.
+    {
+        Grid g(40, 40);
+        for (int y = 30; y < 40; ++y)
+            for (int x = 0; x < 40; ++x) g.set_element(x, y, ElementType::Water);
+        // The 17 cells that make this untidy.
+        for (int x = 0; x < 17; ++x) g.set_element(x, 29, ElementType::Water);
+        const int before = count_of(g, ElementType::Water);
+
+        step(g, 1500);
+
+        check("a pool with a partial top row conserves water",
+              count_of(g, ElementType::Water) == before,
+              "before=" + std::to_string(before) +
+              " after=" + std::to_string(count_of(g, ElementType::Water)));
+
+        // Level to within one cell: every column is the same depth give or take
+        // the single leftover row. Exactly the tolerance MIN_PRESSURE_HEAD
+        // already documents - what is new is that the surface is *still* at that
+        // tolerance rather than merely level on average.
+        int min_depth = 41, max_depth = 0;
+        for (int x = 0; x < 40; ++x) {
+            int d = 0;
+            for (int y = 0; y < 40; ++y) if (g.get_element(x, y).type == ElementType::Water) d++;
+            min_depth = d < min_depth ? d : min_depth;
+            max_depth = d > max_depth ? d : max_depth;
+        }
+        check("a partial top row does not leave a permanent heap", max_depth - min_depth <= 1,
+              "min=" + std::to_string(min_depth) + " max=" + std::to_string(max_depth));
+
+        // The one that was failing. Asserted after a further run so it is
+        // "asleep and staying asleep" rather than "asleep for one step".
+        check("a pool with a partial top row goes to sleep", g.active_chunk_count() == 0,
+              "awake=" + std::to_string(g.active_chunk_count()));
+
+        const int settled = count_of(g, ElementType::Water);
+        step(g, 200);
+        check("and nothing moves once it is asleep",
+              g.active_chunk_count() == 0 && count_of(g, ElementType::Water) == settled);
     }
 
     // --- sand sinks through water (denser) ---
@@ -285,11 +342,17 @@ int main() {
     {
         Grid g(20, 40);
         for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
-        // 100 steps, not 300. Steam spawns hot and cools, so past ~140 steps it
-        // has condensed back to water and there is no steam left to measure the
-        // height of - which is E2 working, not this test failing, and the
-        // condensing behaviour gets its own check below.
-        step(g, 100);
+        // 45 steps, not 300, and not the 100 this used to say. Steam spawns hot
+        // and cools, so once it has condensed back to water there is no steam
+        // left to measure the height of - which is E2 working, not this test
+        // failing, and the condensing behaviour gets its own check below.
+        //
+        // The window is ~60 steps now rather than ~140, because Steam's spawn
+        // temperature had to come down below the coldest ignition point in
+        // REACTIONS (see its row in material.h) and its life is exactly that
+        // span. 45 is comfortably inside it and comfortably past the 35 steps
+        // the puff needs to climb from row 35 to the ceiling at one cell a step.
+        step(g, 45);
         const double steam = mean_row(g, ElementType::Steam);
         check("steam rises", steam >= 0.0 && steam < 5.0, "steam row=" + std::to_string(steam));
         check("steam is conserved", count_of(g, ElementType::Steam) == 4);
@@ -549,20 +612,98 @@ int main() {
     // and lives a couple of hundred steps; steam packed against stone dumps its
     // heat into the stone and is gone in ten. Both are correct, and the one
     // worth asserting on is the one a player ever sees.
+    //
+    // Probed at 30 steps rather than 60. Steam's life is exactly the span
+    // between its spawn temperature and its condensing point, and both moved
+    // when steam stopped being hot enough to set fire to things (see Steam's
+    // row in material.h): ~60 steps now rather than ~140. A 60-step probe would
+    // still pass, two degrees clear of condensing, but it would be asserting
+    // "steam has not *quite* gone yet" while reading as "steam is not
+    // instantaneous", and the next tweak to either number would break it for a
+    // reason nobody could see from here.
     {
         Grid g(20, 40);
         for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
-        step(g, 60);
+        step(g, 30);
         check("steam does not condense the moment it is made",
               count_of(g, ElementType::Steam) == 4,
               "steam=" + std::to_string(count_of(g, ElementType::Steam)));
-        step(g, 340);
+        step(g, 370);
         check("steam condenses once it has cooled",
               count_of(g, ElementType::Steam) == 0, // and matter is conserved across the change
               "steam=" + std::to_string(count_of(g, ElementType::Steam)) +
               " water=" + std::to_string(count_of(g, ElementType::Water)));
         check("condensing steam conserves matter", count_of(g, ElementType::Water) == 4,
               "water=" + std::to_string(count_of(g, ElementType::Water)));
+    }
+
+    // --- heat: steam is not a fire-starter ---
+    //
+    // Steam used to spawn at 220, which is 100 degrees over Wood's ignition
+    // point and 130 over Oil's, so it lit them on contact with no flame in the
+    // world at all. Both routes into steam produced it - boiling, and water
+    // dousing a flame - which made putting a fire out a way of spreading it.
+    //
+    // **Confined on purpose.** In open air steam rises away and cools before it
+    // does any damage, which is why every existing steam test missed this and
+    // why the fixture matters more than the assertion: sealed under a wooden
+    // ceiling is the shape authored terrain produces and an open grid never
+    // does. The pocket below burned 17 of its 20 wood cells before the fix.
+    {
+        Grid g(40, 40);
+        for (int x = 10; x < 30; ++x) g.set_element(x, 20, ElementType::Wood);  // ceiling
+        for (int x = 10; x < 30; ++x) g.set_element(x, 24, ElementType::Wall);  // floor
+        for (int y = 21; y < 24; ++y) {
+            g.set_element(10, y, ElementType::Wall);
+            g.set_element(29, y, ElementType::Wall);
+        }
+        for (int x = 11; x < 29; ++x)
+            for (int y = 21; y < 24; ++y) g.set_element(x, y, ElementType::Steam);
+
+        const int wood_before = count_of(g, ElementType::Wood);
+        step(g, 400);
+
+        check("steam does not ignite the wood it is sealed against",
+              count_of(g, ElementType::Wood) == wood_before,
+              "wood " + std::to_string(wood_before) + " -> " +
+              std::to_string(count_of(g, ElementType::Wood)) +
+              ", fire=" + std::to_string(count_of(g, ElementType::Fire)));
+        check("and no fire appeared from nowhere", count_of(g, ElementType::Fire) == 0);
+    }
+
+    // --- heat: dousing a fire does not start a bigger one ---
+    //
+    // The gameplay half of the same bug, and the reason it was worth fixing
+    // rather than documenting: notes/art_pipeline.txt schedules a scene built
+    // around exactly this move ("sleepers beside the water -> ignite wood,
+    // watch water douse it to steam").
+    {
+        Grid g(40, 40);
+        for (int x = 12; x < 28; ++x) g.set_element(x, 30, ElementType::Wood);   // wooden floor
+        for (int y = 24; y < 30; ++y) {                                          // walls to trap the steam
+            g.set_element(12, y, ElementType::Wall);
+            g.set_element(27, y, ElementType::Wall);
+        }
+        for (int x = 13; x < 27; ++x) g.set_element(x, 29, ElementType::Fire);
+        for (int x = 13; x < 27; ++x)
+            for (int y = 26; y < 29; ++y) g.set_element(x, y, ElementType::Water);
+
+        const int wood_before = count_of(g, ElementType::Wood);
+        step(g, 500);
+
+        // The fire may take some of the floor before the water reaches it -
+        // what must not happen is the steam carrying on burning after the
+        // flames are out.
+        check("dousing a fire puts it out", count_of(g, ElementType::Fire) == 0,
+              "fire=" + std::to_string(count_of(g, ElementType::Fire)));
+
+        const int wood_after_dousing = count_of(g, ElementType::Wood);
+        step(g, 400);
+        check("and the steam left behind does not keep burning the floor",
+              count_of(g, ElementType::Wood) == wood_after_dousing,
+              "wood " + std::to_string(wood_before) + " -> " +
+              std::to_string(wood_after_dousing) + " -> " +
+              std::to_string(count_of(g, ElementType::Wood)));
     }
 
     // --- heat: a burnt-out world cools back to ambient and sleeps ---

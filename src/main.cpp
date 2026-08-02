@@ -3,8 +3,10 @@
 #include <cstdio>
 #include <random>
 #include <string>
+#include <vector>
 #include "game/camera.h"
 #include "game/run.h"
+#include "scene/legend.h"
 #include "scene/scene.h"
 #include "ui/text.h"
 
@@ -20,10 +22,14 @@ const int WINDOW_HEIGHT = 600;
 // just the decoupling half (F3.1-F3.3), which a world equal to the viewport
 // never did.
 //
-// SDL_RenderCopy below still stretches the whole viewport-sized texture across
-// the whole window (two null rects, unchanged), so a grid that does not match
-// the window's proportions renders squashed or cropped as of this step - that
-// is correct and expected here, not a bug to chase. Camera (F3.2) owns every
+// SDL_RenderCopy below stretches the whole viewport-sized texture across the
+// whole window (two null rects). **This used to warn that a grid not matching
+// the window's proportions renders squashed or cropped, and that stopped being
+// true when F3.3 sized the texture to the viewport rather than to the grid**:
+// the texture is VIEWPORT_WIDTH x VIEWPORT_HEIGHT and the window is exactly
+// Camera::SCALE times that, so the blit is 1:1 whatever size the world is. The
+// warning outlived the problem and read as a known defect in code that is
+// correct. Camera (F3.2) owns every
 // screen-to-world and world-to-screen conversion, and (F3.4) the viewport's
 // position in the world, so mouse/render coordinates are correct at any grid
 // size and any camera offset. The texture is sized to the viewport rather
@@ -88,6 +94,15 @@ Scene load_scene_from_bmp(const char* material_path, const char* albedo_path) {
     const uint8_t* mat_base = static_cast<const uint8_t*>(mat_32->pixels);
     const uint8_t* alb_base = static_cast<const uint8_t*>(alb_32->pixels);
 
+    // A pixel that names no material is a *fault in the scene file*, not an
+    // empty cell, and the two used to be indistinguishable here - which is how
+    // a palette change silently emptied the whole world. Counted, reported, and
+    // the first few offenders named, because "3 unmatched" sends you looking
+    // and "#4444FF" tells you what happened.
+    int unmatched = 0;
+    uint32_t first_unmatched[4] = {0, 0, 0, 0};
+    int first_unmatched_n = 0;
+
     for (int y = 0; y < scene.height; ++y) {
         const uint32_t* mat_row = reinterpret_cast<const uint32_t*>(mat_base + y * mat_32->pitch);
         const uint32_t* alb_row = reinterpret_cast<const uint32_t*>(alb_base + y * alb_32->pitch);
@@ -96,19 +111,30 @@ Scene load_scene_from_bmp(const char* material_path, const char* albedo_path) {
             uint32_t m_col = mat_row[x];
             uint32_t a_col = alb_row[x];
 
-            // Map m_col to ElementType. Match RGB only.
+            // The legend is its own frozen table (scene/legend.h), deliberately
+            // not the render palette - see there for what binding the two cost.
             ElementType type = ElementType::Empty;
-            uint32_t m_rgb = m_col & 0xFFFFFF;
-            for (int i = 0; i < static_cast<int>(ElementType::Count); ++i) {
-                if ((material_of(static_cast<ElementType>(i)).color & 0xFFFFFF) == m_rgb) {
-                    type = static_cast<ElementType>(i);
-                    break;
-                }
+            if (!element_from_legend(m_col, type)) {
+                const uint32_t rgb = m_col & 0xFFFFFF;
+                bool seen = false;
+                for (int i = 0; i < first_unmatched_n; ++i) if (first_unmatched[i] == rgb) seen = true;
+                if (!seen && first_unmatched_n < 4) first_unmatched[first_unmatched_n++] = rgb;
+                ++unmatched;
+                type = ElementType::Empty;
             }
-            
+
             scene.materials[idx] = type;
             scene.albedo[idx] = a_col | 0xFF000000; // force alpha
         }
+    }
+
+    if (unmatched > 0) {
+        std::fprintf(stderr,
+                     "WARNING: %s has %d pixel(s) whose colour is in no legend entry; they loaded as Empty.\n"
+                     "         Unrecognised colours include:", material_path, unmatched);
+        for (int i = 0; i < first_unmatched_n; ++i) std::fprintf(stderr, " #%06X", first_unmatched[i]);
+        std::fprintf(stderr, "\n         The legend is src/scene/legend.h and is frozen; the render palette"
+                             " in material.h is not the legend.\n");
     }
 
     SDL_FreeSurface(mat_32);
@@ -169,6 +195,19 @@ int main(int argc, char* argv[]) {
     // used to hold, so the two changes are only meaningful together.
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 
+    // A streaming texture is created with undefined contents, and the upload
+    // below only ever writes the rect the grid actually covers. Those are the
+    // same rect in every world this project currently builds - but a world
+    // smaller than the viewport on either axis leaves the remainder holding
+    // whatever the driver's allocation happened to contain, and it would show
+    // as garbage along the edge rather than as the backdrop. One clear at
+    // startup rather than a per-frame guard, since it can only ever be wrong
+    // once.
+    {
+        const std::vector<uint32_t> blank(static_cast<size_t>(VIEWPORT_WIDTH) * VIEWPORT_HEIGHT, 0);
+        SDL_UpdateTexture(texture, nullptr, blank.data(), VIEWPORT_WIDTH * sizeof(uint32_t));
+    }
+
     // This is the only nondeterministic line in the project, and it is here
     // rather than inside Grid on purpose: the simulation is a pure function of
     // its seed, and exactly one place gets to choose that seed. Two draws
@@ -184,12 +223,19 @@ int main(int argc, char* argv[]) {
 
     Run run(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty, player mid-air
     
-    // Load F4 test scene
+    // Load F4 test scene. A scene that resolves to no cells at all is reported
+    // rather than shrugged off: README's launch check is "terrain is visible
+    // immediately", and a blank world is exactly what a broken legend, a
+    // missing file and an empty file all look like from here.
     Scene scene = load_scene_from_bmp("assets/test_material.bmp", "assets/test_albedo.bmp");
     if (scene.width > 0) {
-        load_scene(run.grid, scene, 0, 0);
+        const int placed = load_scene(run.grid, scene, 0, 0);
+        std::printf("Scene: %dx%d, %d cells placed\n", scene.width, scene.height, placed);
+        if (placed == 0) {
+            std::fprintf(stderr, "WARNING: the scene named no material anywhere - the world is empty.\n");
+        }
     }
-    
+
     Camera camera;
 
     bool running = true;

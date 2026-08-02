@@ -108,10 +108,32 @@ inline constexpr Material MATERIALS[] = {
     {  "Wall",   0xFF6F6A63,      5,  MoveKind::Static,   32000,      0,  true,        30,     0,      0 },
     {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        90,     0,      0 },
     {  "Oil",    0xFF2C2620,      3,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0 },
-    // Spawns hot, holds no heat of its own, and conducts slowly - so a puff of
-    // steam cools over a couple of hundred steps and condenses back to water
-    // rather than lasting forever or vanishing on the step it is made.
-    {  "Steam",  0xFFC4D2D8,      4,  MoveKind::Gas,        -20,      3,  false,       40,   220,      0 },
+    // **Spawns at 88, below the coldest ignition point in REACTIONS, and that
+    // bound is enforced at the bottom of reaction.h rather than remembered.**
+    //
+    // It used to spawn at 220, picked for lifetime alone - steam's life is
+    // exactly the span between this number and its condensing point, so a hot
+    // spawn was the only way to make a puff last. The side effect was that
+    // steam sat 100 degrees above Wood's ignition point and 130 above Oil's,
+    // which made it a *fire-starter*: a pocket of steam under a wooden ceiling
+    // burned 17 of 20 cells with no flame anywhere in the world. Both ways of
+    // making steam - boiling, and water dousing a flame - produced it, so
+    // putting a fire out could start a bigger one. It needed steam to be
+    // confined to show up, which is why open-air tests never caught it and
+    // authored terrain would have.
+    //
+    // Conductivity cannot fix that, only temperature can: heat_flow has a floor
+    // of one unit per step, so any gap of two or more transfers in full sooner
+    // or later. A conductor that is hotter than an ignition point *is* an
+    // ignition source, eventually.
+    //
+    // The cost is that a puff now lives ~60 steps rather than ~140, since that
+    // span is all there is. The gain beyond the bug: water boiling at 100 into
+    // steam at 88 now *absorbs* heat instead of creating 120 units of it per
+    // cell out of nothing, which is both what a latent heat of vaporisation
+    // does and the reason a kettle on a fire no longer warms the room faster
+    // than the fire does.
+    {  "Steam",  0xFFC4D2D8,      4,  MoveKind::Gas,        -20,      3,  false,       40,    88,      0 },
     // Denser (less negative) than Steam so flame stays under a steam layer
     // instead of punching through it - visually reads as fire boiling water.
     // The only heat source in the table.

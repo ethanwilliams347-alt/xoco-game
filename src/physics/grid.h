@@ -245,7 +245,25 @@ private:
     // on every step it is awake, so the cost has to be a constant rather than
     // the size of the pool. Giving up too early is the harmless direction: a
     // body wider than this equalizes in several hops instead of one.
-    static constexpr int MAX_PRESSURE_CELLS = 64;
+    //
+    // **Raised from 64 when the lateral spread stopped doing this job by
+    // accident.** The old spread rule let a surface cell walk sideways into any
+    // Empty at all, which jittered forever on a flat surface -- but that same
+    // walk was what carried cells off the top of a mound and out to the thin
+    // edges of a pool, several cells a step, for free. Refusing the pointless
+    // half of it (see step_fluid) also refused the useful half, and a poured
+    // column settled into a permanent 6-cell-high heap that then went to sleep:
+    // level transport had been resting on the jitter the whole time.
+    //
+    // 64 is far shorter than it reads. The search is breadth-first through the
+    // *body*, not along its surface, and it spends its budget in both directions
+    // at once, so in a pool five cells deep 64 cells buys about six columns of
+    // reach either way. The heap above needed seven. Priced against the thing
+    // that made it affordable: settled bodies now sleep instead of asking this
+    // question forever, so the budget is spent while a pool is actually moving
+    // and not as a standing cost -- which is the opposite of the trade the
+    // original 64 was picked under.
+    static constexpr int MAX_PRESSURE_CELLS = 512;
 
     // How much lower the receiving surface has to be before a cell will move to
     // it, in cells. Two, not one, and that is hysteresis rather than a tuning
@@ -268,8 +286,28 @@ private:
     bool seek_level(int x, int y);
 
     std::vector<int> pressure_queue;     // scratch, reused across searches
-    std::vector<uint8_t> pressure_visit; // same epoch trick as support_visit
-    uint8_t pressure_epoch = 0;
+
+    // A per-cell "seen this pass" marker, on the same epoch trick as
+    // support_visit - and **shared by two unrelated searches**, which is why it
+    // is named for what it is rather than for either of them. It was called
+    // `pressure_visit` while `fracture_landing()` was quietly its second user,
+    // which is the kind of name that turns a deliberate sharing into a
+    // surprise.
+    //
+    // The two never overlap, and the reason is an ordering rather than
+    // anything local: `fracture_landing()` runs only inside `resolve_support()`,
+    // `find_lower_surface()` runs only inside the cell sweep, and support
+    // resolves in full before the sweep starts. They also advance the epoch on
+    // different schedules - once per support *pass* so one landing costs one
+    // fill, once per *call* because two adjacent surface cells are asking
+    // genuinely different questions.
+    //
+    // **That invariant is not enforced by anything, so a third user is not free.**
+    // Anything that wants these marks from inside the sweep and inside support
+    // resolution both, or that adds a pass between the two, needs its own array
+    // rather than a third schedule on this one.
+    std::vector<uint8_t> scratch_visit;
+    uint8_t scratch_epoch = 0;
 
     // --- heat ---
     //

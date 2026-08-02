@@ -40,6 +40,56 @@ inline constexpr Reaction REACTIONS[] = {
     { ElementType::Count, ElementType::Wood, 100, ElementType::Fire,  120, 255 },
     { ElementType::Count, ElementType::Oil,  100, ElementType::Fire,   90, 255 },
     { ElementType::Count, ElementType::Water,100, ElementType::Steam, 100, 255 },
-    { ElementType::Count, ElementType::Steam,100, ElementType::Water,   0,  80 },
+    // Condensing point, lowered from 80 alongside Steam's spawn temperature -
+    // see the note on that row in material.h. Steam's whole life is the span
+    // between the two numbers, so shortening one end meant moving the other.
+    { ElementType::Count, ElementType::Steam,100, ElementType::Water,   0,  26 },
     { ElementType::Count, ElementType::Fire,   6, ElementType::Empty,   0, 255 },
 };
+
+// The coldest temperature at which anything in the table catches fire.
+//
+// Exists to be asserted against rather than read: a material that *spawns*
+// hotter than this is an ignition source whether or not anything calls it one,
+// because heat_flow has a floor of one unit per step, so any temperature
+// difference of two or more eventually transfers in full. Conductivity can only
+// change how long that takes. See the static_assert at the bottom of material.h
+// for the rule this feeds, and Steam's row for the bug that motivated it.
+inline constexpr uint8_t lowest_ignition_point() {
+    uint8_t lowest = 255;
+    for (const Reaction& r : REACTIONS)
+        if (r.result == ElementType::Fire && r.min_temp < lowest) lowest = r.min_temp;
+    return lowest;
+}
+
+// **Nothing may spawn hot enough to light something, unless it is declared as a
+// heat source.** Fire is the one row that is allowed to, and it says so with a
+// non-zero `heat_source`; everything else has to arrive cool enough that it can
+// only ever warm its surroundings, never ignite them.
+//
+// This is checked here rather than trusted because the bug it catches is
+// entirely invisible at the call site: `spawn_temperature` is a column about
+// how a material is *created*, ignition thresholds are rows in a different
+// table about how a material is *destroyed*, and nothing about editing either
+// one suggests reading the other. Steam sat 100 degrees over the line for as
+// long as the two numbers existed. Add a material that spawns hot, or lower an
+// ignition point under an existing spawn temperature, and this stops the build
+// instead of shipping a world where putting out a fire spreads it.
+//
+// Conduction cannot overshoot - each exchange is capped at half the difference
+// and stops inside the dead band - so a neighbour converges towards a spawn
+// temperature and never past it. Strictly below the threshold is therefore
+// genuinely safe, not merely likely to be.
+namespace detail {
+constexpr bool spawn_temperatures_cannot_ignite() {
+    for (int i = 0; i < static_cast<int>(ElementType::Count); ++i) {
+        const Material& m = material_of(static_cast<ElementType>(i));
+        if (m.heat_source != 0) continue; // a declared heat source is meant to
+        if (m.spawn_temperature >= lowest_ignition_point()) return false;
+    }
+    return true;
+}
+} // namespace detail
+
+static_assert(detail::spawn_temperatures_cannot_ignite(),
+              "a material that is not a declared heat source spawns hot enough to ignite something");
