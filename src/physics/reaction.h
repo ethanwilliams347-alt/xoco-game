@@ -60,7 +60,17 @@ inline constexpr Reaction REACTIONS[] = {
     // flame is thrown off it by the `emits` column and is a separate, much
     // shorter-lived thing. Before E9's rebuild this row read `Fire`, which made
     // the fuel and the flame the same cell - see PLAYTEST_LOG.md session 1.
-    { ElementType::Count, ElementType::Wood, 10000, ElementType::Charred, 120, 255 },
+    //
+    // **150 is Wood's ignition point, and together with its conductivity it is
+    // what sets how fast fire *travels* - session 2's C1.** Raised from 120, with
+    // conductivity dropped 90 -> 72 alongside it; measured on a 150-cell plank,
+    // burn-through went from 1923 to 2632 steps, about 37% slower. A placeholder,
+    // and safe to move - but **the hard bound is Charred's `heat_source`, 200.**
+    // A burning cell holds itself at that temperature, so an ignition point at or
+    // above it means a fire can never light its neighbour and will not propagate
+    // at all. The margin is now 50 degrees rather than 80; at 190 expect
+    // propagation to be extremely slow, and at 200 expect none.
+    { ElementType::Count, ElementType::Wood, 10000, ElementType::Charred, 150, 255 },
     // Oil has no smouldering state; it is a Liquid, so it flashes. See its row
     // in material.h for why that boundary is where it is.
     { ElementType::Count, ElementType::Oil,  10000, ElementType::Fire,     90, 255 },

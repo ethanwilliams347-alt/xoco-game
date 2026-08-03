@@ -372,7 +372,7 @@ burn and flame rates confirmed good.
 
 | # | Note | Cause | Fix |
 |---|------|-------|-----|
-| C1 | Wood burns ~20% too fast | — | see the open question below |
+| C1 | Wood burns ~20% too fast | Ambiguous: burn *duration* or *spread rate* | **Answered: spread rate.** Wood ignition 120 → 150, conductivity 90 → 72. Burn-through of a 150-cell plank 1923 → 2632 steps, ~37% slower. |
 | C2 | Flames move ~10% too fast | Fire rose exactly one cell per step | `FLAME_RISE_SKIP_PERCENT` — a gas moves a whole cell or none, so 0.9 cells/step is a *skipped step*. Measured at 90% of steps. |
 | C3 | Burnt wood is jet black, should be charcoal | `0xFF2A211B` | `0xFF3A3431`, jitter 6 → 10. Near-black over V1's dark blue backdrop reads as a *hole*, not a material. |
 | C4 | Burnt wood should persist 1 second longer | Charred decay at 60 per myriad | 46 per myriad. Measured 2.86 s → 3.85 s on one probe: **+0.99 s.** |
@@ -497,18 +497,53 @@ guard for this specific blowout — peak below 200, brightly-lit area under 45%,
 mutation-checked against the old constants, which fails it on both — but the guard
 was only writable *after* the preview showed what to assert.
 
-### Open question for the next session
+### C1 answered, and the tuning values are now the player's
 
-**C1 — "the wood burns about 20 percent too fast" — is the one note not acted on,
-because it has two readings and they are different work.** It may mean the burn
-*duration* is too short, which is the same axis as C4 and is already +1 s; or it
-may mean the fire *spreads* through a plank too quickly, which is heat conduction
-and a different set of numbers. C4 being stated separately, in seconds, is weak
-evidence they are two things. **The reason for asking rather than picking:** the
-spread rate is currently limited by conduction reaching Wood's ignition point in
-about two steps, and at that granularity a 20% change is not expressible at all —
-so if that is the reading, the fix is a structural change to how ignition is paced,
-not a tuning pass.
+**C1 was the spread rate, not the burn duration** — resolved by the change itself
+rather than by discussion: Wood's ignition point went 120 → 150 and its
+conductivity 90 → 72. Measured on a 150-cell plank lit at one end, burn-through
+went from 1923 to 2632 steps, **~37% slower**, and the plank is still fully
+consumed, which is the thing that had to be checked. The margin that matters is
+not the percentage but Charred's `heat_source` of 200: an ignition point at or
+above it means fire can never light its neighbour. 150 leaves 50 degrees.
+
+**Six values across three files are now explicitly placeholders** — Wood's
+ignition point and conductivity, and `TRANSMIT_CLEAR`, `TRANSMIT_SOLID`,
+`MAX_EMISSION` and `COVERAGE_FLOOR` in the light field. They are expected to
+move, so the comments around them were rewritten to describe **the shape of each
+knob and what breaks at its limits**, rather than to justify one measured
+number - a comment that argues for a specific value is wrong the first time
+someone changes it, which is the failure mode this whole file exists to catch.
+
+The lighting values in particular are a *look* decision and are recorded as one:
+at `TRANSMIT_CLEAR` 0.55 the glow is visible ~15 cells out and bright within ~8,
+against ~35 and ~12 at 0.72. **That is a deliberate departure from V7's own
+argument for being pulled forward**, which cited reference footage of a cavern
+lit tens of cells from the flame. A tight rim light is a defensible and arguably
+better look — a contained fire reads as hotter — but it is a different one, and
+noting it here means the next person to read that roadmap entry is not confused
+by the mismatch.
+
+### A wrong claim made while C1 was open, corrected
+
+While asking which reading C1 meant, this log argued that if it meant *spread
+rate* then no tuning pass could deliver it: "conduction reaches Wood's ignition
+point in about two steps, and at that granularity a 20% change is not expressible
+at all — the fix is a structural change to how ignition is paced."
+
+**That was wrong, and the arithmetic behind it was wrong in a specific, checkable
+way.** It divided the temperature gradient by 255 where `heat_flow` actually
+divides by `CONDUCTION_DIVISOR`, which is **1024** — four times smaller flow per
+step, so ignition takes tens of steps rather than two. The measured spread rate
+is about 0.085 cells per step, roughly twelve steps per cell, which is plenty of
+room to tune. The change that answered C1 was two numbers and moved the rate 37%.
+
+Worth keeping because of *how* it was wrong. The claim was reasoned from source
+that was read but not run, and it was the kind of claim that discourages someone
+from trying the simple thing first. Every other number in this session's entry
+was measured; this one was derived, and it was the only one that was false. The
+project already has a rule for performance work — a number without a measurement
+is not evidence — and this is the same rule arriving in simulation tuning.
 
 ---
 

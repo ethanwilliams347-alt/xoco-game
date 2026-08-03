@@ -141,7 +141,17 @@ inline constexpr Material MATERIALS[] = {
     // `Fire` - the burning is a state of this cell, and the flame is something
     // thrown off it. How long it burns is the decay chance on Charred's row in
     // REACTIONS, not a column here.
-    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        90,     0,      0,  ElementType::Count,      0 },
+    //
+    // **Conductivity is the second half of how fast fire spreads** (session 2,
+    // C1): it sets how quickly an unlit cell climbs to the ignition point on
+    // Wood's row in REACTIONS. Lower is slower. 72 here with an ignition point of
+    // 150 measured 37% slower burn-through than the 90/120 it replaced.
+    //
+    // The catch worth knowing before tuning it: conduction has a floor of one
+    // unit per step, so this changes how long ignition takes but can never
+    // prevent it. Stopping a fire spreading is the ignition point's job, not
+    // this one's.
+    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        72,     0,      0,  ElementType::Count,      0 },
     // **Oil flashes straight to Fire and does not smoulder, and that boundary is
     // deliberate.** A burning cell holds its state in the cell, and Oil is a
     // Liquid - a smouldering oil cell would carry that state through

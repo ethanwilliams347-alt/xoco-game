@@ -22,14 +22,29 @@ float occlusion_of(ElementType type) {
 // The clear-air figure is what sets the falloff of an unobstructed glow, and the
 // solid figure is what makes a wall a wall.
 //
-// **0.72, down from 0.86, and the old figure is most of why the first build was
-// blown out.** 0.86 per four cells is 0.963 per cell, which still leaves half
-// brightness twenty cells from the flame and a tenth of it sixty cells out - so
-// a fire of any size washed the entire screen. Light does not carry that far;
-// the number reads as gentle and compounds into something enormous. At 0.72 the
-// same glow is at a third by twenty cells and gone by forty.
-constexpr float TRANSMIT_CLEAR = 0.72f;
-constexpr float TRANSMIT_SOLID = 0.20f;
+// **These are placeholder values and are expected to move. What does not move is
+// how violently this one compounds** - it is applied once per BLOCK cells, so
+// the per-cell figure is its fourth root and small edits here are large edits on
+// screen. Worked examples, because "0.86 to 0.72" reads like a small change and
+// is not:
+//
+//   0.86 -> visible ~60 cells out. This was the first build, and it is most of
+//           why a playtest called the result blown out: a fire of any size
+//           washed the whole screen.
+//   0.72 -> visible ~35 cells out, brightly lit within ~12.
+//   0.55 -> visible ~15 cells out, brightly lit within ~8. A tight rim light.
+//
+// Reach in cells is roughly BLOCK * ln(255 * MAX_EMISSION) / -ln(TRANSMIT_CLEAR),
+// which is worth having written down before reaching for the number: it is the
+// difference between tuning a look and rediscovering the same surprise.
+//
+// **The trade this sets is against V7's own argument for existing.** The item was
+// pulled forward on reference footage of a cavern where walls tens of cells from
+// the flame picked up orange. A short reach is a defensible look - a contained
+// fire reads as hotter - but it is a different one, and it is chosen here rather
+// than inherited.
+constexpr float TRANSMIT_CLEAR = 0.55f;
+constexpr float TRANSMIT_SOLID = 0.15f;
 
 // Peak emission from a block that is entirely on fire, before tone mapping.
 //
@@ -39,7 +54,7 @@ constexpr float TRANSMIT_SOLID = 0.20f;
 // the blend whatever this value is, and deliberately driving a signal past its
 // ceiling destroys every gradient above the ceiling rather than only the peak.
 // The screenshot that prompted this had a flat white plateau where the fire was.
-constexpr float MAX_EMISSION = 1.0f;
+constexpr float MAX_EMISSION = 0.9f;
 
 // **A block emits according to how much of it is burning, not only how hot its
 // hottest cell is.** Taking the maximum temperature is right for deciding
@@ -50,7 +65,7 @@ constexpr float MAX_EMISSION = 1.0f;
 // glowing slab: every block the fire's edge touched emitted at full strength.
 //
 // The floor keeps a lone flame clearly visible; the rest scales with coverage.
-constexpr float COVERAGE_FLOOR = 0.30f;
+constexpr float COVERAGE_FLOOR = 0.2f;
 
 // Light below one step of an 8-bit channel is not light, it is arithmetic. Cut
 // to zero during propagation rather than at the end, so a glow has a definite
