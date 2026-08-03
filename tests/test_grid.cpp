@@ -531,10 +531,10 @@ int main() {
         const int mean = died ? static_cast<int>(total / died) : 0;
         check("A3: every charred cell eventually burns out", died == N,
               "died=" + std::to_string(died) + "/" + std::to_string(N));
-        // Charred's row is 6 per mille, a mean of ~167 steps. The bar is wide
+        // Charred's row is 46 per myriad, a mean of ~217 steps. The bar is wide
         // because this is a sampled mean, and it is a bar rather than an equality
-        // because the point is that the row is connected, not that it is 6.
-        check("A3: wood smoulders for seconds, not a fraction of one", mean > 90 && mean < 280,
+        // because the point is that the row is connected, not what the number is.
+        check("A3: wood smoulders for seconds, not a fraction of one", mean > 90 && mean < 320,
               "mean lifetime=" + std::to_string(mean) + " steps");
 
         // Emission is what would break the isolation above, so assert the
@@ -557,8 +557,122 @@ int main() {
             g.update();
             if (g.get_element(1, 1).type != ElementType::Fire) burned = i;
         }
-        check("A3: a flame lives a fixed dozen steps", burned > 5 && burned < 20,
+        check("A3: a flame lives about a dozen steps", burned > 5 && burned < 22,
               "steps=" + std::to_string(burned));
+    }
+
+    // --- session 2: flames do not all live the same length of time ---
+    //
+    // **The fix for two playtest notes that were one defect** - "a hard height
+    // cutoff that looks unnatural" and "the uniform height of the flames does not
+    // look natural". A flame rose one cell per step and lived exactly twelve
+    // steps, so every flame in the world died exactly twelve cells above its
+    // fuel: a straight horizontal line across the top of a fire.
+    //
+    // Asserted on the *spread* rather than on any one lifetime, because a single
+    // sample cannot tell a jittered lifetime from a fixed one - which is the
+    // trivially-passing shape session 1 got caught by.
+    {
+        int shortest = 999, longest = -1;
+        for (int trial = 0; trial < 60; ++trial) {
+            Grid g(4, 3, 500 + trial);
+            for (int y = 0; y < 3; ++y)
+                for (int x = 0; x < 4; ++x) g.set_element(x, y, ElementType::Wall);
+            // Placed by the engine's own emission path, not by the brush: a
+            // brush-placed flame is given the mean life on purpose, so seeding
+            // this with set_element would measure the one case that is still
+            // uniform and report no spread at all.
+            g.set_element(1, 1, ElementType::Charred);
+            g.set_element(2, 1, ElementType::Empty);
+
+            // **The source is walled off the moment it lights, and without that
+            // this measures the wrong thing.** Charred re-emits into the only
+            // empty cell it has, and a flame can die and be replaced within a
+            // single sweep - so an observer watching one cell sees unbroken Fire
+            // across two flames and reports one life of thirty steps. The first
+            // version of this test did exactly that and read 6..30 for a quantity
+            // bounded at 8..18, which looked like a bug in the engine and was a
+            // bug in the measurement.
+            int life = -1;
+            for (int i = 1; i <= 400; ++i) {
+                g.update();
+                if (g.get_element(2, 1).type != ElementType::Fire) continue;
+
+                g.set_element(1, 1, ElementType::Wall); // no second flame possible
+                life = 0;
+                for (int k = 1; k <= 60; ++k) {
+                    g.update();
+                    if (g.get_element(2, 1).type != ElementType::Fire) { life = k; break; }
+                }
+                break;
+            }
+            if (life > 0) {
+                if (life < shortest) shortest = life;
+                if (life > longest) longest = life;
+            }
+        }
+        check("session 2: flame lifetimes vary between flames", longest > shortest,
+              "shortest=" + std::to_string(shortest) + " longest=" + std::to_string(longest));
+        // Bounds written as literals rather than read from Grid, because
+        // FLAME_LIFETIME_MEAN and _SPREAD are private and widening the engine's
+        // public surface for a test is the more expensive of the two options.
+        // 8-18 is mean 13 +/- spread 5, plus a step of slack either side for the
+        // sampling. If those constants move, this is meant to fail.
+        check("session 2: flame lifetimes stay inside their declared bounds",
+              shortest >= 7 && longest <= 19,
+              "shortest=" + std::to_string(shortest) + " longest=" + std::to_string(longest));
+    }
+
+    // --- session 2: a flame rises slower than one cell per step ---
+    //
+    // "The flames move about 10 percent too fast." A gas moves a whole cell or
+    // none, so 0.9 cells per step is a skipped step rather than a smaller one.
+    // Averaged over many flames because one flame lives ~13 steps and so resolves
+    // the rate no finer than 1/13 - far too coarse to tell 0.9 from 1.0, which is
+    // the entire quantity under test.
+    {
+        int moves = 0, steps = 0;
+        for (int trial = 0; trial < 200; ++trial) {
+            Grid g(40, 60, 1000 + trial);
+            g.set_element(20, 50, ElementType::Fire);
+            int prev = 50;
+            for (int i = 0; i < 40; ++i) {
+                g.update();
+                int found = -1;
+                for (int y = 0; y < 60 && found < 0; ++y)
+                    for (int x = 0; x < 40; ++x)
+                        if (g.get_element(x, y).type == ElementType::Fire) { found = y; break; }
+                if (found < 0) break;
+                ++steps;
+                if (found != prev) ++moves;
+                prev = found;
+            }
+        }
+        const int pct = steps ? moves * 100 / steps : 0;
+        check("session 2: a flame rises on about 9 steps in 10", pct >= 85 && pct <= 95,
+              "moved on " + std::to_string(pct) + "% of steps");
+        // The control. Without this the test above is passed by a flame that
+        // never moves at all, and by one that has stopped being emitted.
+        check("session 2: flames are still rising", moves > 0 && steps > 500,
+              "moves=" + std::to_string(moves) + " steps=" + std::to_string(steps));
+    }
+
+    // --- session 2: burnt wood is charcoal, not a hole in the backdrop ---
+    //
+    // A near-black cell over V1's dark blue backdrop reads as absence rather than
+    // as material. Guarded as a floor on the darkest channel rather than as an
+    // exact colour, so the palette can still be tuned without editing a test.
+    {
+        const uint32_t c = material_of(ElementType::Charred).color;
+        const int r = (c >> 16) & 0xFF, gg = (c >> 8) & 0xFF, b = c & 0xFF;
+        const int darkest = std::min(r, std::min(gg, b));
+        check("session 2: charred reads as charcoal rather than jet black", darkest >= 40,
+              "darkest channel=" + std::to_string(darkest));
+        // And still clearly darker than the flame it throws, or the fuel and the
+        // fire become one shape again - the confusion Charred exists to resolve.
+        check("session 2: charred stays far darker than flame",
+              r < ((material_of(ElementType::Fire).color >> 16) & 0xFF) / 2,
+              "charred r=" + std::to_string(r));
     }
 
     // --- E9: the fuel is not the flame ---

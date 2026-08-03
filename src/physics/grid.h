@@ -372,11 +372,47 @@ private:
     // structural, so it is the one material that can spend `Element::ticks` on
     // this without colliding with the free-fall clock - see element.h.
     //
-    // 12 steps is a fifth of a second. That is short on purpose and it is a
+    // Around a fifth of a second. That is short on purpose and it is a
     // measurement, not a taste: reference footage of a burning scene replaces
     // the entire contents of a flame between frames roughly 10-20 steps apart,
     // while the fuel underneath takes seconds to be consumed.
-    static constexpr uint8_t FLAME_LIFETIME = 12;
+    //
+    // **It is a range and not a constant, and that is the fix for two separate
+    // playtest notes at once** (session 2: "a hard height cutoff that looks
+    // unnatural", "the uniform height of the flames does not look natural").
+    // Both were the same defect, and neither was really about height: a flame
+    // rose exactly one cell per step and lived exactly twelve steps, so *every*
+    // flame died exactly twelve cells above the fuel that threw it. The result is
+    // a razor-straight horizontal line across the top of a fire - the one shape
+    // nothing in nature makes. Nothing needed to change about how flames move to
+    // fix it; what was missing is that real flames do not all live equally long.
+    //
+    // 13 rather than 12 because flames also now rise slower (see
+    // FLAME_RISE_SKIP_PERCENT), and the note asking for that asked about *speed*,
+    // not height. 13 steps at 0.9 cells per step is the same reach 12 steps at
+    // 1.0 was, so slowing the motion does not silently shorten the fire as well.
+    static constexpr uint8_t FLAME_LIFETIME_MEAN = 13;
+
+    // Half-width of the jitter, so a flame lives 8-18 steps. Wide enough that the
+    // top of a fire is visibly ragged rather than merely soft, and bounded so the
+    // longest-lived flame is still decoration rather than something that outlives
+    // what threw it.
+    static constexpr int FLAME_LIFETIME_SPREAD = 5;
+    static constexpr uint8_t FLAME_LIFETIME_MAX =
+        static_cast<uint8_t>(FLAME_LIFETIME_MEAN + FLAME_LIFETIME_SPREAD);
+
+    // **Flames rise on 9 steps out of 10** (session 2: "the flames move about 10
+    // percent too fast"). A gas moves a whole cell or none at all, so 0.9 cells
+    // per step cannot be a smaller step - it has to be a skipped one. Rolled per
+    // cell per step rather than counted, because a flame has no spare byte to
+    // count in: `Element::ticks` is its lifetime, and `element.h` records that the
+    // struct has no room left. The roll is drawn from the deterministic stream
+    // like every other decision, so this stays reproducible from the seed.
+    //
+    // The skip is per cell, so neighbouring flames fall out of step with each
+    // other, which breaks up the flat rising front as a side effect. That is a
+    // bonus and not the reason - the reason is that the motion was 10% too fast.
+    static constexpr int FLAME_RISE_SKIP_PERCENT = 10;
 
     // Throws a flame from a burning cell into a randomly chosen empty neighbour,
     // as named by the `emits` column. Returns true if one was placed.
@@ -556,11 +592,20 @@ private:
     bool chance(int pct, uint64_t index, sim_random::Stream s) const {
         return sim_random::chance(pct, world_seed, step_count, index, s);
     }
-    bool chance_per_mille(int per_mille, uint64_t index, sim_random::Stream s) const {
-        return sim_random::chance_per_mille(per_mille, world_seed, step_count, index, s);
+    bool chance_per_myriad(int per_myriad, uint64_t index, sim_random::Stream s) const {
+        return sim_random::chance_per_myriad(per_myriad, world_seed, step_count, index, s);
     }
     int pick(int n, uint64_t index, sim_random::Stream s) const {
         return sim_random::pick(n, world_seed, step_count, index, s);
+    }
+    // A symmetric offset that *does* take the clock, unlike authored_spread
+    // below. Flame lifetime needs this: pinned at step 0 the draw is a property
+    // of the cell rather than of the flame, so the same spots would always throw
+    // the long flames and the ragged top of a fire would be frozen in place
+    // instead of moving - which is a more obviously wrong version of the
+    // uniformity it was added to fix.
+    int spread(int range, uint64_t index, sim_random::Stream s) const {
+        return sim_random::spread(range, world_seed, step_count, index, s);
     }
 
     // The exception among these three: no step input, pinned at 0 instead.

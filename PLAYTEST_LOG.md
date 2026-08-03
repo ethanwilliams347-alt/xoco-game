@@ -361,12 +361,98 @@ Four ROADMAP edits, and no defect list added there:
 
 ---
 
+## Session 2 — 2026-08-02 — fire, seen for the first time
+
+The playtest wave 2b was waiting on. Six notes, all on fire, all visual, and
+**every one of them a look rather than a behaviour** — nothing in this session
+says the simulation did the wrong thing, which is itself the result: the fuel/flame
+rebuild's *model* survived contact and only its numbers and its palette did not.
+
+| # | Note | Cause | Fix |
+|---|------|-------|-----|
+| C1 | Wood burns ~20% too fast | — | see the open question below |
+| C2 | Flames move ~10% too fast | Fire rose exactly one cell per step | `FLAME_RISE_SKIP_PERCENT` — a gas moves a whole cell or none, so 0.9 cells/step is a *skipped step*. Measured at 90% of steps. |
+| C3 | Burnt wood is jet black, should be charcoal | `0xFF2A211B` | `0xFF3A3431`, jitter 6 → 10. Near-black over V1's dark blue backdrop reads as a *hole*, not a material. |
+| C4 | Burnt wood should persist 1 second longer | Charred decay at 60 per myriad | 46 per myriad. Measured 2.86 s → 3.85 s on one probe: **+0.99 s.** |
+| C5 | Flames have a hard height cutoff | Fixed 12-step lifetime | Lifetime jittered 8–18 steps |
+| C6 | Uniform flame height looks unnatural | *Same cause as C5* | *Same fix* |
+| C7 | Flame colours lack intensity | Two-stop linear ramp | Three stops, bent through saturated orange |
+
+### The two notes that were one defect, and the one that was a colour-space problem
+
+**C5 and C6 have a single cause and neither is really about height.** A flame rose
+exactly one cell per step and lived exactly twelve steps, so every flame in the
+world died exactly twelve cells above the fuel that threw it — a straight
+horizontal line across the top of a fire, which is the one shape nothing in nature
+makes. Nothing needed to change about how flames *move*; what was missing is that
+real flames do not all live equally long. One jittered constant closes both notes.
+
+**C7 was not a choice of colours, it was the path between them.** The ramp
+interpolated linearly from near-white `(255,242,200)` to dull red `(196,46,16)`,
+and the straight line between those two points in RGB runs through greys and dusty
+salmons — the shortest path between a near-white and a dark red goes nowhere near
+saturated orange. The most-visible middle of every flame's life was being spent in
+the least saturated colours available. Bending the ramp through a saturated orange
+at 55% of life keeps the whole of it on the outside of the colour space. **The
+lesson generalises past fire:** "lacks intensity" is more often a statement about
+what a gradient passes through than about its endpoints.
+
+### C4 forced a change to the tuning column itself
+
+The request was "one second longer" and **it could not be expressed.** Charred's
+lifetime is a decay chance, and at per-mille resolution the two available values
+either side of the answer were 6 (2.78 s) and 5 (3.33 s). The value was
+comfortably inside the column's range and still not adjustable within it, so the
+column went to per-myriad. The rule worth keeping: **the resolution a tuning
+column needs is set by the smallest change anyone will want to make to it, not by
+the largest value it has to hold.** That is the second time this column has been
+widened and the first time for this reason.
+
+Both the before and after were measured on the same throwaway probe rather than
+computed, and the two differ by more than expected: the closed-form mean at 46 per
+myriad is 3.62 s, and a slab actually burns for 3.85 s, because decay is only
+rolled for *awake* cells and the interior of a uniform body of Charred reaches
+equilibrium with itself and sleeps through rolls it would have lost. **A real burn
+front is thinner and sleeps less**, so it should sit nearer 3.62 — which is worth
+watching for in the next playtest rather than trusting.
+
+### Where the measurement was wrong before the code was
+
+Two probes lied before either was believed, and both lied *plausibly*:
+
+- **The first scenes floated.** Charred is structural, so a slab placed in mid-air
+  fell, and a scan at fixed coordinates reported the wood as having burned away in
+  three steps. This is the identical mistake session 1 made three times; every
+  scene is now anchored to the sealed bottom edge.
+- **A single-cell observer could not count flames.** Watching one cell for "when
+  does the fire go out" reported lifetimes of 6–30 steps for a quantity bounded at
+  8–18, because Charred re-emits into the only empty cell it has and a flame can
+  die and be replaced *within one sweep* — so the observer saw unbroken Fire across
+  two flames. It looked like a bug in the engine and was a bug in the measurement.
+  The test now walls the source off the instant it lights.
+
+### Open question for the next session
+
+**C1 — "the wood burns about 20 percent too fast" — is the one note not acted on,
+because it has two readings and they are different work.** It may mean the burn
+*duration* is too short, which is the same axis as C4 and is already +1 s; or it
+may mean the fire *spreads* through a plank too quickly, which is heat conduction
+and a different set of numbers. C4 being stated separately, in seconds, is weak
+evidence they are two things. **The reason for asking rather than picking:** the
+spread rate is currently limited by conduction reaching Wood's ignition point in
+about two steps, and at that granularity a 20% change is not expressible at all —
+so if that is the reading, the fix is a structural change to how ignition is paced,
+not a tuning pass.
+
+---
+
 ## Order of work
 
-**Status: wave 2b built, awaiting the playtest that closes it.** Both items are
-done — the fire rebuild, and V7 pulled forward — and neither has been seen by a
-player. Update this section when a wave closes, not when a session ends: it is
-the only place the sequence exists.
+**Status: wave 2b playtested (session 2), retuned, awaiting re-confirmation.** The
+model held — every one of the six notes was a look rather than a behaviour — and
+the numbers and palette were corrected against them. One note, C1, is unresolved
+and needs a reading before it can be acted on. Update this section when a wave
+closes, not when a session ends: it is the only place the sequence exists.
 
 Session 1's findings were sequenced into waves at triage, on two rules: a defect that
 corrupts a *measurement* is fixed before the things it would mismeasure, and findings
@@ -376,7 +462,7 @@ that share one root cause are one wave rather than several fixes.
 |------|-------|-------|
 | 1 | A2, A1 (+A1b), B1, A7, A8 | **done** |
 | 2 | A3, A4 — fuel and burn duration | **superseded by 2b** |
-| **2b** | **A3, A4 rebuilt on the reference model, then V7 pulled forward** | **built — needs a playtest** |
+| **2b** | **A3, A4 rebuilt on the reference model, then V7 pulled forward** | **retuned after session 2 — needs re-confirmation, and C1 answered** |
 | 3 | A6 — the brush destroying water instead of displacing it | next |
 | 4 | A5, B3 — steam's own condensation clock (rest of E9) | queued |
 | 5 | B2 — the material hotbar (rest of V10) | queued |

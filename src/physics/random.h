@@ -40,6 +40,15 @@ enum class Stream : uint64_t {
     // same cell on the same step, so they are separated by index rather than by
     // tag - see emit_flame().
     Emission        = 0xF1BBCDCBB3D935A7ull,
+    // How long one flame lives. Its own stream rather than a third use of
+    // Emission: it is drawn about the *new* cell at the moment of emission, so
+    // sharing would correlate a flame's lifetime with whether its parent chose
+    // to emit at all - and a fire whose longest flames only ever appear in the
+    // same spots is exactly the uniformity this was added to break.
+    FlameLifetime   = 0xB5026F5AA96619E9ull,
+    // Whether a flame rises this step. Per cell per step, so it must not share
+    // with anything else asked about the same cell on the same step.
+    FlameRise       = 0xCA9E6D9C1B5D4C77ull,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -79,14 +88,28 @@ inline constexpr bool chance(int pct, uint64_t seed, uint64_t step, uint64_t ind
     return static_cast<int>(bits(seed, step, index, stream) % 100ull) < pct;
 }
 
-// True with probability per_mille/1000, for decisions too rare to express in
+// True with probability per_myriad/10000, for decisions too rare to express in
 // whole percents. A spontaneous decay row is the case that needs it: mean
-// lifetime is 1000/per_mille steps, so whole percents cannot describe anything
-// that lasts longer than a hundred steps, and wood burns for three times that.
-inline constexpr bool chance_per_mille(int per_mille, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
-    if (per_mille <= 0) return false;
-    if (per_mille >= 1000) return true;
-    return static_cast<int>(bits(seed, step, index, stream) % 1000ull) < per_mille;
+// lifetime is 10000/per_myriad steps.
+//
+// **This was per *mille*, and it was widened for a reason worth recording,
+// because it is the second time the same wall has been hit.** Whole percents
+// bottomed out at a hundred-step mean, which could not express wood's three
+// seconds, so the column went to per-mille. Per-mille then bottomed out on the
+// other axis - not on how long a thing can last, but on how *finely* a long
+// lifetime can be adjusted. A playtest asked for wood's burn to last one second
+// longer, and the available steps either side of it were 6 per mille (2.78 s)
+// and 5 per mille (3.33 s): the request fell between two adjacent values of the
+// column and could not be expressed at all.
+//
+// The generalisable form: **the resolution a tuning column needs is set by the
+// smallest change anyone will want to make to it, not by the largest value it
+// has to hold.** A lifetime of 167 steps is comfortably inside per-mille's
+// range and still not adjustable within it.
+inline constexpr bool chance_per_myriad(int per_myriad, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
+    if (per_myriad <= 0) return false;
+    if (per_myriad >= 10000) return true;
+    return static_cast<int>(bits(seed, step, index, stream) % 10000ull) < per_myriad;
 }
 
 // A value in [0, n). Used where a cell has to choose one of several neighbours

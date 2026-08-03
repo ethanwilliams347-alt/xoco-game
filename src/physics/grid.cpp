@@ -1103,7 +1103,7 @@ bool Grid::try_react(int x, int y) {
         // One roll per cell per step: the loop commits to the first eligible row
         // and returns either way, so this never draws twice from the same
         // coordinates - which it would otherwise do, getting the same answer.
-        if (chance_per_mille(static_cast<int>(r.chance_per_mille), static_cast<uint64_t>(get_index(x, y)),
+        if (chance_per_myriad(static_cast<int>(r.chance_per_myriad), static_cast<uint64_t>(get_index(x, y)),
                              sim_random::Stream::Reaction)) {
             set_element(x, y, r.result);
             return true;
@@ -1156,7 +1156,17 @@ bool Grid::emit_flame(int x, int y, const Material& mat) {
     const int slot = pick(n, static_cast<uint64_t>(idx) + 0x9E3779B9ull, sim_random::Stream::Emission);
 
     set_element(free_x[slot], free_y[slot], mat.emits);
-    cells[free_idx[slot]].ticks = FLAME_LIFETIME;
+
+    // **Keyed on the destination, not on the emitter.** Two flames thrown from
+    // the same burning cell on different steps already differ, because the step
+    // is folded into every draw - but a flame's lifetime should vary with where
+    // it *is*, so that a row of flames standing side by side is ragged rather
+    // than merely changing shape over time. Drawing on the emitter's index would
+    // give every flame from one cell the same life on any given step.
+    cells[free_idx[slot]].ticks = static_cast<uint8_t>(
+        FLAME_LIFETIME_MEAN + spread(FLAME_LIFETIME_SPREAD,
+                                     static_cast<uint64_t>(free_idx[slot]),
+                                     sim_random::Stream::FlameLifetime));
     return true;
 }
 
@@ -1169,7 +1179,7 @@ bool Grid::step_fire(int x, int y) {
     // here rather than in every place that can create one, which is the same
     // reason spawn_temperature lives in the table rather than at call sites.
     if (cell.ticks == 0) {
-        cell.ticks = FLAME_LIFETIME;
+        cell.ticks = FLAME_LIFETIME_MEAN;
         return false;
     }
 
@@ -1189,17 +1199,56 @@ bool Grid::step_fire(int x, int y) {
     // flames of the same age still differ. Without it the ramp turns a flame
     // front into clean concentric bands, which reads as a gradient rather than
     // as fire.
+    // **Three stops, not two, and that is the fix for "the colours of the flame
+    // lack intensity"** (session 2). The ramp was a single linear interpolation
+    // from near-white to a dull red, and the problem is what a straight line
+    // between those two points passes *through*: RGB interpolation from
+    // (255,242,200) to (196,46,16) runs through greys and dusty salmons, because
+    // the shortest path between a near-white and a dark red in RGB goes nowhere
+    // near saturated orange. The most-visible middle of a flame's life was
+    // spending itself in the least saturated colours available.
+    //
+    // Bending the ramp through a saturated orange at mid-life keeps every stage
+    // of it on the outside of the colour space instead of cutting across the
+    // middle. That is where the intensity was missing, and it costs one extra
+    // branch rather than a wider colour model.
+    //
+    // Saturation is also why the hot end is a yellow-white rather than white:
+    // pure white is the least intense colour there is - it is the absence of hue
+    // - and a flame that peaks at white reads as a blown-out highlight rather
+    // than as something hot.
     const int life = static_cast<int>(cell.ticks);
-    const int r0 = 0xFF, g0 = 0xF2, b0 = 0xC8; // white-hot, at spawn
-    const int r1 = 0xC4, g1 = 0x2E, b1 = 0x10; // dim red, at death
-    const int num = life, den = FLAME_LIFETIME;
+
+    // Age runs against the widest life any flame can have, not against this
+    // flame's own. Flames now live different lengths of time and there is no
+    // spare byte to record which length this one drew (element.h: the struct is
+    // full), so a short-lived flame starts partway down the ramp and never
+    // reaches the hot end. That reads correctly rather than merely being
+    // affordable - a flame that dies quickly is a cooler one - and it means the
+    // colour is a function of remaining life, which is what the eye reads as
+    // temperature.
+    const int den = FLAME_LIFETIME_MAX;
+    const int num = life > den ? den : life;
+
+    struct Stop { int r, g, b; };
+    constexpr Stop HOT{0xFF, 0xE9, 0x8C};  // yellow-white, freshly thrown
+    constexpr Stop MID{0xFF, 0x8A, 0x1E};  // saturated orange, the body of the flame
+    constexpr Stop DIM{0x9E, 0x22, 0x08};  // deep ember red, at death
+    constexpr int KNEE = 55;               // percent of life where MID sits
+
+    const int pct = num * 100 / den;
+    const Stop& lo = pct >= KNEE ? MID : DIM;
+    const Stop& hi = pct >= KNEE ? HOT : MID;
+    const int seg_num = pct >= KNEE ? pct - KNEE : pct;
+    const int seg_den = pct >= KNEE ? 100 - KNEE : KNEE;
+
     const int jit = authored_spread(material_of(ElementType::Fire).color_jitter,
                                     static_cast<uint64_t>(idx), sim_random::Stream::ColorJitter);
-    const auto lerp = [&](int lo, int hi) {
-        const int v = hi + (lo - hi) * num / den + jit;
+    const auto lerp = [&](int a, int b) {
+        const int v = a + (b - a) * seg_num / seg_den + jit;
         return static_cast<uint32_t>(v < 0 ? 0 : (v > 255 ? 255 : v));
     };
-    cell.color = 0xFF000000u | (lerp(r0, r1) << 16) | (lerp(g0, g1) << 8) | lerp(b0, b1);
+    cell.color = 0xFF000000u | (lerp(lo.r, hi.r) << 16) | (lerp(lo.g, hi.g) << 8) | lerp(lo.b, hi.b);
     pixels[idx] = cell.color;
     mark_dirty(x, y);
     return false;
@@ -1250,6 +1299,21 @@ void Grid::step_cell(int x, int y) {
     // Static and never had anywhere to go, and flame is free to rise the way a
     // gas should - it is decoration with a twelve-step life, and propagation
     // happens underneath it through Charred's heat.
+    // A flame sits still one step in ten, which is how a whole-cell mover
+    // expresses 0.9 cells per step (session 2: "the flames move about 10 percent
+    // too fast"). Fire only - Steam is not what the note was about, and slowing
+    // it would change a material nobody complained about.
+    //
+    // Placed after the reaction check and before the move so a skipped step is
+    // only a skipped *move*: the flame still ages, still ramps its colour, and is
+    // still able to be doused. Skipping the whole cell instead would make flames
+    // live 11% longer as a side effect of being asked to travel slower.
+    if (current.type == ElementType::Fire &&
+        chance(FLAME_RISE_SKIP_PERCENT, static_cast<uint64_t>(get_index(x, y)),
+               sim_random::Stream::FlameRise)) {
+        return;
+    }
+
     switch (mat.move) {
         case MoveKind::Static: break;
         case MoveKind::Powder: step_powder(x, y, mat); break;

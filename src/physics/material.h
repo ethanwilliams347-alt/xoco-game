@@ -201,7 +201,16 @@ inline constexpr Material MATERIALS[] = {
     // against the flame it is emitting, or the fire and the thing burning become
     // one shape again - which is the exact confusion this material exists to
     // resolve.
-    {  "Charred",0xFF2A211B,      6,  MoveKind::Static,   32000,      0,  true,        90,     0,    200,  ElementType::Fire,      25 },
+    //
+    // **Charcoal, not soot.** This was 0xFF2A211B, which a playtest read as jet
+    // black - and against V1's dark blue backdrop a near-black cell reads as a
+    // *hole* rather than as a material, which is the same failure Water's row
+    // records for the opposite reason. Real charcoal is a warm dark grey with
+    // visible structure, so this is lifted and its jitter widened: at 6 the
+    // mottling was invisible at this value, and mottling is most of what
+    // separates charcoal from a flat black fill. Still far enough under the
+    // flame it emits to keep the two shapes distinct - 58 against 255.
+    {  "Charred",0xFF3A3431,     10,  MoveKind::Static,   32000,      0,  true,        90,     0,    200,  ElementType::Fire,      25 },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),

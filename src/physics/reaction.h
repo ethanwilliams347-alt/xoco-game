@@ -11,17 +11,23 @@ struct Reaction {
     ElementType catalyst; // required 8-neighbor; ElementType::Count = spontaneous, no neighbor needed
     ElementType target;   // the cell type this row may transform
 
-    // 0-1000, rolled once per eligible cell per step.
+    // 0-10000, rolled once per eligible cell per step.
     //
-    // **Per mille rather than per cent, and that is a burn duration in
+    // **Per myriad rather than per cent, and that is a burn duration in
     // disguise.** A spontaneous decay row is a lifetime: mean steps is
-    // 1000/chance. Whole percents bottom out at 1%, a hundred-step mean, which
-    // is not long enough for wood - three seconds at 60 Hz needs 0.56%, and the
-    // old column could not express it. This is where E9 keeps burn durations
-    // now, rather than as a `burn_duration` column on MATERIALS, and it is the
-    // same argument as the temperature window below: how long a transformation
-    // takes belongs to the transformation.
-    uint16_t chance_per_mille;
+    // 10000/chance. This is where E9 keeps burn durations, rather than as a
+    // `burn_duration` column on MATERIALS, and it is the same argument as the
+    // temperature window below: how long a transformation takes belongs to the
+    // transformation.
+    //
+    // **The column has now been widened twice, and the second time is the
+    // instructive one.** Per cent bottomed out at a hundred-step mean, too short
+    // for wood, so it went to per mille - a limit on the longest lifetime
+    // expressible. Per mille then failed on a different axis: a playtest asked
+    // for wood to burn one second longer, and 6 and 5 per mille are 2.78 s and
+    // 3.33 s with nothing in between. The value was well inside the range and
+    // still not adjustable. See `chance_per_myriad` in random.h.
+    uint16_t chance_per_myriad;
 
     ElementType result;
 
@@ -48,26 +54,39 @@ inline constexpr Reaction REACTIONS[] = {
     // Dousing keeps its place at the top and its chance, and is deliberately
     // *not* temperature-gated: water hitting a flame puts it out because it is
     // water, and gating it on heat would mean a cold splash did nothing.
-    { ElementType::Water, ElementType::Fire,   900, ElementType::Steam,   0, 255 },
+    { ElementType::Water, ElementType::Fire,   9000, ElementType::Steam,   0, 255 },
     // **Wood catches into Charred, not into Fire.** The cell that was fuel stays
     // where it was, keeps holding up whatever it was holding up, and burns; the
     // flame is thrown off it by the `emits` column and is a separate, much
     // shorter-lived thing. Before E9's rebuild this row read `Fire`, which made
     // the fuel and the flame the same cell - see PLAYTEST_LOG.md session 1.
-    { ElementType::Count, ElementType::Wood, 1000, ElementType::Charred, 120, 255 },
+    { ElementType::Count, ElementType::Wood, 10000, ElementType::Charred, 120, 255 },
     // Oil has no smouldering state; it is a Liquid, so it flashes. See its row
     // in material.h for why that boundary is where it is.
-    { ElementType::Count, ElementType::Oil,  1000, ElementType::Fire,     90, 255 },
-    { ElementType::Count, ElementType::Water,1000, ElementType::Steam,   100, 255 },
+    { ElementType::Count, ElementType::Oil,  10000, ElementType::Fire,     90, 255 },
+    { ElementType::Count, ElementType::Water,10000, ElementType::Steam,   100, 255 },
     // Condensing point, lowered from 80 alongside Steam's spawn temperature -
     // see the note on that row in material.h. Steam's whole life is the span
     // between the two numbers, so shortening one end meant moving the other.
-    { ElementType::Count, ElementType::Steam,1000, ElementType::Water,     0,  26 },
-    // **Wood's burn duration, expressed as a lifetime.** 6 per mille is a mean
-    // of ~167 steps, near three seconds at 60 Hz, against the ~17 steps A3
-    // measured. Halve it and wood burns twice as long. Untemperatured on
+    { ElementType::Count, ElementType::Steam,10000, ElementType::Water,     0,  26 },
+    // **Wood's burn duration, expressed as a lifetime.** Untemperatured on
     // purpose: a cell that is already burning is not waiting on a threshold.
-    { ElementType::Count, ElementType::Charred, 6, ElementType::Empty,     0, 255 },
+    //
+    // Session 2 asked for this to last one second longer, and **that request is
+    // the reason the column is per myriad at all** - the two values per mille
+    // could express either side of the answer were 2.78 s and 3.33 s.
+    //
+    // **46 was measured, not derived, and the two differ by more than they look.**
+    // The arithmetic mean is 10000/46 = 217 steps = 3.62 s, but what a slab
+    // actually burns for is 3.85 s: decay is only rolled for *awake* cells, and
+    // the interior of a uniform body of Charred reaches thermal equilibrium with
+    // itself, stops marking itself dirty, and sleeps through rolls it would
+    // otherwise have lost. The closed-form number is therefore a lower bound on
+    // the lifetime, and the gap widens the longer the lifetime is. Measured
+    // against the same probe before and after: 2.86 s -> 3.85 s, which is the
+    // second that was asked for. A real burn front is thinner than that slab and
+    // sleeps less, so it will sit nearer the 3.62.
+    { ElementType::Count, ElementType::Charred, 46, ElementType::Empty,     0, 255 },
     // Flame's own burnout is gone from this table. It is a countdown on
     // `Element::ticks` now, in `step_fire`, because the colour ramp has to read
     // the flame's age and a dice roll has no age to read.
