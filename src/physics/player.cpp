@@ -16,35 +16,32 @@ bool Player::overlaps_solid(const Grid& grid, int px, int py) const {
     return false;
 }
 
+// Blocked at foot height is not the same as blocked. Before calling it a wall,
+// try lifting the whole body by up to MAX_STEP_HEIGHT and re-testing: if the
+// body fits there, what we hit was a step. Testing the *destination* box rather
+// than just the blocking cell is what makes this safe -- a position with no
+// overlap anywhere cannot be inside geometry, so there is nothing to tunnel
+// through.
+//
+// Grounded only, so the player cannot climb the side of a shaft by repeatedly
+// nudging into it mid-air.
+int Player::climb_for(const Grid& grid, int sign) const {
+    if (!overlaps_solid(grid, pos_x + sign, pos_y)) return 0;
+    if (!on_ground) return -1;
+
+    for (int up = 1; up <= MAX_STEP_HEIGHT; ++up) {
+        if (!overlaps_solid(grid, pos_x + sign, pos_y - up)) return up;
+    }
+    return -1;
+}
+
 void Player::move_x(const Grid& grid, int amount) {
     const int sign = (amount > 0) ? 1 : -1;
 
     for (int i = 0; i < std::abs(amount); ++i) {
-        if (!overlaps_solid(grid, pos_x + sign, pos_y)) {
-            pos_x += sign;
-            continue;
-        }
+        const int climbed = climb_for(grid, sign);
 
-        // Blocked at foot height. Before calling it a wall, try lifting the
-        // whole body by up to MAX_STEP_HEIGHT and re-testing: if the body fits
-        // there, what we hit was a step, not a wall. Testing the *destination*
-        // box rather than just the blocking cell is what makes this safe -- a
-        // position with no overlap anywhere cannot be inside geometry, so there
-        // is nothing to tunnel through.
-        //
-        // Grounded only, so the player cannot climb the side of a shaft by
-        // repeatedly nudging into it mid-air.
-        int climbed = 0;
-        if (on_ground) {
-            for (int up = 1; up <= MAX_STEP_HEIGHT; ++up) {
-                if (!overlaps_solid(grid, pos_x + sign, pos_y - up)) {
-                    climbed = up;
-                    break;
-                }
-            }
-        }
-
-        if (climbed == 0) {
+        if (climbed < 0) {
             // A real wall. Drop the leftover sub-cell motion too, otherwise it
             // accumulates while held against the wall and fires the instant the
             // wall is removed.
@@ -134,10 +131,41 @@ void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
     // Standing on the floor otherwise lets gravity pile up unbounded, which
     // makes velocity_y() meaningless and gives a one-frame lurch when the floor
     // is removed.
-    if (on_ground && vel_y > 0.0f) vel_y = 0.0f;
+    //
+    // **`rem_y` has to go with it, and it did not until A1 made the omission
+    // visible.** The remainder is *pending, collision-untested* motion, so
+    // cancelling the velocity that produced it while leaving it in place keeps
+    // exactly the movement that was just decided against. Standing still, that
+    // was a whole cell of sink: gravity re-added 200 * dt every step, `rem_y`
+    // grew by ~0.056 of a cell each time, and `move_y` was not called at all
+    // until it crossed 1.0 - at which point the floor test finally ran, blocked,
+    // and snapped the body back. A ~0.3s bob, running the entire time and
+    // invisible only because the renderer truncated the fraction away. The
+    // simulation has always been wrong here; the render fix is what exposed it,
+    // which is worth remembering the next time a display change "causes" a bug.
+    if (on_ground && vel_y > 0.0f) {
+        vel_y = 0.0f;
+        rem_y = 0.0f;
+    }
 
     vel_y += GRAVITY * dt;
     if (vel_y > MAX_FALL_SPEED) vel_y = MAX_FALL_SPEED;
+
+    // The same rule on the other three sides, applied before the remainder is
+    // accumulated rather than after it has already carried the body into
+    // geometry. Without these, a body held against a surface drifts up to a
+    // full cell into it before a whole-cell step is ever attempted - which is
+    // the horizontal half of the same defect, seen as phasing into walls, sand
+    // and wood. `climb_for` rather than a bare overlap test, so walking up a
+    // one-cell step is still a move rather than a wall.
+    if (vel_x != 0.0f && climb_for(grid, vel_x > 0.0f ? 1 : -1) < 0) {
+        vel_x = 0.0f;
+        rem_x = 0.0f;
+    }
+    if (vel_y < 0.0f && overlaps_solid(grid, pos_x, pos_y - 1)) {
+        vel_y = 0.0f;
+        rem_y = 0.0f;
+    }
 
     // Axes are resolved separately, horizontal first, so that sliding along a
     // surface works: being blocked vertically must not also cancel the

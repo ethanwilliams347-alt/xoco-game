@@ -29,6 +29,14 @@ void build_floor(Run& run, int floor_y) {
         run.grid.set_element(x, floor_y, ElementType::Wall);
 }
 
+int count_of(const Grid& g, ElementType t) {
+    int n = 0;
+    for (int y = 0; y < g.get_height(); ++y)
+        for (int x = 0; x < g.get_width(); ++x)
+            if (g.get_element(x, y).type == t) n++;
+    return n;
+}
+
 void step(Run& run, const Input& input, int n) {
     for (int i = 0; i < n; ++i) run.step(input);
 }
@@ -42,7 +50,7 @@ bool worlds_match(const Grid& a, const Grid& b) {
             const Element ea = a.get_element(x, y);
             const Element eb = b.get_element(x, y);
             if (ea.type != eb.type || ea.color != eb.color ||
-                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks)
+                ea.updated_tag != eb.updated_tag || ea.ticks != eb.ticks)
                 return false;
         }
     }
@@ -137,6 +145,100 @@ int main() {
         check("the brush paints a circle, not a single cell",
               run.grid.get_element(21, 20).type == ElementType::Sand &&
               run.grid.get_element(20, 21).type == ElementType::Sand);
+    }
+
+    // --- A6: the brush displaces what it lands on instead of destroying it ---
+    // The finding was "spawning material into water caps the water on top, then
+    // bursts outward on release", and the cause under it was that the brush
+    // deleted every water cell in its disc. So the assertion is about *volume*
+    // and not about where any particular cell ended up: count the water, drag
+    // the sand brush through it, count again. A cell of water may be anywhere
+    // afterwards - that is the pool finding its level and is the physics working
+    // - but there must still be as much of it.
+    {
+        Run run(60, 60, 77);
+        for (int x = 0; x < 60; ++x) run.grid.set_element(x, 50, ElementType::Wall);
+        for (int y = 30; y < 50; ++y)
+            for (int x = 5; x < 55; ++x) run.grid.set_element(x, y, ElementType::Water);
+
+        const int before = count_of(run.grid, ElementType::Water);
+
+        Input paint;
+        paint.brush_active = true;
+        paint.brush_type = ElementType::Sand;
+        paint.brush_size = 4;
+        paint.cursor_y = 40;
+        // Dragged, not stamped. A single stamp was the version of this test that
+        // passed against the old code by accident: one step deletes few enough
+        // cells to look like rounding. The defect was in a *stroke*.
+        for (int x = 10; x < 50; ++x) {
+            paint.cursor_x = x;
+            run.step(paint);
+        }
+
+        const int after = count_of(run.grid, ElementType::Water);
+        check("dragging a brush through water does not destroy it",
+              after == before,
+              std::to_string(before) + " cells before, " + std::to_string(after) + " after");
+    }
+
+    // The same claim for the brush that cannot be walked through on the way out,
+    // and the reason Run::step paints its disc bottom row first. A Wall disc
+    // painted top-down seals the rows beneath it before they have moved, and
+    // every one of them is then deleted for want of anywhere to go - A6 again,
+    // one level up, and invisible to the Sand case above because sand is movable
+    // and a displacement climbs straight through it.
+    {
+        Run run(60, 60, 78);
+        for (int x = 0; x < 60; ++x) run.grid.set_element(x, 50, ElementType::Wall);
+        for (int y = 30; y < 50; ++y)
+            for (int x = 5; x < 55; ++x) run.grid.set_element(x, y, ElementType::Water);
+
+        const int before = count_of(run.grid, ElementType::Water);
+
+        Input paint;
+        paint.brush_active = true;
+        paint.brush_type = ElementType::Wall;
+        paint.brush_size = 4;
+        paint.cursor_x = 30;
+        paint.cursor_y = 40;
+        run.step(paint);
+
+        const int after = count_of(run.grid, ElementType::Water);
+        check("a Wall disc dropped into water lifts the water rather than sealing it in",
+              after == before,
+              std::to_string(before) + " cells before, " + std::to_string(after) + " after");
+    }
+
+    // The limit of the promise, asserted so it is a decision and not a surprise.
+    // Water with a lid on it has nowhere to go, `make_room_above` says so, and
+    // the brush overwrites rather than refusing the stroke. This test exists to
+    // fail loudly if someone later makes displacement unconditional: a brush
+    // that will not paint where the player clicked is a worse defect than a lost
+    // cell of water, and this is the line between the two.
+    {
+        Run run(40, 40, 79);
+        for (int x = 10; x < 30; ++x) {
+            run.grid.set_element(x, 20, ElementType::Wall); // lid
+            run.grid.set_element(x, 26, ElementType::Wall); // floor
+        }
+        for (int x = 10; x < 30; ++x) {
+            run.grid.set_element(x, 21, ElementType::Wall);
+            run.grid.set_element(x, 25, ElementType::Wall);
+        }
+        for (int y = 22; y < 25; ++y)
+            for (int x = 11; x < 29; ++x) run.grid.set_element(x, y, ElementType::Water);
+
+        Input paint;
+        paint.brush_active = true;
+        paint.brush_type = ElementType::Sand;
+        paint.brush_size = 1;
+        paint.cursor_x = 20;
+        paint.cursor_y = 23;
+        run.step(paint);
+
+        check("a sealed pool has no room, and the brush still paints",
+              run.grid.get_element(20, 23).type == ElementType::Sand);
     }
 
     // --- the same seed plus the same recorded Input sequence replays byte-

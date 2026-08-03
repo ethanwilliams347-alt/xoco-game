@@ -43,7 +43,7 @@ static void build_mixed(Grid& g) {
     // Structure placed with the brush is assumed to be standing on purpose, so
     // the slab has to be knocked loose before it will fall. Put a cell under it
     // and take it straight back out. This pulls the falling-structure state -
-    // support marks and fall_ticks - into the comparison as well.
+    // support marks and ticks - into the comparison as well.
     g.set_element(50, 30, ElementType::Wall);
     g.set_element(50, 30, ElementType::Empty);
 }
@@ -57,7 +57,7 @@ static bool worlds_match(const Grid& a, const Grid& b) {
             const Element ea = a.get_element(x, y);
             const Element eb = b.get_element(x, y);
             if (ea.type != eb.type || ea.color != eb.color ||
-                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks ||
+                ea.updated_tag != eb.updated_tag || ea.ticks != eb.ticks ||
                 ea.temperature != eb.temperature || ea.piece_tag != eb.piece_tag)
                 return false;
         }
@@ -476,6 +476,288 @@ int main() {
               "type=" + std::string(material_of(g.get_element(10, 10).type).name));
     }
 
+    // --- A3: wood smoulders for seconds; flame is a moment ---
+    //
+    // **The two numbers this asserts are on different cells, which is the whole
+    // of E9's rebuild.** The first version of these tests measured one number on
+    // one cell, because wood *became* the flame; reference footage says the fuel
+    // burns for seconds while the flame it throws is replaced entirely within a
+    // dozen steps. Each is checked in isolation below, with the other sealed
+    // away.
+    {
+        // Charred's lifetime is a decay chance, so a single cell is one draw
+        // from a geometric distribution and could legitimately be anything.
+        // Sampled across many independent cells instead, and the bar is set on
+        // the mean with room either side - this must not break every time the
+        // row is retuned, only when the row stops being connected to anything.
+        //
+        // Each cell is sealed in Wall on all eight sides, which does double duty:
+        // it isolates decay from emission (no empty neighbour, so no flame is
+        // ever thrown) and it stops the cells igniting each other.
+        //
+        // **The world is tiled exactly, with no spare row anywhere.** Sized with
+        // a margin, the Wall lattice is an unsupported structure: it falls, and
+        // a scan of fixed coordinates then reads cells the world has moved out
+        // from under it. That reads as "the cells vanished instantly" - the
+        // first run of this test reported a 2-step mean lifetime - while the
+        // census showed every cell still present. Third time a floating scene
+        // has answered a question that was not asked; see the note on measuring
+        // A4 in PLAYTEST_LOG.md.
+        const int COLS = 12, ROWS = 12, N = COLS * ROWS;
+        Grid g(COLS * 3, ROWS * 3);
+        for (int j = 0; j < ROWS; ++j)
+            for (int i = 0; i < COLS; ++i) {
+                const int cx = i * 3 + 1, cy = j * 3 + 1;
+                for (int dy = -1; dy <= 1; ++dy)
+                    for (int dx = -1; dx <= 1; ++dx)
+                        if (dx != 0 || dy != 0) g.set_element(cx + dx, cy + dy, ElementType::Wall);
+                g.set_element(cx, cy, ElementType::Charred);
+            }
+
+        long long total = 0;
+        int died = 0;
+        for (int s = 1; s <= 3000 && died < N; ++s) {
+            g.update();
+            for (int j = 0; j < ROWS; ++j)
+                for (int i = 0; i < COLS; ++i) {
+                    const int cx = i * 3 + 1, cy = j * 3 + 1;
+                    if (g.get_element(cx, cy).type != ElementType::Empty) continue;
+                    // Count each cell once, by sealing it the moment it dies.
+                    g.set_element(cx, cy, ElementType::Wall);
+                    total += s;
+                    ++died;
+                }
+        }
+        const int mean = died ? static_cast<int>(total / died) : 0;
+        check("A3: every charred cell eventually burns out", died == N,
+              "died=" + std::to_string(died) + "/" + std::to_string(N));
+        // Charred's row is 34 per myriad, a mean of ~294 steps closed-form and
+        // 345 measured here - higher than the closed form because a sealed cell
+        // reaches equilibrium with its wall, sleeps, and misses rolls it would
+        // have lost. The bar is wide because this is a sampled mean, and it is a
+        // bar rather than an equality because the point is that the row is
+        // connected, not what the number is.
+        //
+        // **The top of it was 320 and session 3 walked straight through it**,
+        // retuning 46 to 34. That is the bar doing the wrong job: an upper bound
+        // one retune above the current value is an equality check wearing a
+        // range's clothes, and it fails for the ordinary reason that somebody
+        // tuned the thing it is watching. Nine hundred is fifteen seconds, which
+        // is long enough to be a genuine statement - wood that smoulders for a
+        // quarter of a minute is a defect - and far enough away that a taste
+        // change does not have to come here first.
+        check("A3: wood smoulders for seconds, not a fraction of one", mean > 90 && mean < 900,
+              "mean lifetime=" + std::to_string(mean) + " steps");
+
+        // Emission is what would break the isolation above, so assert the
+        // isolation held rather than trusting it. This is also finding 6 from
+        // the reference footage: a buried cell does not visibly burn.
+        check("A3: a fully buried charred cell throws no flame", count_of(g, ElementType::Fire) == 0,
+              "fire=" + std::to_string(count_of(g, ElementType::Fire)));
+    }
+
+    // --- A3: a flame is a moment, and its lifetime is its own ---
+    // The one lifetime in the engine that is a countdown rather than a roll,
+    // because the colour ramp has to read the flame's age.
+    {
+        Grid g(4, 3);
+        for (int y = 0; y < 3; ++y)
+            for (int x = 0; x < 4; ++x) g.set_element(x, y, ElementType::Wall);
+        g.set_element(1, 1, ElementType::Fire);
+        int burned = 0;
+        for (int i = 1; i <= 200 && burned == 0; ++i) {
+            g.update();
+            if (g.get_element(1, 1).type != ElementType::Fire) burned = i;
+        }
+        check("A3: a flame lives about a dozen steps", burned > 5 && burned < 22,
+              "steps=" + std::to_string(burned));
+    }
+
+    // --- session 2: flames do not all live the same length of time ---
+    //
+    // **The fix for two playtest notes that were one defect** - "a hard height
+    // cutoff that looks unnatural" and "the uniform height of the flames does not
+    // look natural". A flame rose one cell per step and lived exactly twelve
+    // steps, so every flame in the world died exactly twelve cells above its
+    // fuel: a straight horizontal line across the top of a fire.
+    //
+    // Asserted on the *spread* rather than on any one lifetime, because a single
+    // sample cannot tell a jittered lifetime from a fixed one - which is the
+    // trivially-passing shape session 1 got caught by.
+    {
+        int shortest = 999, longest = -1;
+        for (int trial = 0; trial < 60; ++trial) {
+            Grid g(4, 3, 500 + trial);
+            for (int y = 0; y < 3; ++y)
+                for (int x = 0; x < 4; ++x) g.set_element(x, y, ElementType::Wall);
+            // Placed by the engine's own emission path, not by the brush: a
+            // brush-placed flame is given the mean life on purpose, so seeding
+            // this with set_element would measure the one case that is still
+            // uniform and report no spread at all.
+            g.set_element(1, 1, ElementType::Charred);
+            g.set_element(2, 1, ElementType::Empty);
+
+            // **The source is walled off the moment it lights, and without that
+            // this measures the wrong thing.** Charred re-emits into the only
+            // empty cell it has, and a flame can die and be replaced within a
+            // single sweep - so an observer watching one cell sees unbroken Fire
+            // across two flames and reports one life of thirty steps. The first
+            // version of this test did exactly that and read 6..30 for a quantity
+            // bounded at 8..18, which looked like a bug in the engine and was a
+            // bug in the measurement.
+            int life = -1;
+            for (int i = 1; i <= 400; ++i) {
+                g.update();
+                if (g.get_element(2, 1).type != ElementType::Fire) continue;
+
+                g.set_element(1, 1, ElementType::Wall); // no second flame possible
+                life = 0;
+                for (int k = 1; k <= 60; ++k) {
+                    g.update();
+                    if (g.get_element(2, 1).type != ElementType::Fire) { life = k; break; }
+                }
+                break;
+            }
+            if (life > 0) {
+                if (life < shortest) shortest = life;
+                if (life > longest) longest = life;
+            }
+        }
+        check("session 2: flame lifetimes vary between flames", longest > shortest,
+              "shortest=" + std::to_string(shortest) + " longest=" + std::to_string(longest));
+        // Bounds written as literals rather than read from Grid, because
+        // FLAME_LIFETIME_MEAN and _SPREAD are private and widening the engine's
+        // public surface for a test is the more expensive of the two options.
+        // 8-18 is mean 13 +/- spread 5, plus a step of slack either side for the
+        // sampling. If those constants move, this is meant to fail.
+        check("session 2: flame lifetimes stay inside their declared bounds",
+              shortest >= 7 && longest <= 19,
+              "shortest=" + std::to_string(shortest) + " longest=" + std::to_string(longest));
+    }
+
+    // --- session 2: a flame rises slower than one cell per step ---
+    //
+    // "The flames move about 10 percent too fast." A gas moves a whole cell or
+    // none, so 0.9 cells per step is a skipped step rather than a smaller one.
+    // Averaged over many flames because one flame lives ~13 steps and so resolves
+    // the rate no finer than 1/13 - far too coarse to tell 0.9 from 1.0, which is
+    // the entire quantity under test.
+    {
+        int moves = 0, steps = 0;
+        for (int trial = 0; trial < 200; ++trial) {
+            Grid g(40, 60, 1000 + trial);
+            g.set_element(20, 50, ElementType::Fire);
+            int prev = 50;
+            for (int i = 0; i < 40; ++i) {
+                g.update();
+                int found = -1;
+                for (int y = 0; y < 60 && found < 0; ++y)
+                    for (int x = 0; x < 40; ++x)
+                        if (g.get_element(x, y).type == ElementType::Fire) { found = y; break; }
+                if (found < 0) break;
+                ++steps;
+                if (found != prev) ++moves;
+                prev = found;
+            }
+        }
+        const int pct = steps ? moves * 100 / steps : 0;
+        check("session 2: a flame rises on about 9 steps in 10", pct >= 85 && pct <= 95,
+              "moved on " + std::to_string(pct) + "% of steps");
+        // The control. Without this the test above is passed by a flame that
+        // never moves at all, and by one that has stopped being emitted.
+        check("session 2: flames are still rising", moves > 0 && steps > 500,
+              "moves=" + std::to_string(moves) + " steps=" + std::to_string(steps));
+    }
+
+    // --- session 2: burnt wood is charcoal, not a hole in the backdrop ---
+    //
+    // A near-black cell over V1's dark blue backdrop reads as absence rather than
+    // as material. Guarded as a floor on the darkest channel rather than as an
+    // exact colour, so the palette can still be tuned without editing a test.
+    {
+        const uint32_t c = material_of(ElementType::Charred).color;
+        const int r = (c >> 16) & 0xFF, gg = (c >> 8) & 0xFF, b = c & 0xFF;
+        const int darkest = std::min(r, std::min(gg, b));
+        check("session 2: charred reads as charcoal rather than jet black", darkest >= 40,
+              "darkest channel=" + std::to_string(darkest));
+        // And still clearly darker than the flame it throws, or the fuel and the
+        // fire become one shape again - the confusion Charred exists to resolve.
+        check("session 2: charred stays far darker than flame",
+              r < ((material_of(ElementType::Fire).color >> 16) & 0xFF) / 2,
+              "charred r=" + std::to_string(r));
+    }
+
+    // --- E9: the fuel is not the flame ---
+    //
+    // The single check that would have caught the first build of this. Wood that
+    // catches must still be *there* - solid, in its own cell, still holding up
+    // whatever it was holding up - with flame in the air beside it, rather than
+    // having been replaced by the flame.
+    {
+        Grid g(40, 40);
+        for (int i = 0; i < 12; ++i) g.set_element(10 + i, 39, ElementType::Wood);
+        for (int i = 0; i < 40; ++i) { g.set_element(10, 38, ElementType::Fire); g.update(); }
+
+        int charred = 0, fire_in_air = 0;
+        for (int y = 0; y < 40; ++y)
+            for (int x = 0; x < 40; ++x) {
+                if (g.get_element(x, y).type == ElementType::Charred) ++charred;
+                if (g.get_element(x, y).type == ElementType::Fire && y < 39) ++fire_in_air;
+            }
+        check("E9: burning wood is still a solid cell of its own", charred > 0,
+              "charred=" + std::to_string(charred));
+        check("E9: burning wood is still structural", is_structural(ElementType::Charred));
+        check("E9: flame appears in the air, not only where the fuel was", fire_in_air > 0,
+              "flame cells=" + std::to_string(fire_in_air));
+    }
+
+    // --- A4: fire propagates along a beam and consumes it ---
+    //
+    // **Measured as cells gone, not as cells changed.** The earlier form of this
+    // counted anything that was no longer Wood, which `Charred` satisfies the
+    // instant it catches - so after the rebuild it passed without the fuel ever
+    // being consumed, and would have gone on passing if propagation had broken
+    // entirely. A metric that a refactor can satisfy trivially is not a test.
+    {
+        const auto burnt_run = [](bool horizontal, int steps) {
+            // **Both beams rest on the floor, and that is load-bearing.** The
+            // first version of this hung them in mid-air, where burning the end
+            // off one leaves the remainder unsupported: the collapse system then
+            // drops the unburnt wood out from under the flame and propagation
+            // stops for a reason that has nothing to do with A4. It stalled at
+            // 11 of 20 cells through 4800 steps, which reads exactly like a
+            // propagation bug.
+            Grid g(40, 40);
+            const int FLOOR = 39;
+            for (int i = 0; i < 20; ++i) {
+                if (horizontal) g.set_element(10 + i, FLOOR, ElementType::Wood);
+                else            g.set_element(20, FLOOR - i, ElementType::Wood);
+            }
+            // A match held to one end for 30 steps and then taken away. It has
+            // to be *held*: a lone flame is a free gas with a twelve-step life,
+            // so a single placed cell rises off the beam and dies long before
+            // the wood is anywhere near its threshold.
+            const int mx = horizontal ? 10 : 20;
+            const int my = horizontal ? FLOOR : FLOOR - 19;
+            for (int i = 0; i < 30; ++i) {
+                g.set_element(mx, my - 1, ElementType::Fire); // beside the end, not on it
+                g.update();
+            }
+            step(g, steps);
+
+            int consumed = 0;
+            for (int i = 0; i < 20; ++i) {
+                const ElementType t = horizontal ? g.get_element(10 + i, FLOOR).type
+                                                 : g.get_element(20, FLOOR - i).type;
+                if (t == ElementType::Empty) ++consumed;
+            }
+            return consumed;
+        };
+        const int h = burnt_run(true, 2000);
+        const int v = burnt_run(false, 2000);
+        check("A4: fire consumes a horizontal beam", h >= 15, "consumed=" + std::to_string(h));
+        check("A4: fire consumes a vertical beam", v >= 15, "consumed=" + std::to_string(v));
+    }
     // --- reactions: a trapped fire still ticks instead of freezing ---
     // Regression test for the chunked-updates interaction: a spontaneous
     // reaction (fire's self-decay) has no movement to piggyback a wake on, so
@@ -972,6 +1254,124 @@ int main() {
         check("...landing at the bottom of the world, keeping its colour",
               g.get_element(10, 19).type == ElementType::Sand &&
               g.get_element(10, 19).color == 0xFFABCDEF);
+    }
+
+    // --- a pouring stream must not throw cells sideways through open air ---
+    //
+    // Regression test for PLAYTEST_LOG.md session 1, defect A7. `spread` is a
+    // distance a fluid may cover *along a surface*; it was being spent crossing
+    // empty space too, because "I could fall from there" satisfied the
+    // can-I-stop-here test and every point in mid-air satisfies that. A cell
+    // inside a falling stream cannot descend - its own kind is below it - so it
+    // reached the lateral scan, found five cells of nothing beside it, and
+    // relocated to the far end of them.
+    //
+    // Measured as the longest horizontal run of liquid with nothing underneath
+    // it. One cell of overhang is legitimate and is what flowing off a lip looks
+    // like, and two adjacent columns may each take that step in the same frame;
+    // beyond that the fluid is crossing air it should not cross. Was 4 on this
+    // scene before the fix.
+    {
+        Grid g(120, 90, 12345);
+        for (int x = 0; x < 120; ++x)
+            for (int y = 80; y < 90; ++y) g.set_element(x, y, ElementType::Wall);
+
+        int worst = 0;
+        for (int s = 0; s < 400; ++s) {
+            if (s < 200)
+                for (int x = 58; x < 62; ++x) g.set_element(x, 5, ElementType::Water);
+            g.update();
+
+            for (int y = 7; y < 89; ++y) { // from below the source row down
+                int run = 0;
+                for (int x = 0; x < 120; ++x) {
+                    const bool hanging = g.get_element(x, y).type == ElementType::Water &&
+                                         g.get_element(x, y + 1).type == ElementType::Empty &&
+                                         g.get_element(x, y - 1).type != ElementType::Water;
+                    run = hanging ? run + 1 : 0;
+                    if (run > worst) worst = run;
+                }
+            }
+        }
+
+        check("a pouring stream throws no lateral spikes", worst <= 2,
+              "longest mid-air overhang was " + std::to_string(worst) + " cells");
+    }
+
+    // --- a pouring powder must not fringe itself with horizontal shelves ---
+    //
+    // Regression test for PLAYTEST_LOG.md session 1, defect A7 (powder half),
+    // which the screenshots in resources/video_screenshots/ are of. The liquid
+    // fix above does not cover this: Sand is a Powder with `spread` 0 and never
+    // reaches the lateral scan at all.
+    //
+    // `swap_elements` tags only the two cells it touches, so an entire row could
+    // cascade diagonally within one sweep - grain at x to (x+1, y+1), grain at
+    // x+1 to (x+2, y+1), all the way along - landing a one-cell-thick shelf nine
+    // cells proud of the pile with nothing beneath it. Measured as the longest
+    // horizontal run of powder with Empty below and no powder above, at any
+    // point during the pour rather than after it settles: the defect is a
+    // transient that regenerates every step, so a settled world shows nothing.
+    // Was 9 before the fix.
+    {
+        Grid g(200, 150, 999);
+        for (int x = 0; x < 200; ++x)
+            for (int y = 140; y < 150; ++y) g.set_element(x, y, ElementType::Wall);
+
+        int worst = 0;
+        for (int s = 0; s < 600; ++s) {
+            if (s < 400) {
+                const int cx = 100 + (s / 40) % 5 - 2;
+                for (int dy = -6; dy <= 6; ++dy)
+                    for (int dx = -6; dx <= 6; ++dx)
+                        if (dx * dx + dy * dy <= 36)
+                            g.set_element(cx + dx, 20 + dy, ElementType::Sand);
+            }
+            g.update();
+
+            for (int y = 1; y < 149; ++y) {
+                int run = 0;
+                for (int x = 0; x < 200; ++x) {
+                    const bool shelf = g.get_element(x, y).type == ElementType::Sand &&
+                                       g.get_element(x, y + 1).type == ElementType::Empty &&
+                                       g.get_element(x, y - 1).type != ElementType::Sand;
+                    run = shelf ? run + 1 : 0;
+                    if (run > worst) worst = run;
+                }
+            }
+        }
+
+        check("a pouring powder throws no horizontal shelves", worst <= 5,
+              "longest mid-air shelf was " + std::to_string(worst) + " cells");
+
+        // **The other half of the same defect, and it is here because a fix for
+        // the shelves caused it.** Refusing the diagonal roll unless its
+        // destination was already supported removed the shelves and stopped
+        // settled grains relaxing down a face, so piles grew straight up and
+        // held vertical columns. Shelves and columns are opposite failures of
+        // one rule, so a test for either alone can be passed by breaking the
+        // other - which is exactly what happened, twice.
+        int quiet = 0;
+        for (int s = 0; s < 4000 && quiet < 30; ++s) {
+            g.update();
+            quiet = g.active_chunk_count() == 0 ? quiet + 1 : 0;
+        }
+
+        int surface[200];
+        for (int x = 0; x < 200; ++x) {
+            surface[x] = 140;
+            for (int y = 0; y < 140; ++y)
+                if (g.get_element(x, y).type == ElementType::Sand) { surface[x] = y; break; }
+        }
+        int steepest = 0;
+        for (int x = 1; x < 200; ++x) {
+            if (surface[x] >= 140 || surface[x - 1] >= 140) continue; // off the pile
+            const int drop = std::abs(surface[x] - surface[x - 1]);
+            if (drop > steepest) steepest = drop;
+        }
+
+        check("a settled powder pile has no vertical faces", steepest <= 2,
+              "steepest adjacent column drop was " + std::to_string(steepest) + " cells");
     }
 
     return report();

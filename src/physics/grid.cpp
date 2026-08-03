@@ -171,6 +171,53 @@ void Grid::paint(int x, int y, ElementType type, uint32_t color) {
     place(x, y, type, color);
 }
 
+void Grid::displace(int x, int y, ElementType type) {
+    if (!is_within_bounds(x, y)) return;
+    const ElementType old_type = cells[get_index(x, y)].type;
+
+    // Four cases pass straight through to a plain write, and each is a case
+    // where there is nothing to conserve:
+    //
+    //  - the eraser (`type` is Empty). Deleting is the whole point of it.
+    //  - an empty cell. Nothing to move.
+    //  - painting a material onto itself, which is most of a drag stroke. Worth
+    //    catching for its own sake as well as for cost: without it, every step
+    //    of a stroke would lift the cell it just painted and stack a column of
+    //    its own material above the cursor.
+    //  - a static occupant - Wall, Wood, Charred. These do not move under their
+    //    own physics and it would read as a bug if they moved under the brush;
+    //    drawing over a wall has always replaced it and still does.
+    if (type != ElementType::Empty && old_type != ElementType::Empty &&
+        old_type != type && material_of(old_type).move != MoveKind::Static) {
+        // Routing the brush's own displaced fluid through `vent_fluid` first,
+        // the way the powder step does, was tried here and removed: the probe
+        // could not tell the two apart to a single cell over 500 steps. It
+        // sounds more correct and it measures as nothing, so it is not kept.
+        make_room_above(x, y);
+    }
+
+    set_element(x, y, type);
+}
+
+bool Grid::make_room_above(int x, int y) {
+    for (int step = 1; step <= MAX_DISPLACE_RISE; ++step) {
+        const int ny = y - step;
+        if (!is_within_bounds(x, ny)) return false;
+
+        const ElementType t = cells[get_index(x, ny)].type;
+        if (t == ElementType::Empty) {
+            // A swap and not a copy, for the same reason every move in this file
+            // is a swap: it is the only write that cannot change how much of
+            // anything exists. The Empty comes down to (x, y) and the caller
+            // immediately writes over it.
+            swap_elements(x, y, x, ny);
+            return true;
+        }
+        if (material_of(t).move == MoveKind::Static) return false;
+    }
+    return false;
+}
+
 // Shared by set_element and paint, which differ only in where the colour comes
 // from - a jittered draw from the material table versus one the caller names
 // outright. Everything downstream of "here is the colour" - the write rule,
@@ -195,7 +242,7 @@ void Grid::place(int x, int y, ElementType type, uint32_t color) {
     const uint8_t spawn = material_of(type).spawn_temperature;
     el.temperature = spawn != 0 ? spawn : cells[idx].temperature;
 
-    // **`fall_ticks` and `piece_tag` are reset here, and that is a decision
+    // **`ticks` and `piece_tag` are reset here, and that is a decision
     // rather than an oversight** - `el` is a fresh Element, so every field not
     // named above goes back to its default, and only `temperature` argues for
     // itself. Worth saying out loud because the other two are invisible: a cell
@@ -346,7 +393,7 @@ void Grid::resolve_support() {
             // Too slow for this pass. It keeps its place in the queue so the
             // next step picks it up again; it just does not travel any further
             // this one.
-            if (fall_speed(cells[seed].fall_ticks) <= pass) {
+            if (fall_speed(cells[seed].ticks) <= pass) {
                 deferred.push_back(seed);
                 continue;
             }
@@ -364,7 +411,7 @@ void Grid::resolve_support() {
     // because it was already fast. Pieces that came to rest are not here -
     // settle_marks() put them back to zero and stopped re-queueing them.
     for (const int idx : pending_support) {
-        if (cells[idx].fall_ticks < 255) cells[idx].fall_ticks++;
+        if (cells[idx].ticks < 255) cells[idx].ticks++;
     }
 
     resolving_support = false;
@@ -390,7 +437,7 @@ void Grid::settle_marks(SupportState state, int extra) {
     // still waiting on the stack; between them they are the whole marked set.
     const auto settle = [&](int idx) {
         support_state[idx] = s;
-        if (at_rest) cells[idx].fall_ticks = 0;
+        if (at_rest) cells[idx].ticks = 0;
     };
 
     if (extra >= 0) settle(extra);
@@ -408,8 +455,8 @@ void Grid::fall_if_unsupported(int x, int y) {
     // structural", which is what makes a crack a real boundary.
     const uint8_t tag = cells[seed].piece_tag;
 
-    // Read now, because settle_marks zeroes fall_ticks the moment this concludes.
-    const bool was_falling = cells[seed].fall_ticks >= FRACTURE_MIN_TICKS;
+    // Read now, because settle_marks zeroes ticks the moment this concludes.
+    const bool was_falling = cells[seed].ticks >= FRACTURE_MIN_TICKS;
 
     support_stack.push_back(seed);
     support_visit[seed] = support_epoch;
@@ -430,7 +477,7 @@ void Grid::fall_if_unsupported(int x, int y) {
             // It has landed. If it arrived with speed on it, this is the moment
             // it breaks -- before the marks are settled, so the fresh tags are
             // in place for the next step's fills to see, and before settle_marks
-            // zeroes the fall_ticks fracture reads.
+            // zeroes the ticks fracture reads.
             //
             // Seeded from where the fill *started*, not from the grounded cell
             // it ended at, and the difference is not cosmetic. is_grounded
@@ -533,11 +580,11 @@ void Grid::fracture_landing(int x, int y) {
                 // fill that followed structure alone would walk out of the slab,
                 // across the entire floor, past MAX_SUPPORT_CELLS, and give up -
                 // which is exactly what it did, silently, and looked from the
-                // outside like fracture simply not firing. fall_ticks is zero
+                // outside like fracture simply not firing. ticks is zero
                 // for everything at rest and non-zero for everything that has
                 // been moving, and it is read here before settle_marks clears
                 // it, which is why fracture_landing is called where it is.
-                if (cells[nidx].fall_ticks == 0) continue;
+                if (cells[nidx].ticks == 0) continue;
                 if (scratch_visit[nidx] == scratch_epoch) continue;
                 scratch_visit[nidx] = scratch_epoch;
                 fracture_component.push_back(nidx);
@@ -693,21 +740,108 @@ bool Grid::can_displace(const Material& mover, int tx, int ty, int dy) const {
     return false;                                 // sideways: Empty only
 }
 
+// **Powder acceleration was tried here and removed, and the note is kept
+// because the idea is an obvious one to have again.** Grains were given a speed
+// that grew with time spent falling, reusing `ticks` - which really is free,
+// since the field already exists, is already carried by `swap_elements`, and was
+// unused by anything but structural pieces. It cost nothing in memory and it was
+// still wrong three separate ways:
+//
+//  - **It does not make motion smoother, which was the reason for trying it.** A
+//    grain moves in whole cells on a fixed tick, so doubling its speed does not
+//    animate a fall more finely - it makes each jump twice as far. At a 4x pixel
+//    scale that is an 8-pixel hop per step instead of 4, which is *more* stepped,
+//    not less. Stepping is a property of grid cells on a fixed tick and cannot be
+//    tuned away in this function at all. E5's free-particle layer is what fixes
+//    it, because matter in flight there has a real position and can be drawn
+//    between cells.
+//  - **It stratified any continuously fed stream into sheets.** `ticks` is
+//    per cell and `place()` resets it, so the brush stamped a fresh layer of
+//    speed-1 grains every step on top of grains that had already reached speed 2.
+//    The fast ones pulled away from the slow ones by exactly one cell per step,
+//    and the stream fell as a stack of sheets with a one-cell gap between each.
+//    Inherent to per-cell acceleration under a continuous source, not a tuning
+//    error.
+//  - **It was the whole of the frame-time regression.** `grid_bench` cascading
+//    went 13.1 -> 19.7 ms/step, 118% of a 60 Hz frame, and the awake chunk count
+//    went 105/135 -> 135/135. Removing it put both back.
+//
+// A grain therefore falls exactly one cell per step, as everything else in this
+// engine does.
+
 bool Grid::step_powder(int x, int y, const Material& mat) {
+    const int idx = get_index(x, y);
+
     if (can_displace(mat, x, y + 1, 1)) {
+        // **A6b, the water elevator.** A swap puts the displaced fluid in the
+        // grain's old cell, one row up. That is harmless for a single grain and
+        // wrong for a stream: there is always another grain above, so the
+        // exchange repeats every step and the fluid is handed up the column
+        // without bound, arriving in open air tens of cells over the pool and
+        // trickling back down the outside of the pile. Nothing in the swap rule
+        // refers to where the fluid's surface is, so nothing stops it.
+        //
+        // So the fluid is sent to that surface instead, when one is close
+        // enough to find. `vent_fluid` leaves Empty behind on success and the
+        // swap below then drops the grain into a vacancy rather than trading
+        // with the fluid at all; on failure this is exactly the old line.
+        // Deliberately only attempted when there is something to displace -
+        // falling through air is the overwhelmingly common case and pays
+        // nothing for this.
+        //
+        // **Restricting it further to grains with another grain on top - the
+        // conveyor condition itself - was tried and is not here.** It looked
+        // exact, since a lone grain's one-cell lift is harmless, and it failed
+        // twice over: `churning` got *slower* (6.7 -> 7.3 ms/step, because a
+        // churning mix is stacked grains almost everywhere and the test bought
+        // no skips), and 15 of 135 chunks stopped going to sleep, so the world
+        // no longer settled. The probe's residue also came back 200 steps
+        // earlier. A filter that costs time, breaks rest and loses accuracy is
+        // not a filter.
+        if (cells[get_index(x, y + 1)].type != ElementType::Empty) vent_fluid(x, y + 1);
         swap_elements(x, y, x, y + 1);
         return true;
     }
 
-    const int dir = coin(static_cast<uint64_t>(get_index(x, y)), sim_random::Stream::PowderDirection) ? -1 : 1;
-    if (can_displace(mat, x + dir, y + 1, 1)) {
-        swap_elements(x, y, x + dir, y + 1);
+    // **A grain that rolls keeps falling in the same step, and that is what
+    // removes the horizontal shelves without freezing the pile into columns.**
+    //
+    // The defect (PLAYTEST_LOG.md session 1, A7b): `swap_elements` tags only the
+    // two cells it touches, so an entire row cascades diagonally inside one
+    // sweep - grain at x to (x+1, y+1), grain at x+1 still untagged and on to
+    // (x+2, y+1), all the way along. Every grain lands one row down and one
+    // column over in the same step, while the row beneath was swept earlier and
+    // has not caught up, leaving a one-cell shelf standing nine cells proud of
+    // the pile with nothing under it. It resolves next step and re-forms
+    // immediately, which reads as a pile fringed with flickering spikes.
+    //
+    // **Two earlier rules failed here and both failed the same way**, which is
+    // worth keeping because the third would otherwise look arbitrary. Refusing
+    // the diagonal unless its destination was supported did remove the shelves,
+    // and also stopped settled grains relaxing down a face - piles grew straight
+    // up and held perfect vertical columns no powder would. Restricting that
+    // refusal to grains still falling brought the shelves straight back, because
+    // it is the settled grains slumping that forms them. A rule aimed at motion
+    // kept catching rest, and a rule that spared rest stopped catching the
+    // defect.
+    //
+    // So the move is not restricted at all - it is *finished*. A grain that rolls
+    // off an edge takes its one further cell of fall immediately, arriving at its
+    // resting depth in the same step instead of hanging a row above the slope
+    // waiting for the next one. There is no moment at which the shelf exists, so
+    // nothing has to be forbidden to prevent it, and settled grains slump freely
+    // because nothing is asking them not to.
+    const int dir = coin(static_cast<uint64_t>(idx), sim_random::Stream::PowderDirection) ? -1 : 1;
+
+    for (const int d : {dir, -dir}) {
+        const int nx = x + d;
+        if (!can_displace(mat, nx, y + 1, 1)) continue;
+
+        swap_elements(x, y, nx, y + 1);
+        if (can_displace(mat, nx, y + 2, 1)) swap_elements(nx, y + 1, nx, y + 2);
         return true;
     }
-    if (can_displace(mat, x - dir, y + 1, 1)) {
-        swap_elements(x, y, x - dir, y + 1);
-        return true;
-    }
+
     return false;
 }
 
@@ -758,6 +892,24 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
         return is_solid(get_element(nx, y + 1).type);          // or it has a floor (OOB reads as Wall)
     };
 
+    // **Nothing may travel sideways across open air, and this is defect A7.**
+    // `spread` is a distance a fluid may cover *along a surface* to find its
+    // level - it was being spent crossing empty space as well, because
+    // can_rest_at() is satisfied by "I could fall from there", which every
+    // point in mid-air satisfies. A cell inside a falling stream cannot descend
+    // (its own kind is below it) so it reached this scan, found five cells of
+    // nothing beside it, and teleported to the far end of them. On screen that
+    // is a horizontal spike shot out of the side of a pouring stream, and the
+    // cell then falls on its own a step later, detached from the body it came
+    // from.
+    //
+    // Checked against `y + dy` rather than `y + 1` so it reads the same way for
+    // a gas: the cell that has to hold something up is the one gravity would
+    // pull it towards, which is below for a liquid and above for a gas.
+    const auto over_void = [&](int nx) {
+        return get_element(nx, y + dy).type == ElementType::Empty;
+    };
+
     for (const int d : {dir, -dir}) {
         int cx = x;
         int best = x;
@@ -769,6 +921,14 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
             // Furthest *usable* landing, not merely furthest reachable: a cell
             // may pass over a stretch it could not stop on to get to one it can.
             if (can_rest_at(cx)) best = cx;
+
+            // One cell of overhang is allowed and then the run stops. That one
+            // cell is what pouring off the edge of a ledge *is* - reach the lip,
+            // step past it, fall - so forbidding it outright would strand water
+            // on a shelf. What it must not become is a licence to keep going,
+            // which is the whole defect: past the lip there is nothing to flow
+            // along, so there is nothing left for `spread` to measure.
+            if (over_void(cx)) break;
         }
         if (best != x) {
             swap_elements(x, y, best, y);
@@ -854,6 +1014,86 @@ bool Grid::seek_level(int x, int y) {
     // conserves matter for the same reason every other move in this file does.
     const int ty = target / width;
     swap_elements(x, y, target - ty * width, ty - 1);
+    return true;
+}
+
+bool Grid::vent_fluid(int fx, int fy) {
+    const int idx = get_index(fx, fy);
+    const ElementType fluid = cells[idx].type;
+
+    // **The destination must be this fluid's own free surface** - an Empty cell
+    // with more of the same fluid directly beneath it - and not merely any
+    // Empty within reach. Any-Empty was the first version and it reproduced the
+    // defect it was written to fix: the nearest empty cell to a grain entering
+    // the water is very often the air just above the sand pile, so the water
+    // was deposited back on top of the pile and the screenshots looked the same.
+    // Surfacing on the pool is the whole of what this is for.
+    const int dir = coin(static_cast<uint64_t>(idx), sim_random::Stream::FluidDirection) ? -1 : 1;
+
+    // **Two kinds of destination, and the second one was not in the first
+    // version of this function - the probe is what found it.** Sending the fluid
+    // to its own surface fixed the pour and then the defect came back around
+    // step 175, once the sand pile had grown into a cone standing proud of the
+    // water. What was left was the thin films of water clinging to the cone's
+    // flanks: they have *sand* underneath, not water, so there is no surface of
+    // their own kind to go to, and grains rolling down the slope went back to
+    // handing them upwards one cell at a time. The pile itself had become the
+    // conveyor.
+    //
+    // So a flank film may also drain to somewhere it can rest, and that route
+    // is restricted to `ny >= fy` - level or downhill, never up. Water running
+    // down the outside of a pile is what should happen; the whole defect is
+    // water going the other way.
+    int drain_x = -1, drain_y = -1, drain_score = 0;
+
+    int best_x = -1, best_y = -1, best_score = 0;
+    for (int oy = -VENT_RADIUS; oy <= VENT_RADIUS; ++oy) {
+        for (int ox = -VENT_RADIUS; ox <= VENT_RADIUS; ++ox) {
+            // `dir` mirrors the scan rather than steering it, so the choice
+            // between two equally good cells either side of a grain is not
+            // always the left one. Same trick and same stream as the fluid
+            // direction pick, for the same reason: a fixed order here would
+            // comb every pour in one direction.
+            const int nx = fx + ox * dir;
+            const int ny = fy + oy;
+            if (!is_within_bounds(nx, ny)) continue;
+            if (cells[get_index(nx, ny)].type != ElementType::Empty) continue;
+
+            const ElementType under = get_element(nx, ny + 1).type;
+            const int score = std::abs(ox) + std::abs(oy);
+
+            if (under == fluid) {
+                if (best_x < 0 || score < best_score) {
+                    best_x = nx;
+                    best_y = ny;
+                    best_score = score;
+                }
+            } else if (ny >= fy && is_solid(under)) {
+                // Ranked by depth before distance, so a film takes the furthest
+                // step down the slope it can see rather than shuffling one cell
+                // at a time against a pile that is being fed from above.
+                const int depth = (ny - fy) * 16 - score;
+                if (drain_x < 0 || depth > drain_score) {
+                    drain_x = nx;
+                    drain_y = ny;
+                    drain_score = depth;
+                }
+            }
+        }
+    }
+
+    if (best_x < 0 && drain_x >= 0) {
+        best_x = drain_x;
+        best_y = drain_y;
+    }
+
+    // No surface within reach, so the caller falls back to the plain swap. This
+    // is the right answer and not a giving-up: a grain sinking deep inside a
+    // large body of water has no conveyor above it feeding the exchange, which
+    // is the only thing that made the one-cell lift add up to anything.
+    if (best_x < 0) return false;
+
+    swap_elements(fx, fy, best_x, best_y);
     return true;
 }
 
@@ -981,7 +1221,23 @@ bool Grid::step_thermal(int x, int y, const Material& mat) {
 }
 
 bool Grid::try_react(int x, int y) {
-    Element& cell = cells[get_index(x, y)];
+    const int idx = get_index(x, y);
+    Element& cell = cells[idx];
+
+    // This spot's own ignition point. Both loops below go through it, and that
+    // is load-bearing rather than tidy: the first decides whether a cell is
+    // allowed to stay awake, the second decides whether it transforms, and a
+    // cell whose jittered threshold sits below the row's stated one would
+    // otherwise become eligible while nothing was keeping it awake to notice.
+    const auto floor_of = [&](const Reaction& r) {
+        if (r.temp_jitter == 0) return static_cast<int>(r.min_temp);
+        // Downwards only. `min_temp` is the hardest any cell is, not the average.
+        const int t = static_cast<int>(r.min_temp) -
+                      authored_pick(static_cast<int>(r.temp_jitter) + 1,
+                                    static_cast<uint64_t>(idx),
+                                    sim_random::Stream::IgnitionPoint);
+        return t < 0 ? 0 : t;
+    };
 
     // Spontaneous-reaction targets must keep re-checking every frame even if
     // they never move. Fire's own movement only calls mark_dirty when
@@ -1003,7 +1259,7 @@ bool Grid::try_react(int x, int y) {
     // step_thermal is already marking it for.
     for (const Reaction& r : REACTIONS) {
         if (r.catalyst == ElementType::Count && r.target == cell.type &&
-            cell.temperature >= r.min_temp && cell.temperature <= r.max_temp) {
+            cell.temperature >= floor_of(r) && cell.temperature <= r.max_temp) {
             mark_dirty(x, y);
             break;
         }
@@ -1011,18 +1267,159 @@ bool Grid::try_react(int x, int y) {
 
     for (const Reaction& r : REACTIONS) {
         if (r.target != cell.type) continue;
-        if (cell.temperature < r.min_temp || cell.temperature > r.max_temp) continue;
+        if (cell.temperature < floor_of(r) || cell.temperature > r.max_temp) continue;
         if (r.catalyst != ElementType::Count && !has_neighbor(x, y, r.catalyst)) continue;
         // One roll per cell per step: the loop commits to the first eligible row
         // and returns either way, so this never draws twice from the same
         // coordinates - which it would otherwise do, getting the same answer.
-        if (chance(static_cast<int>(r.chance_pct), static_cast<uint64_t>(get_index(x, y)),
-                   sim_random::Stream::Reaction)) {
+        if (chance_per_myriad(static_cast<int>(r.chance_per_myriad), static_cast<uint64_t>(get_index(x, y)),
+                             sim_random::Stream::Reaction)) {
             set_element(x, y, r.result);
             return true;
         }
         return false; // first eligible row commits the cell for this frame, win or lose
     }
+    return false;
+}
+
+bool Grid::emit_flame(int x, int y, const Material& mat) {
+    const int idx = get_index(x, y);
+
+    if (!chance(static_cast<int>(mat.emit_chance), static_cast<uint64_t>(idx),
+                sim_random::Stream::Emission))
+        return false;
+
+    // Gather the empty neighbours, then choose among them, rather than choosing
+    // a direction and giving up if it is occupied. The difference is visible: a
+    // blind pick makes a cell with one exposed face emit at an eighth of its
+    // stated rate, so a flame front along a flat surface - where every cell has
+    // exactly one free side - would be eight times thinner than the same wood
+    // burning at a corner. The rate belongs to the material, not to the shape of
+    // what is around it.
+    int free_idx[8];
+    int free_x[8];
+    int free_y[8];
+    int n = 0;
+    for (int ny = y - 1; ny <= y + 1; ++ny) {
+        for (int nx = x - 1; nx <= x + 1; ++nx) {
+            if (nx == x && ny == y) continue;
+            if (!is_within_bounds(nx, ny)) continue;
+            const int nidx = get_index(nx, ny);
+            if (cells[nidx].type != ElementType::Empty) continue;
+            free_idx[n] = nidx;
+            free_x[n] = nx;
+            free_y[n] = ny;
+            ++n;
+        }
+    }
+    // **Buried cells emit nothing, and that is the feature.** Fire reading as a
+    // layer clinging to exposed surfaces rather than as something that fills the
+    // inside of a solid is not a rule written anywhere in this engine; it is
+    // what this early return does when a burning cell has no air beside it.
+    if (n == 0) return false;
+
+    // Offset the index so that this draw and the yes/no draw above cannot be the
+    // same number. They are two decisions about one cell on one step, and the
+    // stream tag only separates *different* streams - within one, the index is
+    // all that distinguishes them.
+    const int slot = pick(n, static_cast<uint64_t>(idx) + 0x9E3779B9ull, sim_random::Stream::Emission);
+
+    set_element(free_x[slot], free_y[slot], mat.emits);
+
+    // **Keyed on the destination, not on the emitter.** Two flames thrown from
+    // the same burning cell on different steps already differ, because the step
+    // is folded into every draw - but a flame's lifetime should vary with where
+    // it *is*, so that a row of flames standing side by side is ragged rather
+    // than merely changing shape over time. Drawing on the emitter's index would
+    // give every flame from one cell the same life on any given step.
+    cells[free_idx[slot]].ticks = static_cast<uint8_t>(
+        FLAME_LIFETIME_MEAN + spread(FLAME_LIFETIME_SPREAD,
+                                     static_cast<uint64_t>(free_idx[slot]),
+                                     sim_random::Stream::FlameLifetime));
+    return true;
+}
+
+bool Grid::step_fire(int x, int y) {
+    const int idx = get_index(x, y);
+    Element& cell = cells[idx];
+
+    // A flame with no age was not made by emit_flame - it was painted with the
+    // brush, or is a reaction product like Oil flashing. Give it a full life
+    // here rather than in every place that can create one, which is the same
+    // reason spawn_temperature lives in the table rather than at call sites.
+    if (cell.ticks == 0) {
+        cell.ticks = FLAME_LIFETIME_MEAN;
+        return false;
+    }
+
+    if (--cell.ticks == 0) {
+        set_element(x, y, ElementType::Empty);
+        return true;
+    }
+
+    // **The colour ramp, and the reason flame lifetime is a countdown.** A flame
+    // is white-hot where it is made and dim red where it dies, and that gradient
+    // is most of what separates fire from an orange blob on screen. It is drawn
+    // from age because age is the only thing that varies between two flame cells
+    // - they share a MATERIALS row, so anything read from the table would give
+    // every flame in the world the same colour.
+    //
+    // Jitter is kept and re-drawn from the cell's own index so that neighbouring
+    // flames of the same age still differ. Without it the ramp turns a flame
+    // front into clean concentric bands, which reads as a gradient rather than
+    // as fire.
+    // **Three stops, not two, and that is the fix for "the colours of the flame
+    // lack intensity"** (session 2). The ramp was a single linear interpolation
+    // from near-white to a dull red, and the problem is what a straight line
+    // between those two points passes *through*: RGB interpolation from
+    // (255,242,200) to (196,46,16) runs through greys and dusty salmons, because
+    // the shortest path between a near-white and a dark red in RGB goes nowhere
+    // near saturated orange. The most-visible middle of a flame's life was
+    // spending itself in the least saturated colours available.
+    //
+    // Bending the ramp through a saturated orange at mid-life keeps every stage
+    // of it on the outside of the colour space instead of cutting across the
+    // middle. That is where the intensity was missing, and it costs one extra
+    // branch rather than a wider colour model.
+    //
+    // Saturation is also why the hot end is a yellow-white rather than white:
+    // pure white is the least intense colour there is - it is the absence of hue
+    // - and a flame that peaks at white reads as a blown-out highlight rather
+    // than as something hot.
+    const int life = static_cast<int>(cell.ticks);
+
+    // Age runs against the widest life any flame can have, not against this
+    // flame's own. Flames now live different lengths of time and there is no
+    // spare byte to record which length this one drew (element.h: the struct is
+    // full), so a short-lived flame starts partway down the ramp and never
+    // reaches the hot end. That reads correctly rather than merely being
+    // affordable - a flame that dies quickly is a cooler one - and it means the
+    // colour is a function of remaining life, which is what the eye reads as
+    // temperature.
+    const int den = FLAME_LIFETIME_MAX;
+    const int num = life > den ? den : life;
+
+    struct Stop { int r, g, b; };
+    constexpr Stop HOT{0xFF, 0xE9, 0x8C};  // yellow-white, freshly thrown
+    constexpr Stop MID{0xFF, 0x8A, 0x1E};  // saturated orange, the body of the flame
+    constexpr Stop DIM{0x9E, 0x22, 0x08};  // deep ember red, at death
+    constexpr int KNEE = 55;               // percent of life where MID sits
+
+    const int pct = num * 100 / den;
+    const Stop& lo = pct >= KNEE ? MID : DIM;
+    const Stop& hi = pct >= KNEE ? HOT : MID;
+    const int seg_num = pct >= KNEE ? pct - KNEE : pct;
+    const int seg_den = pct >= KNEE ? 100 - KNEE : KNEE;
+
+    const int jit = authored_spread(material_of(ElementType::Fire).color_jitter,
+                                    static_cast<uint64_t>(idx), sim_random::Stream::ColorJitter);
+    const auto lerp = [&](int a, int b) {
+        const int v = a + (b - a) * seg_num / seg_den + jit;
+        return static_cast<uint32_t>(v < 0 ? 0 : (v > 255 ? 255 : v));
+    };
+    cell.color = 0xFF000000u | (lerp(lo.r, hi.r) << 16) | (lerp(lo.g, hi.g) << 8) | lerp(lo.b, hi.b);
+    pixels[idx] = cell.color;
+    mark_dirty(x, y);
     return false;
 }
 
@@ -1041,7 +1438,50 @@ void Grid::step_cell(int x, int y) {
     // ignition point this step ignites on this step rather than one later.
     step_thermal(x, y, mat);
 
+    // Chained rather than written as two independent checks, because nothing
+    // that emits is itself a flame and this runs for every awake cell in the
+    // world every step. **Worth saying that this was measured and bought
+    // nothing**: E9 costs about 1.4 ms on the cascading benchmark and the guess
+    // that two predictable branches were paying for it was wrong - collapsing
+    // them to one moved the number by less than run-to-run noise. The form is
+    // kept because it is the clearer statement of the two, not because it is
+    // faster. Where that 1.4 ms actually goes is recorded in PERFORMANCE.md and
+    // is not this.
+    //
+    // A flame ages before anything else looks at it, so the step it runs out is
+    // the step it disappears. Burning cells throw flame before they are given
+    // their own chance to decay, so a cell always emits at least once - one that
+    // lost its very first decay roll would otherwise appear and vanish having
+    // shown nothing.
+    if (current.type == ElementType::Fire) {
+        if (step_fire(x, y)) return; // gone; nothing left to react or move
+    } else if (mat.emits != ElementType::Count) {
+        emit_flame(x, y, mat);
+    }
+
     if (try_react(x, y)) return; // converted; let the new material move starting next frame
+
+    // **Nothing anchors a flame any more, and that is the point of the rebuild.**
+    // A4 was fixed here once by holding a fuelled flame in place so it stayed in
+    // contact with what it was consuming. That worked and modelled the wrong
+    // thing: it made the flame the fuel. Now the fuel is `Charred`, which is
+    // Static and never had anywhere to go, and flame is free to rise the way a
+    // gas should - it is decoration with a twelve-step life, and propagation
+    // happens underneath it through Charred's heat.
+    // A flame sits still one step in ten, which is how a whole-cell mover
+    // expresses 0.9 cells per step (session 2: "the flames move about 10 percent
+    // too fast"). Fire only - Steam is not what the note was about, and slowing
+    // it would change a material nobody complained about.
+    //
+    // Placed after the reaction check and before the move so a skipped step is
+    // only a skipped *move*: the flame still ages, still ramps its colour, and is
+    // still able to be doused. Skipping the whole cell instead would make flames
+    // live 11% longer as a side effect of being asked to travel slower.
+    if (current.type == ElementType::Fire &&
+        chance(FLAME_RISE_SKIP_PERCENT, static_cast<uint64_t>(get_index(x, y)),
+               sim_random::Stream::FlameRise)) {
+        return;
+    }
 
     switch (mat.move) {
         case MoveKind::Static: break;

@@ -468,7 +468,7 @@ int main() {
     // demands: a missed fracture is invisible, a wrong one turns a level into
     // rubble. Nothing here is falling, so nothing here may break, and the way
     // that is guaranteed is that fracture is reachable only from a landing with
-    // speed on it - a piece at rest has fall_ticks of zero and never gets near
+    // speed on it - a piece at rest has ticks of zero and never gets near
     // the code.
     {
         Grid g(60, 60);

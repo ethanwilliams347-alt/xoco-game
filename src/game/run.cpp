@@ -13,14 +13,25 @@ void Run::reset(uint64_t seed) {
 }
 
 void Run::step(const Input& input) {
-    // Matches main.cpp's old brush loop exactly: a filled circle of radius
-    // brush_size, painted before physics runs so a freshly placed cell does
-    // not move on the same step it was placed.
+    // A filled circle of radius brush_size, painted before physics runs so a
+    // freshly placed cell does not move on the same step it was placed.
+    //
+    // `displace` rather than `set_element`, which is A6: the brush is the one
+    // writer that has to move what it lands on instead of deleting it.
+    //
+    // **Bottom row first, and the order is load-bearing for exactly one brush.**
+    // Displacement lifts the occupant to the first Empty above it and gives up
+    // at anything static. Painting top-down with the Wall brush would therefore
+    // build a lid over the rest of the disc a row at a time, and every row under
+    // it would find no room and be deleted - the same defect A6 is about, moved
+    // one level up. Bottom-up, each row escapes before the row above it exists.
+    // No other brush shows it, because everything else the brush paints is
+    // movable and a climb walks straight through it.
     if (input.brush_active) {
-        for (int dy = -input.brush_size; dy <= input.brush_size; ++dy) {
+        for (int dy = input.brush_size; dy >= -input.brush_size; --dy) {
             for (int dx = -input.brush_size; dx <= input.brush_size; ++dx) {
                 if (dx * dx + dy * dy <= input.brush_size * input.brush_size) {
-                    grid.set_element(input.cursor_x + dx, input.cursor_y + dy, input.brush_type);
+                    grid.displace(input.cursor_x + dx, input.cursor_y + dy, input.brush_type);
                 }
             }
         }

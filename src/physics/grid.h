@@ -83,6 +83,21 @@ public:
 
     void set_element(int x, int y, ElementType type);
     void paint(int x, int y, ElementType type, uint32_t color);
+
+    // The brush's write path, and the only one that conserves what was already
+    // standing in the cell. `set_element` overwrites, which is right for every
+    // other caller - a reaction turning Wood into Fire *means* the wood is gone,
+    // worldgen is writing into a grid nobody has filled yet, and the eraser's
+    // whole job is deletion - but it is wrong for a player pushing sand into a
+    // pool. That was A6: the brush destroyed the water in its disc rather than
+    // moving it, so a stroke into water silently deleted volume and the pool
+    // came back wrong when the stroke stopped.
+    //
+    // Displacement only, not a general "move this cell somewhere sensible": the
+    // occupant goes straight up, because up is where a fluid's own surface is
+    // and raising a level is what displacing volume looks like. See
+    // `make_room_above` for what it will and will not push through.
+    void displace(int x, int y, ElementType type);
     Element get_element(int x, int y) const;
 
     // Get raw pixel colors for rendering to SDL Texture
@@ -168,6 +183,49 @@ private:
     // colour and confirmed the write is in bounds. See the definition for why
     // this is one function rather than two copies.
     void place(int x, int y, ElementType type, uint32_t color);
+
+    // Moves the fluid at (fx, fy) to the nearest free surface of its own kind,
+    // so a powder sinking into it does not have to hand it upwards. Returns
+    // false when no such surface is within `VENT_RADIUS`, in which case the
+    // caller keeps the plain swap. See the call site in `step_powder` for the
+    // defect this exists for (A6b).
+    bool vent_fluid(int fx, int fy);
+
+    // How far `vent_fluid` will look for a surface. This is the expensive part
+    // of the powder step and it runs on every powder/fluid contact, so the
+    // radius is a direct cost knob and was swept rather than picked. Against
+    // `churning` at 3.13 ms/step with no venting at all, and against the step
+    // at which water first appears above the cursor in `water_probe`:
+    //
+    //   r=2   4.12 ms/step   clean to step 200
+    //   r=3   4.93 ms/step   clean to step 350   <- here
+    //   r=4   6.72 ms/step   clean to step 400
+    //
+    // 3 is the knee: nearly all of 4's accuracy for three quarters of its cost.
+    // The residue past those steps is a handful of cells and is described at the
+    // A6b entry in PLAYTEST_LOG.md - it is a known limit, not an unknown.
+    static constexpr int VENT_RADIUS = 3;
+
+    // Lifts the movable cell at (x, y) to the first Empty cell above it, so the
+    // caller can write into (x, y) without deleting what was there. Returns
+    // false when there is nowhere to put it, which is a real answer and not a
+    // failure: a sealed pool with no air above it has no room, and the caller
+    // overwrites rather than refusing the stroke.
+    //
+    // The walk climbs *through* fluid and stops dead at anything solid. Climbing
+    // through is what makes one call cost the depth of the column rather than a
+    // search of the area around it, and it is also the right physics - the
+    // column is one body, so swapping the bottom cell with the Empty at the top
+    // raises the whole surface by one, which is what displaced volume does. It
+    // stops at solids because a lid means the volume genuinely has nowhere to go.
+    bool make_room_above(int x, int y);
+
+    // How far up `make_room_above` will look. Bounds the worst case: a brush
+    // dragged along the floor of a deep pool pays this per painted cell per
+    // step, and 32 is already twice the tallest body of water the generator
+    // makes. Past it the volume is treated as having nowhere to go, which is the
+    // same answer a lid gives and fails in the same visible direction.
+    static constexpr int MAX_DISPLACE_RISE = 32;
 
     // Runs the one cell at (x, y) through its material's behaviour.
     void step_cell(int x, int y);
@@ -363,6 +421,72 @@ private:
     // which case step_cell skips movement for it this frame.
     bool try_react(int x, int y);
 
+    // How many steps a flame lives, and the only lifetime in the engine that is
+    // a countdown rather than a decay chance.
+    //
+    // The reason is the colour ramp: a flame is drawn from white-hot at its
+    // source through orange to dim red as it dies, which needs the cell to know
+    // how old it is, and a dice roll has no age to read. Fire is a Gas and never
+    // structural, so it is the one material that can spend `Element::ticks` on
+    // this without colliding with the free-fall clock - see element.h.
+    //
+    // Around a fifth of a second. That is short on purpose and it is a
+    // measurement, not a taste: reference footage of a burning scene replaces
+    // the entire contents of a flame between frames roughly 10-20 steps apart,
+    // while the fuel underneath takes seconds to be consumed.
+    //
+    // **It is a range and not a constant, and that is the fix for two separate
+    // playtest notes at once** (session 2: "a hard height cutoff that looks
+    // unnatural", "the uniform height of the flames does not look natural").
+    // Both were the same defect, and neither was really about height: a flame
+    // rose exactly one cell per step and lived exactly twelve steps, so *every*
+    // flame died exactly twelve cells above the fuel that threw it. The result is
+    // a razor-straight horizontal line across the top of a fire - the one shape
+    // nothing in nature makes. Nothing needed to change about how flames move to
+    // fix it; what was missing is that real flames do not all live equally long.
+    //
+    // 13 rather than 12 because flames also now rise slower (see
+    // FLAME_RISE_SKIP_PERCENT), and the note asking for that asked about *speed*,
+    // not height. 13 steps at 0.9 cells per step is the same reach 12 steps at
+    // 1.0 was, so slowing the motion does not silently shorten the fire as well.
+    static constexpr uint8_t FLAME_LIFETIME_MEAN = 13;
+
+    // Half-width of the jitter, so a flame lives 8-18 steps. Wide enough that the
+    // top of a fire is visibly ragged rather than merely soft, and bounded so the
+    // longest-lived flame is still decoration rather than something that outlives
+    // what threw it.
+    static constexpr int FLAME_LIFETIME_SPREAD = 5;
+    static constexpr uint8_t FLAME_LIFETIME_MAX =
+        static_cast<uint8_t>(FLAME_LIFETIME_MEAN + FLAME_LIFETIME_SPREAD);
+
+    // **Flames rise on 9 steps out of 10** (session 2: "the flames move about 10
+    // percent too fast"). A gas moves a whole cell or none at all, so 0.9 cells
+    // per step cannot be a smaller step - it has to be a skipped one. Rolled per
+    // cell per step rather than counted, because a flame has no spare byte to
+    // count in: `Element::ticks` is its lifetime, and `element.h` records that the
+    // struct has no room left. The roll is drawn from the deterministic stream
+    // like every other decision, so this stays reproducible from the seed.
+    //
+    // The skip is per cell, so neighbouring flames fall out of step with each
+    // other, which breaks up the flat rising front as a side effect. That is a
+    // bonus and not the reason - the reason is that the motion was 10% too fast.
+    static constexpr int FLAME_RISE_SKIP_PERCENT = 10;
+
+    // Throws a flame from a burning cell into a randomly chosen empty neighbour,
+    // as named by the `emits` column. Returns true if one was placed.
+    //
+    // **This is the mechanism that makes flame a separate thing from fuel**, and
+    // it is the only genuinely new rule E9 adds - everything else in the rebuild
+    // is a row or a column. A burning cell stays put, keeps its structural role
+    // and heats what it touches; what the player sees rising off it is
+    // manufactured here and dead within FLAME_LIFETIME steps.
+    bool emit_flame(int x, int y, const Material& mat);
+
+    // Ages a flame by one step, ramps its colour to match, and kills it at zero.
+    // Returns true if the cell is gone, in which case the caller must not go on
+    // to move it.
+    bool step_fire(int x, int y);
+
     // --- structures and falling ---
     //
     // Static materials hold their shape, which means they can also hold it
@@ -397,7 +521,7 @@ private:
     //
     // **A piece breaks when it lands, not while it falls**, and that timing is
     // what makes the whole feature safe. Every "nothing must move here" test in
-    // the suite is about a piece at rest, and a piece at rest has `fall_ticks`
+    // the suite is about a piece at rest, and a piece at rest has `ticks`
     // of zero and never reaches this code at all. Fracture cannot start a
     // collapse; it can only let a collapse that was already happening finish
     // unevenly. `Grid`'s comment on MAX_SUPPORT_CELLS says a missed collapse is
@@ -526,6 +650,21 @@ private:
     bool chance(int pct, uint64_t index, sim_random::Stream s) const {
         return sim_random::chance(pct, world_seed, step_count, index, s);
     }
+    bool chance_per_myriad(int per_myriad, uint64_t index, sim_random::Stream s) const {
+        return sim_random::chance_per_myriad(per_myriad, world_seed, step_count, index, s);
+    }
+    int pick(int n, uint64_t index, sim_random::Stream s) const {
+        return sim_random::pick(n, world_seed, step_count, index, s);
+    }
+    // A symmetric offset that *does* take the clock, unlike authored_spread
+    // below. Flame lifetime needs this: pinned at step 0 the draw is a property
+    // of the cell rather than of the flame, so the same spots would always throw
+    // the long flames and the ragged top of a fire would be frozen in place
+    // instead of moving - which is a more obviously wrong version of the
+    // uniformity it was added to fix.
+    int spread(int range, uint64_t index, sim_random::Stream s) const {
+        return sim_random::spread(range, world_seed, step_count, index, s);
+    }
 
     // The exception among these three: no step input, pinned at 0 instead.
     //
@@ -534,6 +673,12 @@ private:
     // Feeding the step in would repaint the whole world every frame.
     int authored_spread(int range, uint64_t index, sim_random::Stream s) const {
         return sim_random::spread(range, world_seed, 0, index, s);
+    }
+    // The same pinning, for a draw that is one-sided rather than symmetric.
+    // Ignition-point jitter needs it: see `temp_jitter` in reaction.h for why
+    // that variation may only ever make a cell easier to light and never harder.
+    int authored_pick(int n, uint64_t index, sim_random::Stream s) const {
+        return sim_random::pick(n, world_seed, 0, index, s);
     }
 
     uint32_t jittered_color(const Material& mat, uint64_t index) const;

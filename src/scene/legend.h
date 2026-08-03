@@ -38,6 +38,12 @@ inline constexpr LegendEntry SCENE_LEGEND[] = {
     { 0xFF00FF, ElementType::Oil   },
     { 0x00FFFF, ElementType::Steam },
     { 0xFF0000, ElementType::Fire  },
+    // Authorable even though nobody would sensibly paint a scene that starts
+    // mid-burn, because the assert below is about *coverage* rather than about
+    // usefulness: a material with no legend colour cannot be authored at all,
+    // and leaving a hole here to express "you would not want this" would mean
+    // the next genuinely unauthorable material has no failing check to hit.
+    { 0xFF8800, ElementType::Charred },
 };
 
 inline constexpr int LEGEND_SIZE = sizeof(SCENE_LEGEND) / sizeof(SCENE_LEGEND[0]);

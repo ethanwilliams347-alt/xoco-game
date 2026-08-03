@@ -9,6 +9,7 @@
 // is a nuisance, and timings are for reading, not for gating.
 
 #include "physics/grid.h"
+#include "render/light.h"
 #include <chrono>
 #include <cstdio>
 
@@ -211,6 +212,93 @@ void run(const char* name, void (*build)(Grid&), int settle_steps, void (*on_ste
                 per_step < FRAME_BUDGET_MS ? "" : "  <-- OVER BUDGET");
 }
 
+// V7's light field, which every other scenario in this file is blind to.
+//
+// **`grid_bench` measures `Grid::update`, and the light field is not in it** -
+// it is per-frame render work, computed in main.cpp between the simulation step
+// and the present. So none of the scenarios above can reach it, and running the
+// A/B this document normally asks for would produce flat numbers that agreed
+// beautifully about nothing. That is the third rule in PERFORMANCE.md, and it
+// has already cost this project one worthless measurement (E3's first attempt).
+// The instrument has to change, not the scenario.
+//
+// What this measures and what it does not, stated plainly because the gap is the
+// interesting part:
+//
+//  - **Measured:** the whole CPU cost of a frame's lighting - the scan over the
+//    viewport's cells, the propagation, and the pack to ARGB. That is the part
+//    this project controls and the part that scales with BLOCK and ITERATIONS.
+//  - **Not measured:** the texture upload and the one extra `SDL_RenderCopy`.
+//    Those are GPU-side and this project has no headless instrument that can see
+//    them. They are not assumed to be free; they are unmeasured, and saying so is
+//    what E9's entry in PERFORMANCE.md established as the alternative to writing
+//    down a number the method does not support.
+//
+// Sized to the **viewport**, not to BENCH_WIDTH/HEIGHT. The light field covers
+// what is on screen and nothing else, so it does not scale with world size - and
+// building it at 960x540 would measure a configuration the game never runs.
+constexpr int LIGHT_VIEW_W = 201; // 800/4 + 1, matching main.cpp's padded viewport
+constexpr int LIGHT_VIEW_H = 151; // 600/4 + 1
+constexpr int LIGHT_FRAMES = 300;
+
+void run_light(const char* name, void (*build)(Grid&), void (*on_step)(Grid&)) {
+    Grid g(BENCH_WIDTH, BENCH_HEIGHT);
+    build(g);
+    for (int i = 0; i < 60; ++i) {
+        if (on_step) on_step(g);
+        g.update();
+    }
+
+    // Aimed at the band where the fire actually is. A light field pointed at
+    // empty sky early-outs on `any_light()` and would measure the scan alone -
+    // which is a real number, but not the one this scenario is named for.
+    const int origin_x = BENCH_WIDTH / 2 - LIGHT_VIEW_W / 2;
+    const int origin_y = BENCH_HEIGHT / 2 - LIGHT_VIEW_H / 2;
+
+    LightField light(LIGHT_VIEW_W, LIGHT_VIEW_H);
+
+    // **Only the `light.update` calls are inside the clock**, accumulated one
+    // frame at a time, with the simulation step deliberately outside it.
+    //
+    // The first version of this timed the whole loop and subtracted a second,
+    // light-free loop from it. That reads as more like the rest of this file -
+    // it is shaped like an A/B - and it is much worse here: the two loops are
+    // about two seconds each and the quantity being recovered is fifty
+    // milliseconds, so a one-percent difference in machine state between them is
+    // the same size as the answer. Differencing large numbers to find a small one
+    // is the arithmetic version of the unbracketed pair PERFORMANCE.md's first
+    // rule is about. Timing the call directly needs no control and no bracket,
+    // because nothing is being compared.
+    //
+    // The grid is still stepped between measurements, so the field is looking at
+    // a scene that changes exactly as it does in play - a frozen grid would let
+    // the convergence early-out settle into a best case that never happens.
+    double light_ms = 0.0;
+    int lit_frames = 0;
+    for (int i = 0; i < LIGHT_FRAMES; ++i) {
+        if (on_step) on_step(g);
+        g.update();
+
+        const auto start = std::chrono::steady_clock::now();
+        light.update(g, origin_x, origin_y);
+        const auto end = std::chrono::steady_clock::now();
+        light_ms += std::chrono::duration<double, std::milli>(end - start).count();
+
+        if (light.any_light()) lit_frames++;
+    }
+
+    const double per_frame = light_ms / LIGHT_FRAMES;
+
+    // **`lit_frames` is the count that makes a flat result mean anything**, and
+    // it is here because of the rule that a null result is only evidence if the
+    // feature ran. Zero lit frames means the propagation never executed and the
+    // number below is the cost of the scan and the early-out, whatever the label
+    // says.
+    std::printf("  %-10s %9.4f ms/frame  %6.1f%% of a 60 Hz frame   %3d/%d frames lit\n",
+                name, per_frame, 100.0 * per_frame / FRAME_BUDGET_MS,
+                lit_frames, LIGHT_FRAMES);
+}
+
 } // namespace
 
 int main() {
@@ -224,6 +312,14 @@ int main() {
     run("burning", build_burning, 60, feed_fire);
     run("collapsing", build_collapsing, 70, churn_slabs);      // settle: fill the pipeline first
     run("shattering", build_shattering, 70, shatter_slabs);    // the same slabs, allowed to land
+
+    // Rendering, not simulation - a different instrument and a different unit
+    // (per frame, not per step), so it is printed under its own heading rather
+    // than as another row in a table that means something else.
+    std::printf("\nRender-side, viewport %dx%d cells, %d cells per light block\n\n",
+                LIGHT_VIEW_W, LIGHT_VIEW_H, LightField::BLOCK);
+    run_light("light/fire", build_burning, feed_fire);
+    run_light("light/dark", build_settled, nullptr);
 
     std::printf("\n");
     return 0;

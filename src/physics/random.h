@@ -35,6 +35,28 @@ enum class Stream : uint64_t {
     FluidDirection  = 0xE7037ED1A0B428DBull,
     Reaction        = 0x8EBC6AF09C88C6E3ull,
     Fracture        = 0xC2B2AE3D27D4EB4Full,
+    // Whether a burning cell throws a flame this step, and which empty
+    // neighbour it goes to. Two decisions, one stream: they are asked about the
+    // same cell on the same step, so they are separated by index rather than by
+    // tag - see emit_flame().
+    Emission        = 0xF1BBCDCBB3D935A7ull,
+    // How long one flame lives. Its own stream rather than a third use of
+    // Emission: it is drawn about the *new* cell at the moment of emission, so
+    // sharing would correlate a flame's lifetime with whether its parent chose
+    // to emit at all - and a fire whose longest flames only ever appear in the
+    // same spots is exactly the uniformity this was added to break.
+    FlameLifetime   = 0xB5026F5AA96619E9ull,
+    // Whether a flame rises this step. Per cell per step, so it must not share
+    // with anything else asked about the same cell on the same step.
+    FlameRise       = 0xCA9E6D9C1B5D4C77ull,
+    // How much hotter or cooler than its material's stated figure *this spot*
+    // has to get before it catches. Drawn with authored_spread - pinned at step
+    // 0 - because it is a property of the wood at that coordinate, like its
+    // colour jitter, and not a decision the cell retakes every step. A cell that
+    // re-rolled its own ignition point each frame would simply catch on the
+    // first frame the lowest roll came up, which is the timing jitter this
+    // replaced and measurably does nothing.
+    IgnitionPoint   = 0xD6E8FEB86659FD93ull,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -72,6 +94,37 @@ inline constexpr bool chance(int pct, uint64_t seed, uint64_t step, uint64_t ind
     if (pct <= 0) return false;
     if (pct >= 100) return true;
     return static_cast<int>(bits(seed, step, index, stream) % 100ull) < pct;
+}
+
+// True with probability per_myriad/10000, for decisions too rare to express in
+// whole percents. A spontaneous decay row is the case that needs it: mean
+// lifetime is 10000/per_myriad steps.
+//
+// **This was per *mille*, and it was widened for a reason worth recording,
+// because it is the second time the same wall has been hit.** Whole percents
+// bottomed out at a hundred-step mean, which could not express wood's three
+// seconds, so the column went to per-mille. Per-mille then bottomed out on the
+// other axis - not on how long a thing can last, but on how *finely* a long
+// lifetime can be adjusted. A playtest asked for wood's burn to last one second
+// longer, and the available steps either side of it were 6 per mille (2.78 s)
+// and 5 per mille (3.33 s): the request fell between two adjacent values of the
+// column and could not be expressed at all.
+//
+// The generalisable form: **the resolution a tuning column needs is set by the
+// smallest change anyone will want to make to it, not by the largest value it
+// has to hold.** A lifetime of 167 steps is comfortably inside per-mille's
+// range and still not adjustable within it.
+inline constexpr bool chance_per_myriad(int per_myriad, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
+    if (per_myriad <= 0) return false;
+    if (per_myriad >= 10000) return true;
+    return static_cast<int>(bits(seed, step, index, stream) % 10000ull) < per_myriad;
+}
+
+// A value in [0, n). Used where a cell has to choose one of several neighbours
+// rather than answer yes or no.
+inline constexpr int pick(int n, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
+    if (n <= 1) return 0;
+    return static_cast<int>(bits(seed, step, index, stream) % static_cast<uint64_t>(n));
 }
 
 // A value in [-range, range]. Used for colour jitter, where the caller wants a
@@ -122,6 +175,17 @@ inline constexpr Stream SIM_STREAMS[] = {
     Stream::FluidDirection,
     Stream::Reaction,
     Stream::Fracture,
+    Stream::Emission,
+    // **These three were missing, and FlameLifetime and FlameRise had been
+    // missing since they were added.** The list is what the distinctness check
+    // below can see, so a tag left out of it is a tag nothing checks - exactly
+    // the silent collision the check exists to catch, and the check itself
+    // passing the whole time. Adding a tag to the enum without adding it here
+    // is easy to do and invisible afterwards, which is why the enum's own
+    // comment asks for both.
+    Stream::FlameLifetime,
+    Stream::FlameRise,
+    Stream::IgnitionPoint,
 };
 
 // Two streams sharing a value are one stream, silently. Nothing about that looks
