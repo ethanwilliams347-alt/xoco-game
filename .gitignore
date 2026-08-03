@@ -28,4 +28,19 @@ _deps/
 # Reference footage and extracted frames (see notes/reference_observations.txt).
 # Deliberately not versioned: frames are large, perishable, and not ours. What
 # survives is the written observation, not the still it came from.
+#
+# **Both paths are listed because the rule silently missed the frames once.**
+# This said `/reference/` alone while every frame anyone actually captured went
+# to `resources/video_screenshots/`, so the policy was written down, believed,
+# and enforcing nothing - eleven PNGs of somebody else's game were staged for
+# commit before anyone looked - and behind them, in `resources/videos_MP4/`,
+# **216 MB of source video** the same rule was supposed to be keeping out. A
+# stated intent that does not match the path in use is worse than no rule,
+# because it stops people checking.
+#
+# `/resources/` is therefore ignored wholesale rather than folder by folder. If
+# something in there ever does need versioning, un-ignore that one path
+# explicitly - the default for a directory holding other people's footage should
+# be "out", and anything else should have to argue for itself by name.
 /reference/
+/resources/

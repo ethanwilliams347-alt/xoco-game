@@ -11,6 +11,12 @@ enum class ElementType : uint8_t {
     Oil,
     Steam,
     Fire,
+    // Wood that has caught. **A state of the fuel, not a kind of fire**, and the
+    // distinction is the whole of E9's rebuild: this cell is what holds the burn
+    // duration, stays structural, keeps heating its neighbours, and throws
+    // short-lived Fire into the air around it. The flame is the thing you see;
+    // this is the thing that is actually burning.
+    Charred,
     Count
 };
 
@@ -67,6 +73,31 @@ struct Material {
     // and this is what stops a flame being quenched by the cold wall it is
     // sitting against.
     uint8_t heat_source;
+
+    // How many steps of Fire one cell of this material is worth when it burns.
+    // Read at the moment of ignition and stored on the resulting flame, so this
+    // is a property of the *fuel* and not of the fire - which is what makes
+    // wood and oil burn differently at all. Zero for everything that is not
+    // combustible, and zero for Fire itself: a flame conjured with the brush has
+    // nothing behind it and dies on the burnout roll, the way it always did.
+    //
+    // What a burning cell of this material throws into the empty space beside
+    // it, and how often. `Count` means "nothing", which is every row but one.
+    //
+    // **This is a column rather than a rule about Charred, and that is the whole
+    // reason fire stays data-driven.** Emission is the mechanism that makes
+    // flame a separate thing from fuel - the fuel sits and burns, the flame is
+    // manufactured beside it and dies within a dozen steps - and if it were
+    // written as "Charred throws Fire" then the next flammable material would
+    // need engine work rather than a row.
+    //
+    // It also buys a behaviour nobody has to write: emission targets *Empty*
+    // neighbours, so a buried cell has nowhere to emit and does not visibly
+    // burn. Fire being a layer on exposed surfaces rather than something that
+    // fills a volume is not a rule in this engine, it is what this column does
+    // when a cell has no air next to it.
+    ElementType emits;
+    uint8_t emit_chance; // percent, per step, per burning cell
 };
 
 // Indexed by ElementType. Keep rows in the same order as the enum.
@@ -88,26 +119,37 @@ struct Material {
 // a flat fill looking like a flat fill and no more. Fire keeps the widest range
 // of anything, because there its variation is the thing being drawn.
 inline constexpr Material MATERIALS[] = {
-    // name      colour       jitter  move              density  spread  structural  cond  spawn  source
+    // name      colour       jitter  move              density  spread  structural  cond  spawn  source  emits                 emit%
     // Empty is the one row whose colour is fully transparent rather than a
     // colour at all (V1): nothing is there, so whatever is drawn behind the
     // cell texture shows through. Every other row is opaque - alpha is a
     // property of *absence* here, not a per-material effect, and a translucent
     // material would need the pixel buffer to composite rather than overwrite.
-    {  "Empty",  0x00000000,      0,  MoveKind::Static,       0,      0,  false,        0,    20,      0 },
-    {  "Sand",   0xFFC6A970,      6,  MoveKind::Powder,     150,      0,  false,       30,     0,      0 },
+    {  "Empty",  0x00000000,      0,  MoveKind::Static,       0,      0,  false,        0,    20,      0,  ElementType::Count,      0 },
+    {  "Sand",   0xFFC6A970,      6,  MoveKind::Powder,     150,      0,  false,       30,     0,      0,  ElementType::Count,      0 },
     // Water is teal rather than blue, and that is a compositing decision rather
     // than a taste one: the backdrop behind it is a cool blue, and a blue liquid
     // seen through a gap in the terrain read as a hole in the world.
-    {  "Water",  0xFF2E7F96,      5,  MoveKind::Liquid,     100,      5,  false,      120,     0,      0 },
+    {  "Water",  0xFF2E7F96,      5,  MoveKind::Liquid,     100,      5,  false,      120,     0,      0,  ElementType::Count,      0 },
     // The two structural materials. Density is what lets an unsupported slab
     // sink through any fluid it lands in rather than perching on top of it.
     // Wall conducts poorly on purpose: a good conductor here would make every
     // wall a heat sink large enough to quench any fire touching it, since a
     // wall is usually the biggest connected body in a scene.
-    {  "Wall",   0xFF6F6A63,      5,  MoveKind::Static,   32000,      0,  true,        30,     0,      0 },
-    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        90,     0,      0 },
-    {  "Oil",    0xFF2C2620,      3,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0 },
+    {  "Wall",   0xFF6F6A63,      5,  MoveKind::Static,   32000,      0,  true,        30,     0,      0,  ElementType::Count,      0 },
+    // Wood is fuel, and what it turns into when lit is `Charred` rather than
+    // `Fire` - the burning is a state of this cell, and the flame is something
+    // thrown off it. How long it burns is the decay chance on Charred's row in
+    // REACTIONS, not a column here.
+    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        90,     0,      0,  ElementType::Count,      0 },
+    // **Oil flashes straight to Fire and does not smoulder, and that boundary is
+    // deliberate.** A burning cell holds its state in the cell, and Oil is a
+    // Liquid - a smouldering oil cell would carry that state through
+    // `swap_elements` and across every fluid rule, which is a much larger
+    // question than the one E9 is answering. Only Static materials get a burning
+    // state; movable fuels ignite and are gone. It also reads correctly: a spill
+    // goes up all at once in a sheet, where a beam smoulders.
+    {  "Oil",    0xFF2C2620,      3,  MoveKind::Liquid,      60,      3,  false,       70,     0,      0,  ElementType::Count,      0 },
     // **Spawns at 88, below the coldest ignition point in REACTIONS, and that
     // bound is enforced at the bottom of reaction.h rather than remembered.**
     //
@@ -133,11 +175,33 @@ inline constexpr Material MATERIALS[] = {
     // cell out of nothing, which is both what a latent heat of vaporisation
     // does and the reason a kettle on a fire no longer warms the room faster
     // than the fire does.
-    {  "Steam",  0xFFC4D2D8,      4,  MoveKind::Gas,        -20,      3,  false,       40,    88,      0 },
+    {  "Steam",  0xFFC4D2D8,      4,  MoveKind::Gas,        -20,      3,  false,       40,    88,      0,  ElementType::Count,      0 },
     // Denser (less negative) than Steam so flame stays under a steam layer
     // instead of punching through it - visually reads as fire boiling water.
     // The only heat source in the table.
-    {  "Fire",   0xFFF07A22,     16,  MoveKind::Gas,        -10,      4,  false,      200,   250,    250 },
+    {  "Fire",   0xFFF07A22,     16,  MoveKind::Gas,        -10,      4,  false,      200,   250,    250,  ElementType::Count,      0 },
+    // **The cell that is actually on fire.** Structural, because a burning
+    // ceiling that drops the instant it catches is worse than one that burns
+    // through first, and because it is still wood. That single `true` is what
+    // forces its lifetime to be a decay chance rather than a countdown: a
+    // structural cell already spends `Element::ticks` on the free-fall clock,
+    // `Element` has no spare byte, and the `static_assert` at the bottom of
+    // `element.h` is what turns that collision into a compile error rather than
+    // a fire that lasts a random length of time. The variance that falls out of
+    // a chance is a gain, not a consolation - a plank's cells stop winking out
+    // in lockstep.
+    //
+    // Heat source at 200 rather than a mere conductor, and that is what actually
+    // spreads fire now: it sits above Wood's 120 ignition point, so a charred
+    // cell brings its neighbours up to catching regardless of what is trying to
+    // cool it. Flame does not do this job any more - flame is thrown off and
+    // dies within a dozen steps, far too briefly to heat anything through.
+    //
+    // Colour is wood with the life taken out of it, and it has to read as *dark*
+    // against the flame it is emitting, or the fire and the thing burning become
+    // one shape again - which is the exact confusion this material exists to
+    // resolve.
+    {  "Charred",0xFF2A211B,      6,  MoveKind::Static,   32000,      0,  true,        90,     0,    200,  ElementType::Fire,      25 },
 };
 
 static_assert(sizeof(MATERIALS) / sizeof(MATERIALS[0]) == static_cast<size_t>(ElementType::Count),

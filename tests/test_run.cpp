@@ -42,7 +42,7 @@ bool worlds_match(const Grid& a, const Grid& b) {
             const Element ea = a.get_element(x, y);
             const Element eb = b.get_element(x, y);
             if (ea.type != eb.type || ea.color != eb.color ||
-                ea.updated_tag != eb.updated_tag || ea.fall_ticks != eb.fall_ticks)
+                ea.updated_tag != eb.updated_tag || ea.ticks != eb.ticks)
                 return false;
         }
     }

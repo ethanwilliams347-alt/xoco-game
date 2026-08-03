@@ -76,6 +76,20 @@ public:
     int center_x() const { return pos_x + WIDTH / 2; }
     int center_y() const { return pos_y + HEIGHT / 2; }
 
+    // The body's position including the sub-cell remainder. **For rendering
+    // only** - nothing in `src/physics/` may read these, and no test asserts on
+    // them, because a fractional position is exactly the float-edge
+    // representation the integer scheme below exists to keep out of collision.
+    //
+    // They exist because discarding the remainder at draw time was a visible
+    // defect (PLAYTEST_LOG.md session 1, A1) rather than a rounding detail:
+    // MOVE_SPEED is 45 cells/s against a 60 Hz step, which is 0.75 cells per
+    // step, so `cell_x()` advances on three steps out of four and stalls on the
+    // fourth. The simulation was right the whole time - the renderer was
+    // throwing away the part that made the motion smooth.
+    float visual_x() const { return static_cast<float>(pos_x) + rem_x; }
+    float visual_y() const { return static_cast<float>(pos_y) + rem_y; }
+
     bool is_on_ground() const { return on_ground; }
     float velocity_y() const { return vel_y; }
 
@@ -99,6 +113,13 @@ private:
     float vel_x = 0.0f;
     float vel_y = 0.0f;
     bool on_ground = false;
+
+    // How far the body would have to be lifted to move one cell towards `sign`,
+    // or -1 if that direction is a wall rather than a step. Zero means the way
+    // is already clear. Shared by move_x, which needs the height, and by
+    // update(), which only needs to know whether the sub-cell remainder is
+    // allowed to keep accumulating that way.
+    int climb_for(const Grid& grid, int sign) const;
 
     // Both move one cell at a time and stop at the first blocked cell, so the
     // body cannot tunnel through thin terrain no matter how fast it is going.

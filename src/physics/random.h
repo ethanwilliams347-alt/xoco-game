@@ -35,6 +35,11 @@ enum class Stream : uint64_t {
     FluidDirection  = 0xE7037ED1A0B428DBull,
     Reaction        = 0x8EBC6AF09C88C6E3ull,
     Fracture        = 0xC2B2AE3D27D4EB4Full,
+    // Whether a burning cell throws a flame this step, and which empty
+    // neighbour it goes to. Two decisions, one stream: they are asked about the
+    // same cell on the same step, so they are separated by index rather than by
+    // tag - see emit_flame().
+    Emission        = 0xF1BBCDCBB3D935A7ull,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -72,6 +77,23 @@ inline constexpr bool chance(int pct, uint64_t seed, uint64_t step, uint64_t ind
     if (pct <= 0) return false;
     if (pct >= 100) return true;
     return static_cast<int>(bits(seed, step, index, stream) % 100ull) < pct;
+}
+
+// True with probability per_mille/1000, for decisions too rare to express in
+// whole percents. A spontaneous decay row is the case that needs it: mean
+// lifetime is 1000/per_mille steps, so whole percents cannot describe anything
+// that lasts longer than a hundred steps, and wood burns for three times that.
+inline constexpr bool chance_per_mille(int per_mille, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
+    if (per_mille <= 0) return false;
+    if (per_mille >= 1000) return true;
+    return static_cast<int>(bits(seed, step, index, stream) % 1000ull) < per_mille;
+}
+
+// A value in [0, n). Used where a cell has to choose one of several neighbours
+// rather than answer yes or no.
+inline constexpr int pick(int n, uint64_t seed, uint64_t step, uint64_t index, Stream stream) {
+    if (n <= 1) return 0;
+    return static_cast<int>(bits(seed, step, index, stream) % static_cast<uint64_t>(n));
 }
 
 // A value in [-range, range]. Used for colour jitter, where the caller wants a
@@ -122,6 +144,7 @@ inline constexpr Stream SIM_STREAMS[] = {
     Stream::FluidDirection,
     Stream::Reaction,
     Stream::Fracture,
+    Stream::Emission,
 };
 
 // Two streams sharing a value are one stream, silently. Nothing about that looks

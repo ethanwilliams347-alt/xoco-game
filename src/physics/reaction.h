@@ -10,7 +10,19 @@
 struct Reaction {
     ElementType catalyst; // required 8-neighbor; ElementType::Count = spontaneous, no neighbor needed
     ElementType target;   // the cell type this row may transform
-    uint8_t chance_pct;   // 0-100, rolled once per eligible cell per step
+
+    // 0-1000, rolled once per eligible cell per step.
+    //
+    // **Per mille rather than per cent, and that is a burn duration in
+    // disguise.** A spontaneous decay row is a lifetime: mean steps is
+    // 1000/chance. Whole percents bottom out at 1%, a hundred-step mean, which
+    // is not long enough for wood - three seconds at 60 Hz needs 0.56%, and the
+    // old column could not express it. This is where E9 keeps burn durations
+    // now, rather than as a `burn_duration` column on MATERIALS, and it is the
+    // same argument as the temperature window below: how long a transformation
+    // takes belongs to the transformation.
+    uint16_t chance_per_mille;
+
     ElementType result;
 
     // Temperature window the target cell must be inside for this row to be
@@ -36,15 +48,29 @@ inline constexpr Reaction REACTIONS[] = {
     // Dousing keeps its place at the top and its chance, and is deliberately
     // *not* temperature-gated: water hitting a flame puts it out because it is
     // water, and gating it on heat would mean a cold splash did nothing.
-    { ElementType::Water, ElementType::Fire,  90, ElementType::Steam,   0, 255 },
-    { ElementType::Count, ElementType::Wood, 100, ElementType::Fire,  120, 255 },
-    { ElementType::Count, ElementType::Oil,  100, ElementType::Fire,   90, 255 },
-    { ElementType::Count, ElementType::Water,100, ElementType::Steam, 100, 255 },
+    { ElementType::Water, ElementType::Fire,   900, ElementType::Steam,   0, 255 },
+    // **Wood catches into Charred, not into Fire.** The cell that was fuel stays
+    // where it was, keeps holding up whatever it was holding up, and burns; the
+    // flame is thrown off it by the `emits` column and is a separate, much
+    // shorter-lived thing. Before E9's rebuild this row read `Fire`, which made
+    // the fuel and the flame the same cell - see PLAYTEST_LOG.md session 1.
+    { ElementType::Count, ElementType::Wood, 1000, ElementType::Charred, 120, 255 },
+    // Oil has no smouldering state; it is a Liquid, so it flashes. See its row
+    // in material.h for why that boundary is where it is.
+    { ElementType::Count, ElementType::Oil,  1000, ElementType::Fire,     90, 255 },
+    { ElementType::Count, ElementType::Water,1000, ElementType::Steam,   100, 255 },
     // Condensing point, lowered from 80 alongside Steam's spawn temperature -
     // see the note on that row in material.h. Steam's whole life is the span
     // between the two numbers, so shortening one end meant moving the other.
-    { ElementType::Count, ElementType::Steam,100, ElementType::Water,   0,  26 },
-    { ElementType::Count, ElementType::Fire,   6, ElementType::Empty,   0, 255 },
+    { ElementType::Count, ElementType::Steam,1000, ElementType::Water,     0,  26 },
+    // **Wood's burn duration, expressed as a lifetime.** 6 per mille is a mean
+    // of ~167 steps, near three seconds at 60 Hz, against the ~17 steps A3
+    // measured. Halve it and wood burns twice as long. Untemperatured on
+    // purpose: a cell that is already burning is not waiting on a threshold.
+    { ElementType::Count, ElementType::Charred, 6, ElementType::Empty,     0, 255 },
+    // Flame's own burnout is gone from this table. It is a countdown on
+    // `Element::ticks` now, in `step_fire`, because the colour ramp has to read
+    // the flame's age and a dice roll has no age to read.
 };
 
 // The coldest temperature at which anything in the table catches fire.

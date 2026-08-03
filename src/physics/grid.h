@@ -363,6 +363,36 @@ private:
     // which case step_cell skips movement for it this frame.
     bool try_react(int x, int y);
 
+    // How many steps a flame lives, and the only lifetime in the engine that is
+    // a countdown rather than a decay chance.
+    //
+    // The reason is the colour ramp: a flame is drawn from white-hot at its
+    // source through orange to dim red as it dies, which needs the cell to know
+    // how old it is, and a dice roll has no age to read. Fire is a Gas and never
+    // structural, so it is the one material that can spend `Element::ticks` on
+    // this without colliding with the free-fall clock - see element.h.
+    //
+    // 12 steps is a fifth of a second. That is short on purpose and it is a
+    // measurement, not a taste: reference footage of a burning scene replaces
+    // the entire contents of a flame between frames roughly 10-20 steps apart,
+    // while the fuel underneath takes seconds to be consumed.
+    static constexpr uint8_t FLAME_LIFETIME = 12;
+
+    // Throws a flame from a burning cell into a randomly chosen empty neighbour,
+    // as named by the `emits` column. Returns true if one was placed.
+    //
+    // **This is the mechanism that makes flame a separate thing from fuel**, and
+    // it is the only genuinely new rule E9 adds - everything else in the rebuild
+    // is a row or a column. A burning cell stays put, keeps its structural role
+    // and heats what it touches; what the player sees rising off it is
+    // manufactured here and dead within FLAME_LIFETIME steps.
+    bool emit_flame(int x, int y, const Material& mat);
+
+    // Ages a flame by one step, ramps its colour to match, and kills it at zero.
+    // Returns true if the cell is gone, in which case the caller must not go on
+    // to move it.
+    bool step_fire(int x, int y);
+
     // --- structures and falling ---
     //
     // Static materials hold their shape, which means they can also hold it
@@ -397,7 +427,7 @@ private:
     //
     // **A piece breaks when it lands, not while it falls**, and that timing is
     // what makes the whole feature safe. Every "nothing must move here" test in
-    // the suite is about a piece at rest, and a piece at rest has `fall_ticks`
+    // the suite is about a piece at rest, and a piece at rest has `ticks`
     // of zero and never reaches this code at all. Fracture cannot start a
     // collapse; it can only let a collapse that was already happening finish
     // unevenly. `Grid`'s comment on MAX_SUPPORT_CELLS says a missed collapse is
@@ -525,6 +555,12 @@ private:
     }
     bool chance(int pct, uint64_t index, sim_random::Stream s) const {
         return sim_random::chance(pct, world_seed, step_count, index, s);
+    }
+    bool chance_per_mille(int per_mille, uint64_t index, sim_random::Stream s) const {
+        return sim_random::chance_per_mille(per_mille, world_seed, step_count, index, s);
+    }
+    int pick(int n, uint64_t index, sim_random::Stream s) const {
+        return sim_random::pick(n, world_seed, step_count, index, s);
     }
 
     // The exception among these three: no step input, pinned at 0 instead.

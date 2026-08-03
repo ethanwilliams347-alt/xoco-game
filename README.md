@@ -73,7 +73,7 @@ that wrong once already.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
 
-3. **Digging (`DigTool`).** Left-click cuts a circular hole where the orange aim marker sits. Aim at something past `RANGE` and confirm the marker stops short rather than reading as broken. Dig the bottom out of a standing Sand pile and confirm everything above it falls in — a gap left hanging is the classic dirty-rect bug ([Chunked updates](#chunked-updates)). Fire at a wall from behind cover and confirm the shot stops at the near face rather than tunnelling through to whatever is behind it.
+3. **Digging (`DigTool`).** Left-click cuts a circular hole at the crosshair. Aim at something past `RANGE` and confirm **the crosshair dims from solid white to dim white** — that is the range check now, and it reads at the cursor rather than needing a second marker elsewhere on screen. **Dim does not mean "nothing happens", and the checklist should not expect it to:** the ray still travels its full `RANGE` along that line and cuts the first solid cell it meets, so a dim crosshair aimed past a *near* wall still digs that wall. What dim means is that the cell under the crosshair is not the cell that gets hit. Confirm both halves — a dim shot into open sky beyond range does nothing, and a dim shot lined up through nearby terrain still bites it. Dig the bottom out of a standing Sand pile and confirm everything above it falls in — a gap left hanging is the classic dirty-rect bug ([Chunked updates](#chunked-updates)). Fire at a wall from behind cover and confirm the shot stops at the near face rather than tunnelling through to whatever is behind it.
 
 4. **Materials and brush.** Cycle all eight keys (`1`–`8`) and confirm each paints the right colour and the HUD's material name agrees. Sand piles into a slope. Water spreads flat. Pour Water into one side of a container whose two halves are joined only at the bottom and confirm both sides come level and then *stop* — a surface that keeps trading cells back and forth is level on average and never sleeps ([Liquids find their level](#liquids-find-their-level)). **Then pour an untidy amount of Water onto flat ground and watch the HUD's chunk count go to zero.** Any puddle whose cell count did not happen to divide by its container's width used to shimmer forever, which is almost all of them; the leftover cells now come to rest as one patch, level to within a cell. The failure mode to watch for in the other direction is a puddle that settles into a visible *mound* instead of spreading — the sideways walk that jitters is also the one that flattens, and refusing too much of it trades a shimmer for a heap. Oil floats on Water rather than mixing into it. Steam rises and pools at the ceiling instead of the floor. Eraser (`4`) clears back to `Empty`.
 
@@ -94,8 +94,9 @@ that wrong once already.
 - **`Space`** (or **`W`** / **up arrow**): Jump.
 
 - **Left-Click:** Dig. Cuts a hole in whatever solid terrain the cursor is
-  aimed at, up to a limited range. The orange dot marks where the shot will
-  actually land.
+  aimed at, up to a limited range. The crosshair replaces the mouse pointer
+  inside the window and shows whether the target is reachable: **solid white
+  is in range, dim white is out of it.**
 
 **World (development tools)**
 - **Right-Click & Drag:** Spawn elements onto the screen.
@@ -104,10 +105,10 @@ that wrong once already.
 - **`2`**: **Water** — liquid, spreads to find its level.
 - **`3`**: **Wall** — solid, immovable terrain.
 - **`4`**: **Eraser** — deletes pixels.
-- **`5`**: **Wood** — solid, catches fire from a touching flame.
-- **`6`**: **Oil** — liquid, lighter than water so it floats on top; ignites fast.
+- **`5`**: **Wood** — solid; catches fire when heated, then smoulders for seconds.
+- **`6`**: **Oil** — liquid, lighter than water so it floats on top; ignites fast and flashes rather than smouldering.
 - **`7`**: **Steam** — gas, rises and pools against the ceiling.
-- **`8`**: **Fire** — gas, ignites Wood and Oil on contact, extinguished by Water, burns out on its own.
+- **`8`**: **Fire** — gas; rises, fades from white-hot to red, and dies within a fifth of a second. A flame is what burning *throws off* — the thing actually on fire is the charred wood underneath it, which is what heats its neighbours and spreads the burn.
 - **`ESC`**: Quit the game.
 
 The HUD in the top-left corner of the window shows the current framerate,
@@ -207,20 +208,50 @@ Movement is data-driven; transformation is the second axis. Each row in the
 shape `catalyst + target -> result`, gated on the target's temperature and
 rolled once per eligible cell per step:
 
-| Catalyst | Target | Temperature | Chance | Result |
-|----------|--------|-------------|--------|--------|
-| Water    | Fire   | any         | 90%    | Steam  |
-| *(none)* | Wood   | ≥ 120       | 100%   | Fire   |
-| *(none)* | Oil    | ≥ 90        | 100%   | Fire   |
-| *(none)* | Water  | ≥ 100       | 100%   | Steam  |
-| *(none)* | Steam  | ≤ 80        | 100%   | Water  |
-| *(none)* | Fire   | any         | 6%     | Empty  |
+| Catalyst | Target  | Temperature | Chance | Result  |
+|----------|---------|-------------|--------|---------|
+| Water    | Fire    | any         | 90%    | Steam   |
+| *(none)* | Wood    | ≥ 120       | 100%   | Charred |
+| *(none)* | Oil     | ≥ 90        | 100%   | Fire    |
+| *(none)* | Water   | ≥ 100       | 100%   | Steam   |
+| *(none)* | Steam   | ≤ 26        | 100%   | Water   |
+| *(none)* | Charred | any         | 0.6%   | Empty   |
 
 A catalyst of `Count` means "no neighbour required". Rows are checked in order;
 the first row whose target, catalyst and temperature conditions all match is
 the only one considered that cell that step, which is what makes dousing (row
-1) take priority over natural burnout (row 6) without any special-casing — as
-long as Water is adjacent, row 6 is never reached.
+1) take priority over anything below it without any special-casing.
+
+Chances are stored per *mille*, not per cent, and row 6 is why: it is a burn
+duration in disguise. A spontaneous decay row is a lifetime — mean steps is
+1000/chance — so 6 per mille is about 167 steps, near three seconds at 60 Hz.
+Whole percents bottom out at a hundred-step mean, which is not long enough for
+wood, and that is the whole reason the column is wider than it looks like it
+needs to be.
+
+**Fire is not in this table as something that burns out, and that is the
+important change.** Wood does not become Fire; it becomes **Charred** — still
+solid, still structural, still holding up whatever it was holding up, and hot
+enough (a declared 200° heat source) to bring its neighbours to their own
+ignition point. That is what spreads a fire. The flame you see is thrown off it
+by the `emits` column in `MATERIALS`, into a randomly chosen *empty* neighbour,
+and lives twelve steps on a countdown in `Element::ticks` before it disappears.
+
+Three things fall out of that shape rather than being written as rules:
+
+- **Fire hugs surfaces and never fills a volume**, because a buried cell has no
+  empty neighbour to emit into and so does not visibly burn at all.
+- **Fire spreads sideways as readily as upwards**, because what spreads it is
+  conduction from a cell that cannot move, not a rising gas that has to stay in
+  contact with its fuel.
+- **Flames ramp from white-hot to dim red**, because the countdown gives every
+  flame cell an age, and age is the only thing that differs between two cells
+  sharing one `MATERIALS` row.
+
+Oil is the exception and it is deliberate: it flashes straight to Fire with no
+smouldering state, because it is a Liquid, and a burning state on something that
+moves would have to survive `swap_elements` and every fluid rule. Only static
+materials smoulder.
 
 **Only one row still rolls dice, and that is the point of the table above.**
 Ignition used to be a 12%-per-step chance for Wood touching Fire, which is why
@@ -229,15 +260,16 @@ fire spread by luck rather than by heat and never looked like it was burning
 eye to follow. Wood now ignites because it got hot, and how long that takes is
 set by its conductivity. Dousing keeps its chance and is deliberately *not*
 temperature-gated: water puts a flame out because it is water, and a cold
-splash should not be less effective than a warm one. Fire's burnout keeps its
-6% because a lifetime is not a threshold and has nothing to gate on.
+splash should not be less effective than a warm one. Burnout keeps a chance rather than a threshold, because a lifetime is not a
+threshold and has nothing to gate on — and after E9 that row is Charred's, not
+Fire's, since the thing with a lifetime is the fuel.
 
 **A second wake rule, alongside chunking's.** A cell that stops moving stops
 generating `mark_dirty` calls and its chunk goes back to sleep — that's the
-whole point of chunking. But Fire's burnout doesn't need movement to happen;
-if Fire is boxed in with nowhere to go, it would take its one shot at the 6%
-roll on the frame it was created and then freeze forever, un-woken, never
-given another chance to decay or to ignite what it's touching. So a cell that
+whole point of chunking. But a spontaneous decay doesn't need movement to happen;
+a burning cell boxed in with nowhere to go would take its one shot at the roll
+on the frame it was created and then freeze forever, un-woken, never given
+another chance to decay or to ignite what it's touching. So a cell that
 is a *spontaneous* reaction target **and is currently inside that row's
 temperature window** marks its own 3x3 neighbourhood dirty every step,
 movement or not. Both halves of that are load-bearing: without the first, Fire
@@ -292,6 +324,14 @@ An ignited Wood cell becomes Fire, Fire is a gas, so it rises out of the beam
 on the next step, leaving the flame that should light the next cell along
 sitting diagonally above it and nowhere else. With four neighbours the fire
 front stalls after exactly one cell, and no conductivity fixes it.
+
+That argument was written when Wood ignited straight into Fire, and E9 has since
+replaced its subject: the cell that stays put and conducts is `Charred`, which is
+Static and never had anywhere to rise to. **The eight neighbours matter more now,
+not less.** The whole propagation story is "the burning cell holds its place and
+heats what it touches", so the set of cells it can reach is the only thing
+deciding where fire goes — and a four-neighbour version would refuse to carry a
+fire diagonally across a gap that is plainly touching on screen.
 
 **A cell sitting at exactly ambient does no thermal work at all.** This is the
 difference between heat costing 18% of the worst-case frame and costing 2%,
@@ -471,7 +511,7 @@ again.
 
 **Fracture can never start a collapse, only finish one unevenly.** It is
 reachable only from a landing that arrived with speed, and a piece at rest has
-`fall_ticks` of zero, so nothing that was standing still can be broken by it.
+`ticks` of zero, so nothing that was standing still can be broken by it.
 That matters more than it sounds: a missed collapse is invisible, while a wrong
 one turns a level into rubble, and this is the change in the engine most able
 to get that wrong. The guarantee is structural rather than a matter of care.

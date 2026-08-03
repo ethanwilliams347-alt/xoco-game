@@ -211,5 +211,52 @@ int main() {
               !p.overlaps_solid(g, p.cell_x(), p.cell_y()), feet_detail(p));
     }
 
+    // --- the sub-cell remainder must not carry the body into terrain ---
+    //
+    // Regression tests for PLAYTEST_LOG.md session 1, defect A1. These assert on
+    // visual_x()/visual_y(), which is the *only* thing in the suites that does
+    // and is meant to stay that way -- but the bug they cover is a simulation
+    // bug, not a rendering one. `rem_y` was pending motion that had been decided
+    // against and never cleared, so a standing player sank a full cell into the
+    // floor over ~18 steps and snapped back. Every whole-cell assertion above
+    // passed throughout, because the body's *cell* never moved. Nothing that
+    // rounded to whole cells could have caught this, which is exactly why the
+    // check is written against the fractional position.
+    {
+        Grid g = make_world(60, 40, 35);
+        Player p(10, 2);
+        step(g, p, NOTHING, 120); // land and settle
+
+        const float rest_y = p.visual_y();
+        float lowest = rest_y;
+        for (int i = 0; i < 120; ++i) {
+            step(g, p, NOTHING, 1);
+            if (p.visual_y() > lowest) lowest = p.visual_y();
+        }
+
+        check("a standing player does not sink into the floor",
+              lowest - rest_y < 0.001f,
+              "sank " + std::to_string(lowest - rest_y) + " cells below rest");
+        check("a standing player does not drift off the floor",
+              p.visual_y() == rest_y, feet_detail(p));
+    }
+
+    {
+        Grid g = make_world(60, 40, 35);
+        for (int y = 25; y < 35; ++y) g.set_element(40, y, ElementType::Wall);
+
+        Player p(30, 30);
+        step(g, p, held_right(), 120); // walk into the wall and keep pushing
+
+        // The body's right edge must never cross the wall's near face, not even
+        // fractionally. Held against it, `rem_x` used to reach 0.75 of a cell
+        // before a whole-cell step was attempted, which drew the player inside
+        // the wall it was flush against.
+        const float right_edge = p.visual_x() + Player::WIDTH;
+        check("a player held against a wall does not phase into it",
+              right_edge <= 40.0f,
+              "right edge at " + std::to_string(right_edge) + ", wall face at 40");
+    }
+
     return report();
 }
