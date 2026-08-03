@@ -28,9 +28,19 @@ set(ENGINE_SOURCES
     src/scene/scene.cpp
 )
 
+# Rendering that is not SDL-side. V7's light field reads the grid and produces a
+# plain ARGB buffer, so it is testable headlessly like the simulation is - but it
+# is emphatically not part of ENGINE_SOURCES, because that variable's meaning is
+# "what the simulation is", and the one rule V7 must not break is that light
+# never becomes a simulation input. Kept separate so the day something under
+# src/physics/ needs this list, the mistake is visible in the build file.
+set(RENDER_SOURCES
+    src/render/light.cpp
+)
+
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
 # not ENGINE_SOURCES, which stays what the headless test suites link against.
-add_executable(SlopPhysics src/main.cpp src/ui/text.cpp ${ENGINE_SOURCES})
+add_executable(SlopPhysics src/main.cpp src/ui/text.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
@@ -78,8 +88,12 @@ if(BUILD_TESTING)
     target_include_directories(scene_test PRIVATE src tests)
     add_test(NAME scene_test COMMAND scene_test)
 
+    add_executable(light_test tests/test_light.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+    target_include_directories(light_test PRIVATE src tests)
+    add_test(NAME light_test COMMAND light_test)
+
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
-    add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES})
+    add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(grid_bench PRIVATE src tests)
 endif()

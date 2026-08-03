@@ -363,8 +363,10 @@ Four ROADMAP edits, and no defect list added there:
 
 ## Order of work
 
-**Status: wave 2b in progress.** Update this section when a wave closes, not when a
-session ends — it is the only place the sequence exists.
+**Status: wave 2b built, awaiting the playtest that closes it.** Both items are
+done — the fire rebuild, and V7 pulled forward — and neither has been seen by a
+player. Update this section when a wave closes, not when a session ends: it is
+the only place the sequence exists.
 
 Session 1's findings were sequenced into waves at triage, on two rules: a defect that
 corrupts a *measurement* is fixed before the things it would mismeasure, and findings
@@ -374,7 +376,7 @@ that share one root cause are one wave rather than several fixes.
 |------|-------|-------|
 | 1 | A2, A1 (+A1b), B1, A7, A8 | **done** |
 | 2 | A3, A4 — fuel and burn duration | **superseded by 2b** |
-| **2b** | **A3, A4 rebuilt on the reference model, then V7 pulled forward** | **in progress** |
+| **2b** | **A3, A4 rebuilt on the reference model, then V7 pulled forward** | **built — needs a playtest** |
 | 3 | A6 — the brush destroying water instead of displacing it | next |
 | 4 | A5, B3 — steam's own condensation clock (rest of E9) | queued |
 | 5 | B2 — the material hotbar (rest of V10) | queued |
@@ -392,6 +394,19 @@ Wave 2b is deliberately two items and not more:
 1. **The fire simulation rebuilt** on fuel-holds-the-timer — ROADMAP E9.
 2. **V7 (per-cell emissive lighting) pulled forward**, which is a reorder of an existing
    item, not a new one. The argument for breaking its gate is written into V7 itself.
+
+Both items are now built and the wave is still open, because its exit condition is
+a playtest and not a checkbox. **What to look at, in the order the two changes
+stack:** whether wood burning into a dark Charred cell that throws short-lived
+flame reads as fire at all, and then — only once that is answered — whether the
+glow is carrying it or hiding it. The second question cannot be asked first: an
+emissive layer flatters a bad flame, which is exactly why the two are being judged
+in that order rather than together. **The specific thing to disbelieve is my own
+tuning.** Reach, falloff and the colour ramp were picked against the reference
+footage as read from a description of it, not against the footage on screen next
+to the game, and no test in `light_test` asserts anything about how it *looks* —
+they assert that light reaches, stops, and is shaped correctly, which is a
+different claim entirely.
 
 **Wave 2b closes when fire is confirmed good in a playtest, and then wave 3 starts.**
 Naming the exit condition here because this wave is the one most likely to grow: fire

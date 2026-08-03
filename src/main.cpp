@@ -6,6 +6,7 @@
 #include <vector>
 #include "game/camera.h"
 #include "game/run.h"
+#include "render/light.h"
 #include "scene/legend.h"
 #include "scene/scene.h"
 #include "ui/text.h"
@@ -203,6 +204,42 @@ int main(int argc, char* argv[]) {
     // and then ignored, which looks exactly like the opaque black the table
     // used to hold, so the two changes are only meaningful together.
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
+    // V7's light texture: one texel per LightField::BLOCK cells, stretched over
+    // the world and composited additively. Three properties of it are load-
+    // bearing and none is obvious from the create call.
+    //
+    // **ADD, not BLEND.** Light is something the scene gains, not something laid
+    // over it: an alpha blend towards orange would wash the terrain's colour out
+    // towards the flame's, where addition brightens whatever is already there and
+    // leaves a lit grey wall reading as a grey wall. It also means black is
+    // free - an unlit block adds nothing - which is what lets the same texture
+    // cover the whole viewport rather than needing a mask.
+    //
+    // **Linear filtering is the entire reason a downsampled grid is acceptable.**
+    // At nearest-neighbour this is 4x4-cell squares of flat colour, which is
+    // worse than no lighting at all. Set per-texture rather than through
+    // SDL_HINT_RENDER_SCALE_QUALITY, which is read at *creation* time and is
+    // global - routing this texture's filtering through a global would make the
+    // cell texture's sharpness depend on the order the two are created in, and
+    // the day that bit rots every cell in the world goes soft at once.
+    LightField light(PADDED_WIDTH, PADDED_HEIGHT);
+    SDL_Texture* light_texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        light.cols(), light.rows()
+    );
+    if (!light_texture) {
+        std::fprintf(stderr, "Light texture could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyTexture(texture);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+    SDL_SetTextureBlendMode(light_texture, SDL_BLENDMODE_ADD);
+    SDL_SetTextureScaleMode(light_texture, SDL_ScaleModeLinear);
 
     // The reticle *is* the cursor now, so the OS one would be a second pointer
     // sitting on top of it. SDL scopes this to its own window rather than
@@ -413,6 +450,22 @@ int main(int argc, char* argv[]) {
         const uint32_t* visible_pixels = pixels.data() + camera.view_y() * GRID_WIDTH + camera.view_x();
         SDL_UpdateTexture(texture, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
 
+        // V7. Computed against the same view origin the cell upload just used,
+        // and after `camera.follow` for the same reason that upload is: a light
+        // field built from last frame's view would slide against the world it is
+        // lighting, which is defect A1 reintroduced through a new feature.
+        //
+        // Recomputed from scratch every frame rather than carried between them.
+        // It is affordable (the scan is the padded viewport, the propagation is
+        // ~2,000 blocks) and the alternative is a cache keyed on both the camera
+        // and every temperature in view - which is a correctness problem in
+        // exchange for saving something already too cheap to measure.
+        light.update(run.grid, camera.view_x(), camera.view_y());
+        if (light.any_light()) {
+            SDL_UpdateTexture(light_texture, nullptr, light.pixels().data(),
+                              light.cols() * sizeof(uint32_t));
+        }
+
         // The backdrop layer (V1). Drawn before the cell texture, which now
         // composites over it wherever a cell is Empty. It is a placeholder
         // gradient rather than authored art on purpose: what this step delivers
@@ -464,6 +517,32 @@ int main(int argc, char* argv[]) {
             static_cast<float>(camera.scale_length(Player::HEIGHT))
         };
         SDL_RenderFillRectF(renderer, &body);
+
+        // V7's one extra RenderCopy - the whole cost of the feature on the GPU
+        // side, which is what the architecture note budgeted.
+        //
+        // **Drawn after the world and after the player, and before the reticle
+        // and HUD.** Everything in the world is a surface that light lands on,
+        // including the player, who otherwise stays a flat white rectangle while
+        // standing inside a fire. Everything after it is UI, which is not in the
+        // world and must not be tinted by it - a reticle that goes orange near a
+        // flame is the exact defect B1 was about.
+        //
+        // The destination is the *block* extent, not the padded cell extent, and
+        // that is what aligns the stretch. `cols()*BLOCK` is the padded width
+        // rounded up to a whole block, so each texel's centre lands on the centre
+        // of the four-by-four cells it was computed from. Sized to the padded
+        // extent instead, every texel would sit up to half a block off and the
+        // glow would trail behind the flame that cast it.
+        if (light.any_light()) {
+            const SDL_FRect light_dst{
+                -camera.frac_x() * Camera::SCALE,
+                -camera.frac_y() * Camera::SCALE,
+                static_cast<float>(light.cols() * LightField::BLOCK * Camera::SCALE),
+                static_cast<float>(light.rows() * LightField::BLOCK * Camera::SCALE)
+            };
+            SDL_RenderCopyF(renderer, light_texture, nullptr, &light_dst);
+        }
 
         // The reticle (V10/B1). Three things it has to do, and the old one-cell
         // filled square did none of them well enough to survive a playtest.
@@ -557,6 +636,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    SDL_DestroyTexture(light_texture);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
