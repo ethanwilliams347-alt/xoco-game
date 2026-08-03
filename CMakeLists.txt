@@ -109,4 +109,16 @@ if(BUILD_TESTING)
     # something with a before and an after. Pipe it through tools/rawpng.py.
     add_executable(preview_light tests/preview_light.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(preview_light PRIVATE src tests)
+
+    # Burn timing and burn shape, in numbers. Not an add_test() for the same
+    # reason preview_light is not: what it reports is a matter of taste, and a
+    # test pinning today's taste would be a copy of the constants rather than a
+    # check on them. See the header comment for why it exists.
+    add_executable(burn_probe tests/burn_probe.cpp ${ENGINE_SOURCES})
+    target_include_directories(burn_probe PRIVATE src tests)
+
+    # Where water ends up when a powder is poured into it, in numbers and in an
+    # ASCII slice. Not an add_test() because the thing it reports is a shape.
+    add_executable(water_probe tests/water_probe.cpp ${ENGINE_SOURCES})
+    target_include_directories(water_probe PRIVATE src tests)
 endif()

@@ -49,6 +49,14 @@ enum class Stream : uint64_t {
     // Whether a flame rises this step. Per cell per step, so it must not share
     // with anything else asked about the same cell on the same step.
     FlameRise       = 0xCA9E6D9C1B5D4C77ull,
+    // How much hotter or cooler than its material's stated figure *this spot*
+    // has to get before it catches. Drawn with authored_spread - pinned at step
+    // 0 - because it is a property of the wood at that coordinate, like its
+    // colour jitter, and not a decision the cell retakes every step. A cell that
+    // re-rolled its own ignition point each frame would simply catch on the
+    // first frame the lowest roll came up, which is the timing jitter this
+    // replaced and measurably does nothing.
+    IgnitionPoint   = 0xD6E8FEB86659FD93ull,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -168,6 +176,16 @@ inline constexpr Stream SIM_STREAMS[] = {
     Stream::Reaction,
     Stream::Fracture,
     Stream::Emission,
+    // **These three were missing, and FlameLifetime and FlameRise had been
+    // missing since they were added.** The list is what the distinctness check
+    // below can see, so a tag left out of it is a tag nothing checks - exactly
+    // the silent collision the check exists to catch, and the check itself
+    // passing the whole time. Adding a tag to the enum without adding it here
+    // is easy to do and invisible afterwards, which is why the enum's own
+    // comment asks for both.
+    Stream::FlameLifetime,
+    Stream::FlameRise,
+    Stream::IgnitionPoint,
 };
 
 // Two streams sharing a value are one stream, silently. Nothing about that looks

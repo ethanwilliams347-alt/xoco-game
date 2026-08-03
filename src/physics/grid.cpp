@@ -171,6 +171,53 @@ void Grid::paint(int x, int y, ElementType type, uint32_t color) {
     place(x, y, type, color);
 }
 
+void Grid::displace(int x, int y, ElementType type) {
+    if (!is_within_bounds(x, y)) return;
+    const ElementType old_type = cells[get_index(x, y)].type;
+
+    // Four cases pass straight through to a plain write, and each is a case
+    // where there is nothing to conserve:
+    //
+    //  - the eraser (`type` is Empty). Deleting is the whole point of it.
+    //  - an empty cell. Nothing to move.
+    //  - painting a material onto itself, which is most of a drag stroke. Worth
+    //    catching for its own sake as well as for cost: without it, every step
+    //    of a stroke would lift the cell it just painted and stack a column of
+    //    its own material above the cursor.
+    //  - a static occupant - Wall, Wood, Charred. These do not move under their
+    //    own physics and it would read as a bug if they moved under the brush;
+    //    drawing over a wall has always replaced it and still does.
+    if (type != ElementType::Empty && old_type != ElementType::Empty &&
+        old_type != type && material_of(old_type).move != MoveKind::Static) {
+        // Routing the brush's own displaced fluid through `vent_fluid` first,
+        // the way the powder step does, was tried here and removed: the probe
+        // could not tell the two apart to a single cell over 500 steps. It
+        // sounds more correct and it measures as nothing, so it is not kept.
+        make_room_above(x, y);
+    }
+
+    set_element(x, y, type);
+}
+
+bool Grid::make_room_above(int x, int y) {
+    for (int step = 1; step <= MAX_DISPLACE_RISE; ++step) {
+        const int ny = y - step;
+        if (!is_within_bounds(x, ny)) return false;
+
+        const ElementType t = cells[get_index(x, ny)].type;
+        if (t == ElementType::Empty) {
+            // A swap and not a copy, for the same reason every move in this file
+            // is a swap: it is the only write that cannot change how much of
+            // anything exists. The Empty comes down to (x, y) and the caller
+            // immediately writes over it.
+            swap_elements(x, y, x, ny);
+            return true;
+        }
+        if (material_of(t).move == MoveKind::Static) return false;
+    }
+    return false;
+}
+
 // Shared by set_element and paint, which differ only in where the colour comes
 // from - a jittered draw from the material table versus one the caller names
 // outright. Everything downstream of "here is the colour" - the write rule,
@@ -726,6 +773,32 @@ bool Grid::step_powder(int x, int y, const Material& mat) {
     const int idx = get_index(x, y);
 
     if (can_displace(mat, x, y + 1, 1)) {
+        // **A6b, the water elevator.** A swap puts the displaced fluid in the
+        // grain's old cell, one row up. That is harmless for a single grain and
+        // wrong for a stream: there is always another grain above, so the
+        // exchange repeats every step and the fluid is handed up the column
+        // without bound, arriving in open air tens of cells over the pool and
+        // trickling back down the outside of the pile. Nothing in the swap rule
+        // refers to where the fluid's surface is, so nothing stops it.
+        //
+        // So the fluid is sent to that surface instead, when one is close
+        // enough to find. `vent_fluid` leaves Empty behind on success and the
+        // swap below then drops the grain into a vacancy rather than trading
+        // with the fluid at all; on failure this is exactly the old line.
+        // Deliberately only attempted when there is something to displace -
+        // falling through air is the overwhelmingly common case and pays
+        // nothing for this.
+        //
+        // **Restricting it further to grains with another grain on top - the
+        // conveyor condition itself - was tried and is not here.** It looked
+        // exact, since a lone grain's one-cell lift is harmless, and it failed
+        // twice over: `churning` got *slower* (6.7 -> 7.3 ms/step, because a
+        // churning mix is stacked grains almost everywhere and the test bought
+        // no skips), and 15 of 135 chunks stopped going to sleep, so the world
+        // no longer settled. The probe's residue also came back 200 steps
+        // earlier. A filter that costs time, breaks rest and loses accuracy is
+        // not a filter.
+        if (cells[get_index(x, y + 1)].type != ElementType::Empty) vent_fluid(x, y + 1);
         swap_elements(x, y, x, y + 1);
         return true;
     }
@@ -944,6 +1017,86 @@ bool Grid::seek_level(int x, int y) {
     return true;
 }
 
+bool Grid::vent_fluid(int fx, int fy) {
+    const int idx = get_index(fx, fy);
+    const ElementType fluid = cells[idx].type;
+
+    // **The destination must be this fluid's own free surface** - an Empty cell
+    // with more of the same fluid directly beneath it - and not merely any
+    // Empty within reach. Any-Empty was the first version and it reproduced the
+    // defect it was written to fix: the nearest empty cell to a grain entering
+    // the water is very often the air just above the sand pile, so the water
+    // was deposited back on top of the pile and the screenshots looked the same.
+    // Surfacing on the pool is the whole of what this is for.
+    const int dir = coin(static_cast<uint64_t>(idx), sim_random::Stream::FluidDirection) ? -1 : 1;
+
+    // **Two kinds of destination, and the second one was not in the first
+    // version of this function - the probe is what found it.** Sending the fluid
+    // to its own surface fixed the pour and then the defect came back around
+    // step 175, once the sand pile had grown into a cone standing proud of the
+    // water. What was left was the thin films of water clinging to the cone's
+    // flanks: they have *sand* underneath, not water, so there is no surface of
+    // their own kind to go to, and grains rolling down the slope went back to
+    // handing them upwards one cell at a time. The pile itself had become the
+    // conveyor.
+    //
+    // So a flank film may also drain to somewhere it can rest, and that route
+    // is restricted to `ny >= fy` - level or downhill, never up. Water running
+    // down the outside of a pile is what should happen; the whole defect is
+    // water going the other way.
+    int drain_x = -1, drain_y = -1, drain_score = 0;
+
+    int best_x = -1, best_y = -1, best_score = 0;
+    for (int oy = -VENT_RADIUS; oy <= VENT_RADIUS; ++oy) {
+        for (int ox = -VENT_RADIUS; ox <= VENT_RADIUS; ++ox) {
+            // `dir` mirrors the scan rather than steering it, so the choice
+            // between two equally good cells either side of a grain is not
+            // always the left one. Same trick and same stream as the fluid
+            // direction pick, for the same reason: a fixed order here would
+            // comb every pour in one direction.
+            const int nx = fx + ox * dir;
+            const int ny = fy + oy;
+            if (!is_within_bounds(nx, ny)) continue;
+            if (cells[get_index(nx, ny)].type != ElementType::Empty) continue;
+
+            const ElementType under = get_element(nx, ny + 1).type;
+            const int score = std::abs(ox) + std::abs(oy);
+
+            if (under == fluid) {
+                if (best_x < 0 || score < best_score) {
+                    best_x = nx;
+                    best_y = ny;
+                    best_score = score;
+                }
+            } else if (ny >= fy && is_solid(under)) {
+                // Ranked by depth before distance, so a film takes the furthest
+                // step down the slope it can see rather than shuffling one cell
+                // at a time against a pile that is being fed from above.
+                const int depth = (ny - fy) * 16 - score;
+                if (drain_x < 0 || depth > drain_score) {
+                    drain_x = nx;
+                    drain_y = ny;
+                    drain_score = depth;
+                }
+            }
+        }
+    }
+
+    if (best_x < 0 && drain_x >= 0) {
+        best_x = drain_x;
+        best_y = drain_y;
+    }
+
+    // No surface within reach, so the caller falls back to the plain swap. This
+    // is the right answer and not a giving-up: a grain sinking deep inside a
+    // large body of water has no conveyor above it feeding the exchange, which
+    // is the only thing that made the one-cell lift add up to anything.
+    if (best_x < 0) return false;
+
+    swap_elements(fx, fy, best_x, best_y);
+    return true;
+}
+
 bool Grid::has_neighbor(int x, int y, ElementType t) const {
     for (int ny = y - 1; ny <= y + 1; ++ny) {
         for (int nx = x - 1; nx <= x + 1; ++nx) {
@@ -1068,7 +1221,23 @@ bool Grid::step_thermal(int x, int y, const Material& mat) {
 }
 
 bool Grid::try_react(int x, int y) {
-    Element& cell = cells[get_index(x, y)];
+    const int idx = get_index(x, y);
+    Element& cell = cells[idx];
+
+    // This spot's own ignition point. Both loops below go through it, and that
+    // is load-bearing rather than tidy: the first decides whether a cell is
+    // allowed to stay awake, the second decides whether it transforms, and a
+    // cell whose jittered threshold sits below the row's stated one would
+    // otherwise become eligible while nothing was keeping it awake to notice.
+    const auto floor_of = [&](const Reaction& r) {
+        if (r.temp_jitter == 0) return static_cast<int>(r.min_temp);
+        // Downwards only. `min_temp` is the hardest any cell is, not the average.
+        const int t = static_cast<int>(r.min_temp) -
+                      authored_pick(static_cast<int>(r.temp_jitter) + 1,
+                                    static_cast<uint64_t>(idx),
+                                    sim_random::Stream::IgnitionPoint);
+        return t < 0 ? 0 : t;
+    };
 
     // Spontaneous-reaction targets must keep re-checking every frame even if
     // they never move. Fire's own movement only calls mark_dirty when
@@ -1090,7 +1259,7 @@ bool Grid::try_react(int x, int y) {
     // step_thermal is already marking it for.
     for (const Reaction& r : REACTIONS) {
         if (r.catalyst == ElementType::Count && r.target == cell.type &&
-            cell.temperature >= r.min_temp && cell.temperature <= r.max_temp) {
+            cell.temperature >= floor_of(r) && cell.temperature <= r.max_temp) {
             mark_dirty(x, y);
             break;
         }
@@ -1098,7 +1267,7 @@ bool Grid::try_react(int x, int y) {
 
     for (const Reaction& r : REACTIONS) {
         if (r.target != cell.type) continue;
-        if (cell.temperature < r.min_temp || cell.temperature > r.max_temp) continue;
+        if (cell.temperature < floor_of(r) || cell.temperature > r.max_temp) continue;
         if (r.catalyst != ElementType::Count && !has_neighbor(x, y, r.catalyst)) continue;
         // One roll per cell per step: the loop commits to the first eligible row
         // and returns either way, so this never draws twice from the same

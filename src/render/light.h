@@ -103,8 +103,16 @@ private:
     // fire. Adding the diagonals fixes the shape, but only if they cost more to
     // cross - at equal cost the artefact simply rotates 45 degrees and becomes a
     // square.
+    // **And a third, for the eight knight's-move neighbours.** Orthogonal and
+    // diagonal steps alone still only measure distance to about 8%, and the
+    // error is worst at 22.5 degrees - halfway between the two directions the
+    // steps point in. That is what session 3 saw: not a diamond and not a
+    // square, but an octagon, bulging at eight points and pinched between them.
+    // Adding (1,2) steps at their own cost interleaves eight more directions
+    // exactly where the error was, and takes it to under 2%.
     std::vector<float> transmit;
     std::vector<float> transmit_diag;
+    std::vector<float> transmit_knight;
 
     std::vector<uint32_t> texels;
     bool lit = false;

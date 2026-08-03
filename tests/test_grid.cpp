@@ -531,10 +531,22 @@ int main() {
         const int mean = died ? static_cast<int>(total / died) : 0;
         check("A3: every charred cell eventually burns out", died == N,
               "died=" + std::to_string(died) + "/" + std::to_string(N));
-        // Charred's row is 46 per myriad, a mean of ~217 steps. The bar is wide
-        // because this is a sampled mean, and it is a bar rather than an equality
-        // because the point is that the row is connected, not what the number is.
-        check("A3: wood smoulders for seconds, not a fraction of one", mean > 90 && mean < 320,
+        // Charred's row is 34 per myriad, a mean of ~294 steps closed-form and
+        // 345 measured here - higher than the closed form because a sealed cell
+        // reaches equilibrium with its wall, sleeps, and misses rolls it would
+        // have lost. The bar is wide because this is a sampled mean, and it is a
+        // bar rather than an equality because the point is that the row is
+        // connected, not what the number is.
+        //
+        // **The top of it was 320 and session 3 walked straight through it**,
+        // retuning 46 to 34. That is the bar doing the wrong job: an upper bound
+        // one retune above the current value is an equality check wearing a
+        // range's clothes, and it fails for the ordinary reason that somebody
+        // tuned the thing it is watching. Nine hundred is fifteen seconds, which
+        // is long enough to be a genuine statement - wood that smoulders for a
+        // quarter of a minute is a defect - and far enough away that a taste
+        // change does not have to come here first.
+        check("A3: wood smoulders for seconds, not a fraction of one", mean > 90 && mean < 900,
               "mean lifetime=" + std::to_string(mean) + " steps");
 
         // Emission is what would break the isolation above, so assert the

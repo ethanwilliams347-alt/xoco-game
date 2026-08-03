@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include "physics/grid.h"
 #include "render/light.h"
@@ -179,13 +180,53 @@ int main() {
         LightField light(128, 128);
         light.update(grid, 0, 0);
 
+        // Three blocks, not five. B9c halved COVERAGE_FLOOR, so a *single* flame
+        // cell - which is what this scene has - no longer carries five blocks,
+        // and the control probe went dark along with the shadowed one. What this
+        // test asserts is the difference between two probes at equal distance,
+        // so the distance is free to follow the reach; what it must never do is
+        // compare a lit probe against one that is dark for the ordinary reason
+        // that nothing was ever going to reach it.
         const int bx = 64 / B, by = 64 / B;
-        const int through_rock = brightness(at(light, bx + 5, by));
-        const int through_air  = brightness(at(light, bx - 5, by));
+        const int through_rock = brightness(at(light, bx + 3, by));
+        const int through_air  = brightness(at(light, bx - 3, by));
 
         check("light is stopped by solid terrain", through_rock < through_air,
               "rock=" + std::to_string(through_rock) + " air=" + std::to_string(through_air));
         check("the open side is genuinely lit", through_air > 0);
+    }
+
+    // --- a one-cell wall is a wall ---
+    //
+    // The test above uses a slab twelve cells thick, which every version of this
+    // code has stopped easily, and it is not the wall a player draws. **B9d was
+    // reported as light penetrating walls, and the wall that leaked was the thin
+    // one**: occlusion is averaged over a 4x4 block, so a single-cell wall reads
+    // as opacity 0.25, and the old linear blend between the clear and solid
+    // transmission figures handed that block most of its light through. Nothing
+    // here asserted otherwise, because nothing here had ever drawn a thin wall.
+    //
+    // Paired as everything in this file is: the same probe distance across open
+    // air is the control, so this measures the wall and not the falloff.
+    {
+        Grid grid = empty_world(W, H);
+        grid.set_element(64, 64, ElementType::Fire);
+        for (int y = 40; y < 90; ++y) grid.set_element(72, y, ElementType::Wall);
+
+        LightField light(128, 128);
+        light.update(grid, 0, 0);
+
+        const int bx = 64 / B, by = 64 / B;
+        const int behind = brightness(at(light, bx + 3, by)); // past the wall
+        const int open   = brightness(at(light, bx - 3, by)); // same distance, no wall
+
+        check("the control across open air is lit", open > 0,
+              "open=" + std::to_string(open));
+        // Not "is zero": one cell of rock is not twelve, and something getting
+        // through is correct. What was wrong was how much. A third is the line
+        // between a wall that shadows and a wall you can see through.
+        check("a wall one cell thick casts a real shadow", behind * 3 < open,
+              "behind=" + std::to_string(behind) + " open=" + std::to_string(open));
     }
 
     // --- what glows is heat, not the material ---
@@ -294,6 +335,157 @@ int main() {
         check("the diagonal is not starved the way a 4-neighbour walk starves it",
               diagonal * 2 > along_axis,
               "axis=" + std::to_string(along_axis) + " diag=" + std::to_string(diagonal));
+    }
+
+    // --- the falloff is round in *every* direction, not just two ---
+    //
+    // **The test above is the reason this one exists.** It compares one axis
+    // against one diagonal and bounds their ratio, and it passed throughout the
+    // build that session 3 described as emitting "hard rays and shafts that look
+    // too geometric". It could not have caught it: light here travels by
+    // orthogonal and diagonal steps only, which measures distance as a chamfer
+    // metric, and a chamfer metric's worst error is at *22.5 degrees* - exactly
+    // halfway between the two directions the test samples. A two-sample test of
+    // an eight-lobed artefact is a test that looks where the artefact is not.
+    //
+    // So this sweeps the whole circle and measures the thing the eye actually
+    // judges: how far the glow gets before it dies, as a function of angle. A
+    // round glow reaches the same distance whichever way you look; an octagonal
+    // one reaches further at the eight points than between them, and the ratio
+    // of the two is the number the shafts are made of.
+    //
+    // Measuring reach rather than brightness-at-a-radius is deliberate. It needs
+    // to know nothing about TRANSMIT_CLEAR, MAX_EMISSION or the tone curve, so
+    // retuning any of those - and all three are expected to move - moves this
+    // test's inputs without moving what it asserts.
+    {
+        Grid grid = empty_world(W, H);
+        for (int y = 63; y <= 65; ++y)
+            for (int x = 63; x <= 65; ++x) grid.set_element(x, y, ElementType::Fire);
+
+        LightField light(128, 128);
+        light.update(grid, 0, 0);
+
+        const double cx = 64.0 / B, cy = 64.0 / B;
+
+        // **Bilinear, and the first version of this test was wrong without it.**
+        // Sampling the nearest block quantises each reach by up to half a block,
+        // which at these distances is about 10% - larger than the 8% artefact
+        // being measured, and *angle-dependent*, because an axis ray lands on
+        // block centres and a 30-degree one does not. It reported a ratio of
+        // 1.32 both before and after a change to the metric, which is the tell:
+        // a number that does not move when its subject does is measuring the
+        // ruler. Interpolating is also what the GPU does to this texture, so it
+        // is the shape the player sees rather than the one in the array.
+        const auto sample = [&](double fx, double fy) -> double {
+            const double gx = std::clamp(fx, 0.0, light.cols() - 1.0001);
+            const double gy = std::clamp(fy, 0.0, light.rows() - 1.0001);
+            const int x0 = static_cast<int>(gx), y0 = static_cast<int>(gy);
+            const double tx = gx - x0, ty = gy - y0;
+            const double a = brightness(at(light, x0, y0));
+            const double b = brightness(at(light, x0 + 1, y0));
+            const double c = brightness(at(light, x0, y0 + 1));
+            const double d = brightness(at(light, x0 + 1, y0 + 1));
+            return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+        };
+
+        // A contour well inside the glow rather than at its dying edge. The
+        // outermost ring is where propagation hit MIN_VISIBLE and cut to zero,
+        // so it is a step and not a gradient - there is no sub-block crossing
+        // there to find, and interpolating across it would put the quantisation
+        // straight back in.
+        constexpr double CONTOUR = 24.0;
+        constexpr double STEP = 0.05;
+        double nearest = 1e9, furthest = 0.0;
+        int nearest_deg = 0, furthest_deg = 0;
+        for (int deg = 0; deg < 360; deg += 3) {
+            const double rad = deg * 3.14159265358979 / 180.0;
+            const double ux = std::cos(rad), uy = std::sin(rad);
+            double reach = 0.0, prev = sample(cx, cy), prev_t = 0.0;
+            for (double t = STEP; t < 24.0; t += STEP) {
+                const double v = sample(cx + ux * t, cy + uy * t);
+                if (prev >= CONTOUR && v < CONTOUR) {
+                    // Linear crossing between the two samples.
+                    reach = prev_t + STEP * (prev - CONTOUR) / (prev - v);
+                }
+                prev = v;
+                prev_t = t;
+            }
+            if (reach < nearest)  { nearest = reach;  nearest_deg = deg; }
+            if (reach > furthest) { furthest = reach; furthest_deg = deg; }
+        }
+
+        const double ratio = nearest > 0.0 ? furthest / nearest : 1e9;
+        const std::string detail =
+            "furthest " + std::to_string(furthest) + " blocks at " +
+            std::to_string(furthest_deg) + " deg, nearest " +
+            std::to_string(nearest) + " at " + std::to_string(nearest_deg) +
+            " deg, ratio " + std::to_string(ratio);
+
+        // The glow must exist before its shape is worth asserting - a field that
+        // reached nowhere would have a perfect ratio of 1.
+        check("a lone flame's glow carries a measurable distance", nearest > 2.0,
+              detail);
+        // 1.25 is not a taste: nearest-block sampling quantises each reach by up
+        // to half a block, which at these distances is a few percent on its own,
+        // and the chamfer metric's own worst case is about 8%. A field that is
+        // round within its own measurement noise lands well under this; the
+        // octagon this was written against does not.
+        check("the glow is round at every angle, not only on the axes and diagonals",
+              ratio < 1.25, detail);
+    }
+
+    // --- light through a gap has a soft edge, not a cut one ---
+    //
+    // The other half of "hard rays and shafts", and the half the round-glow test
+    // above cannot see, because it looks at a flame alone in open air and the
+    // tester's scene had twenty-seven thousand cells of terrain in it.
+    //
+    // **Max-propagation has no penumbra of any kind.** A block either has a
+    // route to the light or it does not, and the brightest route wins outright,
+    // so the boundary between "lit through the gap" and "in shadow" is a step
+    // one block wide. Real light through an opening has a soft edge whose width
+    // grows with distance from the opening; this has a straight-sided beam with
+    // a hard edge at any distance, which is exactly what a ray or a shaft looks
+    // like. Nothing about this is fixed by the metric being round.
+    //
+    // So the assertion is on the *width of the transition*, measured across the
+    // beam well behind the wall. A step is under a block. Anything the smoothing
+    // pass has softened is wider, and wider is the whole point.
+    {
+        Grid grid = empty_world(W, H);
+        for (int x = 0; x < W; ++x) {
+            if (x < 56 || x > 67) grid.set_element(x, 64, ElementType::Wall);
+        }
+        for (int y = 50; y <= 60; ++y)
+            for (int x = 56; x <= 67; ++x) grid.set_element(x, y, ElementType::Fire);
+
+        LightField light(128, 128);
+        light.update(grid, 0, 0);
+
+        // Six blocks past the wall, scan sideways out of the beam.
+        const int row = 64 / B + 2;
+        double peak = 0.0;
+        for (int bx = 0; bx < light.cols(); ++bx)
+            peak = std::max(peak, static_cast<double>(brightness(at(light, bx, row))));
+
+        check("light gets through the gap at all", peak > 8.0,
+              "peak across the beam=" + std::to_string(peak));
+
+        // Walk out from the beam's centre and find where the profile crosses 80%
+        // and 20% of its peak. The distance between them is the edge's width.
+        const int centre = 64 / B;
+        double at80 = -1.0, at20 = -1.0;
+        for (int bx = centre; bx < light.cols(); ++bx) {
+            const double v = brightness(at(light, bx, row));
+            if (at80 < 0.0 && v < peak * 0.8) at80 = bx;
+            if (at20 < 0.0 && v < peak * 0.2) { at20 = bx; break; }
+        }
+        const double width = (at80 >= 0.0 && at20 >= 0.0) ? at20 - at80 : -1.0;
+        check("the beam's edge is a gradient rather than a cut", width >= 1.5,
+              "80% at block " + std::to_string(at80) + ", 20% at " +
+              std::to_string(at20) + ", edge width " + std::to_string(width) +
+              " blocks");
     }
 
     // --- the same input gives the same field ---

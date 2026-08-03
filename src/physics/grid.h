@@ -83,6 +83,21 @@ public:
 
     void set_element(int x, int y, ElementType type);
     void paint(int x, int y, ElementType type, uint32_t color);
+
+    // The brush's write path, and the only one that conserves what was already
+    // standing in the cell. `set_element` overwrites, which is right for every
+    // other caller - a reaction turning Wood into Fire *means* the wood is gone,
+    // worldgen is writing into a grid nobody has filled yet, and the eraser's
+    // whole job is deletion - but it is wrong for a player pushing sand into a
+    // pool. That was A6: the brush destroyed the water in its disc rather than
+    // moving it, so a stroke into water silently deleted volume and the pool
+    // came back wrong when the stroke stopped.
+    //
+    // Displacement only, not a general "move this cell somewhere sensible": the
+    // occupant goes straight up, because up is where a fluid's own surface is
+    // and raising a level is what displacing volume looks like. See
+    // `make_room_above` for what it will and will not push through.
+    void displace(int x, int y, ElementType type);
     Element get_element(int x, int y) const;
 
     // Get raw pixel colors for rendering to SDL Texture
@@ -168,6 +183,49 @@ private:
     // colour and confirmed the write is in bounds. See the definition for why
     // this is one function rather than two copies.
     void place(int x, int y, ElementType type, uint32_t color);
+
+    // Moves the fluid at (fx, fy) to the nearest free surface of its own kind,
+    // so a powder sinking into it does not have to hand it upwards. Returns
+    // false when no such surface is within `VENT_RADIUS`, in which case the
+    // caller keeps the plain swap. See the call site in `step_powder` for the
+    // defect this exists for (A6b).
+    bool vent_fluid(int fx, int fy);
+
+    // How far `vent_fluid` will look for a surface. This is the expensive part
+    // of the powder step and it runs on every powder/fluid contact, so the
+    // radius is a direct cost knob and was swept rather than picked. Against
+    // `churning` at 3.13 ms/step with no venting at all, and against the step
+    // at which water first appears above the cursor in `water_probe`:
+    //
+    //   r=2   4.12 ms/step   clean to step 200
+    //   r=3   4.93 ms/step   clean to step 350   <- here
+    //   r=4   6.72 ms/step   clean to step 400
+    //
+    // 3 is the knee: nearly all of 4's accuracy for three quarters of its cost.
+    // The residue past those steps is a handful of cells and is described at the
+    // A6b entry in PLAYTEST_LOG.md - it is a known limit, not an unknown.
+    static constexpr int VENT_RADIUS = 3;
+
+    // Lifts the movable cell at (x, y) to the first Empty cell above it, so the
+    // caller can write into (x, y) without deleting what was there. Returns
+    // false when there is nowhere to put it, which is a real answer and not a
+    // failure: a sealed pool with no air above it has no room, and the caller
+    // overwrites rather than refusing the stroke.
+    //
+    // The walk climbs *through* fluid and stops dead at anything solid. Climbing
+    // through is what makes one call cost the depth of the column rather than a
+    // search of the area around it, and it is also the right physics - the
+    // column is one body, so swapping the bottom cell with the Empty at the top
+    // raises the whole surface by one, which is what displaced volume does. It
+    // stops at solids because a lid means the volume genuinely has nowhere to go.
+    bool make_room_above(int x, int y);
+
+    // How far up `make_room_above` will look. Bounds the worst case: a brush
+    // dragged along the floor of a deep pool pays this per painted cell per
+    // step, and 32 is already twice the tallest body of water the generator
+    // makes. Past it the volume is treated as having nowhere to go, which is the
+    // same answer a lid gives and fails in the same visible direction.
+    static constexpr int MAX_DISPLACE_RISE = 32;
 
     // Runs the one cell at (x, y) through its material's behaviour.
     void step_cell(int x, int y);
@@ -615,6 +673,12 @@ private:
     // Feeding the step in would repaint the whole world every frame.
     int authored_spread(int range, uint64_t index, sim_random::Stream s) const {
         return sim_random::spread(range, world_seed, 0, index, s);
+    }
+    // The same pinning, for a draw that is one-sided rather than symmetric.
+    // Ignition-point jitter needs it: see `temp_jitter` in reaction.h for why
+    // that variation may only ever make a cell easier to light and never harder.
+    int authored_pick(int n, uint64_t index, sim_random::Stream s) const {
+        return sim_random::pick(n, world_seed, 0, index, s);
     }
 
     uint32_t jittered_color(const Material& mat, uint64_t index) const;

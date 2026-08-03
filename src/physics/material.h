@@ -147,11 +147,28 @@ inline constexpr Material MATERIALS[] = {
     // Wood's row in REACTIONS. Lower is slower. 72 here with an ignition point of
     // 150 measured 37% slower burn-through than the 90/120 it replaced.
     //
-    // The catch worth knowing before tuning it: conduction has a floor of one
-    // unit per step, so this changes how long ignition takes but can never
-    // prevent it. Stopping a fire spreading is the ignition point's job, not
-    // this one's.
-    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        72,     0,      0,  ElementType::Count,      0 },
+    // **72 -> 40 in session 3, and the sentence below it is wrong.** It says
+    // conductivity can never stop a fire spreading, on the grounds that
+    // conduction has a floor of one unit per step. The floor is real and the
+    // conclusion does not follow: a cell also *loses* heat to ambient every
+    // step, and below a certain conductivity it sheds heat faster than the front
+    // feeds it, so the front does not slow down, it stops. Measured on a beam
+    // three cells thick across nine seeds, 40 burns through all nine and 34
+    // burns through five. There is a cliff, it is close, and 40 sits above it
+    // with about 18% of room.
+    //
+    // Why that far down: session 3 wanted a slower fire *and* a less linear
+    // front, and the jitter that buys the second one costs speed in the first,
+    // because a threshold that only ever moves down makes every cell easier to
+    // light. At jitter 0 this would be 64. The pair reads 22% slower than the
+    // shipped engine end to end.
+    //
+    // The real catch before tuning it: the number that stops fire spreading is
+    // this one, not the ignition point. Wood's ignition point cannot be raised
+    // at all - 156 and 162 were both measured and both stall a thin beam on two
+    // seeds in five - because Charred holds itself at 200 and everything above
+    // 150 is eating a margin that is already thin.
+    {  "Wood",   0xFF6B4E33,      5,  MoveKind::Static,   32000,      0,  true,        40,     0,      0,  ElementType::Count,      0 },
     // **Oil flashes straight to Fire and does not smoulder, and that boundary is
     // deliberate.** A burning cell holds its state in the cell, and Oil is a
     // Liquid - a smouldering oil cell would carry that state through
