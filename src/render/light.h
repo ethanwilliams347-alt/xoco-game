@@ -94,7 +94,17 @@ private:
     // How much light survives crossing each block, 0-1. Derived from how much of
     // the block is solid, so terrain shadows itself without anything tracing a
     // ray.
+    //
+    // **Two of them, because a diagonal step is longer than an orthogonal one.**
+    // Propagating to four neighbours only makes distance Manhattan rather than
+    // Euclidean, and a glow whose falloff is measured in city blocks is a
+    // diamond: it reaches furthest straight up, down and sideways, which on
+    // screen is a set of vertical and horizontal shafts radiating from every
+    // fire. Adding the diagonals fixes the shape, but only if they cost more to
+    // cross - at equal cost the artefact simply rotates 45 degrees and becomes a
+    // square.
     std::vector<float> transmit;
+    std::vector<float> transmit_diag;
 
     std::vector<uint32_t> texels;
     bool lit = false;

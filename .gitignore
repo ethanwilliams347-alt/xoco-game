@@ -44,3 +44,7 @@ _deps/
 # be "out", and anything else should have to argue for itself by name.
 /reference/
 /resources/
+
+# Preview frames dumped by preview_light (see tools/rawpng.py). Regenerable.
+*.raw
+*.preview.png

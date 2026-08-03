@@ -96,4 +96,17 @@ if(BUILD_TESTING)
     # slow machine should not fail the build.
     add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(grid_bench PRIVATE src tests)
+
+    # Headless frame preview. Not an add_test() either, and for a stronger reason
+    # than the benchmark's: it asserts nothing at all. It composites backdrop,
+    # cells and V7's light exactly as main.cpp does and dumps the result, so a
+    # defect that is purely a *look* can be examined without a window.
+    #
+    # It exists because session 2's lighting blowout was invisible to all seven
+    # suites - every one of them passed on a frame nobody could see through - and
+    # the numbers it prints (peak channel, share of the view brightly lit, share
+    # of pixels clipped to white) are what turned "looks overexposed" into
+    # something with a before and an after. Pipe it through tools/rawpng.py.
+    add_executable(preview_light tests/preview_light.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+    target_include_directories(preview_light PRIVATE src tests)
 endif()

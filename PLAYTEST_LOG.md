@@ -363,10 +363,12 @@ Four ROADMAP edits, and no defect list added there:
 
 ## Session 2 — 2026-08-02 — fire, seen for the first time
 
-The playtest wave 2b was waiting on. Six notes, all on fire, all visual, and
+The playtest wave 2b was waiting on. Seven notes across two rounds, all on fire, all visual, and
 **every one of them a look rather than a behaviour** — nothing in this session
 says the simulation did the wrong thing, which is itself the result: the fuel/flame
-rebuild's *model* survived contact and only its numbers and its palette did not.
+rebuild's *model* survived contact and only its numbers, its palette and its
+lighting did not. The second round (C8) came back on the lighting alone, with the
+burn and flame rates confirmed good.
 
 | # | Note | Cause | Fix |
 |---|------|-------|-----|
@@ -377,6 +379,7 @@ rebuild's *model* survived contact and only its numbers and its palette did not.
 | C5 | Flames have a hard height cutoff | Fixed 12-step lifetime | Lifetime jittered 8–18 steps |
 | C6 | Uniform flame height looks unnatural | *Same cause as C5* | *Same fix* |
 | C7 | Flame colours lack intensity | Two-stop linear ramp | Three stops, bent through saturated orange |
+| C8 | Lighting blown out and overexposed | Shallow falloff, coverage ignored, no tone mapping — three causes | See below. Peak 255 → 124, view brightly lit 58% → 17% |
 
 ### The two notes that were one defect, and the one that was a colour-space problem
 
@@ -430,6 +433,69 @@ Two probes lied before either was believed, and both lied *plausibly*:
   die and be replaced *within one sweep* — so the observer saw unbroken Fire across
   two flames. It looked like a bug in the engine and was a bug in the measurement.
   The test now walls the source off the instant it lights.
+
+### C8 — the lighting was blown out, and all seven suites passed on it
+
+Reported from a screenshot (`resources/video_screenshots/bugged_fire.png`) with
+the rest of the fire pronounced good: **"the lighting effects look completely
+blown out and over exposed... the crazy flare effects are bad."** The frame is a
+flat yellow-white wash with the terrain invisible inside it.
+
+**Three separate causes, and the tuning number was the least of them.**
+
+1. **The falloff was far too shallow.** `TRANSMIT_CLEAR` was 0.86 per four cells,
+   which is 0.963 per *cell* — half brightness still twenty cells out, a tenth of
+   it at sixty. A number that reads as gentle compounds into something enormous.
+   Now 0.72.
+2. **Brightness ignored how much of a block was burning.** Taking the hottest cell
+   is right for deciding *whether* a block emits — one flame in a block of air
+   must not be averaged away — but using it for brightness too means a single
+   stray flame lights as hard as a solid wall of fire. With max-propagation on top,
+   a ragged mostly-empty flame front lit like a solid slab. Emission now scales
+   with coverage above a floor.
+3. **There was no tone mapping, and `MAX_EMISSION` was 1.7 *on purpose*.** The
+   original reasoning — headroom so the brightest cells clip to white — was wrong
+   twice: this layer is composited additively over a scene that is already bright,
+   so clipping happens in the blend regardless, and driving a signal past its
+   ceiling destroys every gradient above the ceiling rather than only the peak.
+   That is precisely the flat white plateau in the screenshot. Now 1.0 through a
+   Reinhard curve, which compresses instead of clipping.
+
+A fourth thing was found while fixing those: **the glow was diamond-shaped.**
+Propagating to four neighbours only makes distance Manhattan, so light reached
+furthest along the axes and appeared as vertical and horizontal shafts out of
+every fire — most likely what "crazy flare effects" names. Diagonal neighbours
+are now gathered too, at `k^1.5` to pay for the longer step. That is the whole of
+the 2.4x cost increase recorded in [PERFORMANCE.md](PERFORMANCE.md).
+
+Measured before and after on the same scene: peak channel **255 → 124**, share of
+the view brightly lit **58% → 17%**.
+
+### The instrument that was missing, and now is not
+
+**Every one of the seven suites passed on the blown-out frame, and they were right
+to.** They assert that light reaches, stops, falls off symmetrically and is
+shaped correctly — all of which was true. None of them could see that the result
+was unusable, because none of them ever composites anything.
+
+`preview_light` is the answer: it builds a burning scene, composites backdrop,
+cells and light exactly as `main.cpp` does, dumps the frame, and prints the three
+numbers that turn "looks overexposed" into something with a before and an after —
+peak channel, share of the view brightly lit, share of pixels clipped to white.
+`tools/rawpng.py` wraps the dump into a PNG, in fifteen lines of zlib and struct
+rather than a new dependency.
+
+**It reproduced the defect before it was used to fix it**, which is the step that
+makes it trustworthy: run against the old constants it produced the same yellow
+wash at the same 75%-of-blocks-lit. An instrument that only ever agrees with the
+change you already made is not evidence.
+
+The generalisable version, and the reason this is written up rather than filed:
+**a test suite that never composites cannot catch a compositing defect, and no
+amount of adding assertions to it will change that.** `test_light` has gained a
+guard for this specific blowout — peak below 200, brightly-lit area under 45%,
+mutation-checked against the old constants, which fails it on both — but the guard
+was only writable *after* the preview showed what to assert.
 
 ### Open question for the next session
 

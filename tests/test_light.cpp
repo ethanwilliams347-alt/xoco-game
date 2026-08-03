@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <algorithm>
 #include <string>
 #include "physics/grid.h"
 #include "render/light.h"
@@ -215,6 +216,84 @@ int main() {
               red(flame) >= green(flame) && green(flame) >= blue(flame),
               std::to_string(red(flame)) + "," + std::to_string(green(flame)) + "," +
                   std::to_string(blue(flame)));
+    }
+
+    // --- a big fire does not blow the frame out ---
+    //
+    // **The regression guard for session 2's screenshot.** The first build lit
+    // 75% of the viewport at a peak of 255, which composited additively over the
+    // scene as a flat white plateau with the terrain invisible inside it. Three
+    // things caused it and all three are asserted here rather than described:
+    // emission is tone-mapped so it cannot reach the top of the channel, it
+    // scales with how much of a block is burning, and the falloff is steep enough
+    // that a fire does not light everything in the world.
+    //
+    // Deliberately a *large* fire, because every earlier test in this file uses a
+    // single cell - and a single cell is exactly the case that looked fine while
+    // the real thing was unusable.
+    {
+        Grid grid = empty_world(W, H);
+        for (int y = 60; y < 70; ++y)
+            for (int x = 40; x < 90; ++x) grid.set_element(x, y, ElementType::Fire);
+
+        LightField light(128, 128);
+        light.update(grid, 0, 0);
+
+        int peak = 0;
+        for (uint32_t t : light.pixels())
+            peak = std::max(peak, std::max(red(t), std::max(green(t), blue(t))));
+
+        // **Counted at a third of peak, not at non-zero, and the difference is
+        // the test being about the right thing.** Counting any non-zero block
+        // calls a channel value of 1/255 "lit", which is invisible on screen -
+        // by that measure this field covers 93% of the view and always will,
+        // since the falloff has an exponential tail. What "washed out" actually
+        // means is a large area at a brightness that competes with the scene.
+        int bright_blocks = 0;
+        for (uint32_t t : light.pixels())
+            if (std::max(red(t), std::max(green(t), blue(t))) > peak / 3) ++bright_blocks;
+        const int lit_pct = bright_blocks * 100 / static_cast<int>(light.pixels().size());
+
+        // Headroom below 255 is the whole point: this layer is *added* to a scene
+        // that already has brightness of its own, so a light field that reaches
+        // the top of the channel on its own guarantees clipping in the blend.
+        check("a large fire leaves headroom in the channel", peak < 200,
+              "peak=" + std::to_string(peak));
+        // And it must still be bright enough to be worth having.
+        check("a large fire is still clearly bright", peak > 60,
+              "peak=" + std::to_string(peak));
+        check("a large fire does not wash out the whole view", lit_pct < 45,
+              "brightly lit=" + std::to_string(lit_pct) + "%");
+    }
+
+    // --- the falloff is round, not diamond-shaped ---
+    //
+    // Propagating to four neighbours only makes distance Manhattan, so a glow
+    // reaches furthest along the axes and appears on screen as vertical and
+    // horizontal shafts radiating out of every fire. The diagonal neighbours cost
+    // more to cross than the orthogonal ones; if they ever cost the same, the
+    // artefact rotates 45 degrees rather than going away, so this compares the
+    // two directions rather than merely checking the diagonals are gathered.
+    {
+        Grid grid = empty_world(W, H);
+        grid.set_element(64, 64, ElementType::Fire);
+
+        LightField light(128, 128);
+        light.update(grid, 0, 0);
+
+        const int bx = 64 / B, by = 64 / B;
+        const int along_axis = brightness(at(light, bx + 4, by));
+        const int diagonal   = brightness(at(light, bx + 3, by + 3));
+
+        // Four blocks straight out is nearer than three-and-three diagonally
+        // (4 vs 4.24), so it must be brighter - but not by the margin a
+        // Manhattan metric would give, where three-and-three costs six steps.
+        check("the falloff reaches further along an axis than diagonally",
+              along_axis > diagonal,
+              "axis=" + std::to_string(along_axis) + " diag=" + std::to_string(diagonal));
+        check("the diagonal is not starved the way a 4-neighbour walk starves it",
+              diagonal * 2 > along_axis,
+              "axis=" + std::to_string(along_axis) + " diag=" + std::to_string(diagonal));
     }
 
     // --- the same input gives the same field ---
