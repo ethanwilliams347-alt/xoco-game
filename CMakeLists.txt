@@ -121,4 +121,11 @@ if(BUILD_TESTING)
     # ASCII slice. Not an add_test() because the thing it reports is a shape.
     add_executable(water_probe tests/water_probe.cpp ${ENGINE_SOURCES})
     target_include_directories(water_probe PRIVATE src tests)
+
+    # How much of the authored rim highlight is still on a surface once the
+    # world has settled. Not an add_test() for the same reason as the two
+    # above: it measures an input to an art decision, not a correctness
+    # property. See the header comment for the question it answers.
+    add_executable(rim_probe tests/rim_probe.cpp ${ENGINE_SOURCES})
+    target_include_directories(rim_probe PRIVATE src tests)
 endif()

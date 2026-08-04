@@ -22,6 +22,10 @@ Thumbs.db
 *.lib
 *.log
 
+# Python bytecode cache (tools/ scripts)
+__pycache__/
+*.pyc
+
 # CMake dependencies
 _deps/
 

@@ -63,6 +63,16 @@ untouched and remains available as the cheap win instead.
 LAYER MODEL
 -----------
 
+SUPERSEDED BY notes/art_direction.txt (V5). Two things below are now wrong
+and are kept because the reasoning around them still holds: the model is
+FOUR layers rather than three (sky and mountains parallax independently),
+and props are NOT uniformly "drawn on top" - the forest world's trees draw
+BEFORE the cell texture so authored terrain occludes their trunks for free.
+The per-layer SDL_RenderCopy costing below is also per-layer-and-per-prop
+in practice, which is eleven calls in the shipped scene rather than two.
+Read art_direction.txt for the model that is actually built; read on here
+for why a layer model was chosen at all.
+
 Most of what makes the references beautiful is in things that would never
 be simulated anyway. Three layers:
 
