@@ -35,29 +35,55 @@ struct PlayerInput {
 // writes go through set_element / swap_elements.
 class Player {
 public:
-    // Body size in cells. Small enough to fit through a two-cell gap once
-    // crouching exists, tall enough that a one-cell lip reads as a step rather
-    // than a wall.
-    static constexpr int WIDTH = 4;
-    static constexpr int HEIGHT = 8;
+    // Body size in cells. Matched to Noita's wizard measured off
+    // resources/video_screenshots/test_location.jpg: at that game's 4 screen
+    // pixels per cell the body is ~8 cells across and ~20 tall below the hat,
+    // and Camera::SCALE is 4 here too, so these numbers put a character of the
+    // same apparent size on screen *built from the same number of cells*. That
+    // second half is the point. The body was 4x8 before, which looked close
+    // enough at a glance but resolved the character roughly 2.5x more coarsely
+    // than the reference: a two-cell step lip was a quarter of the body's
+    // height rather than a tenth, so every interaction with uneven terrain read
+    // chunkier than the art it was imitating.
+    //
+    // A hat, if one is ever drawn, overhangs as sprite only. It is not part of
+    // the collision box and must not be added to HEIGHT - the reference's own
+    // hat is ~3 further cells that clearly do not collide with anything.
+    static constexpr int WIDTH = 8;
+    static constexpr int HEIGHT = 20;
 
     // Cells per second, and cells per second squared. Real units rather than
     // per-step amounts, so the tuning still means the same thing if the fixed
     // step ever changes.
-    static constexpr float MOVE_SPEED = 45.0f;
-    static constexpr float JUMP_SPEED = 70.0f;   // ~12 cells of jump height
-    static constexpr float GRAVITY = 200.0f;
-    static constexpr float MAX_FALL_SPEED = 160.0f;
+    //
+    // All five of these are lengths per unit time, so they are all 2.5x what
+    // they were before the body grew by 2.5x. That factor is not a coincidence
+    // to be tidied away: a speed in cells only means something relative to the
+    // size of the thing moving, and holding body-lengths-per-second fixed is
+    // what makes the character feel unchanged at the new scale rather than
+    // merely be the same size. Tune from here by feel; do not tune from the
+    // pre-scale numbers, which now describe a much slower character.
+    static constexpr float MOVE_SPEED = 112.5f;
+    static constexpr float JUMP_SPEED = 175.0f;  // ~30 cells, still ~1.5 bodies
+    static constexpr float GRAVITY = 500.0f;
+    static constexpr float MAX_FALL_SPEED = 400.0f;
 
     // Tallest lip the player walks over without jumping. This is the whole of
     // "walking over uneven powder": a settled sand slope is a staircase of
     // one-cell steps, and without this the player would have to jump over every
     // single grain.
-    static constexpr int MAX_STEP_HEIGHT = 2;
+    //
+    // 5 rather than the old 2 for the same reason as the speeds: the slope is
+    // still made of one-cell steps, but the leg climbing it is 2.5x longer, and
+    // a lip that stopped the old body at a quarter of its height would stop
+    // this one at a tenth.
+    static constexpr int MAX_STEP_HEIGHT = 5;
 
     // How far the unstuck search looks for open space when the player ends up
-    // inside terrain. See resolve_overlap() for why that happens at all.
-    static constexpr int MAX_UNSTUCK_RADIUS = 8;
+    // inside terrain. See resolve_overlap() for why that happens at all. Scaled
+    // with the body: the search has to be able to clear a body-width of
+    // material, or a burial that used to be escapable no longer is.
+    static constexpr int MAX_UNSTUCK_RADIUS = 20;
 
     Player(int start_x, int start_y);
 

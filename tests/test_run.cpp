@@ -65,14 +65,18 @@ int main() {
     // effect happens by handing run.step() an Input, the same as a real
     // session would.
     {
-        // Wide enough that 60 steps of holding right (about 45 cells at
+        // Wide enough that 60 steps of holding right (about 112 cells at
         // MOVE_SPEED) never reaches the far wall - the dig target below is
         // placed relative to wherever the player ends up, and needs real
         // headroom on both sides or it silently lands outside the grid,
         // where get_element() reads the border itself as Wall regardless of
-        // what was actually dug.
-        Run run(200, 50, 7);
-        build_floor(run, 40);
+        // what was actually dug. **That failure mode is why this world was
+        // widened when the body was scaled up rather than left alone**: a
+        // second of walking now covers 2.5x the ground it used to, and the
+        // "dig target is actually solid" guard would have gone on passing
+        // against the border while the dig assertion under it failed.
+        Run run(400, 60, 7);
+        build_floor(run, 50);
 
         // The player spawns mid-air (Run's constructor); let it land before
         // asserting anything about walking.
@@ -110,20 +114,25 @@ int main() {
         // A Wall block near wherever the player ended up, close enough to sit
         // well inside DigTool::RANGE without depending on an exact landing
         // spot - walking speed and jump arc are someone else's tests.
-        const int wx = run.player.cell_x() + 6;
-        for (int y = 30; y <= 35; ++y)
+        // Clear of the *far side* of the body, not just of its origin: the
+        // block used to be placed six cells from cell_x(), which the body is
+        // now wide enough to reach into, and a target placed inside the player
+        // would be dug from a centre that is already touching it.
+        const int wx = run.player.cell_x() + Player::WIDTH + 6;
+        const int wy = run.player.center_y();
+        for (int y = wy - 3; y <= wy + 3; ++y)
             for (int x = wx; x <= wx + 4; ++x)
                 run.grid.set_element(x, y, ElementType::Wall);
         check("the dig target is actually solid",
-              run.grid.get_element(wx + 2, 32).type == ElementType::Wall);
+              run.grid.get_element(wx + 2, wy).type == ElementType::Wall);
 
         Input dig;
         dig.dig = true;
         dig.cursor_x = wx + 2;
-        dig.cursor_y = 32;
+        dig.cursor_y = wy;
         run.step(dig);
         check("holding dig through run.step() removes solid terrain",
-              run.grid.get_element(wx + 2, 32).type != ElementType::Wall);
+              run.grid.get_element(wx + 2, wy).type != ElementType::Wall);
     }
 
     // --- the brush is no longer a special case ---

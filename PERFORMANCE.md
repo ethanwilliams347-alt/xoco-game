@@ -14,6 +14,28 @@ Numbers from `grid_bench` on the dev machine, 960x540 (518,400 cells), against a
 | **churning** — sand sinking through water, then settling | 3.184 ms | 19.1% |
 | **cascading** — nothing ever settles, sustained worst case | 13.212 ms | **79.3%** |
 
+## The light field does not fit the widest display mode
+
+Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:
+
+| Viewport | `light/fire` | `light/dark` |
+|---|---|---|
+| 481x271 cells — 1920x1080 | 6.43 ms/frame (38.6%) | 0.53 ms (3.2%) |
+| 861x361 cells — 3440x1440 | **15.48 ms/frame (92.9%)** | 1.28 ms (7.7%) |
+
+**At 3440x1440 a sustained large fire costs 93% of a 60 Hz frame in lighting alone, before the simulation has run at all.** That is not a projection; `cascading` is 71% in the same binary, and the two together cannot both happen inside one frame. It is a real ceiling on the widest mode and it is written down here rather than quietly tuned away.
+
+Two things drive it, and they are separable because both were measured:
+
+- **Viewport area.** The cost is very close to linear in padded viewport cells — 2.4x the area for 2.4x the time. That is inherent: the field scans, propagates and packs what is on screen, and the widest mode has 2.4x as much on screen as the narrowest. Nothing about this is a defect.
+- **The reach retune.** Holding the light's reach at four body-heights through the player rescale (`TRANSMIT_CLEAR` 0.52 → 0.77, `ITERATIONS` 16 → 24) cost 2.3x, not the 1.5x the iteration count suggests: a longer reach means the `CONVERGED` early-out is hit later, so more of the field is still moving on the later iterations. Measured directly, same binary, same scenario, wide viewport: **6.81 ms at the old tuning against 15.48 ms at the new.**
+
+**`light/dark` is the number that says the game is still playable, and it is the one to weigh this against.** An unlit world costs 1.28 ms at the widest mode, and an unlit world is what the fixture scene and almost all of a session actually are. What is over budget is specifically a large sustained fire on an ultrawide.
+
+**The obvious fix was tried in the head and rejected on the record: `LightField::BLOCK` 4 → 8 is ~4x cheaper and re-opens B9d.** Occlusion is averaged over a block, so a one-cell wall reads as `1/BLOCK` opaque; session 3 reported light penetrating walls at `BLOCK=4` and doubling it halves that figure again. Buying frame time by undoing a defect a playtest found is not a trade to make silently, and `light.h` carries the same note at the constant. The two hardcoded `4`s that would have made the switch produce a *darker* field rather than a coarser one (`LOG_CELL_AIR`, `TRANSMIT_SOLID`) are fixed, so whoever does decide to turn that knob gets what they asked for.
+
+What has **not** been measured, and should be before anything is optimised here: whether a bounding box around the emissive blocks, expanded by the reach, would help. `light/fire` is a full-width burning slab, so its bounding box is the whole field and it would show nothing — which is the point. The scenario that would show it does not exist yet, and inventing one to make a number look good is the failure this document is otherwise about.
+
 **E9's fire rebuild is not in that table and its cost has deliberately not been written down as a number, because the only measurement taken of it does not meet this document's own standard.** The reading was `cascading` 11.44 → 12.87 ms and `churning` 2.87 → 3.17 ms: two different builds, compared across a `git stash`, in the same sitting. That is the *exact* method the E1 note below records as having produced a confident 28% that was entirely an artifact of the compiler re-laying-out the hot loop, and it fails the control rule as well — `churning` and `cascading` contain no fire at all, so E9 cannot change a single thing either of them does, and **both moved anyway.** By this file's rules that is evidence about the binary or the machine, not about the feature.
 
 What is worth recording is the shape of the guess that followed, because it was wrong in an instructive way. The suspicion was two new per-cell branches in `step_cell`, which runs for every awake cell every step. Collapsing them into one chained branch moved `cascading` by less than run-to-run noise (12.77 → 12.87, i.e. the wrong direction, i.e. nothing). **The branches were not paying for it.** The remaining candidates are the `Reaction` struct widening from 6 to 8 bytes — it is walked twice per non-Empty cell, so the table grew 36 → 48 bytes in a genuinely hot loop — and plain code-layout perturbation from two new functions in the same translation unit. Those are not distinguishable without the runtime-toggle method used for E1 and E2, and E9 has no such toggle yet.
