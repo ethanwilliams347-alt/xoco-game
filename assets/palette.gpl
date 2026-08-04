@@ -21,5 +21,11 @@ Columns: 4
  36  28  16  sand_fill
  23  18  13  wood_fill
 105 120  58  rim_grass
+ 28  32  41  char_base
+ 42  50  64  char_mid
+ 63  74  94  char_light
+ 74  59  42  char_belt
+ 17  17  17  char_mask
+148  81  40  char_accent
  26  41  50  water_fill
  46  73  85  water_rim

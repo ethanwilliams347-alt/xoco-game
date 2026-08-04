@@ -12,7 +12,7 @@ void Run::reset(uint64_t seed) {
     dig_tool = DigTool();
 }
 
-void Run::step(const Input& input) {
+bool Run::step(const Input& input) {
     // A filled circle of radius brush_size, painted before physics runs so a
     // freshly placed cell does not move on the same step it was placed.
     //
@@ -56,6 +56,6 @@ void Run::step(const Input& input) {
     // Last, so the dig is aimed from where the body actually ended up this
     // step. Called every step whether or not the button is held, because
     // that is what advances the tool's cooldown.
-    dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
-                     input.cursor_x, input.cursor_y);
+    return dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
+                           input.cursor_x, input.cursor_y);
 }

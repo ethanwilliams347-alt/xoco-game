@@ -62,6 +62,24 @@ PALETTE = {
     'wood_fill':    (0x17, 0x12, 0x0D),
     'rim_grass':    (0x69, 0x78, 0x3A),  # the one bright accent in the layer
 
+    # player (V3, drawn between the props and the terrain's own layer - it is
+    # not a cell and not a prop, it is the one sprite that moves under input).
+    #
+    # The separation problem this group solves: every other group above is
+    # either cool-and-dark (sky, mountains) or warm-and-dark (terrain), and the
+    # trees sit between them in green. A character painted in any of those
+    # families disappears into whichever one it happens to be standing against.
+    # So the robe is *cool blue-grey* - the one hue family the terrain layer
+    # never uses - which reads against warm dirt and against green foliage
+    # without being brighter than either. Value range stays inside the locked
+    # set's: char_light is 0x3F-0x5E, below tree_lit's 0x59 top end.
+    'char_base':    (0x1C, 0x20, 0x29),  # robe shadow; the darkest character tone
+    'char_mid':     (0x2A, 0x32, 0x40),  # main robe tone, cool enough to clear the foliage green
+    'char_light':   (0x3F, 0x4A, 0x5E),  # shoulder and hood highlight - the silhouette's edge
+    'char_belt':    (0x4A, 0x3B, 0x2A),  # rope belt and boots; warm brown, ties the figure to the ground layer
+    'char_mask':    (0x11, 0x11, 0x11),  # the mask's interior void, darker than any terrain fill
+    'char_accent':  (0x94, 0x51, 0x28),  # dull copper on the mask only - see the note below
+
     # water is the deliberate exception (notes/art_direction.txt): it keeps
     # more saturation than anything else in the terrain layer because it has
     # to read as water up close, not just in silhouette
@@ -69,6 +87,22 @@ PALETTE = {
     'water_rim':    (0x2E, 0x49, 0x55),
 }
 
+# char_accent is the brightest value in this entire palette - 0x94 against
+# rim_grass's 0x69, which was previously "the one bright accent in the whole
+# terrain layer". That is deliberate and it is also the one entry here most
+# likely to need revisiting, so the tension is written down rather than left
+# to be rediscovered:
+#
+#   - It is six pixels. The whole justification is that it is the *only*
+#     saturated thing on a figure otherwise painted in the locked dark range,
+#     so it functions as a fixation point rather than as a light source. At a
+#     larger area this value would be wrong.
+#   - It sits in the warm-orange family that notes/art_direction.txt reserves
+#     for Fire. Six pixels on a moving figure is not going to be mistaken for
+#     a flame, but if the character ever gains more copper - or if V7's
+#     emissive pass makes warm pixels glow - this is where that reads as fire
+#     first. Check it against a burning scene before adding any more.
+#
 # Reserved marker for sprite transparency (props, mountains) - SDL_SetColorKey
 # treats this exact colour as "no pixel here". Magenta, for the same reason
 # scene/legend.h picked it for its own unused slots: nobody paints real art

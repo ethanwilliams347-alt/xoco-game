@@ -1,5 +1,6 @@
 #include <SDL.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <random>
 #include <string>
@@ -8,9 +9,11 @@
 #include "game/display.h"
 #include "game/run.h"
 #include "render/light.h"
+#include "render/player_anim.h"
 #include "scene/legend.h"
 #include "scene/scene.h"
 #include "ui/text.h"
+#include "ui/hotbar.h"
 
 // The simulated world's size, in cells - independent of the window since F3.1.
 // Not equal to any window size divided by Camera::SCALE: that was only ever a
@@ -407,6 +410,41 @@ int main(int argc, char* argv[]) {
     tree_size(tree_b, tbw, tbh);
     tree_size(tree_c, tcw, tch);
 
+    // V3.1's player sheet and aiming arm, from tools/player_sheet.py.
+    // Colour-keyed like the props, and like them one BMP pixel is one world
+    // cell. Every number about the sheet's layout comes from the generated
+    // header rather than being retyped here - see player_sprite.h for why.
+    //
+    // **The sprite is deliberately larger than the collision box and the
+    // generated offsets are the whole of that decoupling.** Player::WIDTH/HEIGHT
+    // stay 8x20 - eighteen tests and every movement constant are tuned to them -
+    // and the 14x26 frame is drawn anchored to the box's bottom-centre, so the
+    // masked head overhangs upward into space that collides with nothing (the
+    // allowance player.h reserves by name) and the sleeves hang outside the
+    // box's width. A sleeve visually overlapping a wall is correct: it is art,
+    // not body.
+    //
+    // **The aiming arm is not drawn, and that is why nothing here reads a
+    // hotspot.** Decomposing the limb out of the sheet is the finding V3.1 was
+    // built around - Noita's wizard gets most of its expressiveness from a
+    // freely rotating wand arm over a short body loop - but the arm is pulled
+    // for now and the sheet stands on its own. What it costs to bring back is
+    // the hotspot image and the rotate-about-the-shoulder draw, both of which
+    // are described in ROADMAP.md's V3.1 entry rather than left as dead code
+    // here.
+    SDL_Texture* player_tex = load_art_texture(renderer, "assets/player_sheet.bmp", true);
+    player_anim::State anim_state;
+
+    // Which way the figure faces. Tracked here rather than on Player because
+    // Player is simulation and this is presentation - F3.5's rule that
+    // rendering does not feed the simulation runs in this direction too, and a
+    // facing flag on the body would be state the determinism tests would then
+    // have to account for. Sampled off the same key state the input struct is
+    // built from, and *sticky*: it holds the last direction actually pressed,
+    // so a player standing still keeps facing where they were going rather than
+    // snapping to a default the moment the key comes up.
+    bool facing_left = false;
+
     // Anchors are x-only; the y below is a fallback that is overwritten by the
     // terrain scan after the scene loads (see `snap_prop_to_terrain`). Writing
     // a y here at all is what put three of these trees inside the snowbank:
@@ -640,19 +678,20 @@ int main(int argc, char* argv[]) {
                 if (brush_size > 32) brush_size = 32;
             }
             else if (e.type == SDL_KEYDOWN) {
-                switch (e.key.keysym.sym) {
-                    case SDLK_1: current_brush = ElementType::Sand;  break;
-                    case SDLK_2: current_brush = ElementType::Water; break;
-                    case SDLK_3: current_brush = ElementType::Wall;  break;
-                    case SDLK_4: current_brush = ElementType::Empty; break; // Eraser
-                    case SDLK_5: current_brush = ElementType::Wood;  break;
-                    case SDLK_6: current_brush = ElementType::Oil;   break;
-                    case SDLK_7: current_brush = ElementType::Steam; break;
-                    case SDLK_8: current_brush = ElementType::Fire;  break;
-                    case SDLK_ESCAPE:
-                        screen = Screen::Settings;
-                        menu_cursor = mode_index;
+                // The material keys used to be a switch here. They are a loop
+                // over ui::HOTBAR now for one reason: the row drawn at the
+                // bottom of the screen has to be telling the truth about what
+                // each key does, and the only way to guarantee that is for the
+                // binding and the icon to come out of the same table.
+                for (int i = 0; i < ui::HOTBAR_COUNT; ++i) {
+                    if (e.key.keysym.sym == ui::HOTBAR[i].key) {
+                        current_brush = ui::HOTBAR[i].type;
                         break;
+                    }
+                }
+                if (e.key.keysym.sym == SDLK_ESCAPE) {
+                    screen = Screen::Settings;
+                    menu_cursor = mode_index;
                 }
             }
         }
@@ -685,6 +724,11 @@ int main(int argc, char* argv[]) {
         input.left  = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT];
         input.right = keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT];
         input.jump  = keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP];
+        // Sticky facing, updated only when a direction is actually held. Both
+        // keys down at once keeps the current facing rather than picking one,
+        // which matches what the body does - Player cancels the two against
+        // each other and stands still.
+        if (input.left != input.right) facing_left = input.left;
         input.cursor_x = gridX;
         input.cursor_y = gridY;
         input.dig   = (mouseState & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
@@ -712,7 +756,34 @@ int main(int argc, char* argv[]) {
         while (accumulator >= Run::FIXED_DT) {
             prev_player_x = run.player.visual_x();
             prev_player_y = run.player.visual_y();
-            run.step(input);
+
+            // Whether a dig connected *this step*, taken from what the step
+            // returns rather than inferred from the cooldown either side of it.
+            //
+            // Animating the button instead of the tool would be wrong in a way
+            // that is easy to miss: a held button is true on every step, and
+            // the tool only actually fires once per COOLDOWN_STEPS, so the
+            // swing would replay on steps where nothing happened. Inferring it
+            // from `is_ready()` either side is wrong in a way that is *harder*
+            // to see, and it shipped: `DigTool::update` decrements the cooldown
+            // before testing it, so a dig fires on the very step the cooldown
+            // reaches zero, when `is_ready()` beforehand was already false.
+            // Every dig of a held burst except the first went unanimated.
+            const bool dig_fired = run.step(input);
+
+            // The animation clock. Advanced here, inside the fixed-step loop,
+            // and nowhere else - see the timing note at the top of
+            // render/player_anim.h. Driving it from the render loop would make
+            // the walk cycle's speed a function of frame rate, which is the
+            // class of bug F1 and F2.3 spent two sections retiring and which
+            // would present as an art problem.
+            player_anim::Conditions cond;
+            cond.on_ground = run.player.is_on_ground();
+            cond.moving = std::abs(run.player.velocity_x()) > 0.01f;
+            cond.vel_y = run.player.velocity_y();
+            cond.dig_fired = dig_fired;
+            player_anim::update(anim_state, cond, 1);
+
             accumulator -= Run::FIXED_DT;
         }
 
@@ -847,23 +918,54 @@ int main(int argc, char* argv[]) {
         SDL_RenderCopyF(renderer, targets.cells, nullptr, &world_dst);
 
         // The player is not a cell, so it is not in the pixel buffer either -
-        // it is drawn on top of the world as its own rectangle. Float rect and
+        // it is drawn on top of the world as its own sprite. Float rect and
         // float position: rounding either one here is the defect coming back.
-        SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
+        //
+        // Positioned by subtracting the offsets from the *box's* corner, which
+        // is what "anchored to the box's bottom-centre" works out to - the
+        // sprite's baseline lands on the box's baseline and its extra width is
+        // split evenly either side.
         const SDL_FRect body{
-            camera.world_to_screen_x(draw_player_x),
-            camera.world_to_screen_y(draw_player_y),
-            static_cast<float>(camera.scale_length(Player::WIDTH)),
-            static_cast<float>(camera.scale_length(Player::HEIGHT))
+            camera.world_to_screen_x(draw_player_x - player_sprite::OFFSET_X),
+            camera.world_to_screen_y(draw_player_y - player_sprite::OFFSET_Y),
+            static_cast<float>(camera.scale_length(player_sprite::FRAME_W)),
+            static_cast<float>(camera.scale_length(player_sprite::FRAME_H))
         };
-        SDL_RenderFillRectF(renderer, &body);
+        if (player_tex) {
+            const SDL_RendererFlip flip =
+                facing_left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+
+            // The source rect is the whole of "this is a sheet rather than a
+            // sprite" on this side of the boundary. Which cell it names is
+            // decided in render/player_anim.cpp, which is SDL-free and tested.
+            const SDL_Rect src{
+                anim_state.sheet_col() * player_sprite::FRAME_W,
+                anim_state.sheet_row() * player_sprite::FRAME_H,
+                player_sprite::FRAME_W, player_sprite::FRAME_H
+            };
+            SDL_RenderCopyExF(renderer, player_tex, &src, &body, 0.0, nullptr, flip);
+        } else {
+            // The pre-V3 rectangle, kept as the fallback rather than deleted.
+            // A missing asset should degrade to a visible player, not to an
+            // invisible one - load_art_texture already printed why it failed,
+            // and a game you can still move around in is a better diagnostic
+            // than a world with nothing in it.
+            SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
+            const SDL_FRect box{
+                camera.world_to_screen_x(draw_player_x),
+                camera.world_to_screen_y(draw_player_y),
+                static_cast<float>(camera.scale_length(Player::WIDTH)),
+                static_cast<float>(camera.scale_length(Player::HEIGHT))
+            };
+            SDL_RenderFillRectF(renderer, &box);
+        }
 
         // V7's one extra RenderCopy - the whole cost of the feature on the GPU
         // side, which is what the architecture note budgeted.
         //
         // **Drawn after the world and after the player, and before the reticle
         // and HUD.** Everything in the world is a surface that light lands on,
-        // including the player, who otherwise stays a flat white rectangle while
+        // including the player, who otherwise stays flatly, evenly lit while
         // standing inside a fire. Everything after it is UI, which is not in the
         // world and must not be tinted by it - a reticle that goes orange near a
         // flame is the exact defect B1 was about.
@@ -964,6 +1066,18 @@ int main(int argc, char* argv[]) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
 
+        // --- the material hotbar (V10) ---
+        //
+        // The selected slot is looked up rather than stored, so `current_brush`
+        // stays the single fact about what is selected. A second index kept
+        // beside it is exactly how a highlight ends up on the wrong box after
+        // some later code path sets the brush without going through a key.
+        int hotbar_selected = -1;
+        for (int i = 0; i < ui::HOTBAR_COUNT; ++i) {
+            if (ui::HOTBAR[i].type == current_brush) hotbar_selected = i;
+        }
+        ui::draw_hotbar(renderer, mode.window_w, mode.window_h, mode.ui_scale(), hotbar_selected);
+
         // --- the settings menu ---
         //
         // Drawn last, over a dimming wash rather than over a solid panel, so
@@ -1046,6 +1160,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    if (player_tex) SDL_DestroyTexture(player_tex);
     if (tree_c) SDL_DestroyTexture(tree_c);
     if (tree_b) SDL_DestroyTexture(tree_b);
     if (tree_a) SDL_DestroyTexture(tree_a);
