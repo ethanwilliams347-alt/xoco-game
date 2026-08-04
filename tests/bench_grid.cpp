@@ -10,6 +10,7 @@
 
 #include "physics/grid.h"
 #include "render/light.h"
+#include "game/display.h"
 #include <chrono>
 #include <cstdio>
 
@@ -237,8 +238,19 @@ void run(const char* name, void (*build)(Grid&), int settle_steps, void (*on_ste
 // Sized to the **viewport**, not to BENCH_WIDTH/HEIGHT. The light field covers
 // what is on screen and nothing else, so it does not scale with world size - and
 // building it at 960x540 would measure a configuration the game never runs.
-constexpr int LIGHT_VIEW_W = 201; // 800/4 + 1, matching main.cpp's padded viewport
-constexpr int LIGHT_VIEW_H = 151; // 600/4 + 1
+// **The widest display mode, not the narrowest, and not the 201x151 this used
+// to hold.** That figure was the padded viewport of an 800x600 window, and the
+// window had already grown past it before the display modes existed - so this
+// was measuring a configuration the game had stopped running, which is the
+// failure PERFORMANCE.md's third rule is about. The viewport is now a runtime
+// choice between three sizes, and the one worth having a number for is the
+// largest: 3440x1440 puts 861x361 padded cells on screen against 1920x1080's
+// 481x271, which is 2.4x the area to scan, propagate and pack every frame.
+// Whatever this reads is the cost the widest mode pays; every other mode pays
+// less.
+constexpr DisplayMode WIDEST = DISPLAY_MODES[DISPLAY_MODE_COUNT - 1];
+constexpr int LIGHT_VIEW_W = WIDEST.padded_w();
+constexpr int LIGHT_VIEW_H = WIDEST.padded_h();
 constexpr int LIGHT_FRAMES = 300;
 
 void run_light(const char* name, void (*build)(Grid&), void (*on_step)(Grid&)) {

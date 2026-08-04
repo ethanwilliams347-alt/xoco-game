@@ -2,7 +2,7 @@
 silhouette. Layer 1 and 2 of notes/art_direction.txt's four-layer model.
 
 Sizes and parallax factors here are derived from main.cpp's own constants
-(GRID_WIDTH/HEIGHT, VIEWPORT_WIDTH/HEIGHT, Camera::SCALE) and MUST stay in
+(GRID_WIDTH/HEIGHT, the DisplayMode table, Camera::SCALE) and MUST stay in
 sync with the PARALLAX_* constants main.cpp draws these layers with - if
 either changes, the other has to move with it, or a layer runs out of image
 before the camera runs out of world and a seam appears at the pan limit.
@@ -11,6 +11,16 @@ because these are two different languages and this project has no build
 step that could enforce it either way; grep main.cpp for PARALLAX_SKY /
 PARALLAX_MOUNTAIN before changing a number on either side.
 
+**One asset set covers all three display modes, and which mode sizes it is
+the counter-intuitive part.** The window is now switchable at runtime
+(1920x1080, 2560x1440, 3440x1440) at a fixed 4 screen pixels per cell, so a
+wider window sees *more* cells and therefore has *less* world left to pan
+across. The largest pan range - the case a layer can run out of image in -
+belongs to the *smallest* window, and the widest window needs the largest
+window-sized base. So the layers are sized from the smallest viewport and
+the largest window dimensions, taken independently, and every other mode
+uses a sub-rectangle of the same file.
+
 Run from the repo root:
     python tools/generate_backdrop.py
 """
@@ -18,17 +28,28 @@ import random
 from pixel_art import PALETTE, COLOR_KEY, dither_mix, write_bmp
 
 # --- must match main.cpp -----------------------------------------------
-GRID_WIDTH, GRID_HEIGHT = 640, 400
-VIEWPORT_W, VIEWPORT_H = 201, 151          # padded viewport, in cells
+GRID_WIDTH, GRID_HEIGHT = 1920, 1080
 SCALE = 4                                    # Camera::SCALE
-WINDOW_W, WINDOW_H = 800, 600
+
+# main.cpp's DisplayMode table, in window pixels.
+MODES = [(1920, 1080), (2560, 1440), (3440, 1440)]
 
 PARALLAX_SKY = (0.04, 0.02)                 # (x, y) factors
 PARALLAX_MOUNTAIN = (0.15, 0.06)
 # -------------------------------------------------------------------------
 
-MAX_SHIFT_X = (GRID_WIDTH - VIEWPORT_W) * SCALE   # 1756
-MAX_SHIFT_Y = (GRID_HEIGHT - VIEWPORT_H) * SCALE  # 996
+# Padded viewport, in cells: VIEWPORT + 1 on each axis, matching main.cpp's
+# PADDED_WIDTH/HEIGHT. The smallest of each is what maximises the pan range.
+MIN_VIEWPORT_W = min(w // SCALE for w, _ in MODES) + 1
+MIN_VIEWPORT_H = min(h // SCALE for _, h in MODES) + 1
+
+# The largest window is what sets the base size every layer must at least
+# cover; the smallest viewport is what sets how far it then has to scroll.
+WINDOW_W = max(w for w, _ in MODES)
+WINDOW_H = max(h for _, h in MODES)
+
+MAX_SHIFT_X = (GRID_WIDTH - MIN_VIEWPORT_W) * SCALE
+MAX_SHIFT_Y = (GRID_HEIGHT - MIN_VIEWPORT_H) * SCALE
 
 
 def layer_size(factor):

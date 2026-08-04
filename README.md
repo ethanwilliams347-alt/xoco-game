@@ -52,10 +52,17 @@ build. The benchmark is a separate executable, run it by hand:
 .\build\Release\grid_bench.exe
 ```
 
-It simulates a 960x540 grid (1920x1080 at a 2px scale, the resolution the project
-is aiming at) across seven scenarios and reports milliseconds per step against the
-16.67 ms budget of a 60 Hz frame. Run it before and after any change that claims
-to make the simulation faster.
+It simulates a 960x540 grid across seven scenarios and reports milliseconds per
+step against the 16.67 ms budget of a 60 Hz frame, then measures the light field
+separately at the **widest** display mode's viewport (861x361 cells, 3440x1440) —
+the mode that costs the most, so the number is a ceiling rather than a sample.
+Run it before and after any change that claims to make the simulation faster.
+
+The bench world stays at 960x540 while the game's world is 1920x1080 cells. That
+is a known gap, not a claim that world size is free: stepping is chunk-driven so
+most of it does not scale with total cells, but nobody has measured the part that
+does, and rewriting the table wholesale is what `PERFORMANCE.md` asks for rather
+than editing one row.
 
 Read `PERFORMANCE.md` before trusting a number out of it. Timings from different
 sittings on the same machine have been seen to differ by more than 2x on
@@ -69,7 +76,7 @@ that wrong once already.
 
 **Run this after any change that touches `src/physics/`, `src/game/` or `main.cpp` and is not fully exercised by the automated suites** — which in practice means anything touching rendering, input, or feel, since those are exactly what a headless test cannot see. Skip it for test-only or documentation-only commits; there is nothing here those could break. Each item names the regression it exists to catch, most of them things that have actually gone wrong once already in this project — a floating pile, a seam at a chunk border, a fire that never dies — so a "looks fine" pass is a real signal, not a formality.
 
-1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 640x400, 27192 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart.
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 1920x1080, 334901 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
 
@@ -109,7 +116,12 @@ that wrong once already.
 - **`6`**: **Oil** — liquid, lighter than water so it floats on top; ignites fast and flashes rather than smouldering.
 - **`7`**: **Steam** — gas, rises and pools against the ceiling.
 - **`8`**: **Fire** — gas; rises, fades from white-hot to red, and dies within a fifth of a second. A flame is what burning *throws off* — the thing actually on fire is the charred wood underneath it, which is what heats its neighbours and spreads the burn.
-- **`ESC`**: Quit the game.
+- **`ESC`**: Open the settings menu. **This used to quit outright**, which is the wrong thing for a key sitting next to a menu — quitting is now an item inside it, so it takes two deliberate presses.
+
+**Settings menu** (`ESC`)
+- **Arrow keys / `W` / `S`:** Move the cursor. **`Enter`:** Choose. **`ESC`:** Resume.
+- Offers 1920x1080, 2560x1440 and 3440x1440. The pixel scale is fixed at 4 screen pixels per cell in every mode, so a wider window shows *more world* rather than a bigger one — 480x270 cells at 1080p up to 860x360 at 3440x1440, which is the framing of the reference footage this game's art is measured against. A mode larger than your desktop is listed but greyed out rather than hidden.
+- The chosen mode is written to `settings.txt` beside the executable and reloaded next launch. If that file names a resolution the current display cannot fit — a monitor changed between runs — it is ignored with a note on stderr and the largest mode that does fit is used. The mode actually chosen prints at startup next to the seed.
 
 The HUD in the top-left corner of the window shows the current framerate,
 selected material, brush size, and awake-chunk count (see [Chunked
@@ -388,7 +400,7 @@ the measured number and why it was recorded rather than assumed.
 ### The player
 
 The player is the one thing in the engine that is **not** a cell. It is a
-4x8 axis-aligned box in [player.h](src/physics/player.h) with its own position
+8x20 axis-aligned box in [player.h](src/physics/player.h) with its own position
 and velocity, and it only ever *reads* the grid — it never writes a cell, so it
 cannot break the "all writes go through `set_element`" rule.
 

@@ -52,3 +52,6 @@ _deps/
 # Preview frames dumped by preview_light (see tools/rawpng.py). Regenerable.
 *.raw
 *.preview.png
+
+# Player settings, written by the game itself
+/settings.txt

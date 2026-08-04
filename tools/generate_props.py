@@ -26,7 +26,12 @@ def generate_tree(path, w, h, seed, tiers=4):
     # species as the one beside it.
     rng = random.Random(seed)
     tier_jitter = [rng.uniform(0.82, 1.06) for _ in range(tiers)]
-    tier_lift = [rng.randint(0, 2) for _ in range(tiers)]
+    # Stagger as a fraction of the tree rather than a cell count. Everything
+    # else in this function is already proportional to w/h, and this was the
+    # one absolute number in it - at 2.5x the sprite size a fixed 0-2 cells
+    # would have quietly become an invisible wobble instead of the tier
+    # separation it is there to provide.
+    tier_lift = [rng.randint(0, max(2, h // 16)) for _ in range(tiers)]
     pixels = [COLOR_KEY] * (w * h)
     cx = w // 2
 
@@ -77,6 +82,13 @@ def generate_tree(path, w, h, seed, tiers=4):
 
 
 if __name__ == '__main__':
-    generate_tree('assets/tree_a.bmp', 18, 32, seed=11, tiers=4)
-    generate_tree('assets/tree_b.bmp', 14, 24, seed=17, tiers=3)
-    generate_tree('assets/tree_c.bmp', 22, 38, seed=23, tiers=5)
+    # 2.5x their original 18x32 / 14x24 / 22x38, the same factor the player
+    # body and the fixture scene moved by. One BMP pixel is still one world
+    # cell, so a tree that was not rescaled with the body would have gone
+    # from standing 4x the player's height to barely 1.5x - shrubs, not the
+    # canopy the reference in resources/video_screenshots/test_location.jpg
+    # has the character walking under. Against the new 20-cell body these are
+    # 3x to 4.75x its height, which is where the reference sits.
+    generate_tree('assets/tree_a.bmp', 45, 80, seed=11, tiers=4)
+    generate_tree('assets/tree_b.bmp', 35, 60, seed=17, tiers=3)
+    generate_tree('assets/tree_c.bmp', 55, 95, seed=23, tiers=5)

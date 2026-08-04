@@ -27,15 +27,35 @@ public:
     // Four is small enough that a single flame cell lands in a block of its own
     // rather than being averaged into a wall, and large enough that the
     // propagation below is a rounding error against the physics step - at the
-    // padded viewport that is ~51x38 blocks, not 201x151 cells.
+    // padded viewport that is ~216x91 blocks, not 861x361 cells.
+    //
+    // **Left at 4 when the player was rescaled 2.5x, and that was a decision
+    // rather than an oversight.** Raising it to 8 was the obvious way to pay
+    // for both the longer reach the bigger body needs and the much larger
+    // viewport the widescreen display modes ask for - a quarter as many blocks
+    // to solve. It is the wrong trade, for a reason this file already records:
+    // occlusion is averaged over a block, so a one-cell wall reads as 1/BLOCK
+    // opaque, and B9d ("light penetrating walls", session 3) was exactly that
+    // number being too small at BLOCK=4. Doubling BLOCK halves it again and
+    // re-opens the defect - a player-drawn one-cell wall would go back to
+    // leaking. Reach is bought below instead, where it costs iterations rather
+    // than the sharpness of a wall.
     static constexpr int BLOCK = 4;
 
     // How far light carries, in propagation steps. Each step moves light one
-    // block - BLOCK cells - so this is a reach of ITERATIONS*BLOCK = 64 cells,
-    // which is the number the reference footage argues for: the flame occupies a
-    // modest band and walls tens of cells out pick up orange. Attenuation makes
-    // the true reach shorter than the bound; this is the ceiling, not the look.
-    static constexpr int ITERATIONS = 16;
+    // block - BLOCK cells - so this is a *ceiling* of ITERATIONS*BLOCK = 96
+    // cells. The true reach is shorter and is set by TRANSMIT_CLEAR compounding
+    // per block, which light.cpp gives as
+    // BLOCK * ln(255*MAX_EMISSION) / -ln(TRANSMIT_CLEAR) - about 83 cells at
+    // the current tuning. This bound only has to sit above that, or the
+    // iterations become the reach and the tuning stops meaning anything.
+    //
+    // 24 rather than 16 because that attenuation-limited reach was retuned from
+    // 33 cells to 83 with the player rescale: session 3 tuned the look against a
+    // screen where the body was 8 cells tall, and the number it settled on is
+    // "light carries about four body-heights". Holding 33 cells while the body
+    // became 20 cells tall would have silently changed that to one and a half.
+    static constexpr int ITERATIONS = 24;
 
     // Below this a cell contributes nothing. Ambient is 20 and Wood ignites at
     // 120, so this sits under the coldest ignition point and above anything a

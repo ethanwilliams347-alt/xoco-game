@@ -52,10 +52,27 @@ Grid empty_world(int w, int h) {
     return Grid(w, h, 1234);
 }
 
+// Every scene below is authored in cells, and almost every assertion below is
+// in *blocks* - reach, beam width, the round-glow contour, the lit percentage.
+// The two are only connected by LightField::BLOCK, so a change to BLOCK
+// silently rescales every scene in this file relative to what is measuring it:
+// a gap authored as 12 cells is three blocks wide at BLOCK=4 and one and a half
+// at BLOCK=8, and "the beam's edge is at least 1.5 blocks" stops meaning what
+// it says. This is not hypothetical - it is what changing BLOCK from 4 to 8 for
+// the player rescale actually did to this suite.
+//
+// So cell coordinates go through cells(), which holds each scene's footprint
+// *in blocks* fixed at whatever BLOCK is. The literals stay the numbers these
+// tests were written and debugged with, against the BLOCK=4 they were written
+// at, and the suite stops depending on a constant it is not testing.
+constexpr int c(int reference_cells) {
+    return reference_cells * LightField::BLOCK / 4;
+}
+
 } // namespace
 
 int main() {
-    constexpr int W = 128, H = 128;
+    constexpr int W = c(128), H = c(128);
     constexpr int B = LightField::BLOCK;
 
     // --- the region-to-block derivation ---
@@ -107,10 +124,16 @@ int main() {
     // these, and the previous session's trivially-passing test is why both are
     // here.
     {
-        Grid grid = empty_world(W, H);
+        // Sized from ITERATIONS rather than fixed at 128 cells: the `far` probe
+        // deliberately sits past the reach bound, so a field that does not
+        // extend past that bound has nowhere to put it. Raising ITERATIONS with
+        // the player rescale is what walked the probe off the edge of a 32-block
+        // field, and `at` aborting is the check that caught it.
+        const int reach_w = (32 / B + LightField::ITERATIONS + 4) * B;
+        Grid grid = empty_world(reach_w, reach_w);
         grid.set_element(32, 32, ElementType::Fire);
 
-        LightField light(128, 128);
+        LightField light(reach_w, reach_w);
         light.update(grid, 0, 0);
 
         const int src_bx = 32 / B, src_by = 32 / B;

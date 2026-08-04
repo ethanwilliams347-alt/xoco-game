@@ -42,7 +42,7 @@ int main() {
         fill(g, 60, 0, 119, 79, ElementType::Wall);
         const int before = count_of(g, ElementType::Wall);
 
-        // 15 cells short of the slab, comfortably inside RANGE (24).
+        // 15 cells short of the slab, comfortably inside RANGE (60).
         const bool hit = dig_once(g, 45, 40, 110, 40);
         const int after = count_of(g, ElementType::Wall);
 
@@ -56,7 +56,7 @@ int main() {
     // --- range is a hard limit ---
     {
         Grid g(200, 80);
-        // Slab starts well beyond RANGE (24) from the origin at x=10.
+        // Slab starts well beyond RANGE (60) from the origin at x=10.
         fill(g, 100, 0, 199, 79, ElementType::Wall);
         const int before = count_of(g, ElementType::Wall);
 
@@ -116,7 +116,9 @@ int main() {
         check("the pile is resting on the floor",
               g.get_element(60, 59).type == ElementType::Sand);
 
-        // Dig horizontally into the base of the pile, from inside RANGE.
+        // Dig horizontally into the base of the pile, from inside RANGE. The
+        // pile's near face is ~15 cells away, so this stays a near-range dig
+        // even though RANGE itself grew with the body.
         const int dug_from_x = 35;
         dig_once(g, dug_from_x, 55, 119, 55);
 

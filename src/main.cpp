@@ -5,32 +5,34 @@
 #include <string>
 #include <vector>
 #include "game/camera.h"
+#include "game/display.h"
 #include "game/run.h"
 #include "render/light.h"
 #include "scene/legend.h"
 #include "scene/scene.h"
 #include "ui/text.h"
 
-const int WINDOW_WIDTH = 800;
-const int WINDOW_HEIGHT = 600;
-
 // The simulated world's size, in cells - independent of the window since F3.1.
-// No longer equal to WINDOW_WIDTH/HEIGHT divided by Camera::SCALE: that was
-// only ever a coincidence of nothing having needed them to differ yet, and F4's
-// scene is authored at 640x400 (notes/art_pipeline.txt's reference resolution),
-// bigger than the 200x150 viewport below. That is deliberate, not a mismatch to
-// fix - it is what exercises the panning half of the camera (F3.4) rather than
-// just the decoupling half (F3.1-F3.3), which a world equal to the viewport
-// never did.
+// Not equal to any window size divided by Camera::SCALE: that was only ever a
+// coincidence of nothing having needed them to differ yet, and F4's scene is
+// authored at 1920x1080 cells (notes/art_pipeline.txt's reference resolution,
+// rescaled with the player body), bigger than every viewport in the display
+// table. That is deliberate, not a mismatch to fix - it is what exercises the
+// panning half of the camera (F3.4) rather than just the decoupling half
+// (F3.1-F3.3), which a world equal to the viewport never did.
+//
+// It also has to clear the *largest* viewport, not the one the game happens to
+// launch at: 3440x1440 sees 861x361 padded cells, so a world sized to the
+// smallest mode would leave the widest one with nothing to pan across.
 //
 // SDL_RenderCopy below stretches the whole viewport-sized texture across the
 // whole window (two null rects). **This used to warn that a grid not matching
 // the window's proportions renders squashed or cropped, and that stopped being
 // true when F3.3 sized the texture to the viewport rather than to the grid**:
-// the texture is VIEWPORT_WIDTH x VIEWPORT_HEIGHT and the window is exactly
-// Camera::SCALE times that, so the blit is 1:1 whatever size the world is. The
-// warning outlived the problem and read as a known defect in code that is
-// correct. Camera (F3.2) owns every
+// the texture is the padded viewport and the window is exactly Camera::SCALE
+// times that, so the blit is 1:1 whatever size the world is - and, now, at
+// whatever size the window is. The warning outlived the problem and read as a
+// known defect in code that is correct. Camera (F3.2) owns every
 // screen-to-world and world-to-screen conversion, and (F3.4) the viewport's
 // position in the world, so mouse/render coordinates are correct at any grid
 // size and any camera offset. The texture is sized to the viewport rather
@@ -38,23 +40,8 @@ const int WINDOW_HEIGHT = 600;
 // and the viewport now follows the player and clamps at the world's edges
 // (F3.4) rather than staying pinned at the origin - the two together are what
 // turn "the whole world, squashed" into a real view of part of a larger one.
-const int GRID_WIDTH = 640;
-const int GRID_HEIGHT = 400;
-
-// How many world cells actually fit on screen at once - independent of
-// GRID_WIDTH/HEIGHT, which is the whole point of F3.3: a world bigger than
-// this no longer costs more to upload just for existing off-screen.
-const int VIEWPORT_WIDTH = WINDOW_WIDTH / Camera::SCALE;
-const int VIEWPORT_HEIGHT = WINDOW_HEIGHT / Camera::SCALE;
-
-// One extra cell on each axis, uploaded and drawn but never quite fully on
-// screen. The camera scrolls in fractions of a cell (defect A1), so the world
-// texture is drawn shifted by up to one cell left and up - which uncovers a
-// sliver along the right and bottom edges that this margin fills. Everything
-// downstream uses the padded size; the camera is told its viewport is the
-// padded size too, so its clamp keeps the upload inside the grid.
-const int PADDED_WIDTH = VIEWPORT_WIDTH + 1;
-const int PADDED_HEIGHT = VIEWPORT_HEIGHT + 1;
+const int GRID_WIDTH = 1920;
+const int GRID_HEIGHT = 1080;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
@@ -194,6 +181,124 @@ struct Prop {
     float anchor_y;
 };
 
+// Everything whose size is a function of the display mode, and nothing else.
+//
+// The list is short on purpose, and the reason it is short is F3.2-F3.4: the
+// pixel buffer is grid-sized rather than viewport-sized, and Camera is told the
+// viewport's size as an argument to follow() rather than storing it. Neither
+// had anything to do with resolution switching when they were written; both are
+// why switching is a matter of rebuilding two textures instead of rebuilding
+// the renderer.
+struct RenderTargets {
+    SDL_Texture* cells = nullptr;      // the world's ARGB streaming texture
+    SDL_Texture* light_texture = nullptr;
+    LightField light{1, 1};            // replaced wholesale on every mode change
+};
+
+// Builds the render targets for `mode` and, on success, swaps them in and
+// resizes the window.
+//
+// **Constructs everything new before releasing anything old, and that is the
+// whole reason this returns a bool instead of exiting.** At startup a failed
+// texture allocation can reasonably end the process; a hundred frames into a
+// session it cannot, because the player still has a world open and the only
+// thing that went wrong is a setting they can change back. On failure nothing
+// has been destroyed and nothing has been reassigned, so the caller keeps
+// playing at the mode it already had.
+bool apply_mode(SDL_Window* window, SDL_Renderer* renderer,
+                const DisplayMode& mode, RenderTargets& targets) {
+    SDL_Texture* cells = SDL_CreateTexture(
+        renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+        mode.padded_w(), mode.padded_h());
+    if (!cells) {
+        std::fprintf(stderr, "Could not create a %dx%d cell texture: %s\n",
+                     mode.padded_w(), mode.padded_h(), SDL_GetError());
+        return false;
+    }
+
+    LightField light(mode.padded_w(), mode.padded_h());
+    SDL_Texture* light_texture = SDL_CreateTexture(
+        renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
+        light.cols(), light.rows());
+    if (!light_texture) {
+        std::fprintf(stderr, "Could not create a %dx%d light texture: %s\n",
+                     light.cols(), light.rows(), SDL_GetError());
+        SDL_DestroyTexture(cells);
+        return false;
+    }
+
+    // **Both blend modes and the light's filtering are re-applied here, not set
+    // once at startup, because they are properties of a texture and these are
+    // new textures.** Each of the three is load-bearing and none is obvious
+    // from the create call:
+    //
+    // **BLEND on the cells.** Empty is 0x00000000 in MATERIALS, so an empty
+    // cell is transparent rather than black - but only if the texture is
+    // composited rather than blitted. Without this line the alpha is carried
+    // all the way to the screen and then ignored, which looks exactly like the
+    // opaque black the table used to hold.
+    //
+    // **ADD, not BLEND, on the light.** Light is something the scene gains, not
+    // something laid over it: an alpha blend towards orange would wash the
+    // terrain's colour out towards the flame's, where addition brightens
+    // whatever is already there and leaves a lit grey wall reading as a grey
+    // wall. It also means black is free - an unlit block adds nothing - which
+    // is what lets the same texture cover the whole viewport rather than
+    // needing a mask.
+    //
+    // **Linear filtering is the entire reason a downsampled light grid is
+    // acceptable.** At nearest-neighbour it is BLOCK-sized squares of flat
+    // colour, which is worse than no lighting at all. Set per-texture rather
+    // than through SDL_HINT_RENDER_SCALE_QUALITY, which is read at *creation*
+    // time and is global - routing this through a global would make the cell
+    // texture's sharpness depend on the order the two are created in, and the
+    // day that bit rots every cell in the world goes soft at once.
+    SDL_SetTextureBlendMode(cells, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(light_texture, SDL_BLENDMODE_ADD);
+    SDL_SetTextureScaleMode(light_texture, SDL_ScaleModeLinear);
+
+    // A streaming texture is created with undefined contents, and the upload
+    // each frame only ever writes the rect the grid actually covers. Those are
+    // the same rect in every world this project currently builds - but a world
+    // smaller than the viewport on either axis leaves the remainder holding
+    // whatever the driver's allocation happened to contain, and it would show
+    // as garbage along the edge rather than as the backdrop. Once per texture,
+    // since it can only ever be wrong once - which is why it lives here rather
+    // than at startup now that textures are created more than once.
+    {
+        const std::vector<uint32_t> blank(
+            static_cast<size_t>(mode.padded_w()) * mode.padded_h(), 0);
+        SDL_UpdateTexture(cells, nullptr, blank.data(), mode.padded_w() * sizeof(uint32_t));
+    }
+
+    if (targets.cells) SDL_DestroyTexture(targets.cells);
+    if (targets.light_texture) SDL_DestroyTexture(targets.light_texture);
+    targets.cells = cells;
+    targets.light_texture = light_texture;
+    targets.light = std::move(light);
+
+    SDL_SetWindowSize(window, mode.window_w, mode.window_h);
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    return true;
+}
+
+// Whether a mode's window actually fits on the display the window is on.
+//
+// 3440x1440 on a 1080p monitor is a window larger than the desktop: SDL will
+// create it, the bottom and right of the game are then off-screen, and the
+// settings menu the player would use to change it back is one of the things
+// that has gone off-screen with them. Usable bounds rather than raw bounds, so
+// a taskbar counts.
+bool mode_fits(const DisplayMode& mode, int display_index) {
+    SDL_Rect usable;
+    if (SDL_GetDisplayUsableBounds(display_index, &usable) != 0) {
+        // No answer is not the same as "no". A driver that cannot report its
+        // own bounds should not be able to hide every mode in the menu.
+        return true;
+    }
+    return mode.window_w <= usable.w && mode.window_h <= usable.h;
+}
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -203,10 +308,48 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Which modes this display can actually show, and which of them to open at.
+    //
+    // The stored setting wins if it is still valid *and* still fits - a monitor
+    // can change between runs, and a saved 3440x1440 on a laptop screen would
+    // otherwise open a window nobody can reach the settings menu inside. Failing
+    // that, the largest mode that fits, which is the one that shows the most
+    // world.
+    bool mode_available[DISPLAY_MODE_COUNT];
+    int mode_index = -1;
+    for (int i = 0; i < DISPLAY_MODE_COUNT; ++i) {
+        mode_available[i] = mode_fits(DISPLAY_MODES[i], 0);
+        if (mode_available[i]) mode_index = i;
+    }
+    if (mode_index < 0) {
+        // Every mode is larger than the desktop. Open at the smallest anyway
+        // rather than refusing to start: an oversized window is a bad session,
+        // and no window at all is no session.
+        std::fprintf(stderr, "No display mode fits this desktop; opening at %dx%d anyway.\n",
+                     DISPLAY_MODES[0].window_w, DISPLAY_MODES[0].window_h);
+        mode_index = 0;
+    }
+    {
+        const int stored = load_display_mode();
+        if (stored >= 0 && mode_available[stored]) {
+            mode_index = stored;
+        } else if (stored >= 0) {
+            std::fprintf(stderr, "Stored mode %dx%d does not fit this display; ignoring it.\n",
+                         DISPLAY_MODES[stored].window_w, DISPLAY_MODES[stored].window_h);
+        }
+    }
+    DisplayMode mode = DISPLAY_MODES[mode_index];
+
+    // Printed for the same reason the seed below is: a mode chosen by a
+    // fallback path is invisible otherwise, and "it opened smaller than I asked
+    // for" is not something a player can debug from the window alone.
+    std::printf("Display: %dx%d (%dx%d cells at %dx)\n", mode.window_w, mode.window_h,
+                mode.viewport_w(), mode.viewport_h(), Camera::SCALE);
+
     SDL_Window* window = SDL_CreateWindow(
         "SLOP Pixel Physics",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH, WINDOW_HEIGHT,
+        mode.window_w, mode.window_h,
         SDL_WINDOW_SHOWN
     );
     if (!window) {
@@ -223,64 +366,17 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // ARGB8888 texture for direct pixel manipulation, sized to the viewport
-    // (F3.3) rather than the whole grid - see VIEWPORT_WIDTH/HEIGHT above.
-    SDL_Texture* texture = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        PADDED_WIDTH, PADDED_HEIGHT
-    );
-    if (!texture) {
-        std::fprintf(stderr, "Texture could not be created! SDL_Error: %s\n", SDL_GetError());
+    // The world's ARGB8888 streaming texture and V7's light texture, both sized
+    // to the viewport (F3.3) rather than to the whole grid, and both rebuilt by
+    // this same call whenever the mode changes. Here a failure is fatal, unlike
+    // in the menu: there is no earlier mode to fall back to.
+    RenderTargets targets;
+    if (!apply_mode(window, renderer, mode, targets)) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
-
-    // V1: Empty is 0x00000000 in MATERIALS, so an empty cell is transparent
-    // rather than black - but only if the texture is composited rather than
-    // blitted. Without this line the alpha is carried all the way to the screen
-    // and then ignored, which looks exactly like the opaque black the table
-    // used to hold, so the two changes are only meaningful together.
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-
-    // V7's light texture: one texel per LightField::BLOCK cells, stretched over
-    // the world and composited additively. Three properties of it are load-
-    // bearing and none is obvious from the create call.
-    //
-    // **ADD, not BLEND.** Light is something the scene gains, not something laid
-    // over it: an alpha blend towards orange would wash the terrain's colour out
-    // towards the flame's, where addition brightens whatever is already there and
-    // leaves a lit grey wall reading as a grey wall. It also means black is
-    // free - an unlit block adds nothing - which is what lets the same texture
-    // cover the whole viewport rather than needing a mask.
-    //
-    // **Linear filtering is the entire reason a downsampled grid is acceptable.**
-    // At nearest-neighbour this is 4x4-cell squares of flat colour, which is
-    // worse than no lighting at all. Set per-texture rather than through
-    // SDL_HINT_RENDER_SCALE_QUALITY, which is read at *creation* time and is
-    // global - routing this texture's filtering through a global would make the
-    // cell texture's sharpness depend on the order the two are created in, and
-    // the day that bit rots every cell in the world goes soft at once.
-    LightField light(PADDED_WIDTH, PADDED_HEIGHT);
-    SDL_Texture* light_texture = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        light.cols(), light.rows()
-    );
-    if (!light_texture) {
-        std::fprintf(stderr, "Light texture could not be created! SDL_Error: %s\n", SDL_GetError());
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-    SDL_SetTextureBlendMode(light_texture, SDL_BLENDMODE_ADD);
-    SDL_SetTextureScaleMode(light_texture, SDL_ScaleModeLinear);
 
     // V8's backdrop: two static parallax layers, replacing V1's 64-band
     // gradient placeholder now that there is authored art to show instead.
@@ -315,18 +411,27 @@ int main(int argc, char* argv[]) {
     // terrain scan after the scene loads (see `snap_prop_to_terrain`). Writing
     // a y here at all is what put three of these trees inside the snowbank:
     // FLOOR_TOP is the floor slab's top, and the authored sand slope rises up
-    // to 60 cells above it, so "the ground" is not one number.
-    constexpr float GROUND_Y = 380.0f; // FLOOR_TOP in generate_test_scene.py
+    // to 150 cells above it, so "the ground" is not one number.
+    //
+    // **Every number here is a scene coordinate times SCENE_SCALE**, the same
+    // 2.5 generate_test_scene.py puts its own layout through and the same one
+    // the player body grew by. These are positions in a scene that was
+    // rescaled; left as they were, all nine trees would have been planted in
+    // the leftmost sixth of the fixture, which is the snowbank and the fence
+    // posts, and the comment above about anchoring over open air would have
+    // stopped being true of any of them.
+    constexpr float SCENE_SCALE = 2.5f;
+    constexpr float GROUND_Y = 380.0f * SCENE_SCALE; // FLOOR_TOP in generate_test_scene.py
     std::vector<Prop> props = {
-        { tree_c, tcw, tch, 40.0f,  GROUND_Y },
-        { tree_a, taw, tah, 58.0f,  GROUND_Y },
-        { tree_b, tbw, tbh, 75.0f,  GROUND_Y },
-        { tree_a, taw, tah, 255.0f, GROUND_Y },
-        { tree_c, tcw, tch, 270.0f, GROUND_Y },
-        { tree_b, tbw, tbh, 575.0f, GROUND_Y },
-        { tree_a, taw, tah, 592.0f, GROUND_Y },
-        { tree_c, tcw, tch, 610.0f, GROUND_Y },
-        { tree_b, tbw, tbh, 625.0f, GROUND_Y },
+        { tree_c, tcw, tch, 40.0f  * SCENE_SCALE, GROUND_Y },
+        { tree_a, taw, tah, 58.0f  * SCENE_SCALE, GROUND_Y },
+        { tree_b, tbw, tbh, 75.0f  * SCENE_SCALE, GROUND_Y },
+        { tree_a, taw, tah, 255.0f * SCENE_SCALE, GROUND_Y },
+        { tree_c, tcw, tch, 270.0f * SCENE_SCALE, GROUND_Y },
+        { tree_b, tbw, tbh, 575.0f * SCENE_SCALE, GROUND_Y },
+        { tree_a, taw, tah, 592.0f * SCENE_SCALE, GROUND_Y },
+        { tree_c, tcw, tch, 610.0f * SCENE_SCALE, GROUND_Y },
+        { tree_b, tbw, tbh, 625.0f * SCENE_SCALE, GROUND_Y },
     };
 
     // The reticle *is* the cursor now, so the OS one would be a second pointer
@@ -334,19 +439,6 @@ int main(int argc, char* argv[]) {
     // globally, so the desktop pointer is untouched the moment the mouse leaves
     // - which is why this can be set once here instead of tracked per frame.
     SDL_ShowCursor(SDL_DISABLE);
-
-    // A streaming texture is created with undefined contents, and the upload
-    // below only ever writes the rect the grid actually covers. Those are the
-    // same rect in every world this project currently builds - but a world
-    // smaller than the viewport on either axis leaves the remainder holding
-    // whatever the driver's allocation happened to contain, and it would show
-    // as garbage along the edge rather than as the backdrop. One clear at
-    // startup rather than a per-frame guard, since it can only ever be wrong
-    // once.
-    {
-        const std::vector<uint32_t> blank(static_cast<size_t>(PADDED_WIDTH) * PADDED_HEIGHT, 0);
-        SDL_UpdateTexture(texture, nullptr, blank.data(), PADDED_WIDTH * sizeof(uint32_t));
-    }
 
     // This is the only nondeterministic line in the project, and it is here
     // rather than inside Grid on purpose: the simulation is a pure function of
@@ -424,6 +516,31 @@ int main(int argc, char* argv[]) {
     ElementType current_brush = ElementType::Sand;
     int brush_size = 3;
 
+    // The settings menu is a *state*, not an overlay with a flag: while it is
+    // open the fixed-step loop below does not run, so the world is frozen
+    // rather than continuing to simulate behind a screen the player cannot act
+    // through. It still renders, because a settings screen over a black void
+    // gives no way to judge a resolution change against the thing being
+    // resized.
+    //
+    // **ESC now opens this instead of quitting.** That is a change to an
+    // existing binding and worth stating: a key that ends the session without
+    // confirmation is the wrong key to leave next to a menu, so quitting moved
+    // into the menu as an item, where it takes two deliberate presses.
+    enum class Screen { Playing, Settings };
+    Screen screen = Screen::Playing;
+
+    // Menu items: one per display mode, then Quit. The index is into this
+    // combined list rather than into DISPLAY_MODES, so navigation does not need
+    // to know that the last row is special.
+    const int MENU_QUIT = DISPLAY_MODE_COUNT;
+    int menu_cursor = mode_index;
+
+    // Shown under the menu for a few seconds after a switch is attempted, so a
+    // refused mode says so instead of looking like a dead key.
+    std::string menu_notice;
+    double menu_notice_timer = 0.0;
+
     uint64_t prev_counter = SDL_GetPerformanceCounter();
     const double counter_freq = static_cast<double>(SDL_GetPerformanceFrequency());
     double accumulator = 0.0;
@@ -463,6 +580,60 @@ int main(int argc, char* argv[]) {
             if (e.type == SDL_QUIT) {
                 running = false;
             }
+            else if (screen == Screen::Settings && e.type == SDL_KEYDOWN) {
+                // Keyboard-driven rather than click-driven, and that is a
+                // scope decision rather than a taste one: this project has no
+                // widget layer, no hit-testing and no focus model, and adding
+                // three of them to change a resolution would be a larger
+                // feature than the one being built. Arrow keys need none of it.
+                switch (e.key.keysym.sym) {
+                    case SDLK_UP:
+                    case SDLK_w:
+                        menu_cursor = (menu_cursor + MENU_QUIT) % (MENU_QUIT + 1);
+                        break;
+                    case SDLK_DOWN:
+                    case SDLK_s:
+                        menu_cursor = (menu_cursor + 1) % (MENU_QUIT + 1);
+                        break;
+                    case SDLK_RETURN:
+                    case SDLK_KP_ENTER:
+                    case SDLK_SPACE:
+                        if (menu_cursor == MENU_QUIT) {
+                            running = false;
+                        } else if (!mode_available[menu_cursor]) {
+                            menu_notice = "That mode is larger than this display.";
+                            menu_notice_timer = 4.0;
+                        } else if (menu_cursor == mode_index) {
+                            screen = Screen::Playing;
+                        } else {
+                            const DisplayMode& wanted = DISPLAY_MODES[menu_cursor];
+                            if (apply_mode(window, renderer, wanted, targets)) {
+                                mode = wanted;
+                                mode_index = menu_cursor;
+                                // Persisted at the point it takes effect, not
+                                // on the way out of the menu: a crash between
+                                // the two would otherwise lose a setting the
+                                // player watched succeed.
+                                if (!save_display_mode(mode)) {
+                                    menu_notice = "Mode changed, but settings.txt could not be written.";
+                                    menu_notice_timer = 6.0;
+                                } else {
+                                    screen = Screen::Playing;
+                                }
+                            } else {
+                                // apply_mode left everything as it was, so
+                                // there is nothing to roll back - only to say.
+                                menu_cursor = mode_index;
+                                menu_notice = "Could not create render targets at that size; mode unchanged.";
+                                menu_notice_timer = 6.0;
+                            }
+                        }
+                        break;
+                    case SDLK_ESCAPE:
+                        screen = Screen::Playing;
+                        break;
+                }
+            }
             else if (e.type == SDL_MOUSEWHEEL) {
                 brush_size += e.wheel.y;
                 if (brush_size < 1) brush_size = 1;
@@ -478,7 +649,10 @@ int main(int argc, char* argv[]) {
                     case SDLK_6: current_brush = ElementType::Oil;   break;
                     case SDLK_7: current_brush = ElementType::Steam; break;
                     case SDLK_8: current_brush = ElementType::Fire;  break;
-                    case SDLK_ESCAPE: running = false; break;
+                    case SDLK_ESCAPE:
+                        screen = Screen::Settings;
+                        menu_cursor = mode_index;
+                        break;
                 }
             }
         }
@@ -488,7 +662,7 @@ int main(int argc, char* argv[]) {
         // keyboard samples below it - "the player's position this frame" has
         // exactly the same one-sample-per-frame character as those do.
         camera.follow(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
-                      PADDED_WIDTH, PADDED_HEIGHT, GRID_WIDTH, GRID_HEIGHT);
+                      mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
 
         // Handle continuous mouse pressing
         int mouseX, mouseY;
@@ -526,7 +700,15 @@ int main(int argc, char* argv[]) {
         prev_counter = now_counter;
         if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
 
-        accumulator += frame_time;
+        if (menu_notice_timer > 0.0) menu_notice_timer -= frame_time;
+
+        // The menu freezes the simulation by not accumulating time, rather than
+        // by skipping the step loop with the accumulator still filling: the
+        // second version banks every second spent in the menu and spends it in
+        // one burst of catch-up steps on the way out, which at MAX_FRAME_TIME's
+        // quarter-second clamp is a visible lurch. Not accumulating means the
+        // world is exactly where it was left.
+        if (screen == Screen::Playing) accumulator += frame_time;
         while (accumulator >= Run::FIXED_DT) {
             prev_player_x = run.player.visual_x();
             prev_player_y = run.player.visual_y();
@@ -560,7 +742,7 @@ int main(int argc, char* argv[]) {
         // camera for it would reintroduce exactly the whole-frame lag between
         // the player and the world that this defect is about.
         camera.follow(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
-                      PADDED_WIDTH, PADDED_HEIGHT, GRID_WIDTH, GRID_HEIGHT);
+                      mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
 
         // Upload only the visible rect (F3.3), not the whole grid, starting
         // from the camera's current view (F3.4) rather than always (0, 0).
@@ -572,11 +754,11 @@ int main(int argc, char* argv[]) {
         // one, a grid larger than the viewport, where the clamp is a no-op
         // and the rect is the full viewport every frame.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
-        const int visible_w = std::min(PADDED_WIDTH, GRID_WIDTH);
-        const int visible_h = std::min(PADDED_HEIGHT, GRID_HEIGHT);
+        const int visible_w = std::min(mode.padded_w(), GRID_WIDTH);
+        const int visible_h = std::min(mode.padded_h(), GRID_HEIGHT);
         const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
         const uint32_t* visible_pixels = pixels.data() + camera.view_y() * GRID_WIDTH + camera.view_x();
-        SDL_UpdateTexture(texture, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
+        SDL_UpdateTexture(targets.cells, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
 
         // V7. Computed against the same view origin the cell upload just used,
         // and after `camera.follow` for the same reason that upload is: a light
@@ -588,10 +770,10 @@ int main(int argc, char* argv[]) {
         // ~2,000 blocks) and the alternative is a cache keyed on both the camera
         // and every temperature in view - which is a correctness problem in
         // exchange for saving something already too cheap to measure.
-        light.update(run.grid, camera.view_x(), camera.view_y());
-        if (light.any_light()) {
-            SDL_UpdateTexture(light_texture, nullptr, light.pixels().data(),
-                              light.cols() * sizeof(uint32_t));
+        targets.light.update(run.grid, camera.view_x(), camera.view_y());
+        if (targets.light.any_light()) {
+            SDL_UpdateTexture(targets.light_texture, nullptr, targets.light.pixels().data(),
+                              targets.light.cols() * sizeof(uint32_t));
         }
 
         // The backdrop layer (V8, replacing V1's gradient placeholder now
@@ -659,10 +841,10 @@ int main(int argc, char* argv[]) {
         const SDL_FRect world_dst{
             -camera.frac_x() * Camera::SCALE,
             -camera.frac_y() * Camera::SCALE,
-            static_cast<float>(PADDED_WIDTH * Camera::SCALE),
-            static_cast<float>(PADDED_HEIGHT * Camera::SCALE)
+            static_cast<float>(mode.padded_w() * Camera::SCALE),
+            static_cast<float>(mode.padded_h() * Camera::SCALE)
         };
-        SDL_RenderCopyF(renderer, texture, nullptr, &world_dst);
+        SDL_RenderCopyF(renderer, targets.cells, nullptr, &world_dst);
 
         // The player is not a cell, so it is not in the pixel buffer either -
         // it is drawn on top of the world as its own rectangle. Float rect and
@@ -692,14 +874,14 @@ int main(int argc, char* argv[]) {
         // of the four-by-four cells it was computed from. Sized to the padded
         // extent instead, every texel would sit up to half a block off and the
         // glow would trail behind the flame that cast it.
-        if (light.any_light()) {
+        if (targets.light.any_light()) {
             const SDL_FRect light_dst{
                 -camera.frac_x() * Camera::SCALE,
                 -camera.frac_y() * Camera::SCALE,
-                static_cast<float>(light.cols() * LightField::BLOCK * Camera::SCALE),
-                static_cast<float>(light.rows() * LightField::BLOCK * Camera::SCALE)
+                static_cast<float>(targets.light.cols() * LightField::BLOCK * Camera::SCALE),
+                static_cast<float>(targets.light.rows() * LightField::BLOCK * Camera::SCALE)
             };
-            SDL_RenderCopyF(renderer, light_texture, nullptr, &light_dst);
+            SDL_RenderCopyF(renderer, targets.light_texture, nullptr, &light_dst);
         }
 
         // The reticle (V10/B1). Three things it has to do, and the old one-cell
@@ -765,7 +947,12 @@ int main(int argc, char* argv[]) {
                    " BRUSH:" + material_of(current_brush).name + "(" + std::to_string(brush_size) + ")" +
                    " CHUNKS:" + std::to_string(run.grid.active_chunk_count());
 
-        const int hud_scale = 2;
+        // Scaled with the window rather than fixed at 2 (see
+        // DisplayMode::ui_scale): a HUD that keeps its pixel size keeps
+        // shrinking as a fraction of the screen every time a wider mode is
+        // added, and this one is an instrument - defect A2 is about it being
+        // trusted to answer "what did that key just do".
+        const int hud_scale = mode.ui_scale();
         const int hud_x = 8, hud_y = 8;
         const SDL_Rect hud_backing{
             hud_x - 4, hud_y - 4,
@@ -776,6 +963,71 @@ int main(int argc, char* argv[]) {
         SDL_RenderFillRect(renderer, &hud_backing);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
+
+        // --- the settings menu ---
+        //
+        // Drawn last, over a dimming wash rather than over a solid panel, so
+        // the world stays visible behind it. That is not decoration: the only
+        // way to judge "is this the resolution I want" is to see how much of
+        // the world it shows, and a menu that hides the world hides the thing
+        // the setting changes.
+        if (screen == Screen::Settings) {
+            const int scale = mode.ui_scale();
+            const int line_h = (ui::GLYPH_HEIGHT + 3) * scale;
+
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
+            const SDL_Rect wash{0, 0, mode.window_w, mode.window_h};
+            SDL_RenderFillRect(renderer, &wash);
+
+            const int menu_x = mode.window_w / 2 - 30 * ui::GLYPH_WIDTH * scale / 2;
+            int y = mode.window_h / 2 - (MENU_QUIT + 4) * line_h / 2;
+
+            ui::draw_text(renderer, menu_x, y, scale, "SETTINGS", 0xFFFFFFFF);
+            y += line_h * 2;
+
+            for (int i = 0; i <= MENU_QUIT; ++i) {
+                const bool selected = (i == menu_cursor);
+                std::string label;
+                uint32_t colour;
+
+                if (i == MENU_QUIT) {
+                    label = "QUIT";
+                    colour = selected ? 0xFFFFFFFF : 0xFFA0A0A0;
+                } else {
+                    const DisplayMode& m = DISPLAY_MODES[i];
+                    label = std::to_string(m.window_w) + "X" + std::to_string(m.window_h) +
+                            "  " + std::to_string(m.viewport_w()) + "X" +
+                            std::to_string(m.viewport_h()) + " CELLS";
+                    if (i == mode_index) label += "  *";
+                    // Unavailable modes are shown greyed rather than hidden.
+                    // A menu that silently omits a mode on one machine and
+                    // lists it on another is a menu a player cannot learn.
+                    if (!mode_available[i]) {
+                        label += "  (TOO LARGE)";
+                        colour = selected ? 0xFF806060 : 0xFF605050;
+                    } else {
+                        colour = selected ? 0xFFFFFFFF : 0xFFA0A0A0;
+                    }
+                }
+
+                if (selected) {
+                    ui::draw_text(renderer, menu_x - 2 * ui::GLYPH_WIDTH * scale, y, scale, ">",
+                                  colour);
+                }
+                ui::draw_text(renderer, menu_x, y, scale, label, colour);
+                y += line_h;
+            }
+
+            y += line_h;
+            ui::draw_text(renderer, menu_x, y, scale,
+                          "ARROWS  ENTER  ESC RESUMES", 0xFF808080);
+            if (menu_notice_timer > 0.0 && !menu_notice.empty()) {
+                y += line_h;
+                ui::draw_text(renderer, menu_x, y, scale, menu_notice, 0xFFFFC080);
+            }
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
 
         SDL_RenderPresent(renderer);
 
@@ -799,8 +1051,8 @@ int main(int argc, char* argv[]) {
     if (tree_a) SDL_DestroyTexture(tree_a);
     if (backdrop_mountains) SDL_DestroyTexture(backdrop_mountains);
     if (backdrop_sky) SDL_DestroyTexture(backdrop_sky);
-    SDL_DestroyTexture(light_texture);
-    SDL_DestroyTexture(texture);
+    SDL_DestroyTexture(targets.light_texture);
+    SDL_DestroyTexture(targets.cells);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

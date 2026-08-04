@@ -1,5 +1,6 @@
 #pragma once
 #include "grid.h"
+#include "player.h" // RANGE and RADIUS are stated as ratios of the body size
 
 // The player's verbs — the things it does *to* the world, as opposed to the
 // things the world does to it.
@@ -15,12 +16,17 @@ public:
     // How far the dig reaches from the player's centre, in cells. Roughly three
     // body-heights: far enough to clear a path ahead, short enough that the
     // player has to commit to a position rather than deleting the level from
-    // across the screen.
-    static constexpr int RANGE = 24;
+    // across the screen. Stated as a multiple of Player::HEIGHT rather than as
+    // a bare 60 so the ratio the comment claims is the one the code enforces -
+    // this was 24 against a 8-cell body and had to be found by hand when the
+    // body grew.
+    static constexpr int RANGE = 3 * Player::HEIGHT;
 
-    // Radius of the hole taken out at the impact point. 3 removes a bite that
-    // is clearly visible at a 4x pixel scale without being an explosion.
-    static constexpr int RADIUS = 3;
+    // Radius of the hole taken out at the impact point. Three quarters of the
+    // body's width, so the bite is one and a half bodies across: clearly
+    // visible at a 4x pixel scale without being an explosion. Same ratio the
+    // old 3-against-a-4-wide-body had, kept by expressing it as the ratio.
+    static constexpr int RADIUS = 3 * Player::WIDTH / 4;
 
     // Fixed steps between digs. Counted in steps rather than seconds so the
     // rate is identical on every machine, for the same reason the simulation

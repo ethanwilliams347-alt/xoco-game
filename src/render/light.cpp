@@ -58,14 +58,30 @@ constexpr float CELL_GAS    = 0.97f;
 // choice between the three worked examples, because even the one described here
 // as "a tight rim light" carried too far. 0.48 is about a fifth shorter again,
 // which is what "reduced slightly" buys at this compounding rate.
-constexpr float TRANSMIT_CLEAR = 0.52f;
+//
+// **0.77 is session 3's 0.52 restated, not a reversal of it.** Every number in
+// the table above is a reach *in cells*, and a cell stopped being a fixed
+// fraction of the screen when the player was rescaled to Noita's proportions
+// (Player::HEIGHT, 8 cells to 20). What session 3 actually chose, looking at a
+// screen, was "light carries about four body-heights" - 33 cells against the
+// 8-cell body of the time. Holding 0.52 would have kept the 33 cells and made
+// it one and a half body-heights, which is a look nobody picked. The formula
+// above run backwards from 2.5 x 33 cells gives 0.77, and the reach it buys is
+// ~83 cells: the same picture, at the new scale.
+constexpr float TRANSMIT_CLEAR = 0.77f;
 
 // Kept as the name the smoothing pass and the tests reason about: the
 // transmission of a block that is solid all the way through, which is now a
 // consequence of CELL_SOLID rather than a number of its own. Four cells of rock
 // at 0.12 each is 0.0002, which is to say a solid block is opaque - as it should
 // always have been, and as 0.15 never was.
-const float TRANSMIT_SOLID = CELL_SOLID * CELL_SOLID * CELL_SOLID * CELL_SOLID;
+//
+// Raised to LightField::BLOCK rather than written out four times: a block is
+// BLOCK cells across, and this was one of two places that quietly assumed that
+// number was 4. Turning the knob with either of them left alone does not
+// produce a coarser field, it produces a *darker* one, which reads as a tuning
+// problem rather than as the arithmetic error it is.
+const float TRANSMIT_SOLID = std::pow(CELL_SOLID, static_cast<float>(LightField::BLOCK));
 
 // Per-cell log-transmission, summed over a block during the gather. The block's
 // transmission is exp(sum/4): sixteen cells sampled, four of them crossed.
@@ -78,10 +94,15 @@ float cell_log_transmit(ElementType type, float log_air) {
     }
 }
 
-// Clear air, per cell rather than per block - the fourth root of the figure
-// above, since a block is four cells across. Hoisted so the gather pays one exp
+// Clear air, per cell rather than per block - the BLOCK'th root of the figure
+// above, since a block is BLOCK cells across. Hoisted so the gather pays one exp
 // per block instead of a log per cell.
-const float LOG_CELL_AIR = std::log(TRANSMIT_CLEAR) * 0.25f;
+//
+// The second of the two hardcoded 4s (see TRANSMIT_SOLID). As `* 0.25f` this
+// silently pinned the whole falloff to BLOCK == 4: at BLOCK == 8 a block of
+// clear air would have transmitted TRANSMIT_CLEAR squared, halving the reach
+// exactly where a coarser field was being asked for to extend it.
+const float LOG_CELL_AIR = std::log(TRANSMIT_CLEAR) / static_cast<float>(LightField::BLOCK);
 
 // Peak emission from a block that is entirely on fire, before tone mapping.
 //
