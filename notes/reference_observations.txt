@@ -70,7 +70,32 @@ wish list, and an entry without it has not finished thinking.
 OBSERVATIONS
 ------------
 
-(none yet -- nothing has been captured or watched at the time of writing)
+2026-08-03 / resources/video_screenshots/test_location.jpg (Noita, forest
+biome, opening area at night)
+Seen:      A quantized palette sample (16 levels/channel, ~100k points) came
+           back 51.6% flat black and every other bucket in the top twenty
+           under RGB 96 on every channel. The foreground terrain is a flat
+           black silhouette with a one-to-two-pixel bright rim on its
+           top-facing edge and no other texture. Trees are mid-ground,
+           rooted at/behind that rim, drawn in flat tone bands rather than
+           per-pixel shading. The sky is a banded dusk gradient with sparse
+           single-pixel stars. Almost nothing in the frame is textured;
+           the read comes from silhouette layering, not detail density.
+Implies:   V5 — this is adopted as the forest quantum-world's direction
+           (see notes/art_direction.txt). V8 — the layer stack needs a
+           mid-ground props layer between the backdrop and the terrain,
+           not just backdrop-then-terrain; art_pipeline.txt's original
+           three-layer model (backdrop / terrain / props-on-top) doesn't
+           fit this reference's depth ordering. V6 — strong evidence for a
+           narrow, dark, low-saturation locked palette rather than a wide
+           one.
+Does not:  License copying any pixel out of the still. resources/ is
+           gitignored precisely because this is reference, not material —
+           the palette and every generated asset in tools/ are original
+           values chosen to the same *character* the sample measured, not
+           values read off the file. Does not justify texturing the
+           terrain more densely either — the opposite finding is the one
+           that survived: leave it flat and let the rim carry it.
 
 
 WORTH CAPTURING, MAPPED TO ITEMS THAT ARE ALREADY SCHEDULED

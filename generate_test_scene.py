@@ -1,65 +1,43 @@
+import os
 import random
-import struct
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools'))
+from pixel_art import PALETTE, apply_rim_light, write_bmp  # noqa: E402
 
 # Generates the F4 fixture scene (assets/test_material.bmp, test_albedo.bmp).
 # Layout and intent come from notes/art_pipeline.txt's "test fixture wearing
 # art" section - each region below exists to exercise one named system, not
 # to look good. Sized to GRID_WIDTH/HEIGHT in main.cpp (640x400); the two
 # must move together.
+#
+# Albedo now comes from the locked palette (V6, tools/pixel_art.py) and a
+# rim-light pass (notes/art_direction.txt) rather than hand-picked shades
+# close to the legend colours - that was F4's placeholder and V6 is what
+# replaced it.
 
 WIDTH = 640
 HEIGHT = 400
 
 # Legend colours must match src/physics/material.h's MATERIALS table exactly
 # (RGB only - main.cpp's loader masks off alpha before comparing), or a
-# region silently loads as Empty instead of the intended material.
+# region silently loads as Empty instead of the intended material. FROZEN -
+# see src/scene/legend.h; a palette pass must never touch these.
 WALL = (0x88, 0x88, 0x88)
 SAND = (0xEE, 0xDD, 0x82)
 WOOD = (0x6B, 0x44, 0x23)
 WATER = (0x44, 0x44, 0xFF)
 EMPTY = (0x00, 0x00, 0x00)
 
-# Albedo shades close to but distinguishable from the legend colours - a
-# stand-in for authored art. Retuning these into an actual palette is F4's
-# deferred phase 4 (notes/art_pipeline.txt), not this step's job.
-WALL_ALB = (0x77, 0x77, 0x77)
-SAND_ALB = SAND
-WOOD_ALB = (0x55, 0x33, 0x11)
-WATER_ALB = (0x33, 0x33, 0xEE)
+# Albedo: the locked palette's per-material fill, one flat tone each. The
+# rim-light pass at the bottom of this file is what adds the bright edge -
+# these are just the shadowed interior.
+WALL_ALB = PALETTE['wall_fill']
+SAND_ALB = PALETTE['sand_fill']
+WOOD_ALB = PALETTE['wood_fill']
+WATER_ALB = PALETTE['water_fill']
 
 FLOOR_TOP = 380  # first row of the floor slab; everything above is open
-
-
-def write_bmp(filename, width, height, pixels_rgb):
-    row_size = (width * 3 + 3) & ~3
-    pixel_data_size = row_size * height
-    file_size = 54 + pixel_data_size
-
-    with open(filename, 'wb') as f:
-        f.write(b'BM')
-        f.write(struct.pack('<I', file_size))
-        f.write(struct.pack('<H', 0))
-        f.write(struct.pack('<H', 0))
-        f.write(struct.pack('<I', 54))
-
-        f.write(struct.pack('<I', 40))
-        f.write(struct.pack('<i', width))
-        f.write(struct.pack('<i', -height))
-        f.write(struct.pack('<H', 1))
-        f.write(struct.pack('<H', 24))
-        f.write(struct.pack('<I', 0))
-        f.write(struct.pack('<I', pixel_data_size))
-        f.write(struct.pack('<i', 2835))
-        f.write(struct.pack('<i', 2835))
-        f.write(struct.pack('<I', 0))
-        f.write(struct.pack('<I', 0))
-
-        for y in range(height):
-            for x in range(width):
-                r, g, b = pixels_rgb[y * width + x]
-                f.write(struct.pack('<BBB', b, g, r))
-            for _ in range(row_size - width * 3):
-                f.write(b'\x00')
 
 
 mat = [EMPTY] * (WIDTH * HEIGHT)
@@ -126,6 +104,22 @@ sleeper_x = CHANNEL_X1 + 4
 while sleeper_x + 8 <= WIDTH - 4:
     fill_rect(sleeper_x, sleeper_x + 8, FLOOR_TOP - 3, FLOOR_TOP, WOOD, WOOD_ALB)
     sleeper_x += 14
+
+# --- rim light (notes/art_direction.txt) ---
+# Every top-facing surface gets a bright edge; water gets its own cooler
+# rim instead of the ground's warm one, and nothing else in the buffer is
+# touched - most of the scene stays the flat interior fills above, which is
+# the point (see the palette-sample note in notes/reference_observations.txt).
+def rim_for(x, y):
+    m = mat[y * WIDTH + x]
+    if m == WATER:
+        return PALETTE['water_rim']
+    if m in (WALL, SAND, WOOD):
+        return PALETTE['rim_grass']
+    return None
+
+
+alb = apply_rim_light(mat, alb, WIDTH, HEIGHT, EMPTY, rim_for, rim_depth=2)
 
 write_bmp('assets/test_material.bmp', WIDTH, HEIGHT, mat)
 write_bmp('assets/test_albedo.bmp', WIDTH, HEIGHT, alb)
