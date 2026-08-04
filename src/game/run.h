@@ -71,7 +71,15 @@ public:
     // existed. The brush paints first, before the grid steps, for the same
     // reason `main.cpp` used to paint before physics ran: a cell should not
     // move on the same step it was placed.
-    void step(const Input& input);
+    //
+    // Returns whether the dig tool actually removed material this step -
+    // `DigTool::update`'s own answer, forwarded rather than recomputed. That is
+    // not a concession to presentation: the alternative main.cpp tried was to
+    // infer it from the cooldown either side of this call, and a dig fires on
+    // the same step the cooldown reaches zero, so `was_ready` is false on every
+    // dig of a held burst except the first. The simulation already knows; the
+    // only bug available here was in guessing.
+    bool step(const Input& input);
 
     Grid grid;
     Player player;

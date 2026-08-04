@@ -119,6 +119,14 @@ public:
     bool is_on_ground() const { return on_ground; }
     float velocity_y() const { return vel_y; }
 
+    // Read-only, and added for the animation selector rather than for anything
+    // in here. It is what distinguishes "the walk key is held" from "the body
+    // is actually travelling" - input held against a wall leaves the first true
+    // and the second false, and a walk cycle that plays on the input walks on
+    // the spot against every wall in the game. No new state: this is the same
+    // field move_x already keeps.
+    float velocity_x() const { return vel_x; }
+
     // True if a body placed with its top-left at (px, py) would overlap any
     // solid cell. Public because "the player is not inside a wall" is the
     // single most useful thing for a test to assert.

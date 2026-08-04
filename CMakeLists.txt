@@ -36,11 +36,12 @@ set(ENGINE_SOURCES
 # src/physics/ needs this list, the mistake is visible in the build file.
 set(RENDER_SOURCES
     src/render/light.cpp
+    src/render/player_anim.cpp
 )
 
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
 # not ENGINE_SOURCES, which stays what the headless test suites link against.
-add_executable(SlopPhysics src/main.cpp src/ui/text.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
@@ -91,6 +92,10 @@ if(BUILD_TESTING)
     add_executable(light_test tests/test_light.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(light_test PRIVATE src tests)
     add_test(NAME light_test COMMAND light_test)
+
+    add_executable(anim_test tests/test_anim.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+    target_include_directories(anim_test PRIVATE src tests)
+    add_test(NAME anim_test COMMAND anim_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.

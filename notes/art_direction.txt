@@ -206,8 +206,45 @@ is drawn, non-simulated, and cannot be dug, ignited, or displaced.
 WHAT THE PLAYER READS AS
 ---------------------------
 
-Not answered here. V3 is still gated on this document existing, not on this
-document finishing every question it raises — the player sprite needs its
-own pass with actual character art, and nothing about this session
-attempts it. The body stays the 4x8 rectangle until V3 is picked up on its
-own.
+Not answered by the session that wrote this document; answered by V3, which
+was picked up on its own afterwards as that gap predicted. Recorded here
+because this is the document later assets are checked against.
+
+A hooded, masked figure in cool blue-grey. The robe tones are the one hue
+family the terrain layer never uses — everything else here is either
+cool-and-dark (sky, mountains), warm-and-dark (terrain) or green (trees) —
+so the character separates by *hue* rather than by being brighter than its
+surroundings, and its value range stays inside the locked set. The single
+saturated element is a dull copper web on the mask, six pixels, which is the
+fixation point; see the note beside char_accent in tools/pixel_art.py for
+why that colour is the one most likely to need revisiting.
+
+Drawn at 14x26 cells against an 8x20 collision box (Player::WIDTH/HEIGHT),
+anchored bottom-centre: the mask overhangs upward into space that collides
+with nothing, and the sleeves hang outside the box's width. A sleeve
+overlapping terrain is correct — it is art, not body.
+
+The figure is animated from a sheet (assets/player_sheet.bmp, five animations
+in four rows). The whole figure is in the sheet at the moment, and that is a
+retreat rather than the intended end state: an aiming arm kept *out* of the
+sheet — its own sprite, attached at a per-frame hotspot and rotated toward
+the cursor — was built and then pulled, and the reason is worth knowing
+before anyone draws toward it. Decomposition is still the load-bearing idea,
+taken from how Noita builds its wizard, and still the rule for anything added
+to this character later: a part whose motion is continuous and independent of
+the body's belongs beside the sheet, not inside it, or the frame count
+multiplies to cover combinations nobody should be drawing by hand. What it
+cost in practice was the second image — every frame had to carry a marker
+pixel or the validator refused it, which is a tax charged to drawing and paid
+in a limb the game was not yet using well.
+
+Practical consequence for anyone drawing frames right now: draw the whole
+figure, both shoulders included, and do not reserve space for a limb that is
+not there. If the arm comes back, the shoulder it covers is the one to stop
+spending detail on. Run `python tools/player_sheet.py --validate` after
+editing; it checks the per-frame baselines that neither the eye nor the test
+suite can see reliably at this size.
+
+(An earlier revision of this section said the body was "the 4x8 rectangle".
+That had been wrong since the Noita rescale moved it to 8x20; the code in
+src/physics/player.h is authoritative for both numbers.)
