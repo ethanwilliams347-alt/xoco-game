@@ -33,19 +33,27 @@ To survive, you must use mysterious ancient science to access different worlds. 
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-eight suites, one per concern — `grid_test` for the cellular automata,
+nine suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
-`light_test` for the emissive light field, and `anim_test` for the player's
-animation selector — and CTest runs all of them.
+`light_test` for the emissive light field, `anim_test` for the player's
+animation selector, and `props_test` for the prop list format — and CTest runs
+all of them.
 
-The last two are not simulation, and they are headless for the same reason it
-is: `LightField` produces a plain ARGB buffer and `player_anim` produces a sheet
-row and column, so in both cases the part with the logic in it can be tested
-without opening a window. Neither is in `ENGINE_SOURCES`; both are in
-`RENDER_SOURCES`, which is what keeps the day something in `src/physics/` wants
-one of them a visible edit to `CMakeLists.txt`.
+The last three are not simulation, and they are headless for the same reason it
+is: `LightField` produces a plain ARGB buffer, `player_anim` produces a sheet
+row and column, and `load_prop_list` produces a list of records, so in all three
+cases the part with the logic in it can be tested without opening a window. None
+is in `ENGINE_SOURCES` — the first two are in `RENDER_SOURCES` and the third in
+`SCENE_PROP_SOURCES` — which is what keeps the day something in `src/physics/`
+wants one of them a visible edit to `CMakeLists.txt`.
+
+`props_test` is the odd one in what it spends its checks on: most of them assert
+a malformed prop list is **rejected wholesale** rather than parsed with the bad
+line skipped. That is deliberate and the reasoning is in `src/scene/props.h` —
+this project has twice shipped a scene that rendered, rendered wrong, and said
+nothing about it.
 
 ```bash
 ctest --test-dir build -C Release --output-on-failure

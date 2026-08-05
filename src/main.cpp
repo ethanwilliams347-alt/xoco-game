@@ -11,6 +11,7 @@
 #include "render/light.h"
 #include "render/player_anim.h"
 #include "scene/legend.h"
+#include "scene/props.h"
 #include "scene/scene.h"
 #include "ui/text.h"
 #include "ui/hotbar.h"
@@ -396,19 +397,29 @@ int main(int argc, char* argv[]) {
     if (backdrop_sky) SDL_QueryTexture(backdrop_sky, nullptr, nullptr, &sky_w, &sky_h);
     if (backdrop_mountains) SDL_QueryTexture(backdrop_mountains, nullptr, nullptr, &mountain_w, &mountain_h);
 
-    // V4's props: a handful of trees from tools/generate_props.py, placed on
-    // the F4 fixture's flat ground either side of the pit (297-328) and the
-    // water channel (400-561) so none of them anchor over open air.
-    SDL_Texture* tree_a = load_art_texture(renderer, "assets/tree_a.bmp", true);
-    SDL_Texture* tree_b = load_art_texture(renderer, "assets/tree_b.bmp", true);
-    SDL_Texture* tree_c = load_art_texture(renderer, "assets/tree_c.bmp", true);
-    auto tree_size = [](SDL_Texture* t, int& w, int& h) {
-        if (t) SDL_QueryTexture(t, nullptr, nullptr, &w, &h);
+    // V4's props: sprites from tools/generate_props.py, positioned by
+    // assets/test_props.txt rather than by a list in this file. **That
+    // indirection is the whole of V4's second half** - the nine trees below
+    // used to be a hardcoded `std::vector<Prop>` here, positioned by eye
+    // against the F4 fixture's known geometry, which meant a second scene had
+    // no way to have props at all. See src/scene/props.h for why the format is
+    // a text list and not a second BMP.
+    //
+    // One texture per distinct sprite name, not one per record: nine trees are
+    // three images, and the cache is what keeps that true as a scene grows.
+    // Keyed by name so `prop_textures` is also the destroy list at shutdown.
+    std::vector<std::pair<std::string, SDL_Texture*>> prop_textures;
+    auto prop_texture = [&](const std::string& sprite) -> SDL_Texture* {
+        for (auto& entry : prop_textures)
+            if (entry.first == sprite) return entry.second;
+        SDL_Texture* tex = load_art_texture(renderer, ("assets/" + sprite + ".bmp").c_str(), true);
+        if (!tex) {
+            std::fprintf(stderr, "WARNING: prop sprite 'assets/%s.bmp' did not load; "
+                                 "every prop naming it is skipped.\n", sprite.c_str());
+        }
+        prop_textures.emplace_back(sprite, tex);
+        return tex;
     };
-    int taw = 0, tah = 0, tbw = 0, tbh = 0, tcw = 0, tch = 0;
-    tree_size(tree_a, taw, tah);
-    tree_size(tree_b, tbw, tbh);
-    tree_size(tree_c, tcw, tch);
 
     // V3.1's player sheet and aiming arm, from tools/player_sheet.py.
     // Colour-keyed like the props, and like them one BMP pixel is one world
@@ -445,32 +456,36 @@ int main(int argc, char* argv[]) {
     // snapping to a default the moment the key comes up.
     bool facing_left = false;
 
-    // Anchors are x-only; the y below is a fallback that is overwritten by the
-    // terrain scan after the scene loads (see `snap_prop_to_terrain`). Writing
-    // a y here at all is what put three of these trees inside the snowbank:
-    // FLOOR_TOP is the floor slab's top, and the authored sand slope rises up
-    // to 150 cells above it, so "the ground" is not one number.
+    // Anchors are x-only. There is no authored y at all now - the file does not
+    // carry one and the terrain scan below is the only thing that sets it. That
+    // is not a shortcut: writing a y is what put three of these trees inside
+    // the snowbank, because FLOOR_TOP is the floor slab's top and the authored
+    // sand slope rises up to 150 cells above it, so "the ground" is not one
+    // number and never was. `anchor_y` sits at 0 until the scan runs.
     //
-    // **Every number here is a scene coordinate times SCENE_SCALE**, the same
-    // 2.5 generate_test_scene.py puts its own layout through and the same one
-    // the player body grew by. These are positions in a scene that was
-    // rescaled; left as they were, all nine trees would have been planted in
-    // the leftmost sixth of the fixture, which is the snowbank and the fence
-    // posts, and the comment above about anchoring over open air would have
-    // stopped being true of any of them.
-    constexpr float SCENE_SCALE = 2.5f;
-    constexpr float GROUND_Y = 380.0f * SCENE_SCALE; // FLOOR_TOP in generate_test_scene.py
-    std::vector<Prop> props = {
-        { tree_c, tcw, tch, 40.0f  * SCENE_SCALE, GROUND_Y },
-        { tree_a, taw, tah, 58.0f  * SCENE_SCALE, GROUND_Y },
-        { tree_b, tbw, tbh, 75.0f  * SCENE_SCALE, GROUND_Y },
-        { tree_a, taw, tah, 255.0f * SCENE_SCALE, GROUND_Y },
-        { tree_c, tcw, tch, 270.0f * SCENE_SCALE, GROUND_Y },
-        { tree_b, tbw, tbh, 575.0f * SCENE_SCALE, GROUND_Y },
-        { tree_a, taw, tah, 592.0f * SCENE_SCALE, GROUND_Y },
-        { tree_c, tcw, tch, 610.0f * SCENE_SCALE, GROUND_Y },
-        { tree_b, tbw, tbh, 625.0f * SCENE_SCALE, GROUND_Y },
-    };
+    // **A malformed prop list is loud and costs every prop, not the bad line.**
+    // The alternative - skip the row that would not parse - is the same silent
+    // failure as V2's blank world and the first props pass's buried trees: a
+    // scene that renders, renders wrong, and says nothing. props.h has the
+    // argument in full.
+    std::string prop_error;
+    const std::vector<PropDef> prop_defs = load_prop_list("assets/test_props.txt", &prop_error);
+    if (!prop_error.empty()) {
+        std::fprintf(stderr, "ERROR: %s\n", prop_error.c_str());
+        std::fprintf(stderr, "       No props are drawn. Fix the line above and re-run.\n");
+    }
+
+    std::vector<Prop> props;
+    props.reserve(prop_defs.size());
+    for (const PropDef& def : prop_defs) {
+        SDL_Texture* tex = prop_texture(def.sprite);
+        if (!tex) continue; // already warned by prop_texture, once per name
+        int w = 0, h = 0;
+        SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+        props.push_back(Prop{ tex, w, h, def.x, 0.0f });
+    }
+    std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
+                static_cast<int>(prop_defs.size()));
 
     // The reticle *is* the cursor now, so the OS one would be a second pointer
     // sitting on top of it. SDL scopes this to its own window rather than
@@ -521,6 +536,15 @@ int main(int argc, char* argv[]) {
     // props are not simulated, so terrain that moves later does not drag them
     // with it - which is correct for a tree and is the same "exercises no
     // system" line that put them in this layer at all.
+    //
+    // **A prop with no ground under it is now dropped rather than left at a
+    // fallback**, which the authored-y version could not do: it had a y to fall
+    // back to, and falling back to it is exactly how the buried trees hid. With
+    // no authored y the only fallback available is 0 - the top of the world -
+    // so an unplantable prop would hang in the sky. Removing it and saying so
+    // is the honest version of the same warning.
+    std::vector<Prop> planted;
+    planted.reserve(props.size());
     for (Prop& prop : props) {
         if (!prop.texture) continue;
         const int x0 = static_cast<int>(prop.anchor_x - prop.w / 2.0f);
@@ -539,12 +563,14 @@ int main(int argc, char* argv[]) {
         // is exactly as wrong as one buried, and silently placing it at the
         // fallback is how the first version of this hid its own bug.
         if (lowest_surface < 0) {
-            std::fprintf(stderr, "WARNING: prop at x=%.0f has no ground under it; left at y=%.0f\n",
-                         prop.anchor_x, prop.anchor_y);
+            std::fprintf(stderr, "WARNING: assets/test_props.txt: prop at x=%.1f has no ground "
+                                 "under it and is not drawn.\n", prop.anchor_x);
             continue;
         }
         prop.anchor_y = static_cast<float>(lowest_surface);
+        planted.push_back(prop);
     }
+    props = std::move(planted);
 
     Camera camera;
 
@@ -1161,9 +1187,11 @@ int main(int argc, char* argv[]) {
     }
 
     if (player_tex) SDL_DestroyTexture(player_tex);
-    if (tree_c) SDL_DestroyTexture(tree_c);
-    if (tree_b) SDL_DestroyTexture(tree_b);
-    if (tree_a) SDL_DestroyTexture(tree_a);
+    // The cache is the destroy list - one entry per distinct sprite name, so a
+    // scene with fifty trees of three kinds still frees exactly three textures
+    // and `props` holding several borrowed copies of each is not a double free.
+    for (auto& entry : prop_textures)
+        if (entry.second) SDL_DestroyTexture(entry.second);
     if (backdrop_mountains) SDL_DestroyTexture(backdrop_mountains);
     if (backdrop_sky) SDL_DestroyTexture(backdrop_sky);
     SDL_DestroyTexture(targets.light_texture);

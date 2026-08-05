@@ -1,0 +1,28 @@
+# Props for the F4 fixture scene (assets/test_material.bmp). V4's props layer,
+# layer 3 of notes/art_direction.txt's four-layer model.
+#
+# One record per line: <sprite> <x>. `sprite` names assets/<sprite>.bmp; `x` is
+# a world cell, the sprite's bottom-CENTRE column. There is no y - each prop is
+# planted on whatever terrain is actually under its own footprint at load time.
+# src/scene/props.h says why.
+#
+# These nine were a hardcoded std::vector<Prop> in main.cpp until V4's second
+# half; the coordinates are unchanged, with the 2.5 SCENE_SCALE that used to be
+# applied in code multiplied in here instead. That factor was generate_test_
+# scene.py's rescale, so it is a property of THIS fixture and not of the format
+# - a scene authored at 1:1 writes plain world cells and multiplies nothing.
+#
+# Placed on the fixture's flat ground either side of the pit (scene x 297-328)
+# and the water channel (400-561) so none anchors over open air.
+
+tree_c    100.0
+tree_a    145.0
+tree_b    187.5
+
+tree_a    637.5     # east of the pit
+tree_c    675.0
+
+tree_b   1437.5     # east of the water channel
+tree_a   1480.0
+tree_c   1525.0
+tree_b   1562.5

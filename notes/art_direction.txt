@@ -69,7 +69,12 @@ note's crossing-signal example was:
                  factor ~0.15.
   3. Trees     - non-simulated sprites, colour-keyed, several per scene.
                  Parallax factor ~1 (they sit at roughly the terrain's own
-                 depth, not further back).
+                 depth, not further back). Authored per scene in a plain text
+                 list (assets/test_props.txt; format and the argument for it
+                 in src/scene/props.h), naming a sprite and an x only - the y
+                 is the terrain actually under the sprite's footprint, found
+                 at load time, because "the ground" is not one number in a
+                 scene with a slope in it.
   4. Terrain   - the simulated grid. Authored the way F4 already supports:
                  material map + albedo BMP through the existing legend.
 

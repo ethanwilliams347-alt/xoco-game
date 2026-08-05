@@ -39,9 +39,21 @@ set(RENDER_SOURCES
     src/render/player_anim.cpp
 )
 
+# V4's prop list parser. Its own variable rather than a line in either of the
+# two above, because it belongs to neither and the distinction is the point.
+# It is not ENGINE_SOURCES: a prop exercises no system, is never dug, ignited or
+# displaced, and nothing under src/physics/ has any business reading this. It is
+# not RENDER_SOURCES either, since it draws nothing and knows no SDL - it turns
+# a text file into a list of records. Kept separate so that if something in the
+# simulation ever reaches for a prop, the mistake has to be written into this
+# file to compile, which is the same guard V7's light field is given above.
+set(SCENE_PROP_SOURCES
+    src/scene/props.cpp
+)
+
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
 # not ENGINE_SOURCES, which stays what the headless test suites link against.
-add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
@@ -96,6 +108,14 @@ if(BUILD_TESTING)
     add_executable(anim_test tests/test_anim.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(anim_test PRIVATE src tests)
     add_test(NAME anim_test COMMAND anim_test)
+
+    # V4's prop list. Links only the parser - no engine, no SDL - which is the
+    # build file agreeing with what props.h claims about where this sits.
+    add_executable(props_test tests/test_props.cpp ${SCENE_PROP_SOURCES})
+    target_include_directories(props_test PRIVATE src tests)
+    # Run from the source tree so the suite can parse the shipped
+    # assets/test_props.txt, which is the fixture main.cpp actually loads.
+    add_test(NAME props_test COMMAND props_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
