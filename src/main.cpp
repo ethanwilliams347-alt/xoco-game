@@ -484,8 +484,10 @@ int main(int argc, char* argv[]) {
         SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
         props.push_back(Prop{ tex, w, h, def.x, 0.0f });
     }
-    std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
-                static_cast<int>(prop_defs.size()));
+    // The count is NOT printed here. A prop that has a texture is not yet a prop
+    // that got placed - the terrain scan below drops any with no ground under
+    // them - so a count taken at this point reports texture loads while saying
+    // "placed". It read `9 of 9` on a run that drew 8. See below.
 
     // The reticle *is* the cursor now, so the OS one would be a second pointer
     // sitting on top of it. SDL scopes this to its own window rather than
@@ -571,6 +573,18 @@ int main(int argc, char* argv[]) {
         planted.push_back(prop);
     }
     props = std::move(planted);
+
+    // Printed *after* planting, because this is the line README's launch check
+    // reads and it has to count props that will actually be drawn. It used to
+    // print immediately after the textures loaded, 59 lines above and before
+    // either way a prop can be dropped - so a run with an unplantable prop
+    // reported `10 of 10 placed` on stdout while warning on stderr that one of
+    // them was not drawn. The warning was right and the number contradicted it,
+    // which is worse than no number: a check that asserts the wrong thing fails
+    // silently, because it passes. Both drops are in the count now - a sprite
+    // that would not load, and a prop with no ground under it.
+    std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
+                static_cast<int>(prop_defs.size()));
 
     Camera camera;
 
