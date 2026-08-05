@@ -32,6 +32,15 @@ Three commands, all run from the repo root:
 refuses to overwrite existing files, because the whole point of it is to be
 run before there is anything to lose.
 
+--validate takes one modifier, `--allow-off-palette`, which downgrades the
+locked-set check to a warning and leaves every other check strict. It is for
+the window where art has been drawn but not yet conformed to the palette
+(tools/snap_to_palette.py), because in that window the off-palette error is
+the only thing --validate can say - and a validator that is known to be red
+is a validator nobody reads, which costs the *baseline* checks that only
+this script can make. It is not a way to ship off-palette art:
+tools/validate_palette.py has no such flag and is still the gate.
+
 **assets/player_hotspots.bmp is metadata, not art, and is deliberately
 off-palette** - its marker colour is pure green, which is in no PALETTE entry
 and never will be. Do not point tools/validate_palette.py at it; it will fail,
@@ -123,7 +132,7 @@ def frame_pixels(pixels, width, row, col):
             for y in range(FRAME_H) for x in range(FRAME_W)]
 
 
-def validate():
+def validate(allow_off_palette=False):
     """Everything about the art that code downstream assumes and cannot check.
 
     The checks are the ones tools/generate_player.py already made for a single
@@ -159,7 +168,13 @@ def validate():
         off = {p for p in sheet if p not in allowed}
         if off:
             sample = ', '.join('#%02X%02X%02X' % p for p in sorted(off)[:5])
-            errors.append(f'{SHEET_PATH}: {len(off)} off-palette colour(s): {sample}')
+            message = f'{SHEET_PATH}: {len(off)} off-palette colour(s): {sample}'
+            if allow_off_palette:
+                print(f'WARN  {message}')
+                print('      (--allow-off-palette: not conformed to the locked set yet; '
+                      'tools/snap_to_palette.py is the step that does it)')
+            else:
+                errors.append(message)
 
         for anim in ANIMATIONS:
             for col in range(anim.col, anim.col + anim.frames):
@@ -349,7 +364,7 @@ if __name__ == '__main__':
     if '--starter' in args:
         ok = starter() and ok
     if '--validate' in args:
-        ok = validate() and ok
+        ok = validate('--allow-off-palette' in args) and ok
     if '--header' in args:
         emit_header()
     sys.exit(0 if ok else 1)
