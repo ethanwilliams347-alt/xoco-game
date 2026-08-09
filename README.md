@@ -30,6 +30,19 @@ To survive, you must use mysterious ancient science to access different worlds. 
    ```
    (`.\build\Debug\SlopPhysics.exe` if you built with `--config Debug` instead — whichever config you built is the one whose folder has the exe.) The build step above also copies `assets/` next to the executable automatically, which is what the F4 test scene loads at startup; nothing extra to run first.
 
+## Assets
+
+[ASSETS.md](ASSETS.md) is the reference for getting art into the game — a new
+sprite, a player sheet, a location, a backdrop — and for swapping one out to look
+at a design. Two things there are worth knowing before you touch a file: every
+asset path is a **hardcoded string literal in `main.cpp`** (there is no manifest,
+so renaming a file changes nothing), and `assets/` is **copied next to the exe at
+build time** (so editing art does nothing visible until you rebuild). Those two
+between them account for most "my change didn't show up".
+
+For the player character specifically, [drawing_to_sprite.md](../drawing_to_sprite.md)
+covers the pipeline from a drawing to a validated sheet.
+
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
