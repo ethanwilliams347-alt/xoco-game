@@ -2,7 +2,7 @@
 //
 // Regenerate with:  python tools/player_sheet.py --header
 //
-// Everything main.cpp needs to know about assets/player_sheet.bmp, emitted
+// Everything main.cpp needs to know about assets/player_sheet_fly.bmp, emitted
 // from the one file that also validates it. V3 shipped these numbers typed
 // into two places with nothing enforcing agreement - the same trap V8's
 // parallax factors have - and a sheet turns four numbers into several dozen,
@@ -29,7 +29,7 @@ struct Anim {
 inline constexpr int FRAME_W = 14;
 inline constexpr int FRAME_H = 26;
 inline constexpr int SHEET_COLS = 6;
-inline constexpr int SHEET_ROWS = 4;
+inline constexpr int SHEET_ROWS = 5;
 
 // The sprite is anchored to the collision box's bottom-centre: subtract
 // these from the box's top-left corner to get the frame's top-left.
@@ -56,7 +56,8 @@ inline constexpr Anim IDLE{0, 0, 2, 30, true};
 inline constexpr Anim WALK{1, 0, 6, 5, true};
 inline constexpr Anim RISE{2, 0, 1, 0, true};
 inline constexpr Anim FALL{2, 1, 1, 0, true};
-inline constexpr Anim DIG{3, 0, 3, 4, false};
+inline constexpr Anim DIG{3, 0, 3, 8, false};
+inline constexpr Anim FLY{4, 0, 3, 5, false};
 
 // No hotspot table: the aiming arm this sheet was designed around is not
 // drawn at the moment. It attached at a per-frame marker pixel carried in

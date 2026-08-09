@@ -1,4 +1,4 @@
-"""Pastes one finished 14x26 frame into assets/player_sheet.bmp at the slot a
+"""Pastes one finished 14x26 frame into the sheet named by SHEET_PATH at the slot a
 named animation (and, for multi-frame ones, an index within it) declares -
 the last step before the sprite is actually the thing main.cpp draws. Reuses
 tools/player_sheet.py's own ANIMATIONS table and layout constants rather than

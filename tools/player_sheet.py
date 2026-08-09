@@ -95,7 +95,23 @@ ANIMATIONS = [
     # holds the falling pose instead of cycling through a rise it is not doing.
     Anim('rise',   2,   0,     1,     0,  True),
     Anim('fall',   2,   1,     1,     0,  True),
-    Anim('dig',    3,   0,     3,     4,  False),   # one-shot; see player_anim.h
+    # Slowed from 4 to 8 - the swing now runs 24 steps (0.4s) rather than 12.
+    # Note this widens the gap with DigTool::COOLDOWN_STEPS (6): a held dig
+    # re-fires and restarts the swing long before it finishes, so frames 1 and
+    # 2 are only ever seen on an isolated click. That is a known consequence,
+    # not an oversight - see the dig notes in src/physics/tool.h.
+    Anim('dig',    3,   0,     3,     8,  False),   # one-shot; see player_anim.h
+    # One wing beat, latched by Player::flapped() the way `dig` is latched by
+    # the tool firing. **`wait` 5 against Player::FLAP_INTERVAL_STEPS of 14 is
+    # the whole design of this row and the two numbers have to be read
+    # together.** Three frames at 5 steps is 15, one step longer than the beat
+    # interval, so the next flap always re-latches this animation a step before
+    # it would have ended - which is what keeps the wings locked to the rhythm
+    # the physics is actually producing, with no gap where it would fall back
+    # to the rise/fall poses mid-climb. Let the interval and this wait drift
+    # apart and you get either a stutter (wait too short) or frames that never
+    # play (wait too long).
+    Anim('fly',    4,   0,     3,     5,  False),
 ]
 
 SHEET_ROWS = 1 + max(a.row for a in ANIMATIONS)
@@ -112,7 +128,13 @@ assert SHEET_COLS >= _widest, (
     f'MAX_FRAMES is {SHEET_COLS} but {_widest} columns are needed - widen the '
     f'sheet before adding frames to the table')
 
-SHEET_PATH = 'assets/player_sheet.bmp'
+# The one file both the tools and main.cpp read. **Keep these two in step by
+# hand**: this constant is not emitted into the generated header, so pointing
+# it somewhere main.cpp is not looking validates one file while the game loads
+# another - which cost this project several rounds of "I changed the art and
+# nothing happened" before it was written down. grep main.cpp for
+# player_sheet before changing it.
+SHEET_PATH = 'assets/player_sheet_fly.bmp'
 HEADER_PATH = 'src/render/player_sprite.h'
 
 
@@ -201,7 +223,7 @@ def emit_header():
     w('//')
     w('// Regenerate with:  python tools/player_sheet.py --header')
     w('//')
-    w('// Everything main.cpp needs to know about assets/player_sheet.bmp, emitted')
+    w(f'// Everything main.cpp needs to know about {SHEET_PATH}, emitted')
     w('// from the one file that also validates it. V3 shipped these numbers typed')
     w('// into two places with nothing enforcing agreement - the same trap V8\'s')
     w('// parallax factors have - and a sheet turns four numbers into several dozen,')

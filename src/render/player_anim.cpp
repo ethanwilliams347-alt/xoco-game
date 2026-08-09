@@ -45,6 +45,32 @@ void update(State& s, const Conditions& c, int steps) {
         s.frame = 0;
         s.elapsed = 0;
         s.oneshot = true;
+    } else if (c.flapped && !c.on_ground) {
+        // Same latch-and-restart as the dig, and for the same reason: each
+        // beat is its own downstroke, not a continuation of the last. Because
+        // FLY's own length exceeds the interval between beats (see the note on
+        // the fly row in tools/player_sheet.py), sustained flight is this
+        // branch firing over and over rather than an animation left to loop -
+        // which is what keeps the wings in phase with the impulses the physics
+        // is applying instead of merely near them.
+        //
+        // **`!on_ground` is doing real work.** The launch off the ground is a
+        // beat too and sets `flapped`, but on the step it fires the feet are
+        // still down; without the guard, tapping the key while standing plays
+        // a wing beat in place, which reads as the bird flapping at the floor.
+        // The airborne steps that follow pick it up on the next beat.
+        s.anim = &player_sprite::FLY;
+        s.frame = 0;
+        s.elapsed = 0;
+        s.oneshot = true;
+    } else if (s.oneshot && s.anim == &player_sprite::FLY && c.on_ground) {
+        // Landing cancels a beat still in flight. A one-shot normally owns the
+        // clock until it finishes, which is right for a dig - a swing is not
+        // interrupted by touching the floor - and wrong for a wing beat, whose
+        // entire premise is that the body is in the air. Without this the bird
+        // spends up to fifteen steps flapping while stood on solid ground.
+        s.oneshot = false;
+        begin(s, select(c), false);
     } else if (!s.oneshot) {
         begin(s, select(c), false);
     }

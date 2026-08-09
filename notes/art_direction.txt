@@ -231,8 +231,8 @@ anchored bottom-centre: the mask overhangs upward into space that collides
 with nothing, and the sleeves hang outside the box's width. A sleeve
 overlapping terrain is correct — it is art, not body.
 
-The figure is animated from a sheet (assets/player_sheet.bmp, five animations
-in four rows). The whole figure is in the sheet at the moment, and that is a
+The figure is animated from a sheet (assets/player_sheet_fly.bmp, six animations
+in five rows). The whole figure is in the sheet at the moment, and that is a
 retreat rather than the intended end state: an aiming arm kept *out* of the
 sheet — its own sprite, attached at a per-frame hotspot and rotated toward
 the cursor — was built and then pulled, and the reason is worth knowing

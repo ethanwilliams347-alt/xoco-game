@@ -443,7 +443,7 @@ int main(int argc, char* argv[]) {
     // the hotspot image and the rotate-about-the-shoulder draw, both of which
     // are described in ROADMAP.md's V3.1 entry rather than left as dead code
     // here.
-    SDL_Texture* player_tex = load_art_texture(renderer, "assets/player_sheet.bmp", true);
+    SDL_Texture* player_tex = load_art_texture(renderer, "assets/player_sheet_fly.bmp", true);
     player_anim::State anim_state;
 
     // Which way the figure faces. Tracked here rather than on Player because
@@ -822,6 +822,7 @@ int main(int argc, char* argv[]) {
             cond.moving = std::abs(run.player.velocity_x()) > 0.01f;
             cond.vel_y = run.player.velocity_y();
             cond.dig_fired = dig_fired;
+            cond.flapped = run.player.flapped();
             player_anim::update(anim_state, cond, 1);
 
             accumulator -= Run::FIXED_DT;

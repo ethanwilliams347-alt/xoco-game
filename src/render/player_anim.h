@@ -53,6 +53,13 @@ struct Conditions {
     // A held button fires on a cooldown, and animating the button rather than
     // the tool would play a swing on steps where nothing happened.
     bool dig_fired = false;
+
+    // True on the step a wing beat fired, for exactly the reason above: the
+    // jump key is held continuously while the beats it produces are discrete,
+    // and at 4 pixels per cell the rhythm of the downstrokes is most of what
+    // reads as flight. Animating the key instead of the beat would give a
+    // wing cycle running free of the altitude it is supposed to be causing.
+    bool flapped = false;
 };
 
 struct State {

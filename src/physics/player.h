@@ -68,6 +68,38 @@ public:
     static constexpr float GRAVITY = 500.0f;
     static constexpr float MAX_FALL_SPEED = 400.0f;
 
+    // --- flight ---------------------------------------------------------
+    //
+    // The character is a bird, so holding the key beats wings rather than
+    // doing nothing until the feet are back on the ground. Three constants
+    // and an interval, and the relationship between them is the whole feel:
+    //
+    // A flap is an **impulse, not a velocity set**. Setting `vel_y` outright
+    // would let one beat cancel a terminal-speed dive, which is the opposite
+    // of weight - a bird arresting a stoop takes several beats and visibly
+    // loses height doing it. Subtracting a fixed amount means a fall has to
+    // be *worked* out of, and the number of beats it costs scales with how
+    // fast the body was already going down.
+    //
+    // `FLAP_MAX_CLIMB` is what stops that impulse compounding. Without a cap,
+    // each beat leaves the body a little faster upward than the last and the
+    // climb accelerates without bound - holding the key would eventually
+    // outrun the world. The cap is deliberately *far* below JUMP_SPEED: the
+    // launch off the ground is one big downstroke and is allowed to exceed
+    // it, so a standing jump still clears more than a body height while
+    // sustained flight is a slow laboured grind.
+    //
+    // Net altitude per beat is the balance of two numbers:
+    // FLAP_IMPULSE against GRAVITY * (FLAP_INTERVAL_STEPS / 60). At the
+    // values below that is 130 against ~117, so a held key climbs - but only
+    // just, at roughly a body height per two seconds. "Eventually gains
+    // altitude" is the design, and it is a property of that margin rather
+    // than of any one constant, so tune the pair together or the character
+    // becomes either a helicopter or a rock.
+    static constexpr float FLAP_IMPULSE = 130.0f;    // cells/s removed from vel_y per beat
+    static constexpr float FLAP_MAX_CLIMB = 70.0f;   // cells/s ceiling on upward speed
+    static constexpr int FLAP_INTERVAL_STEPS = 14;   // fixed steps between beats
+
     // Tallest lip the player walks over without jumping. This is the whole of
     // "walking over uneven powder": a settled sand slope is a staircase of
     // one-cell steps, and without this the player would have to jump over every
@@ -119,6 +151,14 @@ public:
     bool is_on_ground() const { return on_ground; }
     float velocity_y() const { return vel_y; }
 
+    // True on the step a wing beat actually fired - not while the key is
+    // held. Added for the animation selector, which needs the *event* rather
+    // than the input: a flap animation driven off the held key would play
+    // continuously between beats, and the whole read of flight at this size
+    // is the rhythm of discrete downstrokes. Same shape, and the same
+    // reasoning, as DigTool reporting the step a dig connected.
+    bool flapped() const { return did_flap; }
+
     // Read-only, and added for the animation selector rather than for anything
     // in here. It is what distinguishes "the walk key is held" from "the body
     // is actually travelling" - input held against a wall leaves the first true
@@ -147,6 +187,13 @@ private:
     float vel_x = 0.0f;
     float vel_y = 0.0f;
     bool on_ground = false;
+
+    // Steps remaining before the next wing beat is allowed, and whether one
+    // fired this step. Counted in fixed steps rather than seconds for the
+    // same reason DigTool's cooldown is: the beat rate has to be identical
+    // on every machine.
+    int flap_timer = 0;
+    bool did_flap = false;
 
     // How far the body would have to be lifted to move one cell towards `sign`,
     // or -1 if that direction is a wall rather than a step. Zero means the way

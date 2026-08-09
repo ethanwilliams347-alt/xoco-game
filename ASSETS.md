@@ -19,7 +19,7 @@ asset manifest and no command-line override. Renaming a file, or pointing a
 
 | What | Path the game loads | Where that literal lives |
 |---|---|---|
-| Player sheet | `assets/player_sheet.bmp` | [main.cpp:446](src/main.cpp#L446) |
+| Player sheet | `assets/player_sheet_fly.bmp` | [main.cpp:446](src/main.cpp#L446) |
 | Location — materials | `assets/test_material.bmp` | [main.cpp:517](src/main.cpp#L517) |
 | Location — albedo | `assets/test_albedo.bmp` | [main.cpp:517](src/main.cpp#L517) |
 | Prop placements | `assets/test_props.txt` | [main.cpp:472](src/main.cpp#L472) |
@@ -27,11 +27,19 @@ asset manifest and no command-line override. Renaming a file, or pointing a
 | Backdrop — sky | `assets/backdrop_sky.bmp` | [main.cpp:392](src/main.cpp#L392) |
 | Backdrop — mountains | `assets/backdrop_mountains.bmp` | [main.cpp:393](src/main.cpp#L393) |
 
-`SHEET_PATH` in [tools/player_sheet.py](tools/player_sheet.py) is the *tools'*
-path, not the game's — it is not emitted into
-[player_sprite.h](src/render/player_sprite.h). Changing it points the validator
-at a different file while the exe keeps loading the old one, and nothing
-complains, because both files exist and both are valid.
+The player sheet has the path written down in **two** places — `SHEET_PATH` in
+[tools/player_sheet.py](tools/player_sheet.py) for the tools, and the literal in
+`main.cpp` for the game — and nothing enforces that they agree, because
+`SHEET_PATH` is not emitted into
+[player_sprite.h](src/render/player_sprite.h). Point one somewhere the other
+isn't looking and you validate one file while the exe loads another, with no
+complaint from either, because both files exist and both are valid. They
+currently both say `assets/player_sheet_fly.bmp`. **Change them together.**
+
+Two older sheets, `player_sheet.bmp` and `player_sheet_2.bmp`, are still in
+`assets/` and are no longer read by anything. They are safe to delete and
+worth deleting — a stale sheet that still loads and still validates is exactly
+what makes the failure above hard to see.
 
 **2. `assets/` is copied next to the executable at build time.** The game runs
 from `build/Release/` and loads `build/Release/assets/...`, populated by the
@@ -53,8 +61,8 @@ Because the paths are literals, the quickest way to look at new art is to make
 your file **take the existing name** rather than teaching the game a new one:
 
 ```bash
-cp assets/player_sheet.bmp assets/player_sheet_backup.bmp   # only if it isn't reproducible
-cp assets/my_new_idea.bmp  assets/player_sheet.bmp
+cp assets/player_sheet_fly.bmp assets/player_sheet_backup.bmp   # only if it isn't reproducible
+cp assets/my_new_idea.bmp      assets/player_sheet_fly.bmp
 cmake --build build --config Release
 .\build\Release\SlopPhysics.exe
 ```
@@ -100,9 +108,9 @@ It is the better move once a variant is the real one rather than an experiment.
 
 ## Player sheet
 
-One BMP, `assets/player_sheet.bmp`, 84x104 — a 6x4 grid of 14x26 frames. Which
-slot means what is the `ANIMATIONS` table at
-[player_sheet.py:89-99](tools/player_sheet.py#L89):
+One BMP, `assets/player_sheet_fly.bmp`, 84x130 — a 6x5 grid of 14x26 frames.
+Which slot means what is the `ANIMATIONS` table at
+[player_sheet.py:89](tools/player_sheet.py#L89):
 
 | Row | Columns | Animation |
 |---|---|---|
@@ -110,7 +118,11 @@ slot means what is the `ANIMATIONS` table at
 | 1 | 0-5 | `walk` (6 frames, 5 steps each) |
 | 2 | 0 | `rise` — single pose, chosen by velocity, not by a clock |
 | 2 | 1 | `fall` — single pose, same row as `rise` |
-| 3 | 0-2 | `dig` (3 frames, one-shot) |
+| 3 | 0-2 | `dig` (3 frames, one-shot, 8 steps each) |
+| 4 | 0-2 | `fly` (3 frames, one wing beat, re-latched by each flap) |
+
+`fly`'s 5-step wait is tied to `Player::FLAP_INTERVAL_STEPS`; the two have to be
+retuned together, and the fly row's comment in `player_sheet.py` says why.
 
 **The sheet is a derived file.** Build it from frame BMPs rather than editing it
 in place — that is what stops a frame landing in a column its animation doesn't

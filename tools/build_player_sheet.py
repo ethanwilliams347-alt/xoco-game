@@ -1,4 +1,4 @@
-"""Builds assets/player_sheet.bmp from authored frame BMPs, stamping each one
+"""Builds the sheet named by player_sheet.SHEET_PATH from authored frame BMPs, stamping each one
 into the slots tools/player_sheet.py's ANIMATIONS table declares.
 
 This is what replaces hand-pasting once there is real art: the sheet stops

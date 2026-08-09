@@ -115,6 +115,12 @@ bool Player::resolve_overlap(const Grid& grid) {
 }
 
 void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
+    // Cleared before the early return below, not after it. `did_flap` is a
+    // one-step event and the overlap path returns without ever reaching the
+    // flap code, so leaving the reset down there would latch the last beat
+    // true for every step the body spent buried.
+    did_flap = false;
+
     // Running the normal movement code while inside terrain would just find
     // every direction blocked, so digging out replaces this step entirely.
     if (resolve_overlap(grid)) return;
@@ -126,7 +132,34 @@ void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
     if (input.left)  vel_x -= MOVE_SPEED;
     if (input.right) vel_x += MOVE_SPEED;
 
-    if (input.jump && on_ground) vel_y = -JUMP_SPEED;
+    // Flapping, not jumping. The key used to do nothing unless the feet were
+    // down, so holding it through an arc was dead input; now it beats wings on
+    // a fixed interval whether the body is grounded or not.
+    //
+    // **The ground beat and the air beat are deliberately different, and the
+    // difference is not a special case.** Leaving the ground is one hard
+    // downstroke against a body at rest - it sets `vel_y` outright, keeps
+    // JUMP_SPEED, and is allowed straight past FLAP_MAX_CLIMB, which is what
+    // preserves the ~1.5-body standing jump the test asserts. A beat in the
+    // air is a correction to a body already moving, so it *subtracts* from
+    // whatever the velocity currently is and is capped. Same key, same timer,
+    // two situations that genuinely differ.
+    //
+    // The timer is what makes this read as wingbeats rather than as thrust.
+    // Applying a fraction of the impulse every step would produce the same
+    // altitude curve and none of the rhythm, and the rhythm is the only thing
+    // that tells the player, at 4 pixels per cell, that the bird is working.
+    if (flap_timer > 0) --flap_timer;
+    if (input.jump && flap_timer == 0) {
+        if (on_ground) {
+            vel_y = -JUMP_SPEED;
+        } else {
+            vel_y -= FLAP_IMPULSE;
+            if (vel_y < -FLAP_MAX_CLIMB) vel_y = -FLAP_MAX_CLIMB;
+        }
+        flap_timer = FLAP_INTERVAL_STEPS;
+        did_flap = true;
+    }
 
     // Standing on the floor otherwise lets gravity pile up unbounded, which
     // makes velocity_y() meaningless and gives a one-frame lurch when the floor
