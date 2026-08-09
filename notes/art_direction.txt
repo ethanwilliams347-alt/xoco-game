@@ -9,9 +9,9 @@ direction in writing. This picks one.
 THE FINDING THIS RESOLVES
 --------------------------
 
-Three references existed and none had been chosen over the others:
-notes/art_pipeline.txt's snowy Japanese level-crossing stills (written to
-justify one test fixture and never actually adopted), notes/story.txt's
+Three references existed and none had been chosen over the others: the snowy
+Japanese level-crossing stills the original art-pipeline note opened with
+(written to justify one test fixture and never actually adopted), notes/story.txt's
 dystopian United States, and now resources/video_screenshots/test_location.jpg
 — a screenshot of Noita's own opening forest biome at night.
 
@@ -58,10 +58,10 @@ gitignored specifically because that footage is reference, not material
 LAYER MODEL
 -----------
 
-notes/art_pipeline.txt specified three layers (Backdrop / Terrain / Props).
-This reference needs four, because the trees are mid-ground — rooted at the
-terrain's edge rather than drawn over the top of everything the way that
-note's crossing-signal example was:
+The original split was three layers (Backdrop / Terrain / Props), all props
+drawn over the top. This reference needs four, because the trees are
+mid-ground — rooted at the terrain's edge rather than drawn over the top of
+everything the way a crossing signal or a sign would be:
 
   1. Sky       - dusk gradient, banded, a handful of star pixels. Static per
                  scene. Parallax factor ~0.04.
@@ -151,9 +151,11 @@ same mistake color_jitter already was.
 THE RIM ON MATERIALS THAT MOVE, MEASURED
 ------------------------------------------
 
-The rim is baked per cell, so it travels with the cell - notes/
-art_pipeline.txt accepted that consequence long ago for static terrain and
-warned it "only breaks down under dramatic large-scale gradients". Sand and
+The rim is baked per cell, so it travels with the cell. That consequence was
+accepted from the start for static terrain - a lit top edge can end up on the
+side of a fallen slab, which at this scale reads as material texture rather
+than as an error, and it only breaks down under dramatic large-scale
+gradients, so those do not get painted into the simulated layer. Sand and
 Water are the case that acceptance did not cover: one slumps the moment the
 sim starts, the other is a liquid. The worry was that the highlight would
 scatter through the body of the material and read as noise.
@@ -197,7 +199,7 @@ out to be fine.
 WHAT IS DRAWN VS WHAT IS SIMULATED
 -------------------------------------
 
-Unchanged from notes/art_pipeline.txt's original split, restated because V4
+Unchanged from the original drawn/simulated split, restated here because V4
 and V8 both depend on it: if a region of the scene exercises a system —
 powder piling, structural collapse, liquid levelling, fire spreading — it
 belongs in the terrain layer, authored through the material map, and it

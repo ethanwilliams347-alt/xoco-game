@@ -4,9 +4,10 @@
 // today's taste would be a copy of the answer rather than a check on it.
 //
 // The question it exists to answer: the rim light (tools/pixel_art.py's
-// `apply_rim_light`) is baked into each cell's colour, and notes/
-// art_pipeline.txt has always accepted that "a lit top edge travels with the
-// cell". That is obviously fine for Wall and Wood, which never move. It is not
+// `apply_rim_light`) is baked into each cell's colour, and this project has
+// always accepted that a lit top edge travels with the cell (see the rim
+// section of notes/art_direction.txt). That is obviously fine for Wall and
+// Wood, which never move. It is not
 // obviously fine for Sand, which is authored as a blocky slope and slumps the
 // moment the simulation starts, or for Water, which is a liquid. If a large
 // share of the rim ends up somewhere that is no longer a surface, the

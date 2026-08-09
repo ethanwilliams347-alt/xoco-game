@@ -6,10 +6,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'too
 from pixel_art import PALETTE, apply_rim_light, write_bmp  # noqa: E402
 
 # Generates the F4 fixture scene (assets/test_material.bmp, test_albedo.bmp).
-# Layout and intent come from notes/art_pipeline.txt's "test fixture wearing
-# art" section - each region below exists to exercise one named system, not
-# to look good. Sized to GRID_WIDTH/HEIGHT in main.cpp (1920x1080); the two
-# must move together.
+# It is a test fixture wearing art: each region below exists to exercise one
+# named system, not to look good, and anything that exercises no system belongs
+# in a drawn layer instead (notes/art_direction.txt). The per-region intent is
+# in ROADMAP.md's F4.4. Sized to GRID_WIDTH/HEIGHT in main.cpp (1920x1080);
+# the two must move together.
 #
 # Albedo now comes from the locked palette (V6, tools/pixel_art.py) and a
 # rim-light pass (notes/art_direction.txt) rather than hand-picked shades

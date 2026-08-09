@@ -515,9 +515,9 @@ private:
     // shape perfectly intact, so masonry descends like an elevator. Fracture is
     // the answer rather than rotation, and that substitution is the decision:
     // true rigid-body rotation on a cell grid means resampling the piece every
-    // step it turns, which destroys the exact authored pixels
-    // notes/art_pipeline.txt calls the entire visual pillar. Masonry mostly
-    // breaks rather than tips anyway.
+    // step it turns, which destroys the exact authored pixels ENGINEERING_NOTES.md
+    // calls the entire visual pillar. Masonry mostly breaks rather than tips
+    // anyway.
     //
     // **A piece breaks when it lands, not while it falls**, and that timing is
     // what makes the whole feature safe. Every "nothing must move here" test in

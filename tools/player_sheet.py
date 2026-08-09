@@ -1,7 +1,7 @@
 """The player sprite sheet (V3.1): the animation table, the validator, and the
 generated header that keeps this file and main.cpp from disagreeing.
 
-Replaces tools/generate_player.py, which authored one pose as an ASCII grid.
+Replaces the earlier generator, which authored one pose as an ASCII grid.
 That was the right form for a single frame - a one-pixel change reviewed as a
 one-character change - and it is the wrong form for four animations of six
 frames, which is twenty-four such blocks. The sheet is hand-drawn instead;
@@ -40,13 +40,6 @@ the only thing --validate can say - and a validator that is known to be red
 is a validator nobody reads, which costs the *baseline* checks that only
 this script can make. It is not a way to ship off-palette art:
 tools/validate_palette.py has no such flag and is still the gate.
-
-**assets/player_hotspots.bmp is metadata, not art, and is deliberately
-off-palette** - its marker colour is pure green, which is in no PALETTE entry
-and never will be. Do not point tools/validate_palette.py at it; it will fail,
-correctly, and the failure means nothing. --validate below is what checks that
-file, against the rule it actually has to satisfy (exactly one marker pixel per
-drawn frame).
 """
 import sys
 from pixel_art import PALETTE, COLOR_KEY, read_bmp, write_bmp
@@ -117,7 +110,7 @@ SHEET_W, SHEET_H = SHEET_COLS * FRAME_W, SHEET_ROWS * FRAME_H
 _widest = max(a.col + a.frames for a in ANIMATIONS)
 assert SHEET_COLS >= _widest, (
     f'MAX_FRAMES is {SHEET_COLS} but {_widest} columns are needed - widen the '
-    f'sheet before adding frames, or the generated SHOULDER table is short')
+    f'sheet before adding frames to the table')
 
 SHEET_PATH = 'assets/player_sheet.bmp'
 HEADER_PATH = 'src/render/player_sprite.h'
@@ -135,9 +128,9 @@ def frame_pixels(pixels, width, row, col):
 def validate(allow_off_palette=False):
     """Everything about the art that code downstream assumes and cannot check.
 
-    The checks are the ones tools/generate_player.py already made for a single
-    pose, applied per frame, plus the one the sheet format adds. They are not
-    stylistic - each corresponds to a specific silent failure:
+    The checks are the ones the single-pose generator made before this file
+    replaced it, applied per frame, plus the one the sheet format adds. They
+    are not stylistic - each corresponds to a specific silent failure:
 
       - a frame whose bottom row is empty draws a figure hovering one cell
         above every floor it stands on, forever, and the symptom reads as a

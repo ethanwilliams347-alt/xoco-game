@@ -5,7 +5,7 @@ palette both sides index" and the reason a validator is possible at all.
 
 Written against nothing but the standard library, on purpose: this project
 has no third-party dependencies by policy (BMP over PNG, immediate-mode over
-Dear ImGui - see notes/art_pipeline.txt and ENGINEERING_NOTES.md), and an
+Dear ImGui - see ENGINEERING_NOTES.md), and an
 authoring tool is a bad reason to be the first exception.
 
 PALETTE is the locked set notes/art_direction.txt (V5) describes and reasons

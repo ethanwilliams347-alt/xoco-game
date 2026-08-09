@@ -11,14 +11,13 @@ public:
 
     // Centers the viewport on (center_x, center_y) - normally the player -
     // clamped so it never scrolls past the world's edges. A world no bigger
-    // than the viewport on an axis clamps to 0 on that axis, i.e. no
-    // scrolling at all, which is still true of every world in the project
-    // today (F3.1's coincidence: GRID_WIDTH/HEIGHT equal VIEWPORT_WIDTH/HEIGHT).
+    // than the viewport on an axis clamps to 0 on that axis, i.e. no scrolling
+    // at all on that axis.
     // Takes a fractional centre, because a camera that can only sit on whole
     // cells is the larger half of defect A1 (PLAYTEST_LOG.md session 1). The
-    // world is 640x400 against a 200x150 viewport, so the view is unclamped
-    // wherever the player usually is, which pins the player near screen centre
-    // and scrolls *the world* instead. Rounded to whole cells, that world moves
+    // world (1920x1080) is larger than every viewport in DISPLAY_MODES, so the
+    // view is unclamped wherever the player usually is, which pins the player
+    // near screen centre and scrolls *the world* instead. Rounded to whole cells, that world moves
     // in 4-pixel jerks at the simulation's irregular 0.75-cells-per-step
     // cadence while the eye tracks it smoothly - which is what reads as
     // ghosting, and it is not fixed by smoothing the player alone.
@@ -48,9 +47,8 @@ public:
 
     // A length, not a position, so it is never shifted by the viewport's
     // offset - only ever scaled. Also covers the on-screen size of one world
-    // cell, where scale_length(1) would work but reads oddly as cell_size().
+    // cell, as scale_length(1).
     int scale_length(int world_length) const { return world_length * SCALE; }
-    int cell_size() const { return SCALE; }
 
     // World-cell coordinates of the viewport's top-left corner - what the
     // texture upload in main.cpp reads the visible rect's pixels from. Floored,

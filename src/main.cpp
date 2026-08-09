@@ -19,9 +19,9 @@
 // The simulated world's size, in cells - independent of the window since F3.1.
 // Not equal to any window size divided by Camera::SCALE: that was only ever a
 // coincidence of nothing having needed them to differ yet, and F4's scene is
-// authored at 1920x1080 cells (notes/art_pipeline.txt's reference resolution,
-// rescaled with the player body), bigger than every viewport in the display
-// table. That is deliberate, not a mismatch to fix - it is what exercises the
+// authored at 1920x1080 cells (the fixture's original 640x400 rescaled with
+// the player body - see generate_test_scene.py), bigger than every viewport in
+// the display table. That is deliberate, not a mismatch to fix - it exercises the
 // panning half of the camera (F3.4) rather than just the decoupling half
 // (F3.1-F3.3), which a world equal to the viewport never did.
 //
@@ -421,7 +421,7 @@ int main(int argc, char* argv[]) {
         return tex;
     };
 
-    // V3.1's player sheet and aiming arm, from tools/player_sheet.py.
+    // V3.1's player sheet, from tools/player_sheet.py.
     // Colour-keyed like the props, and like them one BMP pixel is one world
     // cell. Every number about the sheet's layout comes from the generated
     // header rather than being retyped here - see player_sprite.h for why.

@@ -956,9 +956,9 @@ int main() {
     // --- heat: dousing a fire does not start a bigger one ---
     //
     // The gameplay half of the same bug, and the reason it was worth fixing
-    // rather than documenting: notes/art_pipeline.txt schedules a scene built
-    // around exactly this move ("sleepers beside the water -> ignite wood,
-    // watch water douse it to steam").
+    // rather than documenting: the F4 fixture is built around exactly this move
+    // - generate_test_scene.py's sleepers sit beside the water channel so that
+    // igniting the wood and breaching the wall douses it to steam.
     {
         Grid g(40, 40);
         for (int x = 12; x < 28; ++x) g.set_element(x, 30, ElementType::Wood);   // wooden floor

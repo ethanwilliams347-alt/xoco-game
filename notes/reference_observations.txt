@@ -2,9 +2,9 @@ Reference Observations
 ======================
 
 What was seen in reference footage, what it implies for a scheduled item, and
-what it does NOT justify. Reference for this project is currently Noita
-gameplay capture, plus the snowy-level-crossing stills that art_pipeline.txt
-opens with.
+what it does NOT justify. Reference for this project is Noita gameplay
+capture. The snowy-level-crossing stills that used to sit alongside it were
+retired by V5 - see notes/art_direction.txt.
 
 THIS FILE IS THE ARTIFACT. THE FRAMES ARE NOT.
 ----------------------------------------------
@@ -84,9 +84,9 @@ Seen:      A quantized palette sample (16 levels/channel, ~100k points) came
 Implies:   V5 — this is adopted as the forest quantum-world's direction
            (see notes/art_direction.txt). V8 — the layer stack needs a
            mid-ground props layer between the backdrop and the terrain,
-           not just backdrop-then-terrain; art_pipeline.txt's original
-           three-layer model (backdrop / terrain / props-on-top) doesn't
-           fit this reference's depth ordering. V6 — strong evidence for a
+           not just backdrop-then-terrain; the original three-layer model
+           (backdrop / terrain / props-on-top) doesn't fit this
+           reference's depth ordering. V6 — strong evidence for a
            narrow, dark, low-saturation locked palette rather than a wide
            one.
 Does not:  License copying any pixel out of the still. resources/ is
