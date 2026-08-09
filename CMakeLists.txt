@@ -49,6 +49,7 @@ set(RENDER_SOURCES
 # file to compile, which is the same guard V7's light field is given above.
 set(SCENE_PROP_SOURCES
     src/scene/props.cpp
+    src/scene/sprites.cpp
 )
 
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
@@ -116,6 +117,13 @@ if(BUILD_TESTING)
     # Run from the source tree so the suite can parse the shipped
     # assets/test_props.txt, which is the fixture main.cpp actually loads.
     add_test(NAME props_test COMMAND props_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+    # The sprite manifest. Links the same parser-only set for the same reason:
+    # it turns a text file into a list of records, knows no SDL, and nothing in
+    # the simulation may read it.
+    add_executable(sprites_test tests/test_sprites.cpp ${SCENE_PROP_SOURCES})
+    target_include_directories(sprites_test PRIVATE src tests)
+    add_test(NAME sprites_test COMMAND sprites_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.

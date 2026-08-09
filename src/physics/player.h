@@ -90,14 +90,35 @@ public:
     // sustained flight is a slow laboured grind.
     //
     // Net altitude per beat is the balance of two numbers:
-    // FLAP_IMPULSE against GRAVITY * (FLAP_INTERVAL_STEPS / 60). At the
-    // values below that is 130 against ~117, so a held key climbs - but only
-    // just, at roughly a body height per two seconds. "Eventually gains
-    // altitude" is the design, and it is a property of that margin rather
-    // than of any one constant, so tune the pair together or the character
-    // becomes either a helicopter or a rock.
-    static constexpr float FLAP_IMPULSE = 130.0f;    // cells/s removed from vel_y per beat
-    static constexpr float FLAP_MAX_CLIMB = 70.0f;   // cells/s ceiling on upward speed
+    // FLAP_IMPULSE against GRAVITY * (FLAP_INTERVAL_STEPS / 60), the gravity a
+    // single beat has to pay for. That toll is ~117 cells/s and it is fixed
+    // here - there is no separate flight gravity - so **the felt weight of
+    // flight is how much of the impulse is left after paying it.**
+    //
+    // It was 130 against ~117: a margin of 13, about a body height per two
+    // seconds, which playtested as roughly 40% too heavy. Both constants are
+    // retuned to take 40% out of that weight, and they have to move together:
+    //
+    //   FLAP_IMPULSE 177 leaves a margin of ~60 rather than ~13, which is the
+    //   same climb the character would get if gravity's toll were 40% lighter
+    //   (117 * 0.6 = 70; 130 - 70 = 60). This is the number that decides how
+    //   many beats it costs to arrest a dive, which is most of what "heavy"
+    //   means moment to moment.
+    //
+    //   FLAP_MAX_CLIMB 98 is the old 70 plus the same 40%, and without it the
+    //   extra impulse would be spent entirely on recovering from falls while
+    //   sustained climbing stayed at exactly its old speed - the cap, not the
+    //   impulse, is what sets that. Raising one and not the other is the most
+    //   likely way to retune this and still be told it feels heavy.
+    //
+    // The cap is still deliberately far below JUMP_SPEED: the launch off the
+    // ground is one big downstroke and is allowed to exceed it, so a standing
+    // jump stays the strongest single upward move the character has. "Climbs
+    // under its own power, and is not a helicopter" is the design; it is a
+    // property of the margin rather than of any one constant, so tune the pair
+    // together or the character becomes one or the other.
+    static constexpr float FLAP_IMPULSE = 177.0f;    // cells/s removed from vel_y per beat
+    static constexpr float FLAP_MAX_CLIMB = 98.0f;   // cells/s ceiling on upward speed
     static constexpr int FLAP_INTERVAL_STEPS = 14;   // fixed steps between beats
 
     // Tallest lip the player walks over without jumping. This is the whole of

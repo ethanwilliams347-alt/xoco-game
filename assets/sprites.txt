@@ -1,0 +1,40 @@
+# Which BMP each piece of art loads from. Written by tools/load_sprite.py;
+# hand-editable, and read by src/scene/sprites.cpp at launch.
+#
+# One record per line:
+#
+#     <key> <file.bmp> [<frame_w> <frame_h>]
+#
+# `key` is what the code asks for. `file` is a bare filename inside assets/ -
+# no paths, the file has to sit in this directory. The frame size is optional
+# and only for sheets; it is checked at load, not used to slice anything.
+#
+# Deleting a line, or this whole file, is safe: every key falls back to the
+# file the code shipped with. That is the point of the fallback - a broken
+# manifest gets you the old art, never a black screen.
+#
+# To point a key at something new:
+#
+#     python tools/load_sprite.py player_sheet my_new_sheet.bmp
+#
+# which validates the BMP, rewrites the line below, and stages the file next to
+# the built exe so it takes effect on the next launch with no rebuild.
+
+# --- player ---------------------------------------------------------------
+# The frame size here must match FRAME_W/FRAME_H in tools/player_sheet.py.
+# main.cpp checks the whole sheet against the compiled animation table and says
+# so if they disagree.
+player_sheet            player_sheet_fly.bmp        14 26
+
+# --- backdrop -------------------------------------------------------------
+# Two parallax layers, sized by tools/generate_backdrop.py to cover the
+# camera's pan range at their own factor. They are not sheets.
+backdrop_sky            backdrop_sky.bmp
+backdrop_mountains      backdrop_mountains.bmp
+
+# --- props ----------------------------------------------------------------
+# A prop's key is the name assets/test_props.txt already uses, so rebinding one
+# here swaps the drawing without touching the scene's placements.
+tree_a                  tree_a.bmp
+tree_b                  tree_b.bmp
+tree_c                  tree_c.bmp

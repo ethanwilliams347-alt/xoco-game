@@ -11,30 +11,74 @@ have a drawing", this one starts at "I have a file and I want the game to load i
 
 ---
 
-## The two things that catch everyone
+## Loading a sprite: the one command
 
-**1. Every asset path is a hardcoded string literal in `main.cpp`.** There is no
-asset manifest and no command-line override. Renaming a file, or pointing a
-*tool* at a different file, does not change what the game loads:
+Drop the `.bmp` into `assets/` in File Explorer, then:
+
+```bash
+python tools/load_sprite.py player_sheet my_new_sheet.bmp
+```
+
+That validates the image, rebinds the key in
+[assets/sprites.txt](assets/sprites.txt), and copies both into the build
+directories. **Launch the game — no rebuild, no code change.**
+
+```bash
+python tools/load_sprite.py --list          # what is bound to what right now
+python tools/load_sprite.py --stage         # re-copy assets/ into the build dirs
+```
+
+The keys are whatever [assets/sprites.txt](assets/sprites.txt) lists — currently
+`player_sheet`, `backdrop_sky`, `backdrop_mountains`, and one per prop sprite
+(`tree_a`…). A prop's key is the name `test_props.txt` already uses, so
+rebinding one swaps the drawing without touching any scene's placements.
+
+What the tool refuses, and why each refusal is worth having:
+
+| Refusal | Because |
+|---|---|
+| A file outside `assets/` | The game only ever looks there. |
+| Not a readable 24-bit BMP | SDL opens some files the rest of the pipeline can't; `tools/png_to_bmp.py` converts. |
+| A sheet whose grid ≠ the animation table | It would load, draw, and simply draw the *wrong rectangles* — silently. |
+
+It also warns when a sprite has no magenta pixels, since that sprite will draw
+as a solid rectangle — correct for a backdrop, wrong for anything with a
+silhouette.
+
+**Frame layout is not something this tool can change.** Frame size, row order
+and frame counts are the `ANIMATIONS` table in
+[tools/player_sheet.py](tools/player_sheet.py) and the header it generates —
+facts about the game, not about the image. A sheet of a genuinely different
+shape means editing that table and rerunning `--header`; the tool prints exactly
+that when it rejects one.
+
+## The thing that still catches everyone
+
+**`assets/` is copied next to the executable at build time.** `load_sprite.py`
+stages files for you, but *editing* a file in `assets/` by hand still changes
+nothing you can see until you rebuild (or run `--stage`).
+
+Not everything goes through the manifest. These are still literals in
+`main.cpp`, because they are not sprites — a location is a pair of BMPs read by
+a different loader, and the prop list is a placement file:
 
 | What | Path the game loads | Where that literal lives |
 |---|---|---|
-| Player sheet | `assets/player_sheet_fly.bmp` | [main.cpp:446](src/main.cpp#L446) |
 | Location — materials | `assets/test_material.bmp` | [main.cpp:517](src/main.cpp#L517) |
 | Location — albedo | `assets/test_albedo.bmp` | [main.cpp:517](src/main.cpp#L517) |
 | Prop placements | `assets/test_props.txt` | [main.cpp:472](src/main.cpp#L472) |
-| Prop sprites | `assets/<name>.bmp`, named by the prop list | [main.cpp:415](src/main.cpp#L415) |
-| Backdrop — sky | `assets/backdrop_sky.bmp` | [main.cpp:392](src/main.cpp#L392) |
-| Backdrop — mountains | `assets/backdrop_mountains.bmp` | [main.cpp:393](src/main.cpp#L393) |
 
-The player sheet has the path written down in **two** places — `SHEET_PATH` in
-[tools/player_sheet.py](tools/player_sheet.py) for the tools, and the literal in
-`main.cpp` for the game — and nothing enforces that they agree, because
-`SHEET_PATH` is not emitted into
-[player_sprite.h](src/render/player_sprite.h). Point one somewhere the other
-isn't looking and you validate one file while the exe loads another, with no
-complaint from either, because both files exist and both are valid. They
-currently both say `assets/player_sheet_fly.bmp`. **Change them together.**
+The manifest is safe to break. Every key falls back to the file the code shipped
+with, so a deleted, truncated or malformed `sprites.txt` gets you the old art
+and a warning on stderr — never a black screen. A malformed one is discarded
+*wholesale* rather than line by line, because half-applied rebinding (some art
+moved, some didn't) is harder to diagnose than the art you already had.
+
+The player sheet's path used to be written in **two** places — `SHEET_PATH` in
+`tools/player_sheet.py` and a literal in `main.cpp` — with nothing enforcing
+that they agreed, so you could validate one file while the exe loaded another.
+Both now resolve the `player_sheet` key through the manifest, so they cannot
+drift.
 
 Two older sheets, `player_sheet.bmp` and `player_sheet_2.bmp`, are still in
 `assets/` and are no longer read by anything. They are safe to delete and
@@ -57,22 +101,19 @@ up", check this first — then check that you edited the file in the table above
 
 ## The fast loop for trying a design
 
-Because the paths are literals, the quickest way to look at new art is to make
-your file **take the existing name** rather than teaching the game a new one:
+Keep every variant under its own name and rebind between them. Nothing is
+overwritten, so going back is another one-line command rather than a restore:
 
 ```bash
-cp assets/player_sheet_fly.bmp assets/player_sheet_backup.bmp   # only if it isn't reproducible
-cp assets/my_new_idea.bmp      assets/player_sheet_fly.bmp
-cmake --build build --config Release
+python tools/load_sprite.py player_sheet candidate_a.bmp
+.\build\Release\SlopPhysics.exe
+python tools/load_sprite.py player_sheet candidate_b.bmp
 .\build\Release\SlopPhysics.exe
 ```
 
-Same shape for any row in the table. Keep your variants under their own names
-and copy the one you want onto the loaded name — that way the game always reads
-a file you know it reads, and you never have two paths that could disagree.
-
-Editing the literal in `main.cpp` instead works too and costs the same rebuild.
-It is the better move once a variant is the real one rather than an experiment.
+Same shape for any key. For the location and prop-list rows in the table above —
+the ones that are still literals — the old approach is still the approach: copy
+your file **onto the loaded name** and rebuild.
 
 ---
 
@@ -119,10 +160,15 @@ Which slot means what is the `ANIMATIONS` table at
 | 2 | 0 | `rise` — single pose, chosen by velocity, not by a clock |
 | 2 | 1 | `fall` — single pose, same row as `rise` |
 | 3 | 0-2 | `dig` (3 frames, one-shot, 8 steps each) |
-| 4 | 0-2 | `fly` (3 frames, one wing beat, re-latched by each flap) |
+| 4 | 0-5 | `fly` (6 frames, one wing beat, re-latched by each flap) |
 
-`fly`'s 5-step wait is tied to `Player::FLAP_INTERVAL_STEPS`; the two have to be
-retuned together, and the fly row's comment in `player_sheet.py` says why.
+`fly`'s 3-step wait is tied to `Player::FLAP_INTERVAL_STEPS`; the two have to be
+retuned together, and the fly row's comment in `player_sheet.py` says why. The
+fly row is also the one row `--validate` holds to a different baseline rule: it
+is marked `airborne=True`, so the "bottom row empty" and "gap inside the
+collision box" checks are replaced by "not blank, no hole through the figure".
+Flight lifts the torso off the bottom of the frame on purpose and there is no
+floor for it to look wrong against.
 
 **The sheet is a derived file.** Build it from frame BMPs rather than editing it
 in place — that is what stops a frame landing in a column its animation doesn't
@@ -130,7 +176,7 @@ own, and stops an animation half-updating so the loop flashes between two
 different characters:
 
 ```bash
-python tools/build_player_sheet.py assets/my_frame.bmp        # stamps into all 13 slots
+python tools/build_player_sheet.py assets/my_frame.bmp        # stamps into all 19 slots
 python tools/player_sheet.py --validate --allow-off-palette
 ```
 

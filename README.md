@@ -30,15 +30,33 @@ To survive, you must use mysterious ancient science to access different worlds. 
    ```
    (`.\build\Debug\SlopPhysics.exe` if you built with `--config Debug` instead — whichever config you built is the one whose folder has the exe.) The build step above also copies `assets/` next to the executable automatically, which is what the F4 test scene loads at startup; nothing extra to run first.
 
+## Tuning
+
+[TUNING.md](TUNING.md) is the running log of the feel knobs — player weight,
+flight, animation speed, dig reach, light reach — with the file and line for
+each and what turning it costs. It is where to look before hunting a constant,
+and where to add an entry after retuning one.
+
 ## Assets
 
 [ASSETS.md](ASSETS.md) is the reference for getting art into the game — a new
 sprite, a player sheet, a location, a backdrop — and for swapping one out to look
-at a design. Two things there are worth knowing before you touch a file: every
-asset path is a **hardcoded string literal in `main.cpp`** (there is no manifest,
-so renaming a file changes nothing), and `assets/` is **copied next to the exe at
-build time** (so editing art does nothing visible until you rebuild). Those two
-between them account for most "my change didn't show up".
+at a design. The short version: drop a `.bmp` into `assets/`, then
+
+```bash
+python tools/load_sprite.py player_sheet my_new_sheet.bmp
+```
+
+binds it in [assets/sprites.txt](assets/sprites.txt), checks it against the
+frame grid the code is compiled against, and stages it next to the exe — so it
+shows up on the next launch with no rebuild and no code change. `--list` shows
+the current bindings.
+
+One thing is still worth knowing: `assets/` is **copied next to the exe at build
+time**, so editing a file by hand shows nothing until you rebuild (or run
+`load_sprite.py --stage`). That accounts for most "my change didn't show up".
+The location BMPs and the prop list are not sprites and are still literals in
+`main.cpp`; ASSETS.md has the table.
 
 For the player character specifically, [drawing_to_sprite.md](../drawing_to_sprite.md)
 covers the pipeline from a drawing to a validated sheet.
@@ -46,12 +64,13 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-nine suites, one per concern — `grid_test` for the cellular automata,
+ten suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
 `light_test` for the emissive light field, `anim_test` for the player's
-animation selector, and `props_test` for the prop list format — and CTest runs
+animation selector, `props_test` for the prop list format, and `sprites_test`
+for the sprite manifest that decides which BMP each key loads — and CTest runs
 all of them.
 
 The last three are not simulation, and they are headless for the same reason it

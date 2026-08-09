@@ -13,6 +13,7 @@
 #include "scene/legend.h"
 #include "scene/props.h"
 #include "scene/scene.h"
+#include "scene/sprites.h"
 #include "ui/text.h"
 #include "ui/hotbar.h"
 
@@ -389,8 +390,24 @@ int main(int argc, char* argv[]) {
     // script's header for why the two files have to change together.
     // Layer order and the "trees draw before terrain" rule are notes/
     // art_direction.txt's four-layer model.
-    SDL_Texture* backdrop_sky = load_art_texture(renderer, "assets/backdrop_sky.bmp", false);
-    SDL_Texture* backdrop_mountains = load_art_texture(renderer, "assets/backdrop_mountains.bmp", true);
+    // Which BMP each of those keys actually resolves to is data now - see
+    // src/scene/sprites.h. The literals below are the fallback, so this file
+    // still says what ships; the manifest is how a drawing dropped into assets/
+    // gets in front of them without a code change. A malformed manifest is
+    // reported and then ignored wholesale rather than half-applied, because a
+    // half-applied rebinding table is a scene where some art moved and some did
+    // not, which is far harder to read than the art you already had.
+    std::string sprite_manifest_error;
+    SpriteManifest sprites = load_sprite_manifest("assets/sprites.txt", &sprite_manifest_error);
+    if (!sprite_manifest_error.empty()) {
+        std::fprintf(stderr, "WARNING: %s\n", sprite_manifest_error.c_str());
+        std::fprintf(stderr, "         every sprite falls back to its shipped file.\n");
+    }
+
+    SDL_Texture* backdrop_sky = load_art_texture(
+        renderer, sprites.path_for("backdrop_sky", "backdrop_sky.bmp").c_str(), false);
+    SDL_Texture* backdrop_mountains = load_art_texture(
+        renderer, sprites.path_for("backdrop_mountains", "backdrop_mountains.bmp").c_str(), true);
     constexpr float PARALLAX_SKY_X = 0.04f, PARALLAX_SKY_Y = 0.02f;
     constexpr float PARALLAX_MOUNTAIN_X = 0.15f, PARALLAX_MOUNTAIN_Y = 0.06f;
     int sky_w = 0, sky_h = 0, mountain_w = 0, mountain_h = 0;
@@ -412,10 +429,16 @@ int main(int argc, char* argv[]) {
     auto prop_texture = [&](const std::string& sprite) -> SDL_Texture* {
         for (auto& entry : prop_textures)
             if (entry.first == sprite) return entry.second;
-        SDL_Texture* tex = load_art_texture(renderer, ("assets/" + sprite + ".bmp").c_str(), true);
+        // A prop's name is already its own key, so the manifest can rebind one
+        // without the scene file changing: the record still says `tree_a`, and
+        // which drawing that is is now a swap you can make from the command
+        // line.
+        const std::string path = sprites.path_for(sprite, sprite + ".bmp");
+        SDL_Texture* tex = load_art_texture(renderer, path.c_str(), true);
         if (!tex) {
-            std::fprintf(stderr, "WARNING: prop sprite 'assets/%s.bmp' did not load; "
-                                 "every prop naming it is skipped.\n", sprite.c_str());
+            std::fprintf(stderr, "WARNING: prop sprite '%s' did not load; "
+                                 "every prop naming '%s' is skipped.\n",
+                         path.c_str(), sprite.c_str());
         }
         prop_textures.emplace_back(sprite, tex);
         return tex;
@@ -443,7 +466,36 @@ int main(int argc, char* argv[]) {
     // the hotspot image and the rotate-about-the-shoulder draw, both of which
     // are described in ROADMAP.md's V3.1 entry rather than left as dead code
     // here.
-    SDL_Texture* player_tex = load_art_texture(renderer, "assets/player_sheet_fly.bmp", true);
+    //
+    // **The path is a manifest lookup and the layout is not.** Which BMP this
+    // is can be changed from the command line (tools/load_sprite.py); how many
+    // frames it holds and what they mean cannot, because that is the animation
+    // table in tools/player_sheet.py and the header it generates. So the one
+    // thing worth checking here is that the image actually fits the layout the
+    // code is compiled against - a sheet with the wrong frame size loads fine
+    // and draws fine, it just draws the wrong rectangles, and the symptom is
+    // sliced-looking art rather than anything that mentions a size.
+    const std::string player_sheet_path =
+        sprites.path_for("player_sheet", "player_sheet_fly.bmp");
+    SDL_Texture* player_tex = load_art_texture(renderer, player_sheet_path.c_str(), true);
+    if (player_tex) {
+        int sheet_w = 0, sheet_h = 0;
+        SDL_QueryTexture(player_tex, nullptr, nullptr, &sheet_w, &sheet_h);
+        const int need_w = player_sprite::SHEET_COLS * player_sprite::FRAME_W;
+        const int need_h = player_sprite::SHEET_ROWS * player_sprite::FRAME_H;
+        if (sheet_w != need_w || sheet_h != need_h) {
+            std::fprintf(stderr,
+                         "WARNING: %s is %dx%d, but the animation table expects %dx%d "
+                         "(%d cols x %d rows of %dx%d).\n",
+                         player_sheet_path.c_str(), sheet_w, sheet_h, need_w, need_h,
+                         player_sprite::SHEET_COLS, player_sprite::SHEET_ROWS,
+                         player_sprite::FRAME_W, player_sprite::FRAME_H);
+            std::fprintf(stderr,
+                         "         The figure will draw sliced. Either the sheet is the "
+                         "wrong art, or ANIMATIONS in tools/player_sheet.py needs "
+                         "updating and --header re-running.\n");
+        }
+    }
     player_anim::State anim_state;
 
     // Which way the figure faces. Tracked here rather than on Player because

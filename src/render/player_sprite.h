@@ -57,7 +57,7 @@ inline constexpr Anim WALK{1, 0, 6, 5, true};
 inline constexpr Anim RISE{2, 0, 1, 0, true};
 inline constexpr Anim FALL{2, 1, 1, 0, true};
 inline constexpr Anim DIG{3, 0, 3, 8, false};
-inline constexpr Anim FLY{4, 0, 3, 5, false};
+inline constexpr Anim FLY{4, 0, 6, 3, false};
 
 // No hotspot table: the aiming arm this sheet was designed around is not
 // drawn at the moment. It attached at a per-frame marker pixel carried in

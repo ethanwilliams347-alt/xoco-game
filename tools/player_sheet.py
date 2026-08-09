@@ -76,10 +76,16 @@ class Anim:
     are explicit that the same row can appear under several names, and `rise`
     and `fall` below are exactly that case - two single-frame poses that are
     selected by a condition rather than advanced by a clock, and that have no
-    business each occupying six columns of a sheet to hold one drawing."""
-    def __init__(self, name, row, col, frames, wait, loop):
+    business each occupying six columns of a sheet to hold one drawing.
+
+    `airborne` says this animation only ever plays with no ground under the
+    feet, and it exists purely to tell --validate which baseline rule applies.
+    It is not emitted into the header: nothing in the game reads it, because
+    the selector already knows when the player is off the ground."""
+    def __init__(self, name, row, col, frames, wait, loop, airborne=False):
         self.name, self.row, self.col = name, row, col
         self.frames, self.wait, self.loop = frames, wait, loop
+        self.airborne = airborne
 
 
 # Row order is the sheet's top-to-bottom order. Frame counts are what the art
@@ -102,16 +108,26 @@ ANIMATIONS = [
     # not an oversight - see the dig notes in src/physics/tool.h.
     Anim('dig',    3,   0,     3,     8,  False),   # one-shot; see player_anim.h
     # One wing beat, latched by Player::flapped() the way `dig` is latched by
-    # the tool firing. **`wait` 5 against Player::FLAP_INTERVAL_STEPS of 14 is
+    # the tool firing. **`wait` 3 against Player::FLAP_INTERVAL_STEPS of 14 is
     # the whole design of this row and the two numbers have to be read
-    # together.** Three frames at 5 steps is 15, one step longer than the beat
-    # interval, so the next flap always re-latches this animation a step before
-    # it would have ended - which is what keeps the wings locked to the rhythm
-    # the physics is actually producing, with no gap where it would fall back
-    # to the rise/fall poses mid-climb. Let the interval and this wait drift
-    # apart and you get either a stutter (wait too short) or frames that never
-    # play (wait too long).
-    Anim('fly',    4,   0,     3,     5,  False),
+    # together.** Six frames at 3 steps is 18, longer than the beat interval,
+    # so the next flap always re-latches this animation before it would have
+    # ended - which is what keeps the wings locked to the rhythm the physics is
+    # actually producing, with no gap where it would fall back to the rise/fall
+    # poses mid-climb. Let the interval and this wait drift apart and you get
+    # either a stutter (wait too short) or a beat that visibly outlives the
+    # impulse that caused it (wait too long).
+    #
+    # The consequence of 18 against 14 is that sustained flight re-latches part
+    # way through frame 4 and frame 5 is never seen while the key is held. That
+    # is deliberate rather than a miscount: frames 0-3 are the downstroke and
+    # the edge-on turn, which is the part that has to stay in phase, and 4-5 are
+    # the recovery back to the top. They play when the player *stops* flapping,
+    # which is why frame 5 is drawn to read as a still - it is the last thing
+    # shown before the falling pose takes over. Dropping to wait 2 would fit all
+    # six into 12 steps and re-introduce exactly the two-step gap this row's
+    # length exists to close.
+    Anim('fly',    4,   0,     6,     3,  False,  airborne=True),
 ]
 
 SHEET_ROWS = 1 + max(a.row for a in ANIMATIONS)
@@ -128,13 +144,34 @@ assert SHEET_COLS >= _widest, (
     f'MAX_FRAMES is {SHEET_COLS} but {_widest} columns are needed - widen the '
     f'sheet before adding frames to the table')
 
-# The one file both the tools and main.cpp read. **Keep these two in step by
-# hand**: this constant is not emitted into the generated header, so pointing
-# it somewhere main.cpp is not looking validates one file while the game loads
-# another - which cost this project several rounds of "I changed the art and
-# nothing happened" before it was written down. grep main.cpp for
-# player_sheet before changing it.
-SHEET_PATH = 'assets/player_sheet_fly.bmp'
+# The one file both the tools and the game read - and it is now read from the
+# same place the game reads it from, rather than typed here to match.
+#
+# This used to be a literal with a note saying "keep these two in step by hand",
+# because main.cpp had its own literal. Pointing one somewhere the other was not
+# looking validated one file while the game loaded another, which cost this
+# project several rounds of "I changed the art and nothing happened". Both sides
+# now resolve `player_sheet` through assets/sprites.txt, so they cannot drift:
+# tools/load_sprite.py rebinds the key and this follows it on the next run.
+#
+# The fallback is the same one main.cpp compiles in, for the same reason - a
+# missing or unreadable manifest gets you the shipped art rather than a crash.
+_DEFAULT_SHEET = 'assets/player_sheet_fly.bmp'
+
+
+def _sheet_path_from_manifest(key='player_sheet', default=_DEFAULT_SHEET):
+    try:
+        with open('assets/sprites.txt', encoding='utf-8') as f:
+            for line in f:
+                text = line.split('#', 1)[0].split()
+                if len(text) >= 2 and text[0] == key:
+                    return 'assets/' + text[1]
+    except OSError:
+        pass
+    return default
+
+
+SHEET_PATH = _sheet_path_from_manifest()
 HEADER_PATH = 'src/render/player_sprite.h'
 
 
@@ -162,6 +199,17 @@ def validate(allow_off_palette=False):
       - a frame the animation table declares but the art leaves blank shows as
         the player vanishing for a few steps mid-cycle, which reads as a
         flicker rather than as a frame nobody drew.
+
+    The first two are about *standing on something*, so they are checked only
+    on the rows that can be drawn with a floor under them. An `airborne` row
+    (`fly`) is exempt from them and gets the same two failures restated
+    against its own painted extent instead: the frame must not be blank, and
+    it must not have a hole through the middle of the figure. Lifting the body
+    off the bottom of the frame is what flight *is* here - the fly art raises
+    the torso and lets the legs trail, up to four rows clear of the baseline on
+    the upstroke - and there is no floor to look wrong against, because the
+    animation is latched by a wing beat and cancelled on landing (see the
+    on_ground branches in src/render/player_anim.cpp).
     """
     errors = []
 
@@ -197,6 +245,16 @@ def validate(allow_off_palette=False):
                 painted = [any(fp[y * FRAME_W + x] != COLOR_KEY for x in range(FRAME_W))
                            for y in range(FRAME_H)]
                 where = f'{anim.name} frame {col}'
+                if anim.airborne:
+                    if not any(painted):
+                        errors.append(f'{where}: nothing drawn - the player would vanish mid-beat')
+                        continue
+                    top, bottom = painted.index(True), FRAME_H - 1 - painted[::-1].index(True)
+                    for y in range(top, bottom):
+                        if not painted[y]:
+                            errors.append(f'{where}: row {y} is a gap through the figure')
+                            break
+                    continue
                 if not painted[FRAME_H - 1]:
                     errors.append(f'{where}: bottom row empty - would hover above the floor')
                 for y in range(OFFSET_Y, FRAME_H):
