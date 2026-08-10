@@ -49,7 +49,7 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 | A3 | Wood burns away far too fast. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
 | A4 | Fire will not propagate along a horizontal wood beam. Alongside a vertical beam it works. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
 | A5 | Steam condenses back to water far too fast. | major | **open** — the steam half of E9 |
-| A6 | Spawning material into water caps the water on top, then it bursts outward on release. | major | fixed — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding), pending playtest |
+| A6 | Spawning material into water caps the water on top, then it bursts outward on release. | major | **fixed and confirmed** — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding), session 5 W-1/W-2 |
 | A7 | Falling liquid throws horizontal sticks under 10 cells wide. | minor | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 | A8 | Material carves authored background out of whatever it passes through, leaving a permanent black wake. | major | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 
@@ -288,7 +288,7 @@ Not a checklist pass. Three screenshots, `resources/video_screenshots/water_issu
 
 | ID | What was seen | Severity | Status |
 |----|---------------|----------|--------|
-| A6b | Water lifted to the top of a falling sand column and trickling back down its flanks in a staggered pattern. | major | fixed — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding), pending playtest |
+| A6b | Water lifted to the top of a falling sand column and trickling back down its flanks in a staggered pattern. | major | **partly fixed** — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding). Session 5 W-3 confirms the lift to the top of the column is gone; a residual climb remains (**D3**) and the staggered flanks turned out to be a separate finding about the flow model, not about the lift (**D4**). |
 
 **Worth recording as a reporting pattern:** the first read was that A6's own fix had caused this. It had not — the behaviour predates wave 1 and was invisible because a second defect was eating the evidence. **A fix that makes a longstanding defect visible for the first time looks exactly like a fix that caused one**, which is the same lesson A1b taught from the rendering side, arriving from the physics side.
 
@@ -296,13 +296,17 @@ Not a checklist pass. Three screenshots, `resources/video_screenshots/water_issu
 
 ## Session 5 checklist — the pass that closes wave 3
 
-**Not yet run.** [Wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding)'s code is in and its exit condition is this session.
+**Run — see [the results](#session-5-results--wave-3-closes-and-the-water-underneath-it-does-not) below.** [Wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding)'s code is in and its exit condition is this session.
 
-**Run README's Manual Tester Checklist first, in full** — wave 3 changed a grid write path and added a fluid-venting rule, so steps 1–9 all apply and step 4 in particular is about the brush.
+**Run README's Manual Tester Checklist first, in full** — wave 3 changed a grid write path and added a fluid-venting rule, so steps 1–9 all apply and step 4 in particular is about the brush. **Step 8 was rewritten on 2026-08-10 and the rewrite matters to this session:** it used to ask for fps "near the display's refresh" on a wide sand-over-water fill, which P2 has since measured at ~35 ms/step at the played size. Reading the old wording, W-7 below would have been filed as a wave 3 performance defect. It is not one.
 
-**Record before starting:** build hash, Release/MSVC, world seed, the `Scene:` line, suite count.
+**Record before starting:** build hash, Release/MSVC, world seed, the `Scene:` line, suite count, **and the display mode** — the `Display: WxH (WxH cells at 4x)` line the game prints at startup.
 
-### The one question this session exists to answer
+**The display mode is new to this list and is not bookkeeping.** Every fps observation in this session is uninterpretable without it. `PERFORMANCE.md` measures the light field at 6.43 ms/frame at 1920x1080 against **15.48 ms/frame at 3440x1440** — 38.6% of a 60 Hz frame against 92.9% — for the same scene, because the field scans what is on screen and the widest mode has 2.4x as much of it. (Both halves of that pair are quoted from the same sitting on purpose; P2's own run re-read the wide figure at 15.25 ms, which is consistent, but pairing one sitting's number with another's is the comparison this project's method forbids.) A session run at the widest mode and one run at 1080p will disagree about how the game performs by more than any wave 3 change could, and until now nothing in this file recorded which had happened. Sessions 1–4 did not record it and their fps notes should be read with that in mind.
+
+### Phase A — the question wave 3 exists to answer
+
+*Phase A closes wave 3 and is the reason this session is scheduled; Phase B below discharges the E4 decision that is due with it. Order is load-bearing in the same way it was in session 3: do A first, while the water is the only thing you have been looking at.*
 
 Session 1's A6 reported two things — water capped on top of a spawned pile, and an outward burst on release. **The fix claims those are one defect and that the burst needed no separate fix**, because it was the deleted volume being repaid. That claim is a look, not a number, and no test asserts it. Row 3 is where it gets confirmed or contradicted.
 
@@ -314,10 +318,117 @@ Session 1's A6 reported two things — water capped on top of a spawned pile, an
 | W-4 | Keep pouring until the pile **stands out of the water** as a cone, then keep going. | The residue. A handful of cells (3 at step 350, 6 at step 500 on the probe) still reach the peak once the pile itself becomes the conveyor. **This is the first thing to look at if the screenshots repeat**, and the open question is whether it is visible at all. |
 | W-5 | Watch water run **down the flanks** of a standing pile. Does it read as flow, or as the staggered clumps the original report described? | The trickle was the lifted water coming home. If the lift is gone and the staggering is not, that is a new finding about the flow model rather than about venting. |
 | W-6 | Drag a sand brush through water and watch the **pool level**. Volume looks conserved — no shrinking pool. | The conservation half, by eye. The probe reports 2000 of 2000; this is whether anything visible contradicts it. |
-| W-7 | HUD fps and awake-chunk count while churning sand and water together. | `VENT_RADIUS` is a cost knob set at the knee of a sweep (`churning` 3.13 → 4.93 ms/step). The sweep says this is affordable; the window is where that is confirmed. |
+| W-7 | HUD fps and awake-chunk count while churning sand and water together. **Read the note under this table first — the expected answer changed.** | `VENT_RADIUS` is a cost knob set at the knee of a sweep (`churning` 3.13 → 4.93 ms/step). What the window can confirm is that nothing behaves *worse than that sweep predicts in kind*; what it can no longer confirm is that the sweep's verdict of "affordable" still holds, because the sweep was run at a quarter of the played world. |
+
+**W-7 cannot be answered by eye any more, and it is more useful to say so than to leave the row looking answerable.** Two things changed under it:
+
+- **The sweep behind it is quoted at 960x540.** `churning` with no venting was 3.13 ms/step and `VENT_RADIUS = 3` took it to 4.93 — an affordable +1.80 ms against a 16.67 ms budget. P2 re-measured `churning` at the played 1920x1080 and it is **35.25 ms/step, 211% of a frame**, venting included. Whether venting's share of that is still ~1.8 ms or has scaled with everything else is **not known**, and this session cannot find out: at 35 ms/step the scene is bogging for reasons that have nothing to do with wave 3, so any felt slowdown is swamped.
+- **Answering it properly needs a runtime toggle, which does not exist.** `VENT_RADIUS` is a compile-time `constexpr` (`grid.h:207`), so an on/off comparison means two builds — and `PERFORMANCE.md`'s E1 entry records a confident 28% from exactly that method that turned out to be the compiler re-laying-out the hot loop. **Do not re-run the sweep across a rebuild to close this.** It is an engine item, not a playtest row.
+
+**So what W-7 is actually for in this session:** confirm that mixing sand and water does not produce something *qualitatively* wrong — a stall that does not recover, an awake-chunk count that never comes back down after the scene settles, a hang. Those are wave 3's business. The frame cost is not, and a wide sand-over-water fill running slowly is the played size behaving as `PERFORMANCE.md` says it does.
+
+### Phase B — the E4 decision, which this session is the gate for
+
+**This phase was missing and the session could not have discharged what the plan says it discharges.** [Decisions owed](ROADMAP_ITEMS.md#-decisions-owed) has *"Does the player displace material? (E4) — due after session 5 — Play it. If the artifact isn't obviously better, write 'no'."* E4 is item 2 in the plan and blocked on this session. Every row above is about water and venting; none of them looks at the player at all, so as written this session would have ended with E4 exactly as blocked as it started.
+
+**What is being judged is the absence, not a feature.** E4 is not built — the grid does not know the player exists, so material falls straight through the body. There is nothing to toggle and nothing to compare against. The question is only whether that reads as *broken* when you go looking for it, and the bar the decision sets is deliberately high: "obviously better" or the answer is no. **A "yes" is not a small answer** — the implementation waits on E5a, which is what gives shoved material somewhere to go, so a yes queues work behind another item rather than starting any.
+
+Go looking for it in the four places it should be most visible:
+
+| # | Check | What it is evidence for |
+|---|-------|-------------------------|
+| E-1 | Stand still under a **sand pour** from the brush and watch the grains cross the body. | The most direct case. If sand streaming through the figure is not noticeable while you are staring at it, it will never be noticeable in play, and that is a "no" with evidence. |
+| E-2 | **Walk into the side of a settled pile** and keep walking through it. | Whether the body reads as passing through terrain rather than moving it — the case a player will hit constantly without looking for it. |
+| E-3 | **Dig out the support under a pile so it collapses onto you**, and stand in it. | The highest-drama version. Wave 3's venting and E3's fracture both fire here, so it is also the busiest scene the body will be standing in. |
+| E-4 | **Stand in water** and walk along the bottom of a pool. | Fluid rather than powder. Worth separating: liquid closing over a body reads very differently from grains passing through one, and E4 could reasonably be answered "yes for powder, no for fluid". |
+
+**Record a plain yes/no plus one sentence of why.** The decision's own instruction is to write "no" and stop thinking about it if the artifact is not obviously better, so an inconclusive answer should be recorded as a "no" — that is what the due date is for.
 
 ### What to bring back
 
 Screenshots, in the same configuration as `water_issue_*.png` so the before and after are comparable — that is the whole reason those images are worth keeping.
 
 Then, specifically: **W-2 and W-4.** Wave 3 closes on the burst being confirmed gone as a *consequence* of the conservation fix rather than as an unfixed second defect, and on the residue being judged either invisible or worth another pass.
+
+And **the E4 answer**, in one sentence, because item 2 in the plan is waiting on it and this is the session that owes it.
+
+---
+
+## Session 5 results — wave 3 closes, and the water underneath it does not
+
+- **Build:** Release, MSVC
+- **World seed:** `16445138370698876092`
+- **Display:** `3440x1440 (860x360 cells at 4x)` — the widest mode, and **the first session on record to state one**
+- **Scene:** `Scene: 1920x1080, 334901 cells placed`; props 9 of 9 placed
+- **Result:** all three passes run — README's nine steps, then Phase A, then Phase B.
+
+**Wave 3's exit condition is met, on the two rows it was written to close.** **W-2:** no burst on release, so the outward surge is confirmed gone *as a consequence* of the conservation fix rather than as a second defect nobody had fixed — that claim was a look with no test behind it and it holds. **W-4:** the residue is not independently visible; what is visible is the flow itself, which is a different finding and is below.
+
+**W-5 is the session's real result, and it counts for more than the others because a row written in advance discriminated it.** The checklist said: *"If the lift is gone and the staggering is not, that is a new finding about the flow model rather than about venting."* The lift is gone and the staggering is not. That converts the general checklist's "water/oil ... does not flow properly and is bugged" from an unlocalised complaint into a finding about `step_fluid`'s lateral run, and it is what withdrew E11's *"no action is proposed"* — see [E11](ROADMAP_ITEMS.md#e--simulation-depth). **This is the strongest form a checklist has taken in this project: a question whose two possible answers pointed at two different subsystems, asked before either was suspected.**
+
+**E4 answered: no.** Two of the four rows turned out not to be testing E4 at all — E-1 is a defect in the unstuck search and E-2 is almost certainly `MAX_STEP_HEIGHT`, so neither is evidence about displacement. E-3 works. That leaves E-4, water, as the only surviving argument, which is the reverse of the split the checklist guessed at ("yes for powder, no for fluid"). Nothing returned "obviously better", and the decision's own rule is that an inconclusive answer is a "no". Recorded in [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md).
+
+### Per-step result — README's Manual Tester Checklist
+
+| # | Step | Result |
+|---|------|--------|
+| 1 | Launch | **Pass.** Display, seed and scene lines all printed; 334901 cells; props 9 of 9. |
+| 2 | Movement | **Pass with defects.** Sprite movement good. Collision accepted — the body stops at walls with a one-pixel sprite overhang, judged stylistic and **not filed**. Animation: D6, and D1. |
+| 3 | Digging | **Pass.** |
+| 4 | Materials and brush | **Pass with defects.** Sand good — D8. Water and oil — D4. |
+| 5 | Reactions and heat | **Pass with defect.** Fire burns wood well; waves 2b/2c hold as a regression check. Steam — D5. |
+| 6 | Chunking / sleep-wake | **Pass.** |
+| 7 | Structures | **Pass with observation.** Correct as listed — D9. |
+| 8 | Performance sanity | **Pass**, and worth more than usual: this is the widest mode, where `PERFORMANCE.md` puts the light field alone at 92.9% of a 60 Hz frame. |
+| 9 | Stability | **Pass, no crash.** |
+
+### Phase A — the question wave 3 exists to answer
+
+| # | Result |
+|---|--------|
+| W-1 | **Pass with observation.** Water is displaced, not deleted or capped — "the attempt is clear" — but it goes into a hump on top of the pool and "the jagged shapes the water flows in ruins the illusion of properly simulated water physics". The mechanism is right and the look is not. Feeds D4. |
+| W-2 | **Pass.** No burst on release. **Wave 3 exit row.** |
+| W-3 | **Pass with defect.** No water spawning on top of the column — A6b's headline symptom is gone. Water still climbs the column, "about 50 percent too quickly" — D3. |
+| W-4 | **Pass.** "Looks correct but again ruined by the visual bugs." The residue is not what is visible. **Wave 3 exit row.** |
+| W-5 | **Fail.** "Still staggered clumps." The discriminating row — D4. |
+| W-6 | **Pass.** Pool level looks conserved; nothing visible contradicts the probe's 2000 of 2000. |
+| W-7 | **Pass.** Nothing qualitatively wrong — no stall, no chunk count that fails to come down. The frame cost was never this row's business. |
+
+### Phase B — the E4 decision
+
+| # | Result |
+|---|--------|
+| E-1 | Pouring sand "pushes the player in a glitch-like way, clipping through objects if encountered" — **D2, and not an E4 answer.** |
+| E-2 | "Walking into a settled pile does nothing, the player walks over it, no interaction" — **D7, and probably not an E4 answer either.** |
+| E-3 | Collapse onto the body "works, but overall rudimentary". |
+| E-4 | "No interaction with the body in water." The one row that is E4 evidence. |
+
+### Defects
+
+Severity: **major** = wrong behaviour a player will hit in normal play; **minor** = wrong but cosmetic or narrow.
+
+| ID | What was seen | Severity | Status |
+|----|---------------|----------|--------|
+| D1 | The dig animation plays once when the dig button is held down, instead of repeating. | major | wave 4 |
+| D2 | Pouring sand onto the player pushes it in a glitch-like way, and **can push it through solid objects**. | major | wave 4 |
+| D3 | Water still climbs a standing sand column, "about 50 percent too quickly", after A6b's headline symptom is gone. | major | **open** — the fluid spike |
+| D4 | Water and oil do not flow — jagged shapes on displacement, staggered clumps down a pile. Reported twice in one session, at step 4 and again at W-5. | major | **open** — the fluid spike |
+| D5 | Steam condenses back to water far too quickly; it should collect and then drip slowly. | major | **open** — the steam half of E9. **Third report** — see A5 and B3. |
+
+**D3 is a residual to eliminate and not a rate to tune**, and that was settled rather than assumed: displacing sand into a pool must raise the pool's free *surface*, which is conservation and is W-6's pass, but no configuration of sand and water makes it right for water to occupy a column standing *above* that surface. The invariant is therefore assertable — **no water cell may come to rest above the free surface**, splash excepted — which takes this out of the realm of looks. `water_probe` already measures the quantity.
+
+### Observations — feelings, not defects
+
+| ID | What was seen | Status |
+|----|---------------|--------|
+| D6 | The walk cycle is about 10% too quick. | wave 4 |
+| D7 | Walking into a settled sand pile does nothing — the player walks over it with no interaction. | wave 4, as a tuning value rather than a feature |
+| D8 | Sand "could have more movement". **Disambiguated after the session: falling sand reads as stepped and jerky rather than flowing.** | **open, and deliberately unowned** — see below |
+| D9 | Structures are "all very stiff and not very interactable"; off-balance shapes should topple. | E8 — **second report**, see B4. No order change. |
+| D10 | Standing in water produces no interaction with the body. | E4's only surviving row; answered "no" and re-asked at E5a. |
+
+**D8 is the second report of A7c and it is filed with no item on purpose.** Session 1 said "grain motion reads as stepping rather than flowing"; powder acceleration was tried against it, made it measurably worse, and was removed, and [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) concluded that stepping is *"a property of drawing whole cells on a fixed tick and is not reachable from `step_powder` at all"*. **That conclusion is still right, and the consequence has never been drawn: the finding was correctly refused by the simulation track and then handed to nobody.** It is specifically *not* E10 — E10 makes sand move less, holds a slope, and comes to rest, so filing D8 against it would put a rendering complaint on a simulation item and produce a third round of the A7/A7b/A7c rule fight. The nearest real owner is V11's runtime `Camera::SCALE`, since a 4x4 screen block is the unit doing the stepping. **It stays an observation until something argues it into the V track on that section's own admission test.**
+
+**D7 is filed as an observation and will almost certainly be closed as a number.** `MAX_STEP_HEIGHT` is 5 against a 20-cell collision box, so the body steps a quarter of its own height instantly and without animation, which is a very plausible whole explanation for "walks over it". README's step 2 only ever asks for a **one-cell** sand step, so nothing has been checking the constant that actually governs this.
+
+**Two of this session's findings were misattributed at the point of reporting, and both were caught by reading code rather than by re-testing.** E-1 was reported inside a phase about the *absence* of player/material interaction and is the opposite — something is interacting, via `resolve_overlap`. E-2 was reported the same way and is a step-height value. **The pattern is the one A7b already taught from the other direction:** a finding arrives wearing the mechanism the tester was asked to look for. Phase B asked four questions about displacement and got two answers about something else, which is not a failure of the phase — it is the reason a "no" here is trustworthy.

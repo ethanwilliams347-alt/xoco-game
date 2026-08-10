@@ -21,12 +21,19 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 
 | # | Item | Size | Blocked on |
 |---|---|---|---|
-| 1 | **Session 5 playtest — closes Wave 3** | a session | a person at the keyboard |
-| 2 | **E4 — Does the player push material?** | afternoon (a decision) | session 5 |
-| 3 | **S0 — The run can be lost** | week | — |
-| 4 | **E10 — Powders come to rest** | days | — *(P2 shipped)* |
+| 1 | **Wave 4 — session 5's four defects** | days | — *(D2 first; it can push the player through walls)* |
+| 2 | **E9 (steam half) — steam collects, then drips** | days | — *(asked for three times)* |
+| 3 | **Fluid spike — an instrument, then a price** | a day, timeboxed | — *(output is a decision, not a fix)* |
+| 4 | **S0 — The run can be lost** | week | — |
+| 5 | **E10 — Powders come to rest** | days | — |
 
-Everything after these four is in [Running order](#-running-order) below.
+Everything after these five is in [Running order](#-running-order) below.
+
+**Session 5 ran on 2026-08-10 and is what reordered this block.** It closed wave 3, answered E4 "no", and returned six defects and five observations — [results](PLAYTEST_LOG.md#session-5-results--wave-3-closes-and-the-water-underneath-it-does-not). Both of the items it retired were items 1 and 2 here.
+
+**E10 moved from 4 to 5 and it also lost its playtest evidence, which matters more than the position.** The session's sand note read "could have more movement", which looked like a case for E10 until it was disambiguated: it means *falling sand looks stepped and jerky*, which is the **second report of A7c** and which [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) already established is a property of drawing whole 4x4 cells and is **not reachable from `step_powder` at all**. E10 does the opposite — it makes sand come to *rest*. **The item stands on its own merits and none of them are this note**: piles that hold a slope, tunnels that partly cave, and gravel/sand/snow/ash as four table rows instead of four code paths. Filing D8 against it would put a rendering complaint on a simulation item and buy a third round of the A7/A7b/A7c rule fight.
+
+**Three things the session found are deliberately *not* in this block.** D4 (fluids do not flow) is the loudest finding on the record and its real fix is plausibly E5b, which is *large* and stays after the slice — item 3 is a bounded spike that prices it, not a licence to start it. D5 is here because it has now been asked for three times in four sessions in near-identical words, which is the strongest signal this log produces. D9 (toppling, the second report of B4) does **not** move E8: a second report is an argument about priority and E8's deferral is about price, and its price has not changed.
 
 **P2 shipped 2026-08-10** and is out of this block. Every measurement from here on is quoted against 1920x1080, the size the game actually runs — the table is in [PERFORMANCE.md](PERFORMANCE.md). The result worth carrying forward into the items below: **the engine pays for awake cells, not for cells.** `sparse`, which stands in for an ordinary gameplay frame, costs the same at 1920x1080 as at 960x540 — 1.00x for four times the cells — so an item that adds per-cell work to *awake* cells is the kind to price carefully, and one that adds world size is not. It also left one decision open, in the table below.
 
@@ -36,7 +43,7 @@ Everything after these four is in [Running order](#-running-order) below.
 
 ## 🧭 Running order
 
-**E4 → S0 → E10 → E5a → E6 → V11 → (E7 + E11 + V9) → rest of the slice → playtest gate → E5b, P1/P3, E8**, with the session 5 playtest ahead of all of it. P2 was ahead of both and shipped on 2026-08-10.
+**Wave 4 → E9-steam → fluid spike → S0 → E10 → E5a → E6 → V11 → (E7 + E11 + V9) → rest of the slice → playtest gate → E5b, P1/P3, E8.** P2 shipped 2026-08-10; the session 5 playtest ran the same day and E4 closed with it, answered "no".
 
 The two structural changes from the previous order (`E4 → E5 → E6 → E7 → E8`, then V, then P, then the whole game):
 
@@ -53,7 +60,7 @@ The two structural changes from the previous order (`E4 → E5 → E6 → E7 →
 
 | Decision | Due | How it gets settled |
 |---|---|---|
-| **Does the player displace material?** (E4) | after session 5 | Play it. If the artifact isn't obviously better, write "no" in `ENGINEERING_NOTES.md`. |
+| ~~**Does the player displace material?** (E4)~~ | ~~after session 5~~ | ✅ **Closed 2026-08-10: no.** Session 5's Phase B returned nothing "obviously better", and **two of its four rows turned out not to be about displacement at all** — E-1 is a defect in the unstuck search (D2) and E-2 is almost certainly `MAX_STEP_HEIGHT` (D7). That leaves E-4, water, as the only surviving argument, which is the *reverse* of the split the checklist guessed at. Written into [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md); re-ask at E5a, and note that D2 makes the unstuck search permanent load-bearing machinery rather than a stopgap. |
 | **Is there combat in v0.1?** | end of S0 | S0 makes the run losable; whether it needs an enemy to be interesting is then a thing you can feel. Currently neither in nor out, which is the worst of the three states. |
 | **What is the hook?** | end of E6 | Deliberately unnamed so the design isn't locked to whichever comparison got written down first. S0 and E6 between them make it answerable by playing. |
 | **Does the brush paint while paused?** | with the pause hotkey | Surfaced by F2.4 and never answered. Costs a sentence. |
@@ -111,7 +118,7 @@ Running order: **E4 → E10 → E5a → E6 → E7 + E11 → E5b → E8.**
     - **Specific heat.** `conductivity` is currently doing two jobs — how fast heat moves *through* a material and how much heat it takes to warm it. One extra column separates them, and then water is a genuine heat sink and metal is a fast conductor that stays hot. No engine work.
     - **Radiant heat.** Fire only heats what it physically touches, so standing next to a bonfire costs nothing. Fine until S0 makes fire able to hurt you, at which point it is the difference between a hazard and a trap.
     - **Viscosity.** `spread` (5 for water, 3 for oil) is the only fluid knob there is, so honey, tar and lava all have to be the same substance with a different number.
-    - **Lateral flow is a jump, not a flow** (grid.cpp:933) — a liquid moving sideways swaps straight to the far end of the run without touching the cells in between. Standard for this kind of engine and **no action is proposed**; it is recorded because it is why streams read as snapping rather than pouring, so nobody spends a day looking for the bug.
+    - **Lateral flow is a jump, not a flow** — `step_fluid`'s lateral run swaps a cell straight to the far end without touching the cells in between. **"No action is proposed" is withdrawn, on session 5.** It was recorded as a harmless known property of the genre; the playtest returned it as the largest visual complaint on the record, twice in one sitting, the second time under a row written in advance to tell it apart from venting. The property is unchanged — the *classification* was wrong. Still not a column, and still not worth pulling E5b forward for: what replaces the entry is a bounded spike, in [ROADMAP.md](ROADMAP.md#e--simulation-depth).
 
 - **E5b — The air field.** *(large — the second half of the old E5, and it absorbs the item that used to be called "gas pressure")* A second coarse grid over the world, one entry per 4x4 block, holding pressure and a velocity. **The pattern is already built and shipped:** the lighting is exactly this — a low-resolution, whole-number, reproducible grid stretched over the scene with one draw call. One system delivers six things that are currently separate gaps:
     - gas pressure (steam in a sealed room does nothing today);
@@ -225,7 +232,8 @@ A **wave** is a batch of urgent fixes (usually from a playtest) that gets worked
 | **Wave 2** | First attempt at fire fuel and burn duration. | replaced by 2b |
 | **Wave 2b** | Fire simulation rebuilt from scratch, plus glow lighting pulled forward. | closed |
 | **Wave 2c** | Tuning the glow's shape/reach and the fire's timing and shape. | closed |
-| **Wave 3** | Brush destroying water instead of pushing it aside, and the "water elevator" bug that hid behind it. | **code done — session 5 playtest is item 2 in the plan** |
+| **Wave 3** | Brush destroying water instead of pushing it aside, and the "water elevator" bug that hid behind it. | **closed** — session 5 confirmed the burst gone and the residue invisible |
+| **Wave 4** | Session 5's four non-water defects: the dig swing, the unstuck search pushing the player through walls, the walk cycle, the step height. | **open — item 1 in the plan** |
 
 ### Wave 1 — rendering, brush and powder defects
 
@@ -263,6 +271,18 @@ A **wave** is a batch of urgent fixes (usually from a playtest) that gets worked
 - **A6 — Spawning material into water deleted the water.** The brush overwrote whatever was there, so dragging sand through a pool destroyed hundreds of cells of water, then "burst" when released. Fixed with a dedicated brush write path that pushes the occupant upward instead of erasing it.
 - **A6b — The water elevator.** Falling sand kept swapping places with the water beneath it, and each swap lifts water one square — under a continuous stream this hands water all the way up the column. Fixed by sending displaced water sideways to its own surface instead of straight up.
 - **`VENT_RADIUS`** — how far displaced water searches for somewhere to go. Measured at several values; 3 gave the best quality-for-cost. **E5b retires this rule entirely.**
+    - **The sweep behind that choice is quoted at 960x540 and P2 has made it unverified rather than wrong.** `churning` was 3.13 ms/step without venting and 4.93 with, so venting cost +1.80 ms against a 16.67 ms budget and "affordable" followed. At the played 1920x1080 `churning` is 35.25 ms/step, and whether venting's share is still ~1.8 ms or has scaled with the rest is not known. **It cannot be closed by a playtest** — session 5's W-7 says so in as many words — **and it must not be closed by rebuilding with the constant changed**, which is the cross-build method `PERFORMANCE.md`'s E1 entry records as having produced a confident 28% that was entirely code layout. It needs a runtime toggle, the way E1 and E2 had one. Small, and worth doing before E5b is scoped, since E5b's case rests partly on retiring a rule whose cost at the played size nobody has measured.
+
+### Wave 4 — the four defects session 5 found on the way past
+
+**Finished when:** the player cannot be pushed through a wall, the dig swing repeats while the button is held, and someone at a keyboard says the walk speed and step height are right. Not when the tests are green.
+
+**All four came from README's nine-step checklist** — the pass the session was *not* booked to run. It was booked to close wave 3 and answer E4, and the routine checklist produced four of the session's six defects. That is the argument for never skipping it.
+
+- **D2 — sand landing on the player can push the player through solid walls.** *(major — do this first)* The simulation doesn't know the player is there, so material falls into the cells the body occupies. That's a normal state — being buried by a collapse — and the game escapes it by searching outward for the nearest spot the body fits and moving there. **It checks that the destination is clear and never checks whether anything solid is in the way**, so a body being poured on next to a wall can be relocated to the far side of it. The escape mechanism is the right idea; it just needs to refuse a destination it can't actually reach. It also fires every step under a continuous pour, which is why it reads as a glitchy shove and why you lose control while it's happening.
+- **D1 — the dig animation freezes instead of repeating while the button is held.** The tool fires every 6 ticks; the swing takes 24. Every shot restarts the swing from its first frame, so it never gets to the second one. Being fixed as a slower swing that loops while the button is held, with the tool firing at one point inside each swing — **built in the simulation, not the renderer**, because animation frames are never allowed to drive gameplay (that would break the guarantee that the same seed and inputs always produce the same run). **This slows digging from about 10 per second to under 2**, which is a deliberate trade for the look.
+- **D6 — the walk cycle is about 10% too fast.** The animation timer only holds whole ticks, and the next value along is 20% slower. Trying that first; if it reads sluggish, *that* is what earns a finer timer.
+- **D7 — the player steps over a settled sand pile as if it weren't there.** The auto-step-up height is 5 cells against a body 20 cells tall, so the player climbs a quarter of its own height instantly and with no animation. Reported as evidence about E4 and it's almost certainly just this number. README's checklist only ever asks you to walk up a **one-cell** step, so nothing has been testing it.
 
 ---
 
