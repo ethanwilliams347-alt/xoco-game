@@ -100,17 +100,23 @@ build. The benchmark is a separate executable, run it by hand:
 .\build\Release\grid_bench.exe
 ```
 
-It simulates a 960x540 grid across seven scenarios and reports milliseconds per
-step against the 16.67 ms budget of a 60 Hz frame, then measures the light field
-separately at the **widest** display mode's viewport (861x361 cells, 3440x1440) —
-the mode that costs the most, so the number is a ceiling rather than a sample.
-Run it before and after any change that claims to make the simulation faster.
+It runs seven scenarios at **two** world sizes — 960x540 and the 1920x1080 the
+game actually simulates — and reports milliseconds per step against the 16.67 ms
+budget of a 60 Hz frame, then measures the light field separately at the
+**widest** display mode's viewport (861x361 cells, 3440x1440) — the mode that
+costs the most, so the number is a ceiling rather than a sample. Run it before
+and after any change that claims to make the simulation faster.
 
-The bench world stays at 960x540 while the game's world is 1920x1080 cells. That
-is a known gap, not a claim that world size is free: stepping is chunk-driven so
-most of it does not scale with total cells, but nobody has measured the part that
-does, and rewriting the table wholesale is what `PERFORMANCE.md` asks for rather
-than editing one row.
+**Read the 1920x1080 block; the 960x540 block is there to be checked against.**
+Every number in `PERFORMANCE.md` before P2 was measured at 960x540, which is a
+quarter of the played world, so the small block is kept as the historical series
+and as a control: the scenario constants are written to reproduce their old
+values exactly at 960x540, and if that block stops matching the numbers on
+record, the refactor is what broke rather than the engine.
+
+The light section is run once rather than once per size, and deliberately: the
+field is sized to the viewport, not to the world, so a second size would produce
+a second identical number that invited being read as evidence about world size.
 
 Read `PERFORMANCE.md` before trusting a number out of it. Timings from different
 sittings on the same machine have been seen to differ by more than 2x on

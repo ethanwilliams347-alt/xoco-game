@@ -24,7 +24,7 @@
 # The frame size here must match FRAME_W/FRAME_H in tools/player_sheet.py.
 # main.cpp checks the whole sheet against the compiled animation table and says
 # so if they disagree.
-player_sheet            player_sheet_fly.bmp        14 26
+player_sheet            COPY_player_sheet_fly.bmp   14 26
 
 # --- backdrop -------------------------------------------------------------
 # Two parallax layers, sized by tools/generate_backdrop.py to cover the

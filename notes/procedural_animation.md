@@ -130,24 +130,39 @@ velocity rather than being authored. The Rain World model.
 - **Buys:** motion that responds to everything without anyone authoring the
   response — the character reacting to a fall, a shove, a slope, an explosion,
   for free.
-- **Against it, and this is decisive:** V3.1 already deferred the verlet cape
-  *"behind E5's free-particle layer — the same 'build it twice' argument that
-  deferred rolling behind E5 in E8."* **A verlet limb rig is the same class of
-  thing as a verlet cape**, only larger. E5 is an off-grid layer of point masses
-  with velocity and constraints; building a second, bespoke one for limbs before
-  E5 lands is the definition of building it twice. That argument has already been
-  applied twice in this project and held both times.
+- **Against it — and the argument has changed shape as of 2026-08-09, so read
+  this before citing it.** It used to run: V3.1 deferred the verlet cape *"behind
+  E5's free-particle layer — the same 'build it twice' argument that deferred
+  rolling behind E5 in E8"*, a limb rig is the same class of thing as a cape, and
+  E5 was going to be an off-grid layer of point masses with velocity and
+  constraints, so building a bespoke one first is building it twice.
+  **The premise is now false.** E5 split, and E5a keeps moving matter *in the
+  grid* precisely so that it does not need a second set of rules — it is not an
+  off-grid substrate and never will be. Nothing in the E track will hand this a
+  point-mass layer for free.
+  **The conclusion survives on a different and weaker argument**, which is worth
+  stating honestly rather than quietly keeping the old one: a verlet limb rig is
+  still the highest-cost option on this page, still has no observation from play
+  behind it, and now has *no* scheduled item that makes it cheaper later. It is
+  held on cost, not on sequencing. The one thing that would genuinely amortise it
+  is E8's body extraction — which is deferred past v0.1 on its own cost — so if
+  this is ever wanted sooner it should be priced as its own item and admitted on
+  its own observation.
 
 ---
 
 ## Comparison
+
+*(**P0-P3 here are local labels for the four options on this page, not the
+P-track item IDs in ROADMAP.md.** That track gained a `P3` of its own -- chunk
+threading -- on 2026-08-09. Nothing here refers to it.)*
 
 | | Cost | Slope-aware feet | Continuous aim | Scales to enemies | Blocked on |
 |---|---|---|---|---|---|
 | **P0** sheet + arm | Small | No | Yes | No | — |
 | **P1** hybrid | Moderate | No | Yes | Partly | — |
 | **P2** skeletal rig | High | **Yes** | Yes | **Yes** | — |
-| **P3** physics rig | Highest | Yes | Yes | Yes | **E5** |
+| **P3** physics rig | Highest | Yes | Yes | Yes | nothing — see below |
 
 ---
 
@@ -190,8 +205,12 @@ slope-aware feet, and amortisation across characters — are one unproven and on
 not yet applicable. The moment enemies are real, the second becomes the whole
 argument, and P2 should be reconsidered *then* rather than pre-emptively.
 
-**Hold P3 behind E5, unconditionally.** Not on priority — on the build-it-twice
-rule this project has already applied to the cape and to rolling.
+**Hold P3 on cost, not behind an item.** This used to read "hold P3 behind E5,
+unconditionally... on the build-it-twice rule". E5 split on 2026-08-09 and E5a
+keeps matter in the grid, so there is no off-grid point-mass layer coming and
+the build-it-twice rule does not apply here any more. What holds it is that it
+is the most expensive option on this page with nothing observed in play asking
+for it. See the P3 bullet above for the full correction.
 
 **Do not do a "full overhaul" as one item.** The name is the danger: it bundles
 four separately-priced things behind one decision, and three of the four have no

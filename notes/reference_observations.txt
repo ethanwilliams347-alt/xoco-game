@@ -41,7 +41,7 @@ walk into: watch an hour of capture, come away with eleven engine items, none
 of which can name anything wrong with THIS game. That is breadth spending
 wearing engine clothes, and reality_check.txt is the note it would be ignoring.
 
-The legitimate use in the E track is the opposite direction. E5, E6 and E8 are
+The legitimate use in the E track is the opposite direction. E5a, E6 and E8 are
 already admitted on observations from this project. What footage is good for is
 answering HOW FAR, HOW FAST, HOW LONG -- numbers those items would otherwise
 guess. Reference sets the target for an item that has already earned its place.
@@ -105,8 +105,12 @@ Not a viewing list to be completed. These are the items whose specification is
 currently a guess, so a burst aimed at one of them is worth more than an hour
 of general footage.
 
-  E5  free particles     - a burst where material is thrown. How far, how fast,
+  E10 powders at rest    - a burst of a pile being disturbed. What angle does a
+                           slope hold, and does an avalanche stop or run out.
+  E5a velocity           - a burst where material is thrown. How far, how fast,
                            does it bounce, does it land as material or expire.
+  E5b air field          - smoke and steam over several seconds. How much do
+                           they curl and drift versus rise straight.
   E6  explosions         - radius against falloff, what is destroyed versus
                            what is merely thrown, how heat and light overlap it.
   E7  breadth            - which material interactions are legible to a player

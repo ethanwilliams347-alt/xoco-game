@@ -72,7 +72,7 @@ Each names a real problem. None is a specification, and the fix suggested alongs
 - **B1 — the dig marker is hard to read.** Requested as an open crosshair (four non-intersecting ticks) that follows the cursor everywhere and dims outside dig range. *Tracked as V10, first half — built.*
 - **B2 — selecting materials is slow.** Requested as a hotbar with per-material icons and key numbers. *Tracked as V10, second half — built. Part of this observation was defect A2 rather than an interaction problem, which is worth knowing before taking the next feature request at face value.*
 - **B3 — steam should collect, wait, then drip increasingly fast and shrink as it goes.** *Tracked as the steam half of E9 — open. This and defect A5 are the same fix seen from two sides.*
-- **B4 — rigid bodies should tip, topple and roll.** The observation underneath is that bodies falling flat and landing flat read as lifeless. *Tracked as E8 — open, and scoped to toppling only; the rolling half is deferred behind E5 for reasons in that item.*
+- **B4 — rigid bodies should tip, topple and roll.** The observation underneath is that bodies falling flat and landing flat read as lifeless. *Tracked as E8 — open, and scoped to toppling only; the rolling half is deferred on cost for reasons in that item. (It used to be deferred "behind E5"; E5 split on 2026-08-09 and E5a is not an off-grid layer, so the dependency was withdrawn — the deferral is now on the price of a solver.)*
 
 ### Follow-up — fire measured against reference footage
 

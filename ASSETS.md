@@ -54,9 +54,19 @@ that when it rejects one.
 
 ## The thing that still catches everyone
 
-**`assets/` is copied next to the executable at build time.** `load_sprite.py`
+**`assets/` is copied next to the executable at build time.** The game runs from
+`build/Release/` and loads `build/Release/assets/...`, populated by the
+post-build `copy_directory` in [CMakeLists.txt](CMakeLists.txt). `load_sprite.py`
 stages files for you, but *editing* a file in `assets/` by hand still changes
-nothing you can see until you rebuild (or run `--stage`).
+nothing you can see until you rebuild (or run `--stage`):
+
+```bash
+cmake --build build --config Release
+```
+
+That step is not optional and it is not just for code. If a change "doesn't show
+up", check this first — then check that you edited a file the game actually
+loads.
 
 Not everything goes through the manifest. These are still literals in
 `main.cpp`, because they are not sprites — a location is a pair of BMPs read by
@@ -64,9 +74,9 @@ a different loader, and the prop list is a placement file:
 
 | What | Path the game loads | Where that literal lives |
 |---|---|---|
-| Location — materials | `assets/test_material.bmp` | [main.cpp:517](src/main.cpp#L517) |
-| Location — albedo | `assets/test_albedo.bmp` | [main.cpp:517](src/main.cpp#L517) |
-| Prop placements | `assets/test_props.txt` | [main.cpp:472](src/main.cpp#L472) |
+| Location — materials | `assets/test_material.bmp` | `load_scene_from_bmp(...)` call in [main.cpp](src/main.cpp) |
+| Location — albedo | `assets/test_albedo.bmp` | same call |
+| Prop placements | `assets/test_props.txt` | `load_prop_list(...)` call in [main.cpp](src/main.cpp) |
 
 The manifest is safe to break. Every key falls back to the file the code shipped
 with, so a deleted, truncated or malformed `sprites.txt` gets you the old art
@@ -80,22 +90,12 @@ that they agreed, so you could validate one file while the exe loaded another.
 Both now resolve the `player_sheet` key through the manifest, so they cannot
 drift.
 
-Two older sheets, `player_sheet.bmp` and `player_sheet_2.bmp`, are still in
-`assets/` and are no longer read by anything. They are safe to delete and
-worth deleting — a stale sheet that still loads and still validates is exactly
-what makes the failure above hard to see.
-
-**2. `assets/` is copied next to the executable at build time.** The game runs
-from `build/Release/` and loads `build/Release/assets/...`, populated by the
-post-build `copy_directory` at [CMakeLists.txt:69-73](CMakeLists.txt#L69-L73).
-Editing a file in `assets/` changes nothing you can see until you rebuild:
-
-```bash
-cmake --build build --config Release
-```
-
-That step is not optional and it is not just for code. If a change "doesn't show
-up", check this first — then check that you edited the file in the table above.
+Several BMPs in `assets/` are no longer read by anything — `player_sheet.bmp`
+and `player_sheet_2.bmp` (superseded sheets), plus the working files
+`COPY_player_sheet_fly.bmp`, `copy_candidate_a.bmp` and `v2_owl_pixel_art.bmp`.
+They are safe to delete and worth deleting — a stale sheet that still loads and
+still validates is exactly what makes the failure above hard to see. Check
+`--list` before deleting anything: a file is unused only if no key names it.
 
 ---
 
@@ -120,17 +120,20 @@ your file **onto the loaded name** and rebuild.
 ## Rules every image asset follows
 
 - **24-bit uncompressed BMP.** Not 32-bit, not RLE, not 8-bit indexed.
-  [pixel_art.py:210-216](tools/pixel_art.py#L210) is the codec every tool here
-  reads and writes. LibreSprite's and GIMP's own BMP exports are usually *not*
+  `read_bmp` / `write_bmp` in [pixel_art.py](tools/pixel_art.py) are the codec
+  every tool here reads and writes, and `read_bmp` rejects anything else with a
+  named error. LibreSprite's and GIMP's own BMP exports are usually *not*
   this, which is why the workflow exports PNG and converts:
   ```bash
   python tools/png_to_bmp.py edited.png assets/whatever.bmp
   ```
 - **Transparency is magenta `#FF00FF`, not alpha.** BMP has no usable alpha
-  here, so `load_art_texture` colour-keys that exact value into the texture's
-  alpha ([main.cpp:162-165](src/main.cpp#L162)). Any magenta in your art becomes
-  a hole. `COLOR_KEY` is defined once at
-  [pixel_art.py:111](tools/pixel_art.py#L111).
+  here, so `load_art_texture` in [main.cpp](src/main.cpp) colour-keys that exact
+  value into the texture's alpha. Any magenta in your art becomes a hole.
+  `COLOR_KEY` is defined once in [pixel_art.py](tools/pixel_art.py).
+  **The one place magenta is *not* transparency is a material map** — the scene
+  legend uses `#FF00FF` to mean Oil. Material maps are never colour-keyed, so
+  the two uses never meet, but do not carry the habit from one to the other.
 - **Colour-keying is per-asset and opt-in.** Sprites, props and the mountain
   layer pass `colorkey=true`; the sky layer passes `false` because it is an
   opaque full-rect background. A new sprite that renders as a magenta box was
@@ -150,8 +153,8 @@ your file **onto the loaded name** and rebuild.
 ## Player sheet
 
 One BMP, `assets/player_sheet_fly.bmp`, 84x130 — a 6x5 grid of 14x26 frames.
-Which slot means what is the `ANIMATIONS` table at
-[player_sheet.py:89](tools/player_sheet.py#L89):
+Which slot means what is the `ANIMATIONS` table in
+[tools/player_sheet.py](tools/player_sheet.py):
 
 | Row | Columns | Animation |
 |---|---|---|
@@ -191,7 +194,7 @@ To paste one frame into a slot of an existing sheet, `tools/set_player_frame.py`
 
 Frame art must be **exactly 14 px wide** and **26 or fewer tall** — shorter gets
 bottom-aligned for you, wider or taller is an error rather than a silent crop
-([build_player_sheet.py:72-87](tools/build_player_sheet.py#L72)).
+(`load_frame` in [build_player_sheet.py](tools/build_player_sheet.py)).
 
 `--validate` checks the three things only art can get wrong, each of which reads
 as a different bug than it is: an empty bottom row (figure hovers above every
@@ -218,8 +221,8 @@ Two pieces: the image, and a line in a text file saying where it stands.
 
 **1. Drop a 24-bit BMP in `assets/`,** magenta-keyed, sized in world cells. Name
 it whatever you like — a bare stem, no path separators and no `..`, which
-`prop_sprite_name_ok` enforces so a data file can never name a path outside
-`assets/` ([props.h:63-67](src/scene/props.h#L63)).
+`prop_sprite_name_ok` in [src/scene/props.h](src/scene/props.h) enforces so a
+data file can never name a path outside `assets/`.
 
 **2. Add a line to `assets/test_props.txt`:**
 
@@ -232,7 +235,8 @@ my_rock    420.0
 that is deliberate**: each prop is planted on whatever terrain is actually under
 its own footprint at load time, because "the ground" is not one number. Three
 trees once shipped 26%, 43% and 83% buried from an authored ground line. The
-reasoning is in full at [props.h:21-28](src/scene/props.h#L21).
+reasoning is in full in the `PropDef` header comment in
+[src/scene/props.h](src/scene/props.h).
 
 Rebuild and run. No code change — the prop list is read at startup and the
 texture cache is keyed by name, so nine trees are three images.
@@ -242,10 +246,15 @@ Two failure modes worth knowing:
 - **A malformed line costs every prop, not the bad line.** The parser is
   all-or-nothing on purpose and prints the line number. A tolerant parser that
   skipped the bad row would be the third instance of this project shipping a
-  scene that rendered, rendered wrong, and said nothing
-  ([props.h:48-57](src/scene/props.h#L48)).
-- **A missing image is a warning, not an error** — printed once per name, and
-  every prop naming it is skipped ([main.cpp:416-419](src/main.cpp#L416)).
+  scene that rendered, rendered wrong, and said nothing — the argument is at
+  `load_prop_list` in [src/scene/props.h](src/scene/props.h).
+- **A missing image is a warning, not an error** — printed once per name by the
+  `prop_texture` lambda in [main.cpp](src/main.cpp), and every prop naming it is
+  skipped.
+- **A prop with no terrain under it is dropped, with a warning**, rather than
+  parked at a fallback height where it would hang in the sky. The
+  `Props: N of M placed` line on stdout is the check; `N < M` means one of the
+  two warnings above fired.
 
 `tools/generate_props.py` is how the existing trees were made, if you want a
 procedural starting point rather than a drawing.
@@ -257,8 +266,8 @@ procedural starting point rather than a drawing.
 A location is **two BMPs of the same dimensions**, loaded together:
 
 - **`test_material.bmp` — the material map.** Each pixel's colour names an
-  `ElementType` via the frozen table in
-  [legend.h:32-47](src/scene/legend.h#L32). This is authoring metadata, *not*
+  `ElementType` via the frozen `SCENE_LEGEND` table in
+  [src/scene/legend.h](src/scene/legend.h). This is authoring metadata, *not*
   the colours anything is drawn in.
 - **`test_albedo.bmp` — the albedo map.** The colour each cell actually renders
   as. This is where the art lives.
@@ -288,11 +297,11 @@ suites green. Paint material maps in legend colours only.
 To author one:
 
 1. Produce both BMPs at matching dimensions. The world is 1920x1080 cells
-   ([main.cpp:47-48](src/main.cpp#L47)) and the scene loads at origin `(0,0)`, so
-   a smaller image covers the top-left corner and leaves the rest empty — fine
-   for a test, and the camera will pan off it.
-2. Name them `test_material.bmp` / `test_albedo.bmp`, or edit the literals at
-   [main.cpp:517](src/main.cpp#L517).
+   (`GRID_WIDTH` / `GRID_HEIGHT` in [main.cpp](src/main.cpp)) and the scene loads
+   at origin `(0,0)`, so a smaller image covers the top-left corner and leaves
+   the rest empty — fine for a test, and the camera will pan off it.
+2. Name them `test_material.bmp` / `test_albedo.bmp`, or edit the literals in the
+   `load_scene_from_bmp(...)` call in [main.cpp](src/main.cpp).
 3. Rebuild, run, and **read stdout rather than eyeballing it**:
    ```
    Scene: 1920x1080, 334901 cells placed
@@ -320,8 +329,7 @@ layer that is too small runs out of image before the camera runs out of world,
 and a seam appears at the pan limit. The factors live in *two* languages with no
 build step able to enforce agreement:
 
-- `PARALLAX_SKY_X/Y` and `PARALLAX_MOUNTAIN_X/Y` at
-  [main.cpp:394-395](src/main.cpp#L394)
+- `PARALLAX_SKY_X/Y` and `PARALLAX_MOUNTAIN_X/Y` in [main.cpp](src/main.cpp)
 - `PARALLAX_SKY` / `PARALLAX_MOUNTAIN` in
   [tools/generate_backdrop.py](tools/generate_backdrop.py)
 
@@ -343,17 +351,22 @@ There is no plugin point; adding a new category means editing `main.cpp`. The
 existing pattern, in order:
 
 1. `load_art_texture(renderer, "assets/thing.bmp", /*colorkey=*/true)` at startup
-   ([main.cpp:156](src/main.cpp#L156)) — returns `nullptr` and prints on failure,
-   so a missing asset degrades rather than crashes.
+   in [main.cpp](src/main.cpp) — returns `nullptr` and prints on failure, so a
+   missing asset degrades rather than crashes.
 2. `SDL_QueryTexture` for its native size if you need it.
-3. Draw it in the right layer. The four-layer order (backdrop, props, player,
-   terrain — trees draw *before* terrain) is `notes/art_direction.txt`.
+3. Draw it in the right layer. The order in the render loop is **sky →
+   mountains → props → terrain (the cell texture) → player → light → reticle and
+   HUD**. The first four are the four-layer scenery model in
+   `notes/art_direction.txt`; the player and the light pass are not layers in
+   that model and sit on top of it. **Props draw *before* terrain on purpose** —
+   a trunk overlapping authored ground gets buried by it for free, with no depth
+   test.
 4. `SDL_DestroyTexture` at shutdown.
 
-Before adding a second parallel BMP to carry per-item data, read
-[props.h:8-19](src/scene/props.h#L8) — the argument for why placements are a
-text list and not an image is short and it applies to more than props. Per-cell
-data gets an image; a list gets a list.
+Before adding a second parallel BMP to carry per-item data, read the header
+comment in [src/scene/props.h](src/scene/props.h) — the argument for why
+placements are a text list and not an image is short and it applies to more than
+props. Per-cell data gets an image; a list gets a list.
 
 ---
 

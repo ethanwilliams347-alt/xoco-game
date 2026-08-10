@@ -222,14 +222,20 @@ place: **the grit falls through the enemy that is producing it.** The effect
 fails precisely at the moment it exists to be looked at.
 
 This is the strongest sequencing argument in the document. E4 asks whether
-bodies displace material; E5 (the free-particle layer) is what gives displaced
-matter somewhere to go, and E5 is also what would let granulated cells be
+bodies displace material; E5a (velocity on the cell) is what gives displaced
+matter somewhere to go, and E5a is also what would let granulated cells be
 *thrown* rather than merely appear. Both are already ahead of this idea in the
 running order, both are admitted on their own observations, and this idea wants
 both.
 
+(Updated 2026-08-09. This said "E5 (the free-particle layer)". E5 split: E5a is
+velocity carried on the cell, in the grid, and E5b is the air/pressure field.
+The argument is unchanged and the dependency is now E5a specifically. E10 --
+powders coming to rest -- is also worth reading against this idea, since a
+crumbling crust that cannot hold a slope will read as a liquid.)
+
 It does not block Part A. Terrain-side granulation — E-A hazards, crumbling
-crust — needs neither E4 nor E5 and can be built and judged now.
+crust — needs neither E4 nor E5a and can be built and judged now.
 
 ---
 
@@ -241,7 +247,7 @@ crust — needs neither E4 nor E5 and can be built and judged now.
    is not fun, nothing downstream saves it.
 2. **E-A hazards.** Free once step 1 lands — a crust ceiling that comes down.
    Still no actor code.
-3. **E4, then E5**, which are ahead of this in the E track anyway and which this
+3. **E4, then E10, then E5a**, which are ahead of this in the E track anyway and which this
    idea depends on for its best moment.
 4. **E-C**, the body plus mask, on top of a material that has already been
    played with.
