@@ -107,11 +107,41 @@ Learned building the prop list; all four generalise to the next format.
 python tools/load_sprite.py <key> <file.bmp>   # validate, rebind, stage
 python tools/load_sprite.py --list             # current bindings
 python tools/load_sprite.py --stage            # re-copy assets/ into build dirs
+python tools/load_sprite.py --stage --prune    # ...and drop staged files assets/ no longer has
 ```
 
 No rebuild and no code change for anything in `assets/sprites.txt`. **But
 `assets/` is copied next to the exe at build time**, so a file edited by hand
 shows nothing until a rebuild or `--stage`.
+
+**Staging never removes, so build dirs accumulate.** A renamed or deleted asset
+keeps loading from next to the exe — twelve stale files had built up by
+2026-08, three with no source in `assets/` at all. `--stage` reports them;
+`--prune` deletes them. Run it after any rename or delete.
+
+## Asset naming and layout — a standard, not a preference
+
+Full version in `ASSETS.md`, "Where art lives" and "Trying new art". The parts
+that matter when writing code or moving files:
+
+- **`assets/` is flat and holds only what the game can load.** `load_sprite.py`
+  refuses any name with a path separator, so this is enforced, not asked for.
+- **`assets/wip/` holds drafts, candidates and superseded art**, and is
+  unreachable by construction: the binder refuses paths into it, and `stage()`
+  copies files while skipping directories. **Do not "fix" either of those** —
+  they are what keeps the split real. Adding recursion to staging would silently
+  ship every draft.
+- **A filename says what a thing *is*, never which revision it is.** No `COPY_`,
+  `_2`, `_final`, `_new`. This is not tidiness: the project accumulated five
+  player sheets, two byte-identical, with the *bound* one called
+  `COPY_player_sheet_fly.bmp` — so the generated `player_sprite.h` comment named
+  a different file than the game actually loaded. Revisions are commits.
+- **The bound player sheet is `assets/player_sheet.bmp` and keeps that name**
+  whatever is drawn inside it. A new candidate gets a descriptive name
+  (`player_sheet_owl.bmp`) and is rebound; when it wins it *takes* the plain
+  name and the loser moves to `wip/`.
+- **A small edit is made in place**, with git as the undo. Do not copy a file
+  before editing it — that copy is what becomes the next `COPY_`.
 
 Three things are *not* in the manifest and are still literals in `main.cpp`,
 because they are not sprites: `assets/test_material.bmp` and `test_albedo.bmp`

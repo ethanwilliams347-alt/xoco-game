@@ -9,6 +9,12 @@
 # no paths, the file has to sit in this directory. The frame size is optional
 # and only for sheets; it is checked at load, not used to slice anything.
 #
+# Naming: a filename says WHAT A THING IS, never which revision it is. No
+# COPY_, no _2, no _final. Revisions are commits; names are identities. Drafts
+# and superseded art live in assets/wip/, which nothing can load. The full
+# standard, including how to try a new sheet versus edit the current one, is in
+# ASSETS.md under "Trying new art".
+#
 # Deleting a line, or this whole file, is safe: every key falls back to the
 # file the code shipped with. That is the point of the fallback - a broken
 # manifest gets you the old art, never a black screen.
@@ -24,7 +30,7 @@
 # The frame size here must match FRAME_W/FRAME_H in tools/player_sheet.py.
 # main.cpp checks the whole sheet against the compiled animation table and says
 # so if they disagree.
-player_sheet            COPY_player_sheet_fly.bmp   14 26
+player_sheet            player_sheet.bmp            14 26
 
 # --- backdrop -------------------------------------------------------------
 # Two parallax layers, sized by tools/generate_backdrop.py to cover the

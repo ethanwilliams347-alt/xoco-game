@@ -10,6 +10,7 @@ any more.
     python tools/load_sprite.py --list                        # what is bound to what
     python tools/load_sprite.py player_sheet my_sheet.bmp     # rebind and stage
     python tools/load_sprite.py --stage                       # re-copy assets to the build dirs
+    python tools/load_sprite.py --stage --prune               # ...and drop staged files assets/ no longer has
 
 The file argument is a name inside assets/, because assets/ is the only place
 the game looks - `my_sheet.bmp` and `assets/my_sheet.bmp` both work, a path
@@ -177,13 +178,25 @@ def write_binding(lines, records, key, filename):
     print(f'      {MANIFEST}: {key} -> {filename}')
 
 
-def stage(files=None):
+def stage(files=None, prune=False):
     """Copies the manifest and the named files (or all of assets/) into every
     build directory that exists.
 
     This is the half of the problem that is not the path. `assets/` is copied
     next to the exe as a post-build step, so without this you edit art, launch,
     and see the old drawing - which reads as the tool not having worked.
+
+    Only files are copied, never directories, which is what keeps `assets/wip/`
+    out of the shipped set for free rather than by a rule anyone has to
+    remember.
+
+    **Staging is copy-only, so a build directory accumulates.** A renamed or
+    deleted asset stays next to the exe forever, and this project has already
+    lost a session to validating one file while the game loaded another. Names
+    that no longer exist in assets/ are therefore *reported* on every run, and
+    `--prune` is what removes them. Reporting is unconditional and deleting is
+    opt-in on purpose: the report costs nothing and the deletion is the half
+    that could throw away something a build put there deliberately.
     """
     staged = 0
     for dest in BUILD_ASSET_DIRS:
@@ -196,6 +209,18 @@ def stage(files=None):
                 shutil.copy2(src, os.path.join(dest, name))
         print(f'      staged into {dest}')
         staged += 1
+
+        stale = [n for n in os.listdir(dest)
+                 if os.path.isfile(os.path.join(dest, n))
+                 and not os.path.exists(os.path.join(ASSET_DIR, n))]
+        for name in sorted(stale):
+            if prune:
+                os.remove(os.path.join(dest, name))
+                print(f'      pruned {name}')
+            else:
+                print(f'STALE {dest}{os.sep}{name}: not in {ASSET_DIR}/ any more '
+                      '(--prune removes it)')
+
     if not staged:
         print('WARN  no build directory to stage into - build once, and the assets '
               'are copied by the build itself.')
@@ -231,6 +256,8 @@ def main():
     p.add_argument('--list', action='store_true', help='show the current bindings')
     p.add_argument('--stage', action='store_true',
                    help='re-copy assets/ into the build directories and exit')
+    p.add_argument('--prune', action='store_true',
+                   help='with --stage: also delete staged files no longer in assets/')
     args = p.parse_args()
 
     if not os.path.isdir(ASSET_DIR):
@@ -241,7 +268,7 @@ def main():
         return 0 if do_list() else 1
 
     if args.stage and not args.key:
-        stage()
+        stage(prune=args.prune)
         return 0
 
     if not args.key or not args.file:

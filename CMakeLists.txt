@@ -67,10 +67,21 @@ target_link_libraries(SlopPhysics PRIVATE SDL2main SDL2-static)
 # next to the built executable or a normal run from build/Debug/ can't find
 # them. Copied post-build rather than referenced in place so the exe stays
 # runnable from a copied build directory too.
+#
+# `copy_directory` is recursive, so `assets/wip/` - drafts, candidates and
+# superseded art - would be copied next to the exe and eventually shipped. It is
+# removed immediately after rather than by excluding it from the copy, because
+# CMake's copy_directory has no exclude and the alternatives (globbing every
+# file, or a second source directory) both break the moment someone adds an
+# asset without reading this. tools/load_sprite.py's staging skips directories
+# and therefore already agrees with this; the two paths must keep agreeing or
+# `wip/` is only out of the build until the next full rebuild.
 add_custom_command(TARGET SlopPhysics POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/assets
         $<TARGET_FILE_DIR:SlopPhysics>/assets
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+        $<TARGET_FILE_DIR:SlopPhysics>/assets/wip
 )
 
 # Physics tests. No test framework by design - the harness is plain C++ and

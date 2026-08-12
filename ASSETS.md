@@ -90,30 +90,106 @@ that they agreed, so you could validate one file while the exe loaded another.
 Both now resolve the `player_sheet` key through the manifest, so they cannot
 drift.
 
-Several BMPs in `assets/` are no longer read by anything — `player_sheet.bmp`
-and `player_sheet_2.bmp` (superseded sheets), plus the working files
-`COPY_player_sheet_fly.bmp`, `copy_candidate_a.bmp` and `v2_owl_pixel_art.bmp`.
-They are safe to delete and worth deleting — a stale sheet that still loads and
-still validates is exactly what makes the failure above hard to see. Check
-`--list` before deleting anything: a file is unused only if no key names it.
+**The build directory accumulates, and this is the same failure wearing a
+different hat.** Staging copies into `build/*/assets/` and never removes, so a
+renamed or deleted asset keeps sitting next to the exe. Tidying `assets/` in
+2026-08 left **twelve** stale files staged, three of which no longer existed in
+`assets/` at all. Nothing was visibly wrong, which is the problem: a stale sheet
+that still loads and still validates is exactly what makes "validated one file
+while the game loaded another" hard to see.
+
+```bash
+python tools/load_sprite.py --stage           # reports anything staged that assets/ no longer has
+python tools/load_sprite.py --stage --prune   # ...and deletes it
+```
+
+The report runs unconditionally because it costs nothing; the delete is opt-in
+because it is the half that could throw away something a build put there on
+purpose. **Run `--prune` after any rename or delete**, and remember a full
+rebuild repopulates from `assets/` anyway.
+
+Before deleting art, check `tools/load_sprite.py --list`: a file is unused only
+if no key names it. Superseded art goes to `assets/wip/` rather than straight
+out — see the naming standard below.
 
 ---
 
-## The fast loop for trying a design
+## Where art lives, and what it is called
 
-Keep every variant under its own name and rebind between them. Nothing is
-overwritten, so going back is another one-line command rather than a restore:
+Two directories, and the split is enforced by the tools rather than by anyone
+remembering it.
+
+| | What goes here |
+|---|---|
+| `assets/` | **Only what the game can load.** Flat — no subfolders, because `load_sprite.py` refuses any name containing a path separator, so `assets/` is the only place the game looks. |
+| `assets/wip/` | Drafts, candidates, superseded art. Never loaded: the binder refuses paths into it, and staging copies files while skipping directories, so it never reaches the exe. See [assets/wip/README.md](assets/wip/README.md). |
+
+**The naming rule is one line: a filename says what a thing *is*, never which
+revision it is.** No `COPY_`, no `_2`, no `_final`, no `_new`. Those are
+filename-as-version-control in a repo that already has version control, and they
+are how this project ended up with five player sheets, two of them byte
+identical, and no way to tell which one the game was loading. **Revisions are
+commits. Names are identities.**
+
+So the bound player sheet is `assets/player_sheet.bmp` and stays that name
+forever, whatever is drawn inside it.
+
+---
+
+## Trying new art
+
+The two cases are genuinely different and the standard treats them differently.
+
+### A small edit to the sheet you are already using
+
+**Edit `assets/player_sheet.bmp` in place.** Do not copy it first — git is the
+undo, and a copy made "just in case" is exactly the file that is still sitting
+in `assets/` six months later with nobody able to say what it was for.
 
 ```bash
-python tools/load_sprite.py player_sheet candidate_a.bmp
-.\build\Release\SlopPhysics.exe
-python tools/load_sprite.py player_sheet candidate_b.bmp
+# ...edit assets/player_sheet.bmp in your editor, save...
+python tools/load_sprite.py --stage      # assets/ is copied at BUILD time; this is the shortcut
+python tools/player_sheet.py --validate  # baselines: hovering, silhouette gaps, blank frames
 .\build\Release\SlopPhysics.exe
 ```
 
-Same shape for any key. For the location and prop-list rows in the table above —
-the ones that are still literals — the old approach is still the approach: copy
-your file **onto the loaded name** and rebuild.
+Hate it? `git checkout assets/player_sheet.bmp`. Want a checkpoint mid-way?
+`git add assets/player_sheet.bmp` — that is what staging is for.
+
+### A completely new sheet
+
+**Give it a name that says what it is, put it in `assets/`, and rebind.** The
+old file is untouched, so switching back is one command rather than a restore:
+
+```bash
+# drop assets/player_sheet_owl.bmp in place
+python tools/load_sprite.py player_sheet player_sheet_owl.bmp
+.\build\Release\SlopPhysics.exe
+
+python tools/load_sprite.py player_sheet player_sheet.bmp   # back to the old one
+```
+
+`load_sprite.py` validates before it binds: it checks the BMP is readable, warns
+if there is no magenta to key out, and **refuses a sheet whose grid disagrees
+with the compiled `ANIMATIONS` table** — because a mis-shaped sheet still loads
+and still draws, just of the wrong rectangles.
+
+**When one wins, it takes the plain name.** Rename the winner to
+`player_sheet.bmp`, rebind, and move the loser to `assets/wip/`. Do not leave
+two live candidates in `assets/` — that state is the thing this standard exists
+to prevent, and it has no natural end.
+
+```bash
+git mv assets/player_sheet_owl.bmp assets/player_sheet.bmp
+python tools/load_sprite.py player_sheet player_sheet.bmp
+python tools/load_sprite.py --stage --prune
+```
+
+### Same shape for any key
+
+Props and backdrops work identically. For the location and prop-list rows in the
+table above — the ones that are still literals in `main.cpp` — the old approach
+is still the approach: copy your file **onto the loaded name** and rebuild.
 
 ---
 
