@@ -49,10 +49,24 @@ struct Conditions {
     // airborne row. Down is positive, matching the grid's y axis.
     float vel_y = 0.0f;
 
-    // True on the step a dig actually fired - not while the button is held.
-    // A held button fires on a cooldown, and animating the button rather than
-    // the tool would play a swing on steps where nothing happened.
-    bool dig_fired = false;
+    // Where the tool is in its swing: 0 at the start, up to but never reaching
+    // 1, and negative when no swing is in progress. Straight from
+    // `DigTool::swing_progress()`.
+    //
+    // **This used to be `bool dig_fired`, true on the step a dig landed, and
+    // the swap is a deliberate spec reversal (session 5, D1).** The old comment
+    // argued - correctly - that a held button fires on a cooldown, so animating
+    // the button would play a swing on steps where nothing happened. What it
+    // did not account for is that the tool fired *faster* than its own
+    // animation could play, so the latch restarted the swing every 6 steps
+    // against frames needing 8 and the figure never left frame 0.
+    //
+    // Neither the button nor the impact is the thing to animate. The swing is,
+    // and the swing is now a real object with a duration, owned by the tool on
+    // the fixed step. This reads it; it does not time it, and there is no
+    // second copy of the swing's length on this side to drift out of step with
+    // the first.
+    float dig_progress = -1.0f;
 
     // True on the step a wing beat fired, for exactly the reason above: the
     // jump key is held continuously while the beats it produces are discrete,

@@ -32,10 +32,11 @@ Horizontal placement is left exactly as authored. A sprite wider than the
 explicit that sleeves hanging outside the box are art, not body - so there is
 no centring rule that could be applied without overriding a deliberate choice.
 
-Off-palette colour is reported, not rejected. Conforming to the locked set
-(tools/snap_to_palette.py, then tools/validate_palette.py) is a separate,
-later step, and a build step that refused work-in-progress art would just
-mean the sheet stopped being rebuildable exactly when it is changing most.
+Off-palette colour is reported, not rejected - and no palette is currently
+enforced on hand-drawn art at all (ENGINEERING_NOTES.md, "The palette is
+deferred, not lost"), so the report is information. A build step that
+refused work-in-progress art would just mean the sheet stopped being
+rebuildable exactly when it is changing most.
 """
 import sys
 import argparse

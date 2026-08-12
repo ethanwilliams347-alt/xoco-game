@@ -81,6 +81,52 @@ void Player::move_y(const Grid& grid, int amount) {
 // does fit in and take it, preferring straight up. If nothing is open within
 // the search radius the body is deeply buried, and it grinds upward one cell a
 // step until the search can reach open air.
+//
+// **A position the body fits in is not on its own a position the body may go
+// to** (session 5, D2). The search used to test only the destination, so a body
+// buried against a wall was relocated to the nearest open ring cell even when
+// that cell was on the far side of the wall -- being poured on was a way
+// through terrain. `escape_is_reachable` is the missing half and its comment
+// carries the argument for the shape of it.
+int Player::overlap_depth(const Grid& grid, int px, int py) const {
+    int n = 0;
+    for (int cy = py; cy < py + HEIGHT; ++cy)
+        for (int cx = px; cx < px + WIDTH; ++cx)
+            if (is_solid(grid.get_element(cx, cy).type)) ++n;
+    return n;
+}
+
+// **The escape has to be somewhere the body can get to, and "no solid on the
+// way" is not the test** -- a buried body is *surrounded* by solid, so a path
+// test written that way rejects every escape and freezes exactly the case
+// resolve_overlap() exists for. What separates climbing out of a metre of sand
+// from stepping through a wall is not whether the path is solid but which way
+// the burial goes: grinding up out of sand leaves the body less buried at every
+// cell along the way, while crossing a wall means burrowing *into* a mass the
+// body was not in before, and only coming out the other side.
+//
+// So the rule is that being stuck may not get worse on the way out. Walk the
+// straight line to the candidate a cell at a time and reject it the moment the
+// body is deeper in solid than it was the cell before. A wall the body is flush
+// against is a spike in that number at the first step; the sand above it is a
+// slope down to zero.
+//
+// It costs a body-sized scan per cell of path, which is why it is called only
+// on candidates the ring has already found to be open, and only on the steps
+// where the body is buried at all.
+bool Player::escape_is_reachable(const Grid& grid, int dx, int dy) const {
+    const int steps = std::max(std::abs(dx), std::abs(dy));
+    int depth = overlap_depth(grid, pos_x, pos_y);
+
+    for (int k = 1; k <= steps; ++k) {
+        const int here = overlap_depth(grid, pos_x + (dx * k) / steps,
+                                       pos_y + (dy * k) / steps);
+        if (here > depth) return false;
+        depth = here;
+    }
+    return true;
+}
+
 bool Player::resolve_overlap(const Grid& grid) {
     if (!overlaps_solid(grid, pos_x, pos_y)) return false;
 
@@ -97,6 +143,7 @@ bool Player::resolve_overlap(const Grid& grid) {
 
                 if (std::max(std::abs(dx), std::abs(dy)) != r) continue; // ring only
                 if (overlaps_solid(grid, pos_x + dx, pos_y + dy)) continue;
+                if (!escape_is_reachable(grid, dx, dy)) continue;
 
                 pos_x += dx;
                 pos_y += dy;

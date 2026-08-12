@@ -1,6 +1,12 @@
-"""Snaps a BMP's colours to the nearest entries in this project's locked
-PALETTE (tools/pixel_art.py) - the step between a hand-touched-up candidate
-sprite and something tools/validate_palette.py accepts.
+"""Snaps a BMP's colours to the nearest entries in PALETTE
+(tools/pixel_art.py) - the step between a hand-touched-up candidate sprite
+and something tools/validate_palette.py accepts.
+
+**Nothing requires you to run this right now.** No palette is enforced on
+hand-drawn art (see ENGINEERING_NOTES.md, "The palette is deferred, not
+lost"), and running it on current art would flatten ~154 authored tones onto
+six placeholder ones and destroy the poses. Kept because the day a real set
+is derived from the art, this is the tool that applies it.
 
 Defaults to only the six `char_*` entries (the player group), not the whole
 PALETTE, and that default is deliberate rather than a convenience: notes/

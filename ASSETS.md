@@ -143,10 +143,17 @@ your file **onto the loaded name** and rebuild.
   there is no separate art scale to track. **Backdrops are the exception**: they
   are authored in *screen pixels*, because they are drawn in screen space with a
   parallax factor rather than placed in the world.
-- **Palette conformance is a final step, not a gate.** Draw in whatever colours
-  you like while iterating; `tools/snap_to_palette.py` conforms art to the
-  locked set when the shape is settled. Only `tools/validate_palette.py` and a
-  bare `player_sheet.py --validate` are strict.
+- **There is no palette to conform to right now, and that is deliberate.** Draw
+  in whatever colours you like — nothing checks and nothing will fail. The
+  `char_*` group in `tools/pixel_art.py` is a placeholder from before any
+  character was drawn and no shipped pixel has ever used it; a real set gets
+  derived from the art once there are two or three entities to derive it from.
+  Reasoning in [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md), "The palette is
+  deferred, not lost". `assets/palette.gpl` is still a reasonable starting point
+  to load in an editor, and `tools/snap_to_palette.py` still exists for the day
+  there is a set worth snapping to. **The generated layers — backdrops, trees,
+  terrain — are a different case**: they are built from `PALETTE` by name and do
+  still conform, so `tools/validate_palette.py` is meaningful on those.
 
 ---
 
@@ -180,7 +187,7 @@ different characters:
 
 ```bash
 python tools/build_player_sheet.py assets/my_frame.bmp        # stamps into all 19 slots
-python tools/player_sheet.py --validate --allow-off-palette
+python tools/player_sheet.py --validate
 ```
 
 To override individual slots as you draw real animation frames:

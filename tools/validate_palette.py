@@ -1,8 +1,15 @@
-"""Checks that a BMP uses only colours from the locked palette
-(tools/pixel_art.py, PALETTE) - the half of V6 that actually holds the line.
-A palette that nothing checks is a good intention; this is what makes an
-off-palette pixel loud instead of silently shipping, the same shape as
-src/scene/legend.h's "an unmatched colour is reported, never guessed at".
+"""Reports which colours in a BMP are outside tools/pixel_art.py's PALETTE.
+
+**This is an audit, not a gate.** It is never run by the build or by ctest -
+it tells you what a file contains when you ask, and nothing asks on your
+behalf. No palette is currently chosen for hand-drawn art (see PALETTE's own
+header and ENGINEERING_NOTES.md, "The palette is deferred, not lost"), so a
+FAIL here on a drawn sprite is information about the file, not a defect.
+
+Where it still holds a real line: the generated layers - backdrops, trees,
+terrain - are built *from* PALETTE, so an off-palette pixel in one of those
+means a generator has been edited to hardcode a colour instead of naming
+one, which is worth catching. Run it on those.
 
 Usage:
     python tools/validate_palette.py assets/test_albedo.bmp
@@ -40,11 +47,14 @@ def validate(path, allow_colorkey):
 
     total = width * height
     if not offenders:
-        print(f"OK  {path}: {total} pixels, all in the locked palette"
+        print(f"OK  {path}: {total} pixels, all in PALETTE"
               + (" (colour-key allowed)" if allow_colorkey else ""))
         return True
 
-    print(f"FAIL {path}: {sum(offenders.values())}/{total} pixels are off-palette")
+    # Reported as "OFF", not "FAIL": for hand-drawn art this is a description,
+    # not a verdict. The exit code stays non-zero so the generated layers can
+    # still be checked from a script, where it does mean something is wrong.
+    print(f"OFF  {path}: {sum(offenders.values())}/{total} pixels are off-palette")
     for color, count in sorted(offenders.items(), key=lambda kv: -kv[1])[:10]:
         print(f"     #{color[0]:02X}{color[1]:02X}{color[2]:02X}  x{count}")
     if len(offenders) > 10:

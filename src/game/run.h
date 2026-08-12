@@ -73,12 +73,16 @@ public:
     // move on the same step it was placed.
     //
     // Returns whether the dig tool actually removed material this step -
-    // `DigTool::update`'s own answer, forwarded rather than recomputed. That is
-    // not a concession to presentation: the alternative main.cpp tried was to
-    // infer it from the cooldown either side of this call, and a dig fires on
-    // the same step the cooldown reaches zero, so `was_ready` is false on every
-    // dig of a held burst except the first. The simulation already knows; the
-    // only bug available here was in guessing.
+    // `DigTool::update`'s own answer, forwarded rather than recomputed.
+    //
+    // **Nothing currently reads it.** It existed to drive the dig animation,
+    // and since D1 the animation reads `DigTool::swing_progress()` instead: an
+    // impact is one step and a swing is a duration, and it was the duration
+    // that needed portraying. Kept because "a blow landed this step" is a real
+    // event that a hit-reaction, a sound or a screen shake will each want, and
+    // because it costs a forwarded bool. **Do not reintroduce it as an
+    // animation trigger** - that is the defect, and ROADMAP.md's wave 4 has the
+    // arithmetic.
     bool step(const Input& input);
 
     Grid grid;

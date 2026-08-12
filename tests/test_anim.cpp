@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <string>
+#include "physics/tool.h"
 #include "render/player_anim.h"
 #include "test_util.h"
 
@@ -99,36 +100,131 @@ void test_no_restart_on_reselect() {
           "frame " + std::to_string(s.frame));
 }
 
-// --- the one-shot -----------------------------------------------------------
+// --- the swing --------------------------------------------------------------
+//
+// These used to drive `dig_fired`, a one-shot latched on the step a dig landed.
+// D1 replaced it with a phase the tool reports, so what is asserted changed
+// with it: not "the latch starts and finishes" but "the phase maps onto the
+// frames, and the swing ends when the tool says it has". The one-shot machinery
+// itself is still tested - by the wing beat, which is still a one-shot.
 
-void test_dig_oneshot() {
-    State s;
+Conditions digging(float progress) {
     Conditions c = standing();
-    c.dig_fired = true;
-    update(s, c, 1);
-    check("dig latches on the step it fires", s.anim == &ps::DIG && s.frame == 0);
+    c.dig_progress = progress;
+    return c;
+}
+
+void test_dig_follows_the_tool() {
+    State s;
+    update(s, digging(0.0f), 1);
+    check("a swing starting shows the swing's first frame",
+          s.anim == &ps::DIG && s.frame == 0);
+
+    // The frames must be spread across the swing rather than bunched at one
+    // end - the whole visible content of D1 was a swing that never left its
+    // first frame.
+    update(s, digging(0.5f), 1);
+    check("half way through the swing is past the first frame",
+          s.anim == &ps::DIG && s.frame > 0, "frame " + std::to_string(s.frame));
+
+    update(s, digging(0.99f), 1);
+    check("the end of the swing is the swing's last frame",
+          s.anim == &ps::DIG && s.frame == ps::DIG.frames - 1,
+          "frame " + std::to_string(s.frame));
 
     // It must hold through conditions that would otherwise select something
     // else, or the swing is cancelled by the player walking away mid-dig.
-    run(s, walking(), 1);
-    check("dig survives a change of conditions", s.anim == &ps::DIG);
+    Conditions c = walking();
+    c.dig_progress = 0.5f;
+    update(s, c, 1);
+    check("a swing survives a change of conditions", s.anim == &ps::DIG);
+}
 
-    // And it must actually end. A one-shot that never clears is a figure
-    // frozen mid-swing for the rest of the session.
-    run(s, standing(), ps::DIG.wait * ps::DIG.frames);
-    check("dig completes and returns to the selector", s.anim == &ps::IDLE,
+void test_dig_ends_when_the_tool_says_so() {
+    State s;
+    update(s, digging(0.5f), 1);
+    check("mid-swing shows the dig", s.anim == &ps::DIG);
+
+    // A negative progress is the tool reporting no swing in progress. The
+    // animation must let go on that step and not one later: it holds no clock
+    // of its own to run down.
+    run(s, standing(), 1);
+    check("the swing ends the step the tool ends it", s.anim == &ps::IDLE,
           "still on " + std::string(s.anim == &ps::DIG ? "dig" : "something else"));
 }
 
-void test_dig_retrigger() {
+// A swing must not be able to walk off the end of its sheet row, whatever it is
+// handed. The clamp this covers is cheap insurance against the two clocks ever
+// being reunited by accident.
+void test_dig_progress_is_clamped() {
     State s;
-    Conditions c = standing();
-    c.dig_fired = true;
-    update(s, c, 1);
-    run(s, standing(), ps::DIG.wait);
-    check("dig has advanced before retrigger", s.frame == 1);
-    update(s, c, 1);
-    check("a second dig restarts the swing", s.anim == &ps::DIG && s.frame == 0);
+    update(s, digging(1.0f), 1);
+    check("a full progress still lands on a real frame",
+          s.frame >= 0 && s.frame < ps::DIG.frames, "frame " + std::to_string(s.frame));
+}
+
+// --- the held swing (D1) ----------------------------------------------------
+//
+// **The one test in this file that drives the real tool rather than hand-set
+// conditions, and that is the point of it.** Every other case here sets the
+// dig condition directly, which is why all of them passed while a held dig was
+// visibly frozen on frame 0 in the game: the defect is not in either clock, it
+// is in the ratio between the tool's and the animation's, and a test that
+// supplies the condition itself has quietly replaced the very number that was
+// wrong. `test_dig_retrigger` below re-fires every `DIG.wait` steps, which is
+// the one interval at which this cannot happen.
+//
+// The requirement, from playtest session 5: a held dig **cycles**, and does so
+// slower than the walk.
+void test_held_dig_cycles() {
+    Grid g(400, 80);
+    DigTool tool;
+    State s;
+
+    // Long enough to contain several swings at any plausible swing length.
+    const int steps = 8 * ps::DIG.wait * ps::DIG.frames;
+    bool seen[16] = {false};
+    int frames_seen = 0;
+    int returns_to_start = 0;
+    int last_frame = -1;
+
+    for (int i = 0; i < steps; ++i) {
+        // Refilled every step on purpose. Left alone, the tunnel outruns the
+        // dig's range, the tool stops connecting, and the one-shot then
+        // completes undisturbed - which is the *defect* (release the button and
+        // one swing plays) passing itself off as the cycle being tested. The
+        // scenario D1 describes is a button held against terrain that is still
+        // there, so the terrain is kept there.
+        for (int y = 0; y < 80; ++y)
+            for (int x = 0; x < 400; ++x)
+                g.set_element(x, y, ElementType::Wall);
+
+        Conditions c = standing();
+        tool.update(g, true, 200, 40, 399, 40); // held, connecting
+        c.dig_progress = tool.swing_progress();
+        update(s, c, 1);
+
+        if (s.anim != &ps::DIG) continue;
+        if (!seen[s.frame]) { seen[s.frame] = true; ++frames_seen; }
+        if (last_frame > 0 && s.frame == 0) ++returns_to_start;
+        last_frame = s.frame;
+    }
+
+    check("a held dig plays every frame of the swing", frames_seen == ps::DIG.frames,
+          std::to_string(frames_seen) + " of " + std::to_string(ps::DIG.frames) +
+              " frames reached");
+    check("a held dig keeps swinging rather than playing once", returns_to_start >= 2,
+          std::to_string(returns_to_start) + " swings in " + std::to_string(steps) +
+              " steps");
+
+    // Slower than the walk, which is the shape of the request rather than a
+    // number pulled out of the air. Derived from the walk's own length so
+    // retuning the walk cannot silently invalidate this.
+    const int walk_cycle = ps::WALK.wait * ps::WALK.frames;
+    const int swing_cycle = steps / (returns_to_start > 0 ? returns_to_start : steps);
+    check("a swing is slower than a walk cycle", swing_cycle > walk_cycle,
+          "swing " + std::to_string(swing_cycle) + " steps vs walk " +
+              std::to_string(walk_cycle));
 }
 
 // --- the fixed-step contract ------------------------------------------------
@@ -162,8 +258,10 @@ int main() {
     test_shared_row();
     test_walk_cycle();
     test_no_restart_on_reselect();
-    test_dig_oneshot();
-    test_dig_retrigger();
+    test_dig_follows_the_tool();
+    test_dig_ends_when_the_tool_says_so();
+    test_dig_progress_is_clamped();
+    test_held_dig_cycles();
     test_batch_equivalence();
     test_static_pose_does_not_spin();
     return report();

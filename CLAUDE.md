@@ -1,0 +1,161 @@
+# Toop / Xoco — working agreement
+
+A from-scratch C++20 cellular-automata pixel-physics engine with an SDL2 shell,
+built solo, aimed at a Steam release. `code/` is the repo root: **run every
+command and every `tools/` script from here.**
+
+<!-- Maintainer note: this file is context, loaded every session. Keep it under
+     ~200 lines. Anything that is a multi-step procedure, or only matters in one
+     part of the tree, belongs in .claude/rules/ instead. -->
+
+## The one thing to know before changing anything
+
+**In this project the reasoning is the deliverable, not a courtesy.** Almost
+every constant, refusal and structural split here has a written argument behind
+it, usually naming the bug that bought it. A change that is correct but arrives
+without its reasoning recorded is half-done, and a change that quietly
+contradicts a recorded decision is a regression even if every test passes.
+
+So: **before changing something that looks arbitrary, find out whether it is.**
+Grep the docs and the header comment at the constant first. The recurring failure
+this project has actually suffered is not bad code — it is a stated rule that
+stopped matching the code and kept being believed.
+
+Corollary, and it applies to this file too: **a claim here that has gone false is
+worse than no claim**, because it stops people checking.
+
+## Commands
+
+Multi-config Visual Studio generator, so `--config` / `-C` is required, not
+optional.
+
+```bash
+cmake -B build -S .                          # first time; fetches SDL2 2.30.0
+cmake --build build --config Release         # also copies assets/ next to the exe
+ctest --test-dir build -C Release --output-on-failure
+.\build\Release\SlopPhysics.exe
+```
+
+**The full suite is 10 headless suites and runs in about a second.** There is no
+reason to run a subset — always run all of it.
+
+Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
+
+```bash
+.\build\Release\grid_bench.exe        # timings; read the 1920x1080 block
+.\build\Release\preview_light.exe     # dumps a frame; pipe through tools/rawpng.py
+.\build\Release\burn_probe.exe        # burn timing and shape, in numbers
+.\build\Release\water_probe.exe       # where poured water ends up
+.\build\Release\rim_probe.exe         # surviving rim highlight after settling
+```
+
+## Gotchas that have each cost a session
+
+- **`assets/` is copied next to the exe at build time.** Editing a file in
+  `assets/` by hand changes nothing until you rebuild or run
+  `python tools/load_sprite.py --stage`. This is the first thing to check when a
+  change "didn't show up".
+- **`src/render/player_sprite.h` is generated** by `python tools/player_sheet.py
+  --header`. Editing it directly is overwritten work.
+- **`main.cpp` is the project's one nondeterministic line.** It prints
+  `World seed: N` and `Scene: WxH, N cells placed` at startup; **those printed
+  counts are the launch check, not eyeballing the window.** A scene count of zero
+  once meant a blank world that all six suites passed on.
+- **A count taken before the last thing that can fail measures a different
+  quantity than its label claims.** That is a general rule here, learned from
+  `Props: 10 of 10 placed` printing before the planting scan could drop one.
+- Windows-only so far. The build is portable and uses no platform-specific code,
+  but macOS and Linux have never been built — do not claim they work.
+
+## Invariants — breaking one of these is a defect, not a design choice
+
+Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md).
+
+- **The simulation is deterministic and integer-only.** No `<random>`, no
+  floats, no threading in `Grid`. Randomness is `sim_random`: a pure function of
+  seed, step, cell index and a `Stream` tag. **`Stream` values are arbitrary and
+  permanent** — changing one changes every world its seed ever produced.
+  (`Player` is the known float exception, deliberately.)
+- **All cell writes go through `set_element`, `paint` or `swap_elements`**, and
+  the first two delegate to a private `place()`. A fourth write path that
+  reimplements `place()` rather than calling it produces material frozen in
+  mid-air.
+- **Every write wakes its 3x3 neighbourhood.** This is what chunked sleep
+  correctness rests on.
+- **`Grid::update()` never creates or destroys matter.** Digging deletes matter
+  and is correct because it is an *external* write — do not relax the
+  conservation test to accommodate it; they test different things.
+- **Rendering never becomes a simulation input.** Light, animation and props are
+  kept out of `ENGINE_SOURCES` in [CMakeLists.txt](CMakeLists.txt) specifically so
+  that the day something in `src/physics/` reaches for one, the mistake has to be
+  written into the build file to compile. Do not "tidy" those variables together.
+- **Materials are data.** A new material is a row in `MATERIALS`
+  ([src/physics/material.h](src/physics/material.h)), not an edit to the update loop.
+- **`Element` is 12 bytes with nothing spare.** The next field added costs ~500 KB
+  and a wider stride through the hot loop. The `static_assert`s in
+  [src/physics/element.h](src/physics/element.h) are the guard — never widen one
+  to make a build pass.
+- **No ECS, no threading, no networking, no scripting layer.** Refused with
+  reasons in ENGINEERING_NOTES.md, not merely unbuilt.
+- **Zero new dependencies until a specific need cannot be met without one.**
+
+## How work gets done here
+
+1. **Read before writing.** [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md) is the authority
+   on *what is next*; [ROADMAP.md](ROADMAP.md) is the authority on *why*, and is
+   large — search it, don't read it front to back.
+2. **A confirmed defect the headless suites can reach gets a failing test before
+   its fix** — and the test must be verified against the *unfixed* code, so it
+   fails for the right reason.
+3. **`ctest` proves mechanics in isolation; it cannot prove they compose.** After
+   any change to `src/physics/`, `src/game/` or `main.cpp` that the suites do not
+   fully exercise, the Manual Tester Checklist in [README.md](README.md) is the
+   other half. Each of its nine steps names a regression that has actually
+   happened. **I cannot run it** — flag when it is owed and say which steps matter.
+4. **Performance claims need bracketed measurement.** Same sitting, back to back,
+   with a control scenario that the change cannot affect. Timings on one machine
+   have differed by more than 2x on identical code. See
+   [PERFORMANCE.md](PERFORMANCE.md) — it exists mostly to document how this has
+   gone wrong before.
+5. **Scope discipline is real and has never bent.** Nothing from the Long Term
+   list starts before the v0.1 slice ships and playtests as fun. An idea does not
+   get built on arrival — it gets written down. See [VISION.md](VISION.md).
+
+## Where a decision gets written down
+
+Putting it in the wrong file is the failure mode; the split is deliberate.
+
+| What you have | Where it goes |
+|---|---|
+| Sequenced work, and why it is ordered that way | ROADMAP.md (the why) / ROADMAP_ITEMS.md (the order) |
+| A technical decision made and then deferred, or refused | ENGINEERING_NOTES.md |
+| A feel constant you retuned | TUNING.md — a row **and** a dated History line |
+| A benchmark number or a measurement method | PERFORMANCE.md |
+| What a playtest asked and what came back | PLAYTEST_LOG.md — **symptoms only**, no fixes |
+| Goals, scope, the wish list | VISION.md |
+| How to build/run/test; the manual checklist | README.md |
+| How to get art in | ASSETS.md, and `../drawing_to_sprite.md` for the player |
+| Raw lore, brainstorming, reference observations | `notes/` |
+
+## The detail lives in `.claude/rules/`
+
+Three path-scoped rule files, loaded only when the matching part of the tree is
+being worked on, so this file stays short enough to be obeyed. **Read the
+relevant one before a substantial change** if it has not loaded on its own.
+
+- `.claude/rules/simulation.md` — `src/physics/`, `src/game/`, `main.cpp`,
+  `tests/`, `CMakeLists.txt`. The test harness, the source-set guard,
+  determinism, and the things that look like bugs and are not.
+- `.claude/rules/assets-and-formats.md` — `assets/`, `tools/`, `src/render/`,
+  `src/scene/`, `src/ui/`. The locked palette, the frozen legend, the rules any
+  authored format has to follow, and the renderer's limits.
+- `.claude/rules/documentation.md` — the project docs and `notes/`. How to write
+  in each one without breaking a convention that was learned the hard way.
+
+## Keeping this file true
+
+Add a line here when a mistake is made twice, or when a rule above turns out to
+be stated wrongly. **Delete a line the moment it stops being true** — including
+when the project changes direction, which it is expected to do. Anything that is
+a multi-step procedure, or matters in only one part of the tree, belongs in a
+rule file rather than here.

@@ -32,14 +32,23 @@ Three commands, all run from the repo root:
 refuses to overwrite existing files, because the whole point of it is to be
 run before there is anything to lose.
 
---validate takes one modifier, `--allow-off-palette`, which downgrades the
-locked-set check to a warning and leaves every other check strict. It is for
-the window where art has been drawn but not yet conformed to the palette
-(tools/snap_to_palette.py), because in that window the off-palette error is
-the only thing --validate can say - and a validator that is known to be red
-is a validator nobody reads, which costs the *baseline* checks that only
-this script can make. It is not a way to ship off-palette art:
-tools/validate_palette.py has no such flag and is still the gate.
+--validate reports off-palette colour as a **warning**, never an error, and
+holds every other check strict. `--strict-palette` promotes it back to an
+error for the day a palette is actually chosen.
+
+That default is inverted from how this started, and the reason is on the
+record rather than rewritten away. V6 froze a palette and this check enforced
+it. It was the character group that turned out to be provisional: no player
+sheet ever authored - not one of the four in assets/ - has ever had a single
+on-palette pixel, so the check was red on every run from the day the first
+real art landed. A validator that is known to be red is a validator nobody
+reads, which costs the *baseline* checks that only this script can make, and
+those are the ones catching real bugs: a frame hovering a cell above every
+floor, a hole through a silhouette, a declared frame nobody drew.
+
+So the palette is not a gate while the visual style is still being found. It
+becomes one again when there is a roster to choose it against - see
+ENGINEERING_NOTES.md, "The palette is deferred, not lost".
 """
 import sys
 from pixel_art import PALETTE, COLOR_KEY, read_bmp, write_bmp
@@ -184,7 +193,7 @@ def frame_pixels(pixels, width, row, col):
             for y in range(FRAME_H) for x in range(FRAME_W)]
 
 
-def validate(allow_off_palette=False):
+def validate(strict_palette=False):
     """Everything about the art that code downstream assumes and cannot check.
 
     The checks are the ones the single-pose generator made before this file
@@ -232,12 +241,12 @@ def validate(allow_off_palette=False):
         if off:
             sample = ', '.join('#%02X%02X%02X' % p for p in sorted(off)[:5])
             message = f'{SHEET_PATH}: {len(off)} off-palette colour(s): {sample}'
-            if allow_off_palette:
-                print(f'WARN  {message}')
-                print('      (--allow-off-palette: not conformed to the locked set yet; '
-                      'tools/snap_to_palette.py is the step that does it)')
-            else:
+            if strict_palette:
                 errors.append(message)
+            else:
+                print(f'NOTE  {message}')
+                print('      (no palette is chosen yet - this is not a failure. '
+                      '--strict-palette makes it one.)')
 
         for anim in ANIMATIONS:
             for col in range(anim.col, anim.col + anim.frames):
@@ -437,7 +446,10 @@ if __name__ == '__main__':
     if '--starter' in args:
         ok = starter() and ok
     if '--validate' in args:
-        ok = validate('--allow-off-palette' in args) and ok
+        # `--allow-off-palette` is now the default and survives only as a
+        # no-op, so the command written down in ASSETS.md and in older notes
+        # keeps working instead of failing on an unknown flag.
+        ok = validate('--strict-palette' in args) and ok
     if '--header' in args:
         emit_header()
     sys.exit(0 if ok else 1)

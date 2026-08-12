@@ -38,14 +38,39 @@ void begin(State& s, const Anim& a, bool oneshot) {
 }  // namespace
 
 void update(State& s, const Conditions& c, int steps) {
-    if (c.dig_fired) {
-        // Latch, and restart even if a dig is already playing - a second dig
-        // landing mid-swing is a new swing, not a continuation of the old one.
+    if (c.dig_progress >= 0.0f) {
+        // **The dig is the one animation with no clock of its own.** Its frame
+        // is a function of how far through its swing the *tool* is, so the two
+        // cannot disagree - which is the entire content of D1, where they did.
+        // Everything else here is driven by `elapsed`; this is driven by the
+        // simulation, and the direction of that dependency is the point.
+        //
+        // Not a one-shot either. A one-shot is a thing that has to end, and
+        // ending is now the tool's business: the swing stops when
+        // `dig_progress` goes negative, and while the button is held the tool
+        // simply starts another one.
+        // **`DIG.wait` is dead data now and that is worth knowing before you
+        // tune it.** The swing's speed is `DigTool::SWING_STEPS`; the sheet's
+        // wait column is read for every other animation and ignored for this
+        // one, so editing it here changes nothing. Only `frames` is still
+        // load-bearing, and only as the number of columns to spread the swing
+        // across.
+        const int frames = player_sprite::DIG.frames;
+        int frame = static_cast<int>(c.dig_progress * static_cast<float>(frames));
+
+        // `dig_progress` is documented as never reaching 1, but a clamp is
+        // cheap and the alternative is reading one column off the end of the
+        // sheet if that ever stops being true.
+        if (frame >= frames) frame = frames - 1;
+
         s.anim = &player_sprite::DIG;
-        s.frame = 0;
+        s.frame = frame;
         s.elapsed = 0;
-        s.oneshot = true;
-    } else if (c.flapped && !c.on_ground) {
+        s.oneshot = false;
+        return;
+    }
+
+    if (c.flapped && !c.on_ground) {
         // Same latch-and-restart as the dig, and for the same reason: each
         // beat is its own downstroke, not a continuation of the last. Because
         // FLY's own length exceeds the interval between beats (see the note on
@@ -65,8 +90,7 @@ void update(State& s, const Conditions& c, int steps) {
         s.oneshot = true;
     } else if (s.oneshot && s.anim == &player_sprite::FLY && c.on_ground) {
         // Landing cancels a beat still in flight. A one-shot normally owns the
-        // clock until it finishes, which is right for a dig - a swing is not
-        // interrupted by touching the floor - and wrong for a wing beat, whose
+        // clock until it finishes, which is wrong for a wing beat, whose
         // entire premise is that the body is in the air. Without this the bird
         // spends up to fifteen steps flapping while stood on solid ground.
         s.oneshot = false;

@@ -3,8 +3,10 @@ palette format, also read directly by Aseprite and Krita. This is the "same
 values exported in whatever form the external editor wants" half of V6
 (ROADMAP.md): tools/pixel_art.py is the source of truth for anything built
 in this repo's own scripts, this file is what a human pixel artist loads
-into their editor so they are painting with the locked set from the first
-stroke rather than finding out at validation time.
+into their editor. It is a **starting point, not a constraint** — no palette
+is enforced on hand-drawn art (ENGINEERING_NOTES.md, "The palette is
+deferred, not lost"), so these are the values the world is already built
+from, offered so a new sprite can sit next to it rather than match it.
 
 Regenerate after any change to PALETTE:
     python tools/export_palette_gpl.py

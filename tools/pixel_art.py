@@ -1,15 +1,32 @@
-"""The pixel-art framework: one locked palette, one BMP codec, one dithering
+"""The pixel-art framework: one shared palette, one BMP codec, one dithering
 rule, one rim-light helper. Every generator in tools/ imports this rather
 than rolling its own — that is the entire mechanism behind V6's "shared
 palette both sides index" and the reason a validator is possible at all.
+
+**Status: this is a working set, not a locked one.** V6 called it locked and
+that claim has gone false, so it is corrected here rather than quietly
+rewritten. Two halves aged differently:
+
+  - The backdrop, tree and terrain groups are real and in force. Every pixel
+    of that art is *generated* from these names by the tools below, so it
+    conforms by construction and cannot drift.
+  - The char_* group is a placeholder that no shipped art has ever used. Not
+    one pixel of any of the four player sheets in assets/ is on-palette, and
+    the current fly poses are warm olive where char_* is cool blue-grey. The
+    art moved and the constant did not.
+
+So nothing is *enforced* against hand-drawn art right now, on purpose: the
+style is still being found and there is only one entity to find it from.
+Draw freely. See ENGINEERING_NOTES.md, "The palette is deferred, not lost",
+for what ends that and what to keep while it lasts.
 
 Written against nothing but the standard library, on purpose: this project
 has no third-party dependencies by policy (BMP over PNG, immediate-mode over
 Dear ImGui - see ENGINEERING_NOTES.md), and an
 authoring tool is a bad reason to be the first exception.
 
-PALETTE is the locked set notes/art_direction.txt (V5) describes and reasons
-about; this file is where the actual values live. Every colour below is an
+PALETTE is the set notes/art_direction.txt (V5) describes and reasons about;
+this file is where the actual values live. Every colour below is an
 original value chosen to match the *character* a reference sample measured
 (dark, narrow value range, cool sky / warm ground) - see the dated entry in
 notes/reference_observations.txt - not a colour copied out of that
@@ -18,16 +35,16 @@ real: nothing in this project's asset pipeline ever reads a pixel from
 footage that is not ours.
 
 Adding a colour: add it here with a one-line reason, regenerate
-assets/palette.gpl (tools/export_palette_gpl.py), and everything that
-authors art against the locked set picks it up. Removing or changing one
-invalidates every BMP built from it, the same way changing a
-scene/legend.h value invalidates every material map - so treat this list
-with the same weight, not the lighter one MATERIALS' render colours get.
+assets/palette.gpl (tools/export_palette_gpl.py), and every generator picks
+it up. Removing or changing one in the *generated* groups still invalidates
+every BMP built from it, the same way changing a scene/legend.h value
+invalidates every material map - treat those with that weight. The char_*
+group carries no such cost today, because nothing was ever built from it.
 """
 
 import struct
 
-# --- the locked palette -----------------------------------------------------
+# --- the palette ------------------------------------------------------------
 #
 # Grouped by layer (notes/art_direction.txt's four-layer model), not
 # alphabetically - the groups are the thing worth reading, the names inside
@@ -117,7 +134,8 @@ def color_of(name):
     to make impossible."""
     if name not in PALETTE:
         raise KeyError(f"'{name}' is not in PALETTE (tools/pixel_art.py) - "
-                        f"add it there first, this is the locked set")
+                        f"add it there first - a generator names colours, "
+                        f"it does not hardcode them")
     return PALETTE[name]
 
 

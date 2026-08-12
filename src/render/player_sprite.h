@@ -2,7 +2,7 @@
 //
 // Regenerate with:  python tools/player_sheet.py --header
 //
-// Everything main.cpp needs to know about assets/player_sheet_fly.bmp, emitted
+// Everything main.cpp needs to know about assets/COPY_player_sheet_fly.bmp, emitted
 // from the one file that also validates it. V3 shipped these numbers typed
 // into two places with nothing enforcing agreement - the same trap V8's
 // parallax factors have - and a sheet turns four numbers into several dozen,

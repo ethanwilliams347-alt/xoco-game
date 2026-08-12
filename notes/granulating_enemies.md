@@ -1,8 +1,14 @@
 # Enemies made of a material that granulates when damaged
 
-Options analysis, written before any code. Nothing here is admitted to
-[ROADMAP.md](../ROADMAP.md) yet — the last section states what each path would
-have to answer to earn a place in the E track.
+Options analysis, written before any code. **Status changed 2026-08-11: M2 is
+admitted as `E12` and E-C as `S1` in [ROADMAP.md](../ROADMAP.md), the second one
+blocked on the combat decision exactly as the last section of this file said it
+would have to be.** M1 stays ruled out, M3 stays behind P1, and E-A remains a
+free consequence of E12 rather than an item. This document stays the design
+work; the roadmap carries the scheduling, the sizes and the dependencies. **The
+last section is updated in place** and its original conditions are kept
+verbatim, because a written admission test is only worth anything if it can be
+checked afterwards against what actually satisfied it.
 
 **The idea, stated once so the paths can be compared against it:** an enemy
 whose body is a solid material that holds its shape until it is disturbed or
@@ -275,3 +281,45 @@ failure mode to watch for.
   done, and that is what it is for.
 
 Filed as notes rather than as a plan, deliberately.
+
+---
+
+## What actually admitted it — 2026-08-11
+
+**The condition in the second bullet above was met.** The enemy was committed to
+as a stated goal for the visual system, which is the sense in which "the
+objective loop needs something to oppose the player" was going to arrive — and
+the sentence that follows it holds: *"at which point this document is the design
+work already done, and that is what it is for."* It was.
+
+**M2 → `E12`, in the E track, after E10.** Admitted on the commitment rather
+than on an observation, and the roadmap says so rather than manufacturing one.
+The sequencing claim in this document — a crumbling crust that cannot hold a
+slope reads as a liquid — is what puts it after E10 specifically, and it is the
+sharpest ordering argument either document makes.
+
+**E-C → `S1`, in the slice, blocked on the combat decision** due at the end of
+S0. Its dependencies are E12, V12 (a real alpha channel, since a colour key
+cannot express a hole that is not exactly one colour), V15 (the rig, which is
+what makes a second character cheap — the amortisation this document names) and
+E5a.
+
+**One thing in this document has gone stale in a way that matters, and it is the
+strongest argument on the page.** The section "The problem all of Part B shares"
+was written when **E4 was the open head of the E track**. E4 has since closed —
+**answered "no" on 2026-08-10** by playtest session 5, on evidence gathered when
+nothing in the game depended on the answer. So the failure predicted there is
+not merely a dependency any more, it is the **current behaviour**: grit shed by
+an enemy will fall straight through the enemy shedding it. The prediction was
+right and the schedule moved out from under it. That is carried as a decision
+owed in [ROADMAP_ITEMS.md](../ROADMAP_ITEMS.md#-decisions-owed) with `S1` as the
+named consumer, and **a narrow answer — bodies that shed matter displace it, the
+player still does not — is the one to consider first**, since it is the only
+case with a consumer behind it.
+
+**Unchanged:** M1 is still ruled out on the axis argument, not on cost. M3 is
+still after P1 and is still the thing that genuinely fires the hardness entry in
+[ENGINEERING_NOTES.md](../ENGINEERING_NOTES.md) — **M2 does not**, and treating
+them as one is how that entry gets opened a version early. E-A hazards are still
+free once E12 lands and are still the cheapest way to find out whether any of
+this is fun before `S1` is paid for.

@@ -134,7 +134,7 @@ that wrong once already.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. **The sprite is 14x26 over an 8x20 collision box, so "flush" is a claim about the sprite's *feet*, not its bounding rect** — the mask overhangs above the box and the sleeves outside it, both by design. A figure that hovers one cell above every floor means some frame's bottom row went empty — `python tools/player_sheet.py --validate` checks exactly that, per frame, and is the first thing to run; a figure sunk into the floor means `src/render/player_sprite.h` is stale and needs `--header` re-run. Also confirm the figure turns to face the direction you walk, and keeps facing that way after you stop.
 
-   **Animation, which is the half no suite can see.** `anim_test` pins which animation each state selects and that the clock advances correctly; what it cannot see is whether the result looks right. Walk both ways and confirm the cycle plays and the feet do not slide. Stop and confirm it settles to idle rather than freezing mid-stride. Jump and confirm the pose changes on the way up and again on the way down, and does not flicker at the apex. Dig and confirm the swing plays once and completes — then spam clicks and confirm it never sticks mid-swing. **Then press into a wall and hold the key**: the figure must stand, not walk on the spot, which is the whole reason the selector reads `velocity_x()` rather than the input. **Hold the dig button on solid terrain rather than clicking once**: the swing must replay on every dig, not only the first — the tool fires on a cooldown and the animation is driven by what `Run::step` returns, because inferring it from the cooldown either side missed every dig but the first. **Finally, if you can run the window at a different frame rate, confirm the walk cycle's speed does not change** — the clock is the fixed step for exactly this reason, and a cycle that speeds up with the display is the defect [src/render/player_anim.h](src/render/player_anim.h) exists to prevent. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
+   **Animation, which is the half no suite can see.** `anim_test` pins which animation each state selects and that the clock advances correctly; what it cannot see is whether the result looks right. Walk both ways and confirm the cycle plays and the feet do not slide. Stop and confirm it settles to idle rather than freezing mid-stride. Jump and confirm the pose changes on the way up and again on the way down, and does not flicker at the apex. Dig and confirm the swing plays once and completes — then spam clicks and confirm it never sticks mid-swing. **Then press into a wall and hold the key**: the figure must stand, not walk on the spot, which is the whole reason the selector reads `velocity_x()` rather than the input. **Hold the dig button on solid terrain rather than clicking once**: the swing must *cycle* for as long as the button is down, at a visibly heavier pace than the walk — this is the D1 check and the failure it replaces was the figure pinned on the first frame of the swing until the button came up. Watch for the seam, too: the next swing starts on the step the last one ends, so there must be no hitch at the top of each one. **A swing is now a real duration and the dig rate is tied to it** — under two digs a second, deliberately. If it reads as feeble, the note in [ROADMAP.md](ROADMAP.md)'s wave 4 says the radius is the knob, not the rate. **Finally, if you can run the window at a different frame rate, confirm the walk cycle's speed does not change** — the clock is the fixed step for exactly this reason, and a cycle that speeds up with the display is the defect [src/render/player_anim.h](src/render/player_anim.h) exists to prevent. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
 
    **Then walk into a settled sand pile several cells tall and judge whether climbing it costs you anything.** A one-cell step is the *floor* of what `MAX_STEP_HEIGHT` permits and this row used to check only that, so the constant itself — 5, against a 20-cell collision box — has never been tested by the thing that exists to test it. Playtest session 5 reported the result as "walking into a settled pile does nothing, the player walks over it", filed as an observation about the player/material relationship before it was traced to a number. **A body that climbs a quarter of its own height instantly, with no animation and no slowdown, reads as terrain not being there at all.**
 
@@ -533,10 +533,26 @@ against, so terrain and powder block a shot while water and fire do not. One
 definition, used twice.
 
 Range is measured as real distance rather than as a step count, so a diagonal
-dig does not reach 1.4x as far as a straight one. The cooldown is counted in
-fixed steps rather than seconds, so the tool fires at the same rate on every
-machine. A shot that connects with nothing costs no cooldown, which makes the
-limit read as tool speed instead of as a random input lockout.
+dig does not reach 1.4x as far as a straight one.
+
+**Digging is a swing, not a rate limit**, and the difference is what session 5's
+D1 bought. The tool holds a 36-step swing clock, counted in fixed steps rather
+than seconds so it runs at the same speed on every machine.
+
+**The hole comes out on the swing's first step and the rest is follow-through.**
+Putting the impact partway in is the more literal reading of a swing's arc, and
+it was tried; it costs half a second between the press and the world changing,
+on a tool used constantly, and a dig that lands late reads as input lag rather
+than as weight. Landing it immediately also means the aim used is the aim at the
+moment of the press, with no window for the world to move underneath it. Holding
+the button starts the next swing on the step the last one ends, so it cycles
+seamlessly. A shot that connects with nothing starts no swing at all, which makes
+the limit read as tool speed instead of as a random input lockout.
+
+This is also **the only clock the dig animation has** — `player_anim` is handed
+`DigTool::swing_progress()` and divides it by its own frame count. The swing used
+to be timed twice, once in the tool and once in the sprite table, and the two
+disagreed.
 
 **Digging destroys matter, deliberately.** The conservation-of-matter test
 covers `Grid::update()` — the simulation itself still never creates or deletes a

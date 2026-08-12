@@ -52,20 +52,31 @@ void DigTool::aim_point(const Grid& grid, int from_x, int from_y, int aim_x, int
 }
 
 bool DigTool::update(Grid& grid, bool held, int from_x, int from_y, int aim_x, int aim_y) {
-    if (cooldown > 0) --cooldown;
-    if (!held || cooldown > 0) return false;
+    // A swing that has run its length is over before this step is considered,
+    // so a held button starts the next one on the same step the last finished
+    // and the cycle has no seam in it. That seamlessness is the requirement -
+    // a one-step gap at the top of every swing is a stutter at 60 Hz.
+    if (swing >= 0 && ++swing >= SWING_STEPS) swing = -1;
+
+    // Mid-swing is follow-through: the blow already landed on the step the
+    // swing opened, and these steps exist so the animation has somewhere to
+    // play out and so the next blow cannot arrive immediately.
+    if (swing >= 0) return false;
+    if (!held) return false;
 
     int hit_x = 0;
     int hit_y = 0;
     bool hit = false;
     march(grid, from_x, from_y, aim_x, aim_y, hit_x, hit_y, hit);
 
-    // Digging thin air costs nothing and starts no cooldown. Only a connecting
-    // shot has a rate limit, which is what makes the limit feel like a tool
-    // speed rather than a random input lockout.
+    // Swinging at thin air costs nothing and starts nothing. Only a connecting
+    // shot commits the body to a swing, which is what makes the rate feel like
+    // a tool speed rather than an input lockout - and it also means the player
+    // is not locked into 36 steps of animation for a swing that was never going
+    // to hit anything.
     if (!hit) return false;
 
-    cooldown = COOLDOWN_STEPS;
+    swing = 0;
 
     // This deletes matter outright, which is correct for a tool and would be a
     // bug anywhere inside the simulation step -- see the conservation-of-matter

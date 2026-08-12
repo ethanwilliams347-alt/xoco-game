@@ -849,19 +849,7 @@ int main(int argc, char* argv[]) {
             prev_player_x = run.player.visual_x();
             prev_player_y = run.player.visual_y();
 
-            // Whether a dig connected *this step*, taken from what the step
-            // returns rather than inferred from the cooldown either side of it.
-            //
-            // Animating the button instead of the tool would be wrong in a way
-            // that is easy to miss: a held button is true on every step, and
-            // the tool only actually fires once per COOLDOWN_STEPS, so the
-            // swing would replay on steps where nothing happened. Inferring it
-            // from `is_ready()` either side is wrong in a way that is *harder*
-            // to see, and it shipped: `DigTool::update` decrements the cooldown
-            // before testing it, so a dig fires on the very step the cooldown
-            // reaches zero, when `is_ready()` beforehand was already false.
-            // Every dig of a held burst except the first went unanimated.
-            const bool dig_fired = run.step(input);
+            run.step(input);
 
             // The animation clock. Advanced here, inside the fixed-step loop,
             // and nowhere else - see the timing note at the top of
@@ -873,7 +861,18 @@ int main(int argc, char* argv[]) {
             cond.on_ground = run.player.is_on_ground();
             cond.moving = std::abs(run.player.velocity_x()) > 0.01f;
             cond.vel_y = run.player.velocity_y();
-            cond.dig_fired = dig_fired;
+            // Read off the tool rather than off the step's return value, and
+            // that is the D1 fix arriving at the call site. The old line took
+            // the one step a dig *landed* on and restarted the swing there,
+            // which pinned the figure on frame 0 whenever the button was held:
+            // the tool landed a dig every 6 steps and the swing needed 24.
+            //
+            // The swing is now a duration the simulation owns and this only
+            // reports where in it the tool is. **The direction still holds** -
+            // ENGINEERING_NOTES.md refuses rendering that drives simulation,
+            // and this is a read, on the fixed step, of a value the tool would
+            // have computed with no window attached.
+            cond.dig_progress = run.dig_tool.swing_progress();
             cond.flapped = run.player.flapped();
             player_anim::update(anim_state, cond, 1);
 

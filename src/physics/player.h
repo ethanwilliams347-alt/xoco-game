@@ -228,6 +228,15 @@ private:
     void move_x(const Grid& grid, int amount);
     void move_y(const Grid& grid, int amount);
 
+    // How many of the body's cells are inside solid material at a position.
+    // `overlaps_solid` answers whether the body is stuck; this answers how
+    // badly, which is what makes one escape comparable to another.
+    int overlap_depth(const Grid& grid, int px, int py) const;
+
+    // Whether the body can actually travel `dx, dy` to reach an open position,
+    // rather than only fit once it is there. See resolve_overlap().
+    bool escape_is_reachable(const Grid& grid, int dx, int dy) const;
+
     // Returns true if the body was overlapping terrain this step, in which case
     // the caller should skip normal physics.
     bool resolve_overlap(const Grid& grid);

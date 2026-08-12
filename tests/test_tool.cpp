@@ -27,7 +27,12 @@ int count_of(const Grid& g, ElementType t) {
     return n;
 }
 
-// Digs once, ignoring the cooldown, by using a fresh tool each time.
+// Digs once, ignoring the swing, by using a fresh tool each time.
+//
+// One update() call is still one whole dig: D1 changed what happens *after* the
+// blow, not when it lands. A fresh tool is never mid-swing, so it digs on the
+// step it is given the button, and the 36 steps of follow-through that would
+// follow are of no interest to a scenario asserting on the hole.
 bool dig_once(Grid& g, int from_x, int from_y, int aim_x, int aim_y) {
     DigTool tool;
     return tool.update(g, true, from_x, from_y, aim_x, aim_y);
@@ -140,11 +145,20 @@ int main() {
               g.get_element(50, 59).type == ElementType::Sand);
     }
 
-    // --- the cooldown gates repeat digs ---
-    // Asserted against the tool's own ready state rather than by counting digs
-    // over time: a slab recedes as it is dug, so a count would be bounded by
-    // geometry running out of range as much as by the cooldown, and would pass
-    // for the wrong reason.
+    // --- the swing gates repeat digs ---
+    // Asserted against the tool's own state rather than by counting digs over
+    // time: a slab recedes as it is dug, so a count would be bounded by
+    // geometry running out of range as much as by the swing, and would pass for
+    // the wrong reason.
+    //
+    // **What changed at D1 is not when the first hole appears but what happens
+    // after it.** The blow still lands on the step the button goes down - a
+    // dig that arrives half a second late reads as input lag on a tool used
+    // this constantly - and the swing is the follow-through behind it. So the
+    // opening assertions here are the ones this block always made; it is the
+    // interval to the *second* hole that grew, from a 6-step cooldown to a full
+    // swing. `SWING_STEPS` is referenced rather than spelled out; the whole
+    // defect was two files holding their own copy of one number.
     {
         Grid g(120, 80);
         fill(g, 40, 0, 119, 79, ElementType::Wall);
@@ -152,14 +166,35 @@ int main() {
         DigTool tool;
         check("a fresh tool is ready", tool.is_ready());
         check("the first held step digs", tool.update(g, true, 30, 40, 110, 40));
-        check("a tool that just dug is not ready", !tool.is_ready());
+        check("a tool mid-swing is not ready", !tool.is_ready());
 
-        for (int i = 0; i < DigTool::COOLDOWN_STEPS - 1; ++i)
-            tool.update(g, false, 30, 40, 110, 40);
-        check("the tool is still cooling one step short", !tool.is_ready());
+        // Counted from the blow that just landed, with the button still held,
+        // so the tool is never idle and `is_ready` is not the thing to watch.
+        // The interval between blows is the whole of the rate.
+        int steps_to_next = 0;
+        for (int i = 0; i < 4 * DigTool::SWING_STEPS; ++i) {
+            ++steps_to_next;
+            if (tool.update(g, true, 30, 40, 110, 40)) break;
+        }
+        check("a held button lands the next blow one swing later",
+              steps_to_next == DigTool::SWING_STEPS,
+              std::to_string(steps_to_next) + " steps, swing is " +
+                  std::to_string(DigTool::SWING_STEPS));
+    }
 
-        tool.update(g, false, 30, 40, 110, 40);
-        check("the tool is ready again after the full cooldown", tool.is_ready());
+    // --- releasing the button does not strand a swing ---
+    // The swing advances only when update() is called, so a swing left half
+    // finished would be resumed by the next press from wherever it stopped -
+    // the player pressing dig and seeing the second half of a swing.
+    {
+        Grid g(120, 80);
+        fill(g, 40, 0, 119, 79, ElementType::Wall);
+
+        DigTool tool;
+        tool.update(g, true, 30, 40, 110, 40); // start a swing
+        for (int i = 0; i < DigTool::SWING_STEPS * 2; ++i)
+            tool.update(g, false, 30, 40, 110, 40); // button released
+        check("a swing finishes even after the button comes up", tool.is_ready());
     }
 
     // --- holding the button does not dig every step ---

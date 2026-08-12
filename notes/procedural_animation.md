@@ -1,8 +1,14 @@
 # A procedural animation overhaul — options and whether it is earned
 
-Options analysis. Nothing here is admitted to [ROADMAP.md](../ROADMAP.md);
-the last section is honest about the fact that, on the V track's own test, most
-of it is not admissible today and says what would change that.
+Options analysis. **Status changed 2026-08-11: P1 and P2 are now admitted, as
+`V14` and `V15` in [ROADMAP.md](../ROADMAP.md#v--visual-identity). P3 is not.**
+This document stays the design work; the roadmap carries the scheduling and the
+sizes. **The mechanism that admitted them is the last section of this file**,
+which named three things that would change the answer — and the third of them
+happened, so the section is now a record of a prediction that came true rather
+than a list of conditions. It has been updated in place and the original
+conditions are kept verbatim, because the value of a written trigger is that it
+can be checked afterwards against what actually fired it.
 
 **The question:** replace or supplement the sprite-sheet animation V3.1 shipped
 with animation that is *computed* — limbs as separate parts with rotations,
@@ -244,3 +250,35 @@ are recognised when they arrive:
 
 Until one of those, the honest status is: **the direction is right, the
 sequencing says wait, and P1 is the cheap experiment that would tell us most.**
+
+---
+
+## What actually admitted it — 2026-08-11
+
+**Trigger 3 fired.** A second character type was committed to: an enemy whose
+body granulates where it is damaged, now `S1` in ROADMAP.md's slice section,
+with its design in [granulating_enemies.md](granulating_enemies.md). That is
+verbatim the third condition above, and the consequence written next to it —
+*"admits P2 on amortisation, and that is the case where 'overhaul' stops being
+the wrong frame"* — is the argument `V15` is admitted on.
+
+**Triggers 1 and 2 have not fired, and that is why V14 still comes first.**
+No playtest has called the figure stiff or pasted onto the terrain, and aiming
+does not exist. So the slope-aware-feet case is still unproven and still
+*shapes* V15 rather than admitting it, and the recommendation above — **P1 is
+the cheapest way to answer the rotation-legibility question that P2 depends
+on** — is unchanged and is the reason the running order is `V14 → V15` rather
+than straight to the rig.
+
+**Two things from this document became roadmap text rather than staying here**,
+because they are traps a reader of the item must not have to find in a note:
+the flip-then-rotate offset, which cost a bug the first time, and the fact that
+`player_sheet.py --validate`'s three checks all become unexpressible under a
+rig with **nothing currently replacing them**. The second is written into V15
+as work inside the item rather than as a caveat.
+
+**P3 is unchanged: held on cost.** Nothing about the commitment above makes a
+verlet limb rig cheaper, and the correction recorded in its bullet — that the
+"build it twice" deferral behind E5 is void, since E5a keeps matter in the grid
+— makes it *unblocked* rather than *due*. A deferral that states a price is not
+a refusal.

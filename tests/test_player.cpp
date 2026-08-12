@@ -289,6 +289,53 @@ int main() {
               !p.overlaps_solid(g, p.cell_x(), p.cell_y()), feet_detail(p));
     }
 
+    // --- the escape must be reachable, not merely empty (D2) ---
+    // The ring search tests the destination box and never the path to it, so a
+    // body buried against a wall can be relocated to the far side of that wall:
+    // being poured on is a way through terrain. This is a containment failure,
+    // not a cosmetic one, which is why it is asserted rather than watched for.
+    //
+    // The geometry is chosen so the bug is the *cheaper* answer and the search
+    // therefore prefers it. Climbing out of the sand costs SAND_DEPTH rings;
+    // stepping clear of a one-cell wall the body is flush against costs
+    // WIDTH + 1. Make the sand the deeper of the two and the first free
+    // position the ring reaches is across the wall.
+    {
+        constexpr int WALL_X = OBSTACLE_X;
+        constexpr int SAND_DEPTH = Player::WIDTH + 4;
+        constexpr int SAND_TOP = FLOOR_Y - SAND_DEPTH;
+        static_assert(SAND_DEPTH > Player::WIDTH + 1,
+                      "the wall crossing must be the nearer escape, or the scenario "
+                      "passes without testing anything");
+        static_assert(SAND_DEPTH <= Player::MAX_UNSTUCK_RADIUS,
+                      "the legitimate escape must be inside the search radius, or "
+                      "this tests the grind-upward path instead");
+
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        for (int y = 0; y < FLOOR_Y; ++y)
+            g.set_element(WALL_X, y, ElementType::Wall);
+        for (int y = SAND_TOP; y < FLOOR_Y; ++y)
+            for (int x = 0; x < WALL_X; ++x)
+                g.set_element(x, y, ElementType::Sand);
+
+        // Right edge flush against the wall's near face, feet on the floor,
+        // sand up over the waist.
+        Player p(WALL_X - Player::WIDTH, FLOOR_Y - Player::HEIGHT);
+        check("a player buried beside a wall starts out overlapping terrain",
+              p.overlaps_solid(g, p.cell_x(), p.cell_y()));
+
+        bool crossed = false;
+        for (int i = 0; i < 4 * Player::HEIGHT; ++i) {
+            step(g, p, NOTHING, 1);
+            if (p.cell_x() + Player::WIDTH > WALL_X) crossed = true;
+        }
+
+        check("the unstuck search does not carry the body through a wall", !crossed,
+              feet_detail(p) + " wall at " + std::to_string(WALL_X));
+        check("a player buried beside a wall still gets out of the terrain",
+              !p.overlaps_solid(g, p.cell_x(), p.cell_y()), feet_detail(p));
+    }
+
     // --- the sub-cell remainder must not carry the body into terrain ---
     //
     // Regression tests for PLAYTEST_LOG.md session 1, defect A1. These assert on

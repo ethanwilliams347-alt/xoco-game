@@ -55,3 +55,11 @@ _deps/
 
 # Player settings, written by the game itself
 /settings.txt
+
+# Claude Code. `CLAUDE.md` and `.claude/rules/` are versioned on purpose — they
+# are project instructions and belong with the code they describe, the same way
+# README.md does. Only the machine-local halves are ignored: `settings.local.json`
+# holds per-machine permissions, and `CLAUDE.local.md` is for personal notes that
+# should not be shared.
+/.claude/settings.local.json
+/CLAUDE.local.md
