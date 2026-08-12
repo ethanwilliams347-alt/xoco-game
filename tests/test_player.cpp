@@ -385,5 +385,64 @@ int main() {
                   std::to_string(OBSTACLE_X));
     }
 
+    // --- a settled sand pile is still walkable, whatever MAX_STEP_HEIGHT is ---
+    //
+    // Every lip case above is built from Wall, so all of them test the constant
+    // against a *cliff*. The terrain the player actually meets is powder, and a
+    // settled pile is not a cliff: it is a slope of one-cell steps whose total
+    // rise is far more than any step height would ever be. Those are two
+    // different promises, and only the cliff half had a test.
+    //
+    // This is here because it is the failure direction D7's fix risks.
+    // Lowering MAX_STEP_HEIGHT to stop the player skating over piles trades
+    // towards TUNING.md's named opposite - "settled sand becomes a staircase
+    // you have to jump up" - and nothing would have caught that, because the
+    // cliff tests are written in terms of the constant and so follow it down
+    // silently. The assertion deliberately names no number: it says the player
+    // crosses the pile, which has to stay true at any step height a settled
+    // slope's one-cell steps can clear.
+    {
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        const int pile_w = 2 * Player::WIDTH;
+        for (int y = FLOOR_Y - Player::HEIGHT / 2; y < FLOOR_Y; ++y)
+            for (int x = OBSTACLE_X; x < OBSTACLE_X + pile_w; ++x)
+                g.set_element(x, y, ElementType::Sand);
+
+        // Let it slump before the player arrives - a pile still collapsing is a
+        // different scenario, and a less repeatable one.
+        int quiet = 0;
+        for (int i = 0; i < 4000 && quiet < 30; ++i) {
+            g.update();
+            quiet = g.active_chunk_count() == 0 ? quiet + 1 : 0;
+        }
+
+        // The pile's real extent after slumping, rather than the block that was
+        // painted - sand spreads, and asserting against the painted width would
+        // be asserting the player cleared less than it did.
+        int pile_right = OBSTACLE_X;
+        int pile_peak = FLOOR_Y;
+        for (int x = 0; x < WORLD_W; ++x)
+            for (int y = 0; y < FLOOR_Y; ++y)
+                if (g.get_element(x, y).type == ElementType::Sand) {
+                    if (x > pile_right) pile_right = x;
+                    if (y < pile_peak) pile_peak = y;
+                }
+        const std::string pile = "pile spans to x=" + std::to_string(pile_right) +
+                                 ", peak row " + std::to_string(pile_peak) + " (rise " +
+                                 std::to_string(FLOOR_Y - pile_peak) + "), step height " +
+                                 std::to_string(Player::MAX_STEP_HEIGHT);
+
+        // If the slump left a mound no taller than a single step, this scenario
+        // is not testing what it claims to and would pass for the wrong reason.
+        check("the settled pile is taller than one step", FLOOR_Y - pile_peak > Player::MAX_STEP_HEIGHT, pile);
+
+        Player p(10, STAND_Y);
+        step(g, p, NOTHING, 60);
+        step(g, p, held_right(), 600);
+
+        check("player walks over a settled sand pile", p.cell_x() > pile_right,
+              feet_detail(p) + "; " + pile);
+    }
+
     return report();
 }

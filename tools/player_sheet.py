@@ -104,7 +104,17 @@ class Anim:
 ANIMATIONS = [
     #    name     row  col  frames  wait  loop
     Anim('idle',   0,   0,     2,    30,  True),
-    Anim('walk',   1,   0,     6,     5,  True),
+    # Slowed from 5 to 6 - the cycle now runs 36 steps (0.6s) rather than 30.
+    # Session 5 read the walk as about 10% too fast; 6 is the only adjacent
+    # value the column can hold, and it is 20% slower, so this deliberately
+    # overshoots an estimate rather than matching it. That is the cheap
+    # experiment: if 20% reads fine the defect is closed for free, and if it
+    # reads sluggish *that* is the measurement earning a sub-step animation
+    # clock - see ROADMAP.md D6. Nothing is latched to this row, so unlike
+    # `fly` against FLAP_INTERVAL_STEPS there is no second number to keep it
+    # in phase with; the only thing it has to agree with is how fast the
+    # figure actually crosses ground, which is judged by eye.
+    Anim('walk',   1,   0,     6,     6,  True),
     # Two poses, one row. Neither advances on a clock: which one shows is
     # decided by the sign of the player's vertical velocity, so a long fall
     # holds the falling pose instead of cycling through a rise it is not doing.

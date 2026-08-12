@@ -130,7 +130,19 @@ public:
     // still made of one-cell steps, but the leg climbing it is 2.5x longer, and
     // a lip that stopped the old body at a quarter of its height would stop
     // this one at a tenth.
-    static constexpr int MAX_STEP_HEIGHT = 5;
+    //
+    // **2026-08-12: 3 rather than 5 (D7).** The reasoning above scaled the old
+    // ratio and never checked it - 5 against a 20-cell body is a quarter of the
+    // player's own height climbed instantly and with no animation, which
+    // playtesting read as "walking into a settled pile does nothing, the player
+    // walks over it". That is not a missing interaction, it is this number. 3
+    // is about a curb rather than a table, and it is still three times the
+    // one-cell steps a settled slope is actually made of, so powder stays
+    // walkable - the test below the cliff cases in tests/test_player.cpp exists
+    // to hold that, because it is the failure this trades towards. Not 2: the
+    // leg really is 2.5x longer than the body that number was chosen for, so
+    // going back to it would be undoing the scaling rather than correcting it.
+    static constexpr int MAX_STEP_HEIGHT = 3;
 
     // How far the unstuck search looks for open space when the player ends up
     // inside terrain. See resolve_overlap() for why that happens at all. Scaled

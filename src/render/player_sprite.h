@@ -53,7 +53,7 @@ static_assert(OFFSET_X == (FRAME_W - Player::WIDTH) / 2 &&
 // on every step: a figure that stands still twitching. It compiles, links
 // and runs.
 inline constexpr Anim IDLE{0, 0, 2, 30, true};
-inline constexpr Anim WALK{1, 0, 6, 5, true};
+inline constexpr Anim WALK{1, 0, 6, 6, true};
 inline constexpr Anim RISE{2, 0, 1, 0, true};
 inline constexpr Anim FALL{2, 1, 1, 0, true};
 inline constexpr Anim DIG{3, 0, 3, 8, false};

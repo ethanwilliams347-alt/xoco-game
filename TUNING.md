@@ -10,6 +10,16 @@ constant in the codebase. Simulation-correctness numbers (`MAX_SUPPORT_CELLS`,
 `MIN_PRESSURE_HEAD`, the reaction thresholds) are not feel knobs and are
 documented at the point they are used.
 
+**A pass over the feel of all the controls is expected, and is not scheduled**
+*(noted 2026-08-12, when D6 and D7 were accepted)*. Both were accepted as *fine
+for now* rather than as right, by someone who said in the same breath that the
+controls as a whole will want revisiting. So the values in the movement table
+are a floor, not a settled answer — and the honest reading of a row that says
+"accepted on a look" is that nobody has yet compared it against an alternative.
+The prerequisite is not more tuning: it is `F5`, which makes these constants
+integers, since retuning a float kinematics model and then converting it means
+tuning it twice.
+
 Two rules that apply to everything below:
 
 - **Velocities are in cells per second, and one cell is 4 screen pixels**
@@ -30,7 +40,7 @@ Two rules that apply to everything below:
 | `JUMP_SPEED` | [67](src/physics/player.h#L67) | 175.0 | Standing jump. Set outright rather than added, and uncapped by `FLAP_MAX_CLIMB`, so it stays the strongest single upward move. ~1.5 body heights. |
 | `GRAVITY` | [68](src/physics/player.h#L68) | 500.0 | Downward acceleration. **Affects flight too** — there is no separate flight gravity — so raising it makes the character heavier in the air as well as falling faster. |
 | `MAX_FALL_SPEED` | [69](src/physics/player.h#L69) | 400.0 | Terminal velocity. Higher reads as heavier, and costs frame time in the `collapsing` scenario (see [PERFORMANCE.md](PERFORMANCE.md)). |
-| `MAX_STEP_HEIGHT` | [133](src/physics/player.h#L133) | 5 | Tallest lip walked over without jumping. Lower it and settled sand becomes a staircase you have to jump up. |
+| `MAX_STEP_HEIGHT` | [133](src/physics/player.h#L133) | 3 | Tallest lip walked over without jumping. Lower it and settled sand becomes a staircase you have to jump up; raise it and terrain stops reading as terrain — the body climbs a fifth of its own height instantly and with no animation, which at 5 played as piles not being there at all. **Both failures now have tests in `player_test`** (cliff cases derived from the constant, plus a settled-pile case that must pass at any value), but neither can judge whether the climb *feels* like effort. |
 
 **Scale warning.** These were all multiplied by 2.5 when the body grew. Tune
 from the current values by feel; the pre-scale numbers now describe a much
@@ -67,7 +77,7 @@ generated and editing it directly is overwritten work.
 | Animation | Now | Notes |
 |---|---|---|
 | `idle` | 2 frames, wait 30 | One second per frame. A breathing pause. |
-| `walk` | 6 frames, wait 5 | Half a second per cycle. Not linked to `MOVE_SPEED` — change the speed a lot and the feet will visibly skate until this is retuned to match. |
+| `walk` | 6 frames, wait 6 | 36 steps — 0.6s per cycle. Not linked to `MOVE_SPEED` — change the speed a lot and the feet will visibly skate until this is retuned to match. **The column cannot go finer than a whole step, so the next value either way is 20% off; if 6 reads sluggish that is the case for a sub-step animation clock, not for going back to 5.** |
 | `rise` / `fall` | 1 frame, wait 0 | Poses, not animations. `wait 0` means "does not advance on a clock". |
 | `dig` | 3 frames, wait 8 | 24 steps (0.4s), against `DigTool::COOLDOWN_STEPS` of 6 — a held dig restarts the swing long before it finishes, so frames 1-2 only show on an isolated click. |
 | `fly` | 6 frames, wait 3 | **Constrained, see below.** |
@@ -109,6 +119,17 @@ the numbers.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-12** — `MAX_STEP_HEIGHT` 5 → 3 (D7). **Accepted on a look the same day.** 5 was never chosen, it was
+  scaled from the old 8-cell body's 2 and kept that body's ratio; a quarter of
+  a 20-cell body climbed instantly is what playtesting read as "the player
+  walks over settled piles as if they weren't there". Not 2 — the leg really
+  is 2.5x longer, so that would undo the scaling rather than correct it.
+- **2026-08-12** — `walk` animation: wait 5 → 6, cycle 30 → 36 steps (D6). The
+  walk read about 10% too fast; 6 is the only adjacent value a whole-step
+  column holds and it is 20% slower, so this overshoots the estimate on
+  purpose. **Accepted on a look the same day — 36 steps does not read
+  sluggish, so the whole-step column is not yet the thing holding this back and
+  C4's second data point did not arrive.**
 - **2026-08-09** — Flight weight: `FLAP_IMPULSE` 130 → 177, `FLAP_MAX_CLIMB`
   70 → 98. Flight playtested ~40% too heavy; both moved together so the climb
   ceiling rose with the impulse.
