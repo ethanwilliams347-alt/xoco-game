@@ -1374,5 +1374,91 @@ int main() {
               "steepest adjacent column drop was " + std::to_string(steepest) + " cells");
     }
 
+    // **D3 - the last of the water elevator, as a property rather than a rate.**
+    //
+    // `water_probe` has measured this since A6b and it is the probe's residue
+    // line: a handful of water cells left standing one row proud of the pool
+    // once the pour stops. It was signed off on paper as "a handful", and the
+    // paper was written when the view was smaller. What it actually is is
+    // `vent_fluid`'s straight-swap fallback - when no surface and no downhill
+    // drain is within VENT_RADIUS, `step_powder` still trades the grain with the
+    // fluid and the fluid goes up one cell. Almost always harmless; not always.
+    //
+    // **The assertion is about rest, not about height.** Water climbing a cell
+    // mid-pour is a splash and is allowed - the pool's surface is genuinely
+    // disturbed while sand is falling into it. Water that is still up there when
+    // nothing in the world is moving at all had nowhere to fall to, which is a
+    // different claim and the one worth pinning. So the world is poured, the
+    // brush is released, and the check is only taken once
+    // `active_chunk_count() == 0` has held for 30 steps - the same settled
+    // condition the pile test above uses. That is what "splash excepted" means
+    // here, and it is stronger than a step-number cutoff, which would only have
+    // encoded this scenario's timing.
+    {
+        constexpr int W = 120, H = 90, FLOOR_Y = 80, SURFACE_Y = 60;
+        constexpr int CURSOR_X = 60, CURSOR_Y = 35;
+
+        Grid g(W, H, 4242);
+        for (int x = 0; x < W; ++x) g.set_element(x, FLOOR_Y, ElementType::Wall);
+        for (int y = SURFACE_Y; y < FLOOR_Y; ++y)
+            for (int x = 10; x < W - 10; ++x) g.set_element(x, y, ElementType::Water);
+
+        const int start_water = count_of(g, ElementType::Water);
+
+        // A stationary brush 25 cells of open air above the water, as in
+        // `water_probe`. The cursor is the highest sand in the world, so
+        // nothing puts water above the pool except a lift.
+        for (int s = 0; s < 500; ++s) {
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx)
+                    g.set_element(CURSOR_X + dx, CURSOR_Y + dy, ElementType::Sand);
+            g.update();
+        }
+
+        int quiet = 0;
+        for (int s = 0; s < 6000 && quiet < 30; ++s) {
+            g.update();
+            quiet = g.active_chunk_count() == 0 ? quiet + 1 : 0;
+        }
+        check("the poured world settles", quiet >= 30,
+              "awake chunks " + std::to_string(g.active_chunk_count()));
+
+        // The free surface is the pool's own top, found as the highest row that
+        // is *broadly* water. Deliberately not the highest water cell, which is
+        // the thing under test, and deliberately not the original SURFACE_Y:
+        // pouring sand into a pool raises its level honestly, and measuring
+        // against the old waterline scores the fix and the defect the same.
+        int free_surface = -1;
+        for (int y = 0; y < H && free_surface < 0; ++y) {
+            int n = 0;
+            for (int x = 0; x < W; ++x)
+                if (g.get_element(x, y).type == ElementType::Water) n++;
+            if (n >= 20) free_surface = y;
+        }
+
+        int stranded = 0;
+        std::string where;
+        for (int y = 0; y < free_surface; ++y)
+            for (int x = 0; x < W; ++x)
+                if (g.get_element(x, y).type == ElementType::Water) {
+                    if (stranded < 6)
+                        where += " (" + std::to_string(x) + "," + std::to_string(y) + ")";
+                    stranded++;
+                }
+
+        check("no water comes to rest above the pool's free surface", stranded == 0,
+              std::to_string(stranded) + " cells above row " +
+                  std::to_string(free_surface) + ":" + where);
+
+        // Kept beside it because the two failures look alike in a screenshot and
+        // are opposite defects: water lifted out of the pool leaves the total
+        // alone, water invented does not. If this one ever goes red the
+        // assertion above is measuring something else.
+        check("pouring sand into water conserves the water",
+              count_of(g, ElementType::Water) == start_water,
+              std::to_string(start_water) + " -> " +
+                  std::to_string(count_of(g, ElementType::Water)));
+    }
+
     return report();
 }

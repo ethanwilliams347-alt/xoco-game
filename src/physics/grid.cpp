@@ -887,9 +887,32 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
     // level to within one cell rather than exactly - the same trade
     // MIN_PRESSURE_HEAD already makes, and it now buys a surface that is
     // *still* rather than merely level on average.
+    // **D3 sharpened this from "the destination can hold it" to "sideways travel
+    // runs along a floor, never up onto one."** The old rule refused only the
+    // move whose destination was perched on more of the same liquid, which is
+    // half of the pointless moves. The other half is its mirror: a surface cell
+    // stepping *off* its own body onto a solid shoulder standing at the surface
+    // row. That move is one-way - the return trip fails the old test, since the
+    // cell it came from is now liquid-floored - so a cell that takes it is
+    // stranded there permanently, a film one row proud of the water with a
+    // 4-connected body of exactly one cell. `seek_level` cannot rescue it either:
+    // it searches the body, and the body is the cell.
+    //
+    // That is what `water_probe`'s residue has always been. It was read as
+    // `vent_fluid` handing water up one last cell, because the sand pour is what
+    // puts water on the slope in the first place - but the pour only delivers the
+    // cell to the shoulder, and this rule is what nails it there. **Both halves
+    // recorded, because the wrong half was believed for three sessions.**
+    //
+    // `on_solid` is the whole of the change and it makes perched-ness strictly
+    // decrease across every lateral move, which is why this cannot jitter: the
+    // old defect needed a cell able to move back and forth across its own
+    // surface, and one direction is now closed. Puddle-spreading along a floor is
+    // solid-to-solid and untouched, which is the case the rule was written for.
+    const bool on_solid = is_solid(get_element(x, y + 1).type);
     const auto can_rest_at = [&](int nx) {
         if (can_displace(mat, nx, y + 1, 1)) return true;      // it can carry on down
-        return is_solid(get_element(nx, y + 1).type);          // or it has a floor (OOB reads as Wall)
+        return on_solid;   // otherwise only ever along a floor, never off one onto another
     };
 
     // **Nothing may travel sideways across open air, and this is defect A7.**

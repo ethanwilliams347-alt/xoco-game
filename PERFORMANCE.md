@@ -32,6 +32,22 @@ Replaced wholesale, per the rule below, which also retires the stale `burning` e
 
 **The render-side numbers did not move and were not expected to.** `light/fire` reads 15.25 ms and `light/dark` 1.24 ms against 15.48 and 1.28 on record — the field is sized to the viewport, not to the world, so world size cannot reach it. That is also why the light section is run once rather than once per size: a second size would produce a second identical number, and a pair of matching numbers invites being read as evidence about something that was never varied.
 
+### D3's fluid change cost nothing, and the second run is the only reason that is known
+
+**2026-08-12.** D3 changed one condition in `step_fluid`'s lateral scan — the hottest fluid path there is — so a bracketed reading was owed even though the change removes work rather than adding it. Both directions, one sitting, back to back, at 1920x1080:
+
+| Scenario | before | after | |
+|---|---|---|---|
+| **churning** | 35.773 | 36.665 | +2.5% |
+| **cascading** | 40.732 | 41.056 | +0.8% |
+| **burning** | 8.046 | 8.672 | **+7.7%** |
+| *collapsing* (control) | 2.766 | 2.754 | −0.4% |
+| *shattering* (control) | 3.178 | 3.182 | +0.1% |
+
+**The controls held, so the rig was trustworthy, and the reading was still wrong.** `burning` contains no sand-in-water at all and came out as the largest mover on the board — which is the tell. A **second run of the unchanged binary**, with nothing rebuilt between them, gave `burning` 8.648 and `cascading` 41.259: the same binary moved further than the change did. Run-to-run noise here is about 1.5%, every delta above is inside it, and the honest result is **no measurable cost**.
+
+This is filed for the method and not for the numbers. It is the third time on this project that a confident percentage has turned out to be the machine — after the 28% that was the compiler re-laying-out the hot loop, and the fire-only change that moved two scenarios containing no fire. **A control scenario proves the rig is stable; it does not prove a single reading is.** Both A/B directions have to be run at least twice, and the cheapest way to find out whether a delta is real is to measure a change that does not exist.
+
 ## The light field does not fit the widest display mode
 
 Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:

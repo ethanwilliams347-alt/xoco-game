@@ -204,6 +204,16 @@ private:
     // 3 is the knee: nearly all of 4's accuracy for three quarters of its cost.
     // The residue past those steps is a handful of cells and is described at the
     // A6b entry in PLAYTEST_LOG.md - it is a known limit, not an unknown.
+    //
+    // **What that residue is has changed, and half of it was never this.** D3
+    // (2026-08-12) found that the cells left standing once a pour *stopped* were
+    // not this fallback at all but `step_fluid`'s lateral rest rule stranding
+    // them on the slope; that half is fixed and the settled pool now comes back
+    // exactly level. What survives is a transient: the counts above are still
+    // what `water_probe` reports while the brush is held, and they now drain on
+    // release instead of setting. So this radius is priced against something
+    // that clears itself, which is a weaker case for ever paying r=4 than the
+    // sweep above was taken to make.
     static constexpr int VENT_RADIUS = 3;
 
     // Lifts the movable cell at (x, y) to the first Empty cell above it, so the
