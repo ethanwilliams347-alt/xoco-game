@@ -48,6 +48,26 @@ Replaced wholesale, per the rule below, which also retires the stale `burning` e
 
 This is filed for the method and not for the numbers. It is the third time on this project that a confident percentage has turned out to be the machine — after the 28% that was the compiler re-laying-out the hot loop, and the fire-only change that moved two scenarios containing no fire. **A control scenario proves the rig is stable; it does not prove a single reading is.** Both A/B directions have to be run at least twice, and the cheapest way to find out whether a delta is real is to measure a change that does not exist.
 
+### E9's steam clock costs 3-4% in two scenarios that contain no steam
+
+**2026-08-12.** E9's steam half adds one branch to `step_cell`'s per-cell chain and a countdown to steam cells. The E-track merge rule says a reading is owed, and the previous entry says both directions have to be run at least twice, so this is **four runs with the change on and three with it off**, one sitting, back to back, at 1920x1080. The "off" build has the steam branch compiled out entirely rather than skipped.
+
+| Scenario | off (3 runs) | on (4 runs) | |
+|---|---|---|---|
+| **churning** | 35.40 / 36.03 / 35.95 | 36.78 / 36.76 / 37.18 / 36.80 | **+3.0%** |
+| **cascading** | 39.08 / 40.33 / 40.00 | 41.44 / 41.32 / 41.68 / 41.68 | **+4.3%** |
+| *burning* | 8.65 / 8.48 / 8.00 | 8.55 / 8.52 / 8.16 / 8.48 | inside noise |
+| *collapsing* (control) | 2.76 / 2.77 | 2.77 / 2.78 | flat |
+| *shattering* (control) | 3.16 / 3.18 | 3.18 / 3.18 | flat |
+
+**The two ranges do not overlap on either row, which is what makes this different from the entry below it.** D3's reading was killed by re-running the unchanged binary and watching it move further than the change had; that was tried here and it does not happen — seven runs, and every "on" churning reading is above every "off" one. By the standard this file set for itself two entries ago, the delta is real.
+
+**And it cannot be the feature, because neither scenario contains a single steam cell.** `churning` is sand sinking through water and `cascading` is powder poured off a ceiling; the branch is never taken in either, and `step_steam` never executes. What is left is the cost of *asking*: one extra perfectly-predicted comparison per awake cell per step, or the compiler laying the hot loop out differently around it. **Which of those it is has not been established**, and the honest reason is that separating them means reading disassembly for a number that does not change the decision.
+
+**It merges, under the rule as written** — under 10%, with the cost recorded and an argument. The argument is that the alternative to the branch is a fourth write path or a per-material dispatch, both of which cost more than a compare, and that the same chain already carries Fire's check for the same reason.
+
+**The gap this exposed, and it is the more useful output: no benchmark scenario contains steam at all.** So the measured cost of E9's steam half *where it is actually used* — a pocket collecting under a ceiling, its contact layer awake and its interior asleep — is **unknown**, and nothing in this file can currently produce it. That is a concrete requirement for **P4**: a replayed session that includes putting a fire out near a ceiling is the row that would answer it. Until then the claim about this feature's cost is bounded to "the branch is under 10% in scenarios that never take it", which is a much weaker statement than a row in this table usually makes, and is written that way on purpose.
+
 ## The light field does not fit the widest display mode
 
 Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:

@@ -342,16 +342,22 @@ int main() {
     {
         Grid g(20, 40);
         for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
-        // 45 steps, not 300, and not the 100 this used to say. Steam spawns hot
-        // and cools, so once it has condensed back to water there is no steam
-        // left to measure the height of - which is E2 working, not this test
-        // failing, and the condensing behaviour gets its own check below.
+        // 45 steps, not 300, and not the 100 this used to say. Once the puff has
+        // condensed back to water there is no steam left to measure the height
+        // of, so the window has to end before that; the condensing behaviour
+        // gets its own checks below.
         //
-        // The window is ~60 steps now rather than ~140, because Steam's spawn
-        // temperature had to come down below the coldest ignition point in
-        // REACTIONS (see its row in material.h) and its life is exactly that
-        // span. 45 is comfortably inside it and comfortably past the 35 steps
-        // the puff needs to climb from row 35 to the ceiling at one cell a step.
+        // **The reason the window is what it is has changed, and the old reason
+        // is recorded because it was true for four sessions.** It used to be
+        // ~60 steps, because steam's life was the span between its spawn
+        // temperature and its condensing point and the spawn end had been pulled
+        // down below the ignition floor. E9's steam half moved the clock onto
+        // `Element::ticks`, so the puff now survives its climb regardless of
+        // what it has cooled to and only starts spending its life once it
+        // reaches the ceiling - see `STEAM_LIFETIME_MEAN` in grid.h. 45 is still
+        // the right number, for a different reason: it is comfortably past the
+        // 35 steps the puff needs to climb from row 35 at one cell a step, and
+        // comfortably short of the 200 it then spends against the ceiling.
         step(g, 45);
         const double steam = mean_row(g, ElementType::Steam);
         check("steam rises", steam >= 0.0 && steam < 5.0, "steam row=" + std::to_string(steam));
@@ -883,26 +889,31 @@ int main() {
               "step=" + std::to_string(boiled));
     }
 
-    // --- heat: steam condenses as it cools ---
-    // The other end of the same cycle, and the reason Steam spawns hot rather
-    // than at ambient: steam that is not above condensing point is water, so a
-    // puff created at room temperature would turn back on the step it was made.
+    // --- steam does not condense the instant it is made, and does in the end ---
     //
-    // In open air rather than sealed in a Wall box, which is the fixture the
-    // first version of this test used and the wrong one. Empty has conductivity
-    // zero, so steam surrounded by air cools only by the slow bleed to ambient
-    // and lives a couple of hundred steps; steam packed against stone dumps its
-    // heat into the stone and is gone in ten. Both are correct, and the one
-    // worth asserting on is the one a player ever sees.
+    // **This was "heat: steam condenses as it cools" and it is not that any
+    // more.** E9's steam half moved condensation off the temperature axis
+    // entirely: the `{ Steam -> Water, 0..26 }` row is deleted and a countdown on
+    // `Element::ticks` owns it, so nothing here is testing heat. The block is
+    // kept and re-aimed rather than removed, because both of the things it
+    // asserts are still exactly the properties worth pinning - a puff must not
+    // vanish on the step it appears, and it must not be permanent - and the
+    // reasoning is rewritten rather than deleted so the change is visible to
+    // whoever reads this next.
     //
-    // Probed at 30 steps rather than 60. Steam's life is exactly the span
-    // between its spawn temperature and its condensing point, and both moved
-    // when steam stopped being hot enough to set fire to things (see Steam's
-    // row in material.h): ~60 steps now rather than ~140. A 60-step probe would
-    // still pass, two degrees clear of condensing, but it would be asserting
-    // "steam has not *quite* gone yet" while reading as "steam is not
-    // instantaneous", and the next tweak to either number would break it for a
-    // reason nobody could see from here.
+    // **What the old comment claimed, kept because it was load-bearing for four
+    // sessions and is the thing that went wrong:** steam's life was the span
+    // between its spawn temperature and its condensing point, so how long a puff
+    // lasted depended on what it was touching. In open air it lived a couple of
+    // hundred steps; packed against stone it dumped its heat into the stone and
+    // was gone in ten. Both were called correct. The second is the case a player
+    // actually creates, and it is the defect PLAYTEST_LOG.md reported three
+    // times - see the two E9 blocks above, which are the tests that catch it.
+    //
+    // Still in open air rather than sealed in a Wall box, and now for a
+    // different reason: this block is the one that says a rising puff is not
+    // instantaneous, and the sealed fixtures above are the ones that say a
+    // collected pocket drips.
     {
         Grid g(20, 40);
         for (int x = 8; x < 12; ++x) g.set_element(x, 35, ElementType::Steam);
@@ -916,6 +927,103 @@ int main() {
               "steam=" + std::to_string(count_of(g, ElementType::Steam)) +
               " water=" + std::to_string(count_of(g, ElementType::Water)));
         check("condensing steam conserves matter", count_of(g, ElementType::Water) == 4,
+              "water=" + std::to_string(count_of(g, ElementType::Water)));
+    }
+
+    // --- E9 steam: the clock is the steam's own, not the temperature's ---
+    //
+    // **This is A5 / B3 / D5, the same complaint returned three times in four
+    // sessions**, and the three of them are one sentence: a puff only lasts if
+    // it stays dangerously hot. Steam's lifetime used to be the span between its
+    // spawn temperature and its condensing point, so anything that cooled it
+    // ended it - and the thing steam spends its life pressed against is a stone
+    // ceiling, which is the fastest heat sink in the scene. A pocket collecting
+    // under a roof therefore had the *shortest* life in the game, which is the
+    // exact opposite of what all three reports asked for.
+    //
+    // The fixture is a sealed Wall box because that is the shape the complaint
+    // is about, and because it is the case an open-air test cannot see: Empty
+    // has conductivity zero, so steam in mid-air only bleeds slowly to ambient
+    // and looks acceptable. The bug needs the ceiling. That is the same reason
+    // the steam-as-fire-starter regression below seals its pocket, and it is
+    // recorded in this file twice now for the same reason.
+    {
+        Grid g(20, 20);
+        for (int x = 0; x < 20; ++x)
+            for (int y = 0; y < 20; ++y)
+                if (x == 0 || y == 0 || x == 19 || y == 19) g.set_element(x, y, ElementType::Wall);
+        for (int x = 8; x < 12; ++x) g.set_element(x, 2, ElementType::Steam);
+
+        step(g, 30);
+        check("E9: a pocket against a stone ceiling is intact after 30 steps",
+              count_of(g, ElementType::Steam) == 4,
+              "steam=" + std::to_string(count_of(g, ElementType::Steam)) +
+              " water=" + std::to_string(count_of(g, ElementType::Water)));
+    }
+
+    // --- E9 steam: it collects against the ceiling, then drips ---
+    //
+    // B3 asked for collect, wait, drip. Condensation happening at the contact
+    // row rather than uniformly is the whole of it: the top row of a pocket
+    // turns to water and falls through the rest of the pocket under the density
+    // rule that already exists, the row below rises into contact, and the pocket
+    // drains from the top while the drops arrive at the floor one at a time.
+    //
+    // Drip rate scales with pocket size for free and without measuring anything,
+    // because a wider pocket has more cells in contact with the ceiling and each
+    // of them is condensing on its own clock. That is the shape ROADMAP.md's E9
+    // entry asked for, arrived at by construction rather than by a rule.
+    //
+    // **Asserted on what is left of the pocket when the first drop lands, and
+    // that is the whole discrimination.** Water reaching the floor is not the
+    // property - the old behaviour passes that, because a pocket that condenses
+    // uniformly also produces water, which then falls. What it cannot do is
+    // survive its own drips: it turned to water all at once, so by the time the
+    // first drop arrived there was no steam left anywhere. Written the obvious
+    // way ("water reaches the floor") this test passed on the unfixed engine,
+    // which is exactly the shape of failure `.claude/rules/simulation.md` warns
+    // a loader's tests about, met here in the physics.
+    {
+        Grid g(20, 20);
+        for (int x = 0; x < 20; ++x)
+            for (int y = 0; y < 20; ++y)
+                if (x == 0 || y == 0 || x == 19 || y == 19) g.set_element(x, y, ElementType::Wall);
+        for (int y = 2; y < 6; ++y)
+            for (int x = 6; x < 14; ++x) g.set_element(x, y, ElementType::Steam);
+        const int placed = 32;
+
+        int dripped = 0;
+        int first_water = -1;
+        int last_steam = -1;
+        for (int i = 0; i < 900; ++i) {
+            step(g, 1);
+            if (first_water < 0 && count_of(g, ElementType::Water) > 0) first_water = i;
+            if (count_of(g, ElementType::Steam) > 0) last_steam = i;
+            for (int x = 1; x < 19; ++x)
+                if (g.get_element(x, 18).type == ElementType::Water) ++dripped;
+        }
+        check("E9: a ceiling pocket drips water down to the floor", dripped > 0,
+              "steam=" + std::to_string(count_of(g, ElementType::Steam)));
+
+        // **The discriminating number, and it is a duration rather than a
+        // count.** A pocket that condenses uniformly turns into water over a
+        // handful of steps, because every cell in it crosses the same
+        // temperature threshold at about the same time - so the span between
+        // the first drop and the last steam cell is nearly nothing. Condensing
+        // at the contact row instead stretches that span across the whole
+        // drain: the top row goes, falls through, the next row rises into
+        // contact and goes. Wide span means drips; narrow span means a slug of
+        // water, whatever it looks like on the floor afterwards.
+        check("E9: the pocket drains gradually rather than all at once",
+              first_water >= 0 && last_steam - first_water > 100,
+              "first water at step=" + std::to_string(first_water) +
+              " last steam at step=" + std::to_string(last_steam));
+
+        check("E9: the pocket condenses away in the end",
+              count_of(g, ElementType::Steam) == 0,
+              "steam=" + std::to_string(count_of(g, ElementType::Steam)));
+        check("E9: condensation conserves matter",
+              count_of(g, ElementType::Water) == placed,
               "water=" + std::to_string(count_of(g, ElementType::Water)));
     }
 

@@ -57,6 +57,13 @@ enum class Stream : uint64_t {
     // first frame the lowest roll came up, which is the timing jitter this
     // replaced and measurably does nothing.
     IgnitionPoint   = 0xD6E8FEB86659FD93ull,
+    // How long one steam cell lasts before it condenses. Its own stream for the
+    // same reason FlameLifetime is: it is drawn about a cell on the step that
+    // cell is created, and sharing with anything else asked about that cell on
+    // that step would correlate a puff's lifetime with an unrelated decision -
+    // here, with `FluidDirection`, which is asked of every gas every step and
+    // would make the longest-lived steam always the steam that drifted one way.
+    SteamLifetime   = 0xA3B195354A39B70Dull,
 };
 
 // splitmix64's finalizer. Two multiplies and three xor-shifts, entirely in
@@ -186,6 +193,7 @@ inline constexpr Stream SIM_STREAMS[] = {
     Stream::FlameLifetime,
     Stream::FlameRise,
     Stream::IgnitionPoint,
+    Stream::SteamLifetime,
 };
 
 // Two streams sharing a value are one stream, silently. Nothing about that looks

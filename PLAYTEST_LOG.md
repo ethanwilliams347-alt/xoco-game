@@ -48,7 +48,7 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 | A2 | HUD lags material switches by up to a second — the key press takes effect immediately but the readout does not. | minor | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 | A3 | Wood burns away far too fast. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
 | A4 | Fire will not propagate along a horizontal wood beam. Alongside a vertical beam it works. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
-| A5 | Steam condenses back to water far too fast. | major | **open** — the steam half of E9 |
+| A5 | Steam condenses back to water far too fast. | major | **fixed 2026-08-12** — the steam half of E9. Wants confirming in play; see B3 and D5, the same report again |
 | A6 | Spawning material into water caps the water on top, then it bursts outward on release. | major | **fixed and confirmed** — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding), session 5 W-1/W-2 |
 | A7 | Falling liquid throws horizontal sticks under 10 cells wide. | minor | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 | A8 | Material carves authored background out of whatever it passes through, leaving a permanent black wake. | major | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
@@ -71,7 +71,7 @@ Each names a real problem. None is a specification, and the fix suggested alongs
 
 - **B1 — the dig marker is hard to read.** Requested as an open crosshair (four non-intersecting ticks) that follows the cursor everywhere and dims outside dig range. *Tracked as V10, first half — built.*
 - **B2 — selecting materials is slow.** Requested as a hotbar with per-material icons and key numbers. *Tracked as V10, second half — built. Part of this observation was defect A2 rather than an interaction problem, which is worth knowing before taking the next feature request at face value.*
-- **B3 — steam should collect, wait, then drip increasingly fast and shrink as it goes.** *Tracked as the steam half of E9 — open. This and defect A5 are the same fix seen from two sides.*
+- **B3 — steam should collect, wait, then drip increasingly fast and shrink as it goes.** *Tracked as the steam half of E9 — built 2026-08-12, not yet confirmed in play. This and defect A5 are the same fix seen from two sides, and D5 is the third time it was reported.*
 - **B4 — rigid bodies should tip, topple and roll.** The observation underneath is that bodies falling flat and landing flat read as lifeless. *Tracked as E8 — open, and scoped to toppling only; the rolling half is deferred on cost for reasons in that item. (It used to be deferred "behind E5"; E5 split on 2026-08-09 and E5a is not an off-grid layer, so the dependency was withdrawn — the deferral is now on the price of a solver.)*
 
 ### Follow-up — fire measured against reference footage
@@ -413,7 +413,7 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 | D2 | Pouring sand onto the player pushes it in a glitch-like way, and **can push it through solid objects**. | major | wave 4 |
 | D3 | Water still climbs a standing sand column, "about 50 percent too quickly", after A6b's headline symptom is gone. | major | **open** — the fluid spike |
 | D4 | Water and oil do not flow — jagged shapes on displacement, staggered clumps down a pile. Reported twice in one session, at step 4 and again at W-5. | major | **open** — the fluid spike |
-| D5 | Steam condenses back to water far too quickly; it should collect and then drip slowly. | major | **open** — the steam half of E9. **Third report** — see A5 and B3. |
+| D5 | Steam condenses back to water far too quickly; it should collect and then drip slowly. | major | **fixed 2026-08-12** — the steam half of E9. **Third report** — see A5 and B3, and it is the third report that scheduled it. Wants confirming in play |
 
 **D3 is a residual to eliminate and not a rate to tune**, and that was settled rather than assumed: displacing sand into a pool must raise the pool's free *surface*, which is conservation and is W-6's pass, but no configuration of sand and water makes it right for water to occupy a column standing *above* that surface. The invariant is therefore assertable — **no water cell may come to rest above the free surface**, splash excepted — which takes this out of the realm of looks. `water_probe` already measures the quantity.
 

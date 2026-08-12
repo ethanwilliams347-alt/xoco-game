@@ -135,10 +135,28 @@ inline constexpr Reaction REACTIONS[] = {
     // in material.h for why that boundary is where it is.
     { ElementType::Count, ElementType::Oil,  10000, ElementType::Fire,     90, 255, 0 },
     { ElementType::Count, ElementType::Water,10000, ElementType::Steam,   100, 255, 0 },
-    // Condensing point, lowered from 80 alongside Steam's spawn temperature -
-    // see the note on that row in material.h. Steam's whole life is the span
-    // between the two numbers, so shortening one end meant moving the other.
-    { ElementType::Count, ElementType::Steam,10000, ElementType::Water,     0,  26, 0 },
+    // **Steam's condensing row is gone, and that removal is E9's steam half.**
+    //
+    // It read `{ Count, Steam, 10000, Water, 0, 26, 0 }` - condense below 26
+    // degrees - and the comment on it said, correctly, that "Steam's whole life
+    // is the span between the two numbers". That is the defect stated as a
+    // feature. Spawn temperature is pinned low by the `static_assert` at the
+    // bottom of this file, so the span was short; and because Empty conducts
+    // nothing while stone conducts well, the span was *shortest* exactly where
+    // steam is meant to gather. A pocket under a ceiling died in about ten
+    // steps. PLAYTEST_LOG.md asked for the opposite three times (A5, B3, D5).
+    //
+    // Condensation is now a countdown on `Element::ticks`, in `step_steam`,
+    // which is where a lifetime belongs and where the drip behaviour can read
+    // it. The row is deleted rather than widened because two owners of one
+    // lifetime is the thing that went wrong here, not the threshold's value.
+    //
+    // **What was given up, stated so it is not rediscovered as a bug:** steam
+    // no longer condenses because it is cold. Quenching a puff by dropping it
+    // into cold water is expressible again as a *catalyst* row (Water + Steam ->
+    // Water) the moment anything asks for it, and that is a different rule from
+    // a lifetime rather than a return of this one. Recorded in
+    // ENGINEERING_NOTES.md.
     // **Wood's burn duration, expressed as a lifetime.** Untemperatured on
     // purpose: a cell that is already burning is not waiting on a threshold.
     //

@@ -1446,6 +1446,56 @@ bool Grid::step_fire(int x, int y) {
     return false;
 }
 
+bool Grid::step_steam(int x, int y) {
+    const int idx = get_index(x, y);
+    Element& cell = cells[idx];
+
+    // A steam cell with no clock has just been created - by the brush, by water
+    // boiling, or by water dousing a flame - and is seeded here rather than at
+    // each of those three sites, for the same reason `spawn_temperature` lives
+    // in the table rather than at call sites, and exactly as step_fire does it.
+    // `place()` zeroes `ticks`, so "no clock" and "new" are the same condition
+    // and there is nothing to keep in sync.
+    if (cell.ticks == 0) {
+        cell.ticks = static_cast<uint8_t>(
+            STEAM_LIFETIME_MEAN + spread(STEAM_LIFETIME_SPREAD,
+                                         static_cast<uint64_t>(idx),
+                                         sim_random::Stream::SteamLifetime));
+        return false;
+    }
+
+    // **A ceiling is anything solid overhead, and the world's own top edge
+    // counts.** `get_element` answers Wall out of bounds - that is what seals
+    // the border for physics - so a pocket that has risen as far as it can go
+    // condenses against the sky the same way it does against stone, with no
+    // special case. Under an open sky that is the only thing that stops steam
+    // being permanent, and it is why this needs no separate "give up
+    // eventually" rule.
+    //
+    // Only the cell in contact ages. Everything under it is waiting its turn,
+    // which is the whole of the collect-and-drip behaviour - see the constants
+    // in grid.h for why that is the rule rather than a plain countdown.
+    if (!is_solid(get_element(x, y - 1).type)) return false;
+
+    if (--cell.ticks == 0) {
+        set_element(x, y, ElementType::Water);
+        return true;
+    }
+
+    // **A cell whose clock is running has to stay awake**, the same rule
+    // step_thermal states for a temperature that is still moving and try_react
+    // states for a spontaneous target. A steam cell packed against a ceiling
+    // does not move, so nothing else marks it, and without this it would sleep
+    // with time left on it and hang there forever.
+    //
+    // The standing cost is bounded twice over: only the contact layer of a
+    // pocket is ever ageing, and a cell that is ageing is at most 240 steps from
+    // being water, which sleeps. A pocket's interior generates no marks at all
+    // and is woken a row at a time by the `set_element` above.
+    mark_dirty(x, y);
+    return false;
+}
+
 void Grid::step_cell(int x, int y) {
     Element& current = cells[get_index(x, y)];
     if (current.type == ElementType::Empty || current.updated_tag == frame_tag) return;
@@ -1476,8 +1526,15 @@ void Grid::step_cell(int x, int y) {
     // their own chance to decay, so a cell always emits at least once - one that
     // lost its very first decay roll would otherwise appear and vanish having
     // shown nothing.
+    //
+    // Steam's clock sits in the same chain and for the same reason: it is the
+    // other cell in the table with a lifetime on `ticks` (element.h,
+    // `TickRole`), and a cell that has just condensed must not then be moved as
+    // though it were still a gas.
     if (current.type == ElementType::Fire) {
         if (step_fire(x, y)) return; // gone; nothing left to react or move
+    } else if (current.type == ElementType::Steam) {
+        if (step_steam(x, y)) return; // now water; it moves as water, next step
     } else if (mat.emits != ElementType::Count) {
         emit_flame(x, y, mat);
     }

@@ -47,12 +47,18 @@ struct Element {
     //  - For a *Fire* cell it is fuel remaining: steps of burning still owed by
     //    whatever this flame came from, seeded at ignition out of the burning
     //    material's `burn_duration` (PLAYTEST_LOG.md session 1, A3/A4).
+    //  - For a *Steam* cell it is steps until it condenses (E9's steam half).
+    //    The same role as Fire's and deliberately not a third one: both are
+    //    gases whose whole existence is a countdown, and neither can ever be
+    //    structural. See `TickRole` below, which is what says so to the
+    //    compiler now that the byte has more than one claimant of that kind.
     //
-    // Sharing is safe because the two roles cannot occur in the same cell: Fire
-    // is a Gas and is never structural, and that is asserted below rather than
-    // trusted. Every transition between the roles goes through `place()`, which
-    // builds a fresh Element and so zeroes this - a Wood cell that has been
-    // falling does not carry its fall ticks over as fuel when it ignites.
+    // Sharing is safe because the roles cannot occur in the same cell: a
+    // lifetime belongs to a Gas and a Gas is never structural, and that is
+    // asserted below rather than trusted. Every transition between the roles
+    // goes through `place()`, which builds a fresh Element and so zeroes this -
+    // a Wood cell that has been falling does not carry its fall ticks over as
+    // fuel when it ignites.
     //
     // Zero for everything else. Powders and fluids move one cell per step by
     // their own rules and have no use for a clock.
@@ -125,14 +131,61 @@ static_assert(sizeof(Element) <= 12, "Element grew - price the extra memory traf
 static_assert(Element{}.color == material_of(ElementType::Empty).color,
               "a default-constructed Element must carry Empty's colour from MATERIALS");
 
-// **Fire may not be structural, because `ticks` means two things.**
+// **What `Element::ticks` means, per material, as something a compiler can
+// read.**
 //
-// The byte is fall time for a structural cell and fuel for a Fire cell, and the
-// whole argument that one byte can serve both is that no cell is ever both at
-// once. That is true today for a reason no reader would think to check - Fire is
-// a Gas - and it is a single word in a MATERIALS row away from stopping being
-// true. If it ever did, a burning cell in free fall would spend its fuel on the
-// fracture threshold and its fall time on burning out, and neither system would
-// report anything wrong; the fire would simply last a random length of time.
-static_assert(!material_of(ElementType::Fire).structural,
-              "Fire shares Element::ticks with the structural fall clock and must not be structural");
+// This used to be a single `static_assert` naming Fire, and it was right for as
+// long as Fire was the only cell with a lifetime. E9's steam half is the second,
+// which is the point at which "no cell is ever both at once" stops being a fact
+// about one row and becomes a rule about the table. A rule about a table wants a
+// lookup and an assertion over every row, for the reason
+// `.claude/rules/simulation.md` gives about data-driven design: the danger lives
+// in the relationships between rows, and no compiler sees it unless one is
+// written.
+//
+// **Deliberately a function over `ElementType` rather than a column on
+// MATERIALS.** A column would be authored per row and could disagree with
+// `structural` on the very same line; this cannot, because `structural` is where
+// it reads the answer from. The cost is that a material with a lifetime is named
+// here, which is a real one and is the reason `Lifetime` is written as the
+// exception list rather than as the default.
+enum class TickRole : uint8_t {
+    None,      // powders and fluids: no clock, and the byte is unused
+    FallClock, // structural cells: steps of unbroken free fall
+    Lifetime,  // gases that expire: steps left before they are gone
+};
+
+inline constexpr TickRole tick_role(ElementType type) {
+    if (material_of(type).structural) return TickRole::FallClock;
+    if (type == ElementType::Fire || type == ElementType::Steam) return TickRole::Lifetime;
+    return TickRole::None;
+}
+
+// **A cell with a lifetime may not be structural, because `ticks` means two
+// things.**
+//
+// The byte is fall time for a structural cell and a countdown for a gas, and the
+// whole argument that one byte serves both is that no cell is ever both at once.
+// That is true today for a reason no reader would think to check - Fire and
+// Steam are Gases - and it is a single word in a MATERIALS row away from
+// stopping being true. If it ever did, a burning cell in free fall would spend
+// its fuel on the fracture threshold and its fall time on burning out, and
+// neither system would report anything wrong; the fire would simply last a
+// random length of time.
+//
+// The check is now over every row rather than over Fire's, so the next material
+// given a lifetime is covered by it without anyone remembering to widen it -
+// which is the half of the original that did not survive contact with a second
+// claimant.
+namespace detail {
+constexpr bool lifetimes_are_never_structural() {
+    for (int i = 0; i < static_cast<int>(ElementType::Count); ++i) {
+        const ElementType t = static_cast<ElementType>(i);
+        if (tick_role(t) == TickRole::Lifetime && material_of(t).structural) return false;
+    }
+    return true;
+}
+} // namespace detail
+
+static_assert(detail::lifetimes_are_never_structural(),
+              "a material with a ticks lifetime is structural and would collide with the fall clock");

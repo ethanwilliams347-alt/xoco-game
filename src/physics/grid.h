@@ -497,6 +497,97 @@ private:
     // to move it.
     bool step_fire(int x, int y);
 
+    // --- steam's condensation clock (E9, the steam half) ---
+    //
+    // **Steam's lifetime used to be the span between its spawn temperature and
+    // its condensing point, which made temperature do double duty as a clock.**
+    // That is the coupling E9 exists to break, and it is worth being exact about
+    // what it cost, because the same complaint came back three times in four
+    // sessions in near-identical words (PLAYTEST_LOG.md A5, B3, D5) and each
+    // time it read as a tuning request.
+    //
+    // The two numbers cannot both be free. Spawn temperature is pinned *low* by
+    // the `static_assert` at the bottom of `reaction.h` - steam hotter than the
+    // coldest ignition point in REACTIONS is a fire-starter, which is a shipped
+    // defect this project has already had - so the only end left to move was the
+    // condensing point, and moving it up shortens the life further. A puff
+    // therefore lasted about a second, and only that long in mid-air: Empty
+    // conducts nothing, so open-air steam cools slowly. **Pressed against
+    // stone - which is what a pocket collecting under a ceiling is - it dumped
+    // its heat into the ceiling and was gone in ten steps.** The one place steam
+    // is supposed to gather was the one place it could not survive.
+    //
+    // A countdown on `Element::ticks` decouples them: spawn temperature goes
+    // back to being only about heat, the condensing *reaction row is gone*, and
+    // how long a puff lasts is a number that can be tuned without touching the
+    // ignition floor at all. See `tick_role` in element.h for why steam may
+    // spend that byte, and TUNING.md for the two constants below.
+
+    // Steps of *contact with something solid* a steam cell lasts before it
+    // condenses.
+    //
+    // **Contact rather than elapsed time, and that is the rule rather than a
+    // tuning of it.** Steam condenses on the cold surface it touches, not in the
+    // middle of its own pocket, so a cell with nothing but more steam above it
+    // does not age at all - it waits its turn. Three things fall out of that one
+    // sentence, none of which is implemented anywhere:
+    //
+    //   - **A pocket drains from the top down** and takes as long as it is deep,
+    //     so a big pocket genuinely collects and waits where a wisp does not.
+    //     Written as a plain countdown, every cell in the pocket expired on its
+    //     own schedule and a four-deep pocket drained in about a second, which
+    //     measured as drips and read as a puff.
+    //   - **The bulk of a pocket can sleep.** A cell that is neither moving nor
+    //     ageing generates no dirty marks; when the cell above it condenses,
+    //     `set_element` wakes the 3x3 and it rises into contact. That is cheaper
+    //     than the countdown version, which had to keep every steam cell awake.
+    //   - **Nothing gets stranded**, and the argument is by induction rather
+    //     than by care: a steam cell can only be blocked by something solid or
+    //     by more steam, because it is lighter than everything else in the table
+    //     including Empty, so `can_displace` always lets it rise. Follow a
+    //     blocked column upwards and it ends at a solid or at the world's top
+    //     edge, which `get_element` answers as Wall. The top of every column is
+    //     therefore ageing, and each cell it clears wakes the one beneath.
+    //
+    // **Bounded above by 255, and that is a real ceiling rather than a
+    // comfortable one:** `ticks` is one byte, so no lifetime in this engine can
+    // exceed 4.25 seconds at 60 Hz. 200 is 3.3 seconds of contact per cell. If a
+    // playtest asks for materially longer than a pocket built out of that, the
+    // answer is not a bigger constant - it is a coarser tick, and the byte is
+    // the reason.
+    static constexpr uint8_t STEAM_LIFETIME_MEAN = 200;
+
+    // Half-width of the jitter, so a puff's cells live 160-240 steps. Wide for
+    // the same reason FLAME_LIFETIME_SPREAD is wide: cells placed together in
+    // one stroke would otherwise condense in lockstep, and a pocket that
+    // vanishes all at once is the behaviour being fixed rather than a smaller
+    // version of it. 240 stays clear of the byte.
+    static constexpr int STEAM_LIFETIME_SPREAD = 40;
+    static_assert(STEAM_LIFETIME_MEAN + STEAM_LIFETIME_SPREAD <= 255,
+                  "a steam lifetime would wrap Element::ticks and start again");
+
+    // **Where the drip comes from, and it is worth saying that no code below
+    // writes a drop.** A contact cell that runs out becomes Water in place, and
+    // Water is denser than the steam under it, so `can_displace` - which was
+    // already there - carries it down through the pocket and onto the floor. The
+    // alternative was writing the drop into the cell below by hand, which is a
+    // fourth write path reimplementing a decision the density rule already
+    // makes, and it would have had to answer what happens when that cell is not
+    // Empty. The drip is emergent and there is no drip code.
+    //
+    // **Drip rate scaling with pocket size is likewise not implemented.** A
+    // wider pocket has more cells against the ceiling, each on its own clock, so
+    // a big pocket drips faster than a small one and slows as it drains. That is
+    // what PLAYTEST_LOG.md's B3 asked for and what ROADMAP.md's E9 entry called
+    // the physically right shape, arrived at by construction rather than by a
+    // rule that could be wrong about it.
+
+    // Ages a steam cell by one step if it is touching something solid, and
+    // condenses it to Water at zero. Returns true if the cell is no longer
+    // steam, in which case the caller must not go on to move it - the same
+    // contract as step_fire.
+    bool step_steam(int x, int y);
+
     // --- structures and falling ---
     //
     // Static materials hold their shape, which means they can also hold it

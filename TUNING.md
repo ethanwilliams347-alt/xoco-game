@@ -99,6 +99,35 @@ Dropping to `wait 2` gives 12 and re-opens the gap.
 | `RADIUS` | [29](src/physics/tool.h#L29) | 3/4 body width | Size of the hole. |
 | `COOLDOWN_STEPS` | [34](src/physics/tool.h#L34) | 6 | Steps between digs while held. **Read with the `dig` animation's 24-step length** — they disagree on purpose, but a large change to either is worth checking against the other. |
 
+## Fire and steam timing
+
+[src/physics/grid.h](src/physics/grid.h)
+
+**This section is new on 2026-08-12 and two of its four rows are older than it
+is.** The flame constants were retuned by playtest twice — session 2 asked for
+slower flames and a ragged top — and were never given rows here, because their
+argument was written at the point of use and that felt like enough. It was not:
+`CLAUDE.md`'s routing table says a feel constant retuned gets a row *and* a
+dated History line, and a knob a playtest has moved twice is a feel knob by any
+reading. They are listed now so the next person asking "what do I change to make
+fire slower" finds it in the one file that is meant to answer that. **Only the
+steam rows changed on 2026-08-12; the flame rows are recorded, not retuned.**
+
+| Knob | Line | Now | What it does |
+|---|---|---|---|
+| `STEAM_LIFETIME_MEAN` | [grid.h](src/physics/grid.h) | 200 | Steps of **contact with something solid** before a steam cell becomes water. Not elapsed time — steam in the middle of its own pocket does not age at all, so this is how long the *contact layer* lasts and a pocket's total life is this times its depth. **Hard-capped at 255 by `Element::ticks` being one byte**; if a playtest wants materially longer, the answer is a coarser tick, not a bigger number. |
+| `STEAM_LIFETIME_SPREAD` | [grid.h](src/physics/grid.h) | 40 | Half-width of the jitter, so cells live 160–240 steps of contact. Stops a pocket placed in one stroke condensing in lockstep, which is the behaviour E9 was fixing rather than a smaller version of it. |
+| `FLAME_LIFETIME_MEAN` | [grid.h](src/physics/grid.h) | 13 | How long one flame lives. Sets how *tall* a fire reads, not how fast it spreads — spread is Wood's conductivity and ignition point, and those are correctness constants documented at their rows in `material.h`/`reaction.h`. |
+| `FLAME_RISE_SKIP_PERCENT` | [grid.h](src/physics/grid.h) | 10 | Steps out of a hundred a flame stays put, which is how a whole-cell mover expresses 0.9 cells per step. Session 2: "the flames move about 10 percent too fast". |
+
+**The one relationship worth knowing before turning these.** Steam's lifetime
+used to be the span between its `spawn_temperature` and a condensing point in
+`REACTIONS`, so it could not be tuned without moving a temperature — and the
+spawn end is pinned low by a `static_assert`, because steam hotter than the
+coldest ignition point in the table is a fire-starter, which has shipped once.
+E9's steam half cut that coupling: **the two numbers above are now the only
+things that set how long steam lasts, and neither of them touches heat.**
+
 ## Light
 
 [src/render/light.cpp:71](src/render/light.cpp#L71),
@@ -118,6 +147,24 @@ the numbers.
 ## History
 
 Newest first. One line per retune: what moved, and what was being fixed.
+
+- **2026-08-12** — **steam's lifetime stopped being a temperature and became a
+  number** (E9, the steam half). `STEAM_LIFETIME_MEAN` 200 and
+  `STEAM_LIFETIME_SPREAD` 40 are new; the `{ Steam → Water, 0..26 }` row in
+  `REACTIONS` is deleted. What was being fixed is A5 / B3 / D5 — the same
+  complaint three times in four sessions — and the measurement is the one worth
+  keeping: a pocket sealed under a stone ceiling used to drain **in 3 steps**
+  and now takes **291**, with its first drop at step 181 instead of 27. The old
+  numbers were not chosen badly; steam's life was the span between its spawn
+  temperature and its condensing point, so a pocket pressed against the coldest
+  thing in the scene had the shortest life in the game, which is the exact
+  reverse of what all three reports asked for.
+- **2026-08-12** — `FLAME_LIFETIME_MEAN` (13) and `FLAME_RISE_SKIP_PERCENT` (10)
+  **given rows in this file without being changed.** Both were retuned by
+  playtest in session 2 and neither was ever logged here, so for four sessions
+  the file that is meant to answer "what makes fire feel different" did not
+  mention fire. Recorded as a gap being closed rather than as a retune; the
+  values are exactly what session 2 left them at.
 
 - **2026-08-12** — `MAX_STEP_HEIGHT` 5 → 3 (D7). **Accepted on a look the same day.** 5 was never chosen, it was
   scaled from the old 8-cell body's 2 and kept that body's ratio; a quarter of
