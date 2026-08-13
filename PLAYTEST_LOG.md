@@ -432,3 +432,22 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 **D7 is filed as an observation and will almost certainly be closed as a number.** `MAX_STEP_HEIGHT` is 5 against a 20-cell collision box, so the body steps a quarter of its own height instantly and without animation, which is a very plausible whole explanation for "walks over it". README's step 2 only ever asks for a **one-cell** sand step, so nothing has been checking the constant that actually governs this.
 
 **Two of this session's findings were misattributed at the point of reporting, and both were caught by reading code rather than by re-testing.** E-1 was reported inside a phase about the *absence* of player/material interaction and is the opposite — something is interacting, via `resolve_overlap`. E-2 was reported the same way and is a step-height value. **The pattern is the one A7b already taught from the other direction:** a finding arrives wearing the mechanism the tester was asked to look for. Phase B asked four questions about displacement and got two answers about something else, which is not a failure of the phase — it is the reason a "no" here is trustworthy.
+
+---
+
+## Spot check — 2026-08-13 — the playtest F5 owed
+
+Not a session: one step of README's Manual Tester Checklist, run because F5
+rewrote the player's kinematics into fixed point and the suites cannot judge
+feel. **The expected answer was "exactly as before", which is the hardest kind
+of result to report honestly** — a tester looking for a change tends to find
+one — so the row below is recorded in the terms it was asked in.
+
+| # | Question | Result |
+|---|----------|--------|
+| 2 | Movement, animation, and the new flight row: does walking, jumping, landing, the one-cell sand step and sustained flight feel as they did before? | **Pass.** No difference reported. |
+
+**What this does and does not close.** It closes the playtest F5 owed. It does
+**not** confirm D5 — the steam half of E9 is still owed checklist step 5, which
+this pass did not cover, and D5's row above still reads "wants confirming in
+play".

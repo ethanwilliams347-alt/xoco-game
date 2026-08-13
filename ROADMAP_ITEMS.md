@@ -23,7 +23,7 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 |---|---|---|---|
 | ~~1~~ | ~~**Wave 4 — session 5's five defects**~~ | ~~days~~ | ✅ **closed 2026-08-12** — D2 and D1 shipped 2026-08-11, D3, D6 and D7 on 2026-08-12, the last two accepted on a look |
 | ~~2~~ | ~~**E9 (steam half) — steam collects, then drips**~~ | ~~days~~ | ✅ **closed 2026-08-12** — built, tested and benchmarked; **owed a playtest**, checklist step 5 |
-| ~~3~~ | ~~**F5 — Fixed-point player kinematics**~~ | ~~days~~ | ✅ **closed 2026-08-12** — built and trace-verified; **owed a playtest**, checklist step 2 (movement and the new flight row) |
+| ~~3~~ | ~~**F5 — Fixed-point player kinematics**~~ | ~~days~~ | ✅ **closed 2026-08-12** — built and trace-verified; **playtested 2026-08-13, checklist step 2 passed with no difference reported** ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-13--the-playtest-f5-owed)) |
 | 4 | **The instrumentation sitting** | ~2 days | — *(four open questions, one set of instruments)* |
 | 5 | **S0 — The run can be lost** | week | — *(F5 closed; `velocity_y()` is `fx` and a damage threshold can be written against it)* |
 | 6 | **T1 — The debug tooling batch** | 2 days | — *(before the two items judged by eye)* |
