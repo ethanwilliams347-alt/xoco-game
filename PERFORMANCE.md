@@ -68,6 +68,30 @@ This is filed for the method and not for the numbers. It is the third time on th
 
 **The gap this exposed, and it is the more useful output: no benchmark scenario contains steam at all.** So the measured cost of E9's steam half *where it is actually used* — a pocket collecting under a ceiling, its contact layer awake and its interior asleep — is **unknown**, and nothing in this file can currently produce it. That is a concrete requirement for **P4**: a replayed session that includes putting a fire out near a ceiling is the row that would answer it. Until then the claim about this feature's cost is bounded to "the branch is under 10% in scenarios that never take it", which is a much weaker statement than a row in this table usually makes, and is written that way on purpose.
 
+### A 16-byte `Element` is 10% *faster* than the 12-byte one, and the free bytes are free
+
+**2026-08-13, at the instrumentation sitting**, pricing the `Element::ticks` representation decision. The question on the table was what E5a's per-cell velocity costs, and the plan's two candidate prices were "nothing, it reuses `ticks`" and "a thirteenth byte, which pulls `P1` forward". Both were measured. Five runs, one sitting, back to back, at 1920x1080, rebuilding between variants and returning to baseline at the end.
+
+| Scenario | 12 B — baseline, 3 runs | 16 B — a byte appended | 12 B — 3 bytes in the front padding |
+|---|---|---|---|
+| **cascading** | 45.13 / 45.45 / 45.12 | **40.51 — −10.5%** | 45.29 — +0.1% |
+| **churning** | 37.95 / 37.56 / 37.72 | 37.41 — −0.9% | 37.72 — −0.0% |
+| *burning* | 7.99 / 8.38 / 8.09 | 8.50 — +4.3% | 7.70 — −5.5% |
+| *collapsing* | 2.89 / 2.95 / 2.93 | 2.85 — −2.4% | 2.89 — −1.1% |
+| *shattering* | 3.29 / 3.33 / 3.31 | 3.29 — −0.6% | 3.30 — −0.3% |
+
+**The bracket is the three baselines, not a control scenario, and that is a limitation of this instrument rather than a shortcut.** Every scenario in `grid_bench` walks the cell array, so a change to `sizeof(Element)` reaches all of them and **there is no row the change cannot affect** — the usual control is unavailable here by construction. What stands in for it is the return to baseline: the last run is the unmodified struct rebuilt from scratch and it reads 45.12 against the first run's 45.13, **0.03% apart across the whole sitting**. Per-row noise from the three baselines is 0.7% on `cascading`, 1.0% on `churning`, and **4.8% on `burning`** — which is why `burning` moving +4.3% one way and −5.5% the other is reported as nothing at all.
+
+**One row moves outside its noise band, and it moves the wrong way.** `cascading` at 16 bytes is 10.5% faster, against a 0.7% band — fifteen times the noise, and the only reading in the table that survives its own error bar. **A struct carrying 33% more memory made the memory-bound scenario faster.**
+
+**Why is not established, and the guess is written as a guess.** A 12-byte stride puts 5.33 elements in a 64-byte cache line so that most cells straddle one, while a 16-byte stride puts exactly 4 in, aligned, and makes `swap_elements` a single aligned 16-byte move rather than a 12-byte one in pieces. That is a plausible story and **it has not been checked against disassembly or a cache-miss counter**, so it is a hypothesis. This file's own record says why the distinction matters: three previous confident percentages on this project turned out to be the machine or the compiler, and the one before this was resolved by *not* reading disassembly for a number that did not change the decision. This one does not change the decision either.
+
+**What it does change is a premise, and that is the reason this entry exists.** `element.h` has said since E3 that the next field "costs ~500 KB and a wider stride through the hot loop", and `P1` — split the cell array hot from cold — rests on the engine being limited by how fast cell data comes out of RAM. **The wider stride is measured here as a speedup**, so the "wider stride" half of that argument is not merely unproven, it points the other way on the one scenario that can resolve it. The memory half is untouched and real: 16 bytes is **+4 bytes per cell, 7.9 MB at 1920x1080, +33%**. *(Note the shape: a byte appended to this struct costs four, because alignment rounds 13 up to 16. "A thirteenth byte" was never the available option.)*
+
+**None of which licenses widening `Element`.** The third column is the finding that settles the actual question: **three bytes added in the padding between `type` and `color` cost nothing at all** — the struct stays at 12, and every row is inside its noise band. A change that is free needs no argument about whether a 10% speedup on one synthetic row would have paid for 7.9 MB, and this file is not the place to relitigate `P1` on one unexplained number. **What is owed is that `P1`'s entry stops asserting the stride cost as established** and points here; the measurement that would actually settle `P1` is its own A/B, not this one.
+
+**Reproduce it with `velocity_probe`** for the layout half — it prints `sizeof` and `offsetof` for each candidate rather than counting fields by hand, which is the mistake `ENGINEERING_NOTES.md` records this struct having made before. The timing half is `grid_bench` with the fields added by hand and taken out again.
+
 ## The light field does not fit the widest display mode
 
 Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:

@@ -476,12 +476,24 @@ sentence would otherwise be written again from memory.
 **What it covers now, stated exactly, because two later items spend this
 sentence as a guarantee.** The grid, the input path and — since F5,
 2026-08-12 — the player's motion are integer arithmetic end to end and
-reproduce on any conforming compiler. **`DigTool::march` is the one
-remaining exception**: it picks which cells a dig removes using a `float`
-`sqrt` and two `lround`s, and digging writes to the grid, so a replay that
-contains digging is reproducible within one binary and not across
-toolchains. It is small and unscheduled rather than refused; until it
-closes, **"determinism is portable" is not a claim this project can make.**
+reproduce on any conforming compiler. **`DigTool::march` was the one
+remaining exception and is not one since F6, 2026-08-13** — it picked which
+cells a dig removes using a `float` `sqrt` and two `lround`s, and digging
+writes to the grid, so a replay containing a dig reproduced within one
+binary and not across toolchains. It is now a squared range comparison and
+an integer rounded division, and **no float under `src/physics/` reaches
+the grid.** (Two floats remain there and are renderer boundaries rather
+than exceptions: the player's `visual_x()`/`visual_y()` and the dig tool's
+`swing_progress()`, which only the animation reads.)
+
+**The claim that follows from that is narrower than it sounds, and the
+distinction is deliberate.** The simulation is integer arithmetic end to
+end, so it reproduces on any conforming compiler *in principle* — and the
+project has still only ever been built on one machine, so that is a
+reasonable expectation rather than a verified fact. "Build on macOS and
+Linux at least once" is a release-gate prerequisite for exactly this
+reason, and it is the only thing that can turn the one claim into the
+other.
 
 Replacing the generator with the hash cost a small amount rather than
 saving one — see the RNG entry in `ENGINEERING_NOTES.md` for

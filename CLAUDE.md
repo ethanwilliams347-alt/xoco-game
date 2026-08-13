@@ -1,4 +1,4 @@
-# Toop / Xoco — working agreement
+# Toop / Xoco — working name
 
 A from-scratch C++20 cellular-automata pixel-physics engine with an SDL2 shell,
 built solo, aimed at a Steam release. `code/` is the repo root: **run every
@@ -7,6 +7,13 @@ command and every `tools/` script from here.**
 <!-- Maintainer note: this file is context, loaded every session. Keep it under
      ~200 lines. Anything that is a multi-step procedure, or only matters in one
      part of the tree, belongs in .claude/rules/ instead. -->
+
+## Response Etiquette
+
+**Use clear and consise language when responding.** There will be both vibe-coders 
+and senior developers working on this project. Prefer language preferable to junior
+developers (and vibe-coders) without sacrificing the quality and comprehensive of 
+your responses.
 
 ## The one thing to know before changing anything
 
@@ -47,6 +54,7 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
 .\build\Release\burn_probe.exe        # burn timing and shape, in numbers
 .\build\Release\water_probe.exe       # where poured water ends up
 .\build\Release\rim_probe.exe         # surviving rim highlight after settling
+.\build\Release\velocity_probe.exe    # what Element's spare bytes can hold
 ```
 
 ## Gotchas that have each cost a session
@@ -79,7 +87,14 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
   2026-08-12): its velocities and sub-cell remainder are `fx` 16.16 fixed point
   ([src/physics/fixed.h](src/physics/fixed.h)). The one float left in the body
   is `visual_x()`/`visual_y()`, which exist for the renderer and which nothing in
-  `src/physics/` may read.
+  `src/physics/` may read. **Since F6 (2026-08-13) no float under `src/physics/`
+  reaches the grid** — `DigTool::march` was the last one that did. The two that
+  remain are renderer boundaries of the same kind: `visual_x()`/`visual_y()`, and
+  `DigTool::swing_progress()`, which only the animation reads. **State it that
+  way, not as "no float in `src/physics/`"**, which a grep disproves in two
+  seconds and which is how a true claim starts being ignored. Portable *in
+  principle*; still only ever built on one machine, and those are different
+  claims.
 - **All cell writes go through `set_element`, `paint` or `swap_elements`**, and
   the first two delegate to a private `place()`. A fourth write path that
   reimplements `place()` rather than calling it produces material frozen in
@@ -95,9 +110,15 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
   written into the build file to compile. Do not "tidy" those variables together.
 - **Materials are data.** A new material is a row in `MATERIALS`
   ([src/physics/material.h](src/physics/material.h)), not an edit to the update loop.
-- **`Element` is 12 bytes with nothing spare.** The next field added costs ~500 KB
-  and a wider stride through the hot loop. The `static_assert`s in
-  [src/physics/element.h](src/physics/element.h) are the guard — never widen one
+- **`Element` is 12 bytes and has exactly three free ones, at offsets 1–3.** This
+  bullet said "with nothing spare" and that was wrong — the alignment hole between
+  `type` and `color` takes up to three `uint8_t`s **declared between them** without
+  growing the struct, which the sitting on 2026-08-13 measured after two roadmap
+  items had been sequenced around the shortage. E5a's velocity is spoken for
+  there; after it the struct really is full. **A byte appended after `piece_tag`
+  costs four**, since 13 rounds to 16 — 7.9 MB at 1920x1080. The `static_assert`s
+  in [src/physics/element.h](src/physics/element.h) are the guard, and the reason
+  the free bytes are safe to use on an ABI that packs differently — never widen one
   to make a build pass.
 - **No ECS, no threading, no networking, no scripting layer.** Refused with
   reasons in ENGINEERING_NOTES.md, not merely unbuilt.

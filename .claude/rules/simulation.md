@@ -79,6 +79,14 @@ these variables removes the only thing enforcing the boundary.
   which floors (a static_assert holds this); and a constant is built with
   `fx::from_int`/`fx::from_ratio`, never by casting a float literal, since a
   compile-time float fold is as machine-dependent as a runtime one.
+- **`DigTool::march` is integer-only since F6 (2026-08-13)** and was the last float
+  on the simulation path. Two traps if that code is ever touched: the range test is
+  squared (`dx*dx + dy*dy <= RANGE*RANGE`) and must stay squared, since a library
+  `sqrt` is a float result; and `div_round` reproduces `std::lround`'s
+  **halves-away-from-zero**, which `(a + b/2) / b` does not — C++ integer division
+  truncates toward zero, so the naive form rounds the wrong way in two of the four
+  quadrants and every positive-only test still passes. The arithmetic is 64-bit
+  because `span*span * RANGE*RANGE` leaves 32-bit range at an ordinary distant aim.
 - **The one float left on `Player` is `visual_x()`/`visual_y()`**, and it is the
   boundary to the renderer rather than an exception to this rule. Nothing under
   `src/physics/` may read them, and no test asserts on them except the two A1
@@ -102,6 +110,29 @@ Do not "fix" these without a measured reason; each is recorded with its argument
   machinery rather than a stopgap.
 - **Player feel is raw on purpose** — no acceleration, friction, air control,
   coyote time or jump buffering. Do not add them as polish.
+
+## `Element`'s free bytes
+
+**There are three, at offsets 1–3, and they only work if the field is declared
+between `type` and `color`.** That is the alignment hole `uint32_t color` forces;
+a `uint8_t` appended after `piece_tag` instead costs **four** bytes per cell,
+because 13 rounds up to 16. Both facts were measured on 2026-08-13 with
+`velocity_probe`, not counted — this struct's size has been got wrong twice by
+counting fields, and `element.h` carries a claim that it was already full with the
+correction printed next to it.
+
+E5a's per-cell velocity is spoken for in all three (signed 4.4 per axis, plus a
+nibble of sub-cell remainder per axis). **After that the struct is genuinely
+full**, and the `static_assert` at `<= 12` is what says so — it is also what makes
+the front hole safe on an ABI that packs differently, since a layout without one
+fails the build rather than silently growing.
+
+**`Element::ticks` is not a velocity and never becomes one.** It has two roles,
+`tick_role()` asserts them, and a third was planned for two months and rejected on
+a measurement: whole cells per step cannot hold `Player::GRAVITY`'s 5/36 of a cell
+per step, so it truncates to zero and a thrown grain never falls. See
+ENGINEERING_NOTES.md before proposing it again — the two obvious rescues are
+recorded there with the numbers that killed them.
 
 ## Adding to the data tables
 

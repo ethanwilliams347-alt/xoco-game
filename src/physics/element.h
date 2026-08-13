@@ -60,6 +60,17 @@ struct Element {
     // a Wood cell that has been falling does not carry its fall ticks over as
     // fuel when it ignites.
     //
+    // **A third role was proposed for this byte and rejected on 2026-08-13.**
+    // E10 and E5a both planned to claim it as a packed velocity - four bits of
+    // signed dx and four of dy - and the instrumentation sitting measured that
+    // representation instead of arguing about it. Four bits of whole cells per
+    // step cannot hold a gravity increment at all: one step of Player::GRAVITY is
+    // 5/36 of a cell per step, which truncates to zero in an integer, so a thrown
+    // grain flies in a straight line forever. `velocity_probe` flies exactly that
+    // and it never comes back down. Velocity went to the three free bytes at
+    // offsets 1-3 instead, so **this byte keeps the two roles it has** and E5a
+    // does not touch it.
+    //
     // Zero for everything else. Powders and fluids move one cell per step by
     // their own rules and have no use for a clock.
     uint8_t ticks = 0;
@@ -106,12 +117,44 @@ struct Element {
 // its own 8-vs-12-byte claim was wrong for several revisions, from counting
 // fields instead of compiling one.
 //
-// **That was the last free byte.** type(1) + 3 pad + color(4) + updated_tag(1) +
-// ticks(1) + temperature(1) + piece_tag(1) is 12 with nothing spare, so the
-// next field added here is the first one that actually costs something - 500 KB
-// at the target resolution and a wider stride through the hot loop. Anything
-// after this either earns that outright or waits for P1 to split the array,
-// which is the change that makes the question a different one.
+// **"That was the last free byte" was written here and is wrong. There are three
+// more, and they are in the sentence that says so.**
+//
+// The claim read: *type(1) + 3 pad + color(4) + updated_tag(1) + ticks(1) +
+// temperature(1) + piece_tag(1) is 12 with nothing spare, so the next field
+// added here is the first one that actually costs something - 500 KB at the
+// target resolution and a wider stride through the hot loop.* It is left above
+// rather than deleted because the error is worth recognising again: **the "3 pad"
+// is counted in the arithmetic and then not counted as space.** `type` is one
+// byte and `color` needs four-byte alignment, so offsets 1, 2 and 3 are a hole
+// that no field occupies, and a field *declared between them* goes in for free.
+// The tail hole after `updated_tag` is what E2 and E3 spent, and it is the only
+// one anybody was looking at.
+//
+// Measured, not counted, at the instrumentation sitting on 2026-08-13 - which is
+// the point, since this struct's byte count has now been got wrong twice by
+// counting fields. `velocity_probe` prints `sizeof` and `offsetof` for the
+// candidates: **+1 byte after `piece_tag` is 16 bytes; +1, +2 or +3 bytes after
+// `type` is still 12; +4 is 16.** Note also that "a thirteenth byte" was never an
+// available option - alignment rounds 13 up to 16, so appending costs *four*
+// bytes per cell, 7.9 MB at 1920x1080 and +33% memory traffic. See PERFORMANCE.md,
+// which also records that the 16-byte struct measured 10% *faster* on `cascading`
+// and that this weakens the "wider stride" half of the claim above rather than
+// licensing anyone to spend the memory.
+//
+// **So the correct statement is: three bytes remain, at offsets 1-3, and they are
+// spoken for.** E5a's per-cell velocity is what goes there - a signed 4.4 byte
+// per axis plus a nibble per axis of sub-cell remainder is exactly three - and
+// the decision that put them there is in ROADMAP_ITEMS.md and ENGINEERING_NOTES.md.
+// After that the struct really is full, and the next field genuinely costs four
+// bytes rather than one.
+//
+// The assertion below does not move either way. It was the guard when the
+// arithmetic above was believed and it is the guard now that it is not, which is
+// the argument for having written it as an assertion rather than as a comment:
+// it is also what makes the front hole *safe* to use on a machine whose ABI packs
+// this struct differently, since a layout with no hole fails the build here
+// instead of silently growing.
 static_assert(sizeof(Element) <= 12, "Element grew - price the extra memory traffic before accepting it");
 
 // **A default-constructed cell must render as what its default type renders as.**

@@ -1,6 +1,34 @@
 #include "tool.h"
 #include <algorithm>
-#include <cmath>
+#include <cstdlib>
+
+namespace {
+
+// floor(sqrt(v)) for v >= 0, by Newton's method on integers. Exact: the loop
+// descends to the largest x with x*x <= v and stops there.
+//
+// Not `std::sqrt` cast to int, and the difference is the point of F6 -- a
+// library sqrt is a float result, and a float result one bit low turns an exact
+// square into the integer below it on one toolchain and not on another.
+long long isqrt(long long v) {
+    if (v <= 0) return 0;
+    long long x = v;
+    long long next = (x + 1) / 2;
+    while (next < x) {
+        x = next;
+        next = (x + v / x) / 2;
+    }
+    return x;
+}
+
+// a/b rounded to nearest with halves away from zero, for b > 0. The integer
+// replacement for `std::lround(float(a) / b)`, and it agrees with it exactly:
+// doubling both sides is what lets the half be compared without a fraction.
+long long div_round(long long a, long long b) {
+    return a >= 0 ? (2 * a + b) / (2 * b) : -((-2 * a + b) / (2 * b));
+}
+
+} // namespace
 
 void DigTool::march(const Grid& grid, int from_x, int from_y, int aim_x, int aim_y,
                     int& out_x, int& out_y, bool& out_hit) const {
@@ -17,27 +45,42 @@ void DigTool::march(const Grid& grid, int from_x, int from_y, int aim_x, int aim
     // Range is a real distance, not a cell count along the dominant axis --
     // otherwise a diagonal dig would reach ~1.4x as far as a straight one.
     //
-    // **⚠️ These floats are the last ones on the simulation's determinism path,
-    // and they are not harmless.** F5 (2026-08-12) converted the player because
-    // float results are not reproducible across compilers or architectures;
-    // `march` was out of that item's scope and still picks *which cells a dig
-    // deletes* from a `sqrt` and two `lround`s. Digging writes to the grid, so a
-    // last-bit difference here is a different world, not a different pixel -
-    // and until this is closed, "determinism is portable" is not a claim this
-    // project can make. It is small: `len <= RANGE` becomes
-    // `dx*dx + dy*dy <= RANGE*RANGE`, and the two `lround`s become rounded
-    // integer division. Unscheduled rather than refused; the argument is in
-    // ENGINEERING_NOTES.md under the F5 entry.
-    const float len = std::sqrt(static_cast<float>(dx * dx + dy * dy));
-    const int steps = (len <= static_cast<float>(RANGE))
+    // **Integer-only since F6 (2026-08-13), and that is the whole of why this
+    // reads more awkwardly than `sqrt` would.** This function used to compute
+    // `len` with a `float` `std::sqrt` and place cells with two `std::lround`s.
+    // It picks *which cells a dig deletes*, and digging writes to the grid, so a
+    // last-bit difference from x87 excess precision, an FMA contraction or a
+    // fast-math flag is a different world on another toolchain, not a different
+    // pixel. F5 converted the player for the same reason and left this behind;
+    // it was the last float under `src/physics/` that reached the grid.
+    // (`swing_progress()` below is still a float and is meant to be: only the
+    // animation reads it, the same boundary `Player::visual_x()` sits on.)
+    //
+    // The comparison is squared so no length is ever taken:
+    //   len <= RANGE   <=>   dx*dx + dy*dy <= RANGE*RANGE
+    // and when the aim is out of range, the truncation the old cast did is kept
+    // exactly, without a division by an irrational length:
+    //   floor(span * RANGE / len) = floor(sqrt(span*span * RANGE*RANGE / dist2))
+    // which is `isqrt` of an integer quotient, because floor(sqrt(x)) is
+    // floor(sqrt(floor(x))) for x >= 0.
+    //
+    // 64-bit throughout. span*span * RANGE*RANGE overflows a 32-bit int for a
+    // cursor a couple of thousand cells away, which is an ordinary aim in a big
+    // world, and a wrapped intermediate is a far worse bug than the one being
+    // fixed.
+    const long long dist2 = static_cast<long long>(dx) * dx + static_cast<long long>(dy) * dy;
+    const long long range2 = static_cast<long long>(RANGE) * RANGE;
+
+    const long long span2 = static_cast<long long>(span) * span;
+    const int steps = (dist2 <= range2)
                           ? span
-                          : static_cast<int>(static_cast<float>(span) * (static_cast<float>(RANGE) / len));
+                          : static_cast<int>(isqrt(span2 * range2 / dist2));
 
     for (int i = 1; i <= steps; ++i) {
         // One cell per iteration along the dominant axis, so the path is
         // connected and nothing is skipped over.
-        const int cx = from_x + static_cast<int>(std::lround(static_cast<float>(dx) * i / span));
-        const int cy = from_y + static_cast<int>(std::lround(static_cast<float>(dy) * i / span));
+        const int cx = from_x + static_cast<int>(div_round(static_cast<long long>(dx) * i, span));
+        const int cy = from_y + static_cast<int>(div_round(static_cast<long long>(dy) * i, span));
 
         out_x = cx;
         out_y = cy;

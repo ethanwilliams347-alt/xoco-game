@@ -48,7 +48,7 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 | A2 | HUD lags material switches by up to a second — the key press takes effect immediately but the readout does not. | minor | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 | A3 | Wood burns away far too fast. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
 | A4 | Fire will not propagate along a horizontal wood beam. Alongside a vertical beam it works. | major | fixed — [waves 2b/2c](ROADMAP.md#waves-2-and-2b--fire-rebuilt-on-fuel-holds-the-timer) |
-| A5 | Steam condenses back to water far too fast. | major | **fixed 2026-08-12** — the steam half of E9. Wants confirming in play; see B3 and D5, the same report again |
+| A5 | Steam condenses back to water far too fast. | major | ✅ **closed 2026-08-13** — fixed 2026-08-12 as the steam half of E9, **confirmed in play** by the [two-step spot check](#spot-check--2026-08-13--the-two-owed-steps-run-together). See B3 and D5, the same report again |
 | A6 | Spawning material into water caps the water on top, then it bursts outward on release. | major | **fixed and confirmed** — [wave 3](ROADMAP.md#wave-3--the-brush-destroyed-water-and-the-elevator-it-was-hiding), session 5 W-1/W-2 |
 | A7 | Falling liquid throws horizontal sticks under 10 cells wide. | minor | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
 | A8 | Material carves authored background out of whatever it passes through, leaving a permanent black wake. | major | fixed — [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) |
@@ -71,7 +71,7 @@ Each names a real problem. None is a specification, and the fix suggested alongs
 
 - **B1 — the dig marker is hard to read.** Requested as an open crosshair (four non-intersecting ticks) that follows the cursor everywhere and dims outside dig range. *Tracked as V10, first half — built.*
 - **B2 — selecting materials is slow.** Requested as a hotbar with per-material icons and key numbers. *Tracked as V10, second half — built. Part of this observation was defect A2 rather than an interaction problem, which is worth knowing before taking the next feature request at face value.*
-- **B3 — steam should collect, wait, then drip increasingly fast and shrink as it goes.** *Tracked as the steam half of E9 — built 2026-08-12, not yet confirmed in play. This and defect A5 are the same fix seen from two sides, and D5 is the third time it was reported.*
+- **B3 — steam should collect, wait, then drip increasingly fast and shrink as it goes.** *Tracked as the steam half of E9 — built 2026-08-12, ✅ **confirmed in play 2026-08-13** ([spot check](#spot-check--2026-08-13--the-two-owed-steps-run-together)): it collects, waits, and drips. This and defect A5 are the same fix seen from two sides, and D5 is the third time it was reported.*
 - **B4 — rigid bodies should tip, topple and roll.** The observation underneath is that bodies falling flat and landing flat read as lifeless. *Tracked as E8 — open, and scoped to toppling only; the rolling half is deferred on cost for reasons in that item. (It used to be deferred "behind E5"; E5 split on 2026-08-09 and E5a is not an off-grid layer, so the dependency was withdrawn — the deferral is now on the price of a solver.)*
 
 ### Follow-up — fire measured against reference footage
@@ -413,7 +413,7 @@ Severity: **major** = wrong behaviour a player will hit in normal play; **minor*
 | D2 | Pouring sand onto the player pushes it in a glitch-like way, and **can push it through solid objects**. | major | wave 4 |
 | D3 | Water still climbs a standing sand column, "about 50 percent too quickly", after A6b's headline symptom is gone. | major | **open** — the fluid spike |
 | D4 | Water and oil do not flow — jagged shapes on displacement, staggered clumps down a pile. Reported twice in one session, at step 4 and again at W-5. | major | **open** — the fluid spike |
-| D5 | Steam condenses back to water far too quickly; it should collect and then drip slowly. | major | **fixed 2026-08-12** — the steam half of E9. **Third report** — see A5 and B3, and it is the third report that scheduled it. Wants confirming in play |
+| D5 | Steam condenses back to water far too quickly; it should collect and then drip slowly. | major | **fixed 2026-08-12** — the steam half of E9. **Third report** — see A5 and B3, and it is the third report that scheduled it. ✅ **Confirmed in play 2026-08-13** ([spot check](#spot-check--2026-08-13--the-two-owed-steps-run-together)) |
 
 **D3 is a residual to eliminate and not a rate to tune**, and that was settled rather than assumed: displacing sand into a pool must raise the pool's free *surface*, which is conservation and is W-6's pass, but no configuration of sand and water makes it right for water to occupy a column standing *above* that surface. The invariant is therefore assertable — **no water cell may come to rest above the free surface**, splash excepted — which takes this out of the realm of looks. `water_probe` already measures the quantity.
 
@@ -451,3 +451,64 @@ one — so the row below is recorded in the terms it was asked in.
 **not** confirm D5 — the steam half of E9 is still owed checklist step 5, which
 this pass did not cover, and D5's row above still reads "wants confirming in
 play".
+
+> **Both of those were run later the same day — see the spot check below.** Step
+> 5 came back a pass, so D5's row above is now confirmed rather than owed.
+
+---
+
+## Spot check — 2026-08-13 — the two owed steps, run together
+
+Not a session: two steps of README's Manual Tester Checklist, run back to back
+in one launch. **Step 5** had been owed since E9's steam half shipped on
+2026-08-12; **step 3** was owed by `F6`, which rewrote `DigTool::march` into
+integer arithmetic the same day. They are recorded together because they were
+run together, not because they are related.
+
+- **Suites at time of test:** 10/10 green
+- **World seed / `Scene:` line:** **not captured.** Recorded as missing rather
+  than left blank — this file's own rule is that a finding without its seed is
+  an anecdote, and the only reason that costs nothing here is that **there were
+  no findings.** A defect out of either step below would have been unreproducible.
+
+### Step 3 — Digging
+
+| # | Question | Result |
+|---|----------|--------|
+| 3a | Does a left-click cut a circular hole at the crosshair? | **Pass.** |
+| 3b | Does the crosshair dim from solid to dim white past `RANGE`? | **Pass.** |
+| 3c | Does a dim shot into open sky beyond range do nothing? | **Pass.** |
+| 3d | **Does a dim shot lined up through *nearby* terrain still cut it?** | **Pass.** |
+| 3e | Does digging the base out of a settled sand pile bring the column down? | **Pass.** No gap left hanging. |
+| 3f | Does a shot stop at the near face of a wall rather than tunnelling to the one behind? | **Pass.** |
+
+**3d is the row this pass existed for.** The range boundary is the one place a
+`sqrt` and a squared comparison can disagree, and it is also where the crosshair
+indicator and the dig ray could disagree with *each other* — they were computed
+two different ways in two different files until F6. Nothing was reported off by
+a cell in either direction, and no diagonal was reported reaching further than a
+straight shot.
+
+### Step 5 — Reactions and heat
+
+| # | Question | Result |
+|---|----------|--------|
+| 5a | Does fire advance along a long Wood beam as a front, rather than lighting it all at once or stopping after one cell? | **Pass.** |
+| 5b | Does Oil catch sooner than Wood? | **Pass.** |
+| 5c | Does Fire beside Water boil off Steam *and* get doused? | **Pass.** |
+| 5d | **Does Steam under a solid ceiling rise, gather, wait several seconds, and then drip single Water cells — the pocket shrinking from the top?** | **Pass.** |
+| 5e | Does Steam under a *Wood* roof leave the roof unlit? | **Pass.** |
+| 5f | Does a lone Fire cell burn itself out? | **Pass.** |
+| 5g | Does a Fire cell boxed in on all sides with Wall still burn out? | **Pass.** |
+
+**5d confirms A5, B3 and D5 — the same symptom reported three times across four
+sessions.** The row was written so that its two failure directions point at
+different mechanisms: condensing immediately would have meant the lifetime was
+still being measured in degrees, and a pocket that never went at all would have
+meant the ceiling-contact rule was not seeing the ceiling. Neither was reported.
+
+**What this closes.** A5, B3 and D5 stop reading "wants confirming in play". E9's
+steam half is no longer owed a playtest, and neither is F6. **What it does not
+close:** nothing here says anything about determinism across machines — step 3
+was run on the same machine as every other test this project has ever run, which
+is the gate prerequisite's job and not this pass's.

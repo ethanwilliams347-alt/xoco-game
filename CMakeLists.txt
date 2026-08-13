@@ -172,4 +172,12 @@ if(BUILD_TESTING)
     # property. See the header comment for the question it answers.
     add_executable(rim_probe tests/rim_probe.cpp ${ENGINE_SOURCES})
     target_include_directories(rim_probe PRIVATE src tests)
+
+    # The instrument for the `Element::ticks` representation question - what a
+    # second byte costs, and whether a packed integer velocity can carry a
+    # gravity term. Not an add_test() for a stronger reason than the probes
+    # above: every representation it flies is one the engine does not have, so a
+    # test over it would pin a prototype rather than check the product.
+    add_executable(velocity_probe tests/velocity_probe.cpp ${ENGINE_SOURCES})
+    target_include_directories(velocity_probe PRIVATE src tests)
 endif()

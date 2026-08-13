@@ -238,6 +238,67 @@ int main() {
               count_of(g, ElementType::Wall) < before);
     }
 
+    // --- range is a real distance, measured exactly (F6) ---
+    // A 3-4-5 triangle puts a cell at *exactly* RANGE, which is the one case a
+    // squared comparison and a `sqrt` can disagree about: `sqrt(3600)` coming
+    // back a bit under 60.0 on some toolchain silently shortens every dig. The
+    // second half is the same ray one cell longer, which must fall outside -- a
+    // diagonal that reached as far as a straight one would pass the first check
+    // and fail this one.
+    {
+        Grid g(200, 200);
+        g.set_element(56, 68, ElementType::Wall); // 36-48-60 from (20,20)
+        check("a solid at exactly RANGE is reached",
+              dig_once(g, 20, 20, 56, 68));
+    }
+    {
+        Grid g(200, 200);
+        g.set_element(57, 69, ElementType::Wall); // one cell further out
+        check("a solid just past RANGE on the same diagonal is not reached",
+              !dig_once(g, 20, 20, 57, 69));
+    }
+
+    // --- the path is symmetric about the origin (F6) ---
+    // `std::lround` rounds halves *away from zero*, so the ray up-left is the
+    // mirror of the ray down-right. The obvious integer replacement,
+    // `(a + b/2) / b`, is not: C++ integer division truncates toward zero, so
+    // the negative side rounds the other way and digs land one cell off in two
+    // of the four quadrants. Asserted through aim_point on an empty grid, where
+    // the reported cell is the end of the range rather than an impact.
+    {
+        Grid g(400, 400);
+        DigTool tool;
+        int px = 0, py = 0, nx = 0, ny = 0;
+        tool.aim_point(g, 200, 200, 237, 251, px, py);
+        tool.aim_point(g, 200, 200, 163, 149, nx, ny);
+
+        check("the aim ray is the same length in both directions",
+              (px - 200) == -(nx - 200) && (py - 200) == -(ny - 200),
+              "+(" + std::to_string(px - 200) + "," + std::to_string(py - 200) +
+                  ") vs -(" + std::to_string(200 - nx) + "," +
+                  std::to_string(200 - ny) + ")");
+    }
+
+    // --- a distant aim does not overflow the range arithmetic (F6) ---
+    // The squared form multiplies span*span by RANGE*RANGE, which leaves 32-bit
+    // range at a cursor a couple of thousand cells out -- an ordinary aim in a
+    // big world. A wrapped intermediate gives a negative step count (dig does
+    // nothing) or a huge one (dig reaches across the level), and both look like
+    // a range bug rather than an overflow. 100000 is far past where a 32-bit
+    // product turns over and well inside 64-bit.
+    {
+        Grid g(300, 120);
+        fill(g, 155, 0, 155, 119, ElementType::Wall);
+        check("a very distant aim still digs what is inside range",
+              dig_once(g, 100, 60, 100100, 61));
+    }
+    {
+        Grid g(300, 120);
+        fill(g, 170, 0, 170, 119, ElementType::Wall);
+        check("a very distant aim still stops at range",
+              !dig_once(g, 100, 60, 100100, 61));
+    }
+
     // --- aiming at your own position does nothing ---
     {
         Grid g(60, 60);

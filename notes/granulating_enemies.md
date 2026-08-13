@@ -29,12 +29,17 @@ deliberately keeps those two things apart.
 All five are already written down elsewhere. They are collected here because
 each one kills a path that otherwise looks reasonable.
 
-**1. `Element` has no spare bytes.** 12 bytes, `static_assert`ed, and
+**1. `Element` has no spare bytes.** ~~12 bytes, `static_assert`ed, and
 [element.h](../src/physics/element.h) says outright that the last free byte is
 spent: "the next field added here is the first one that actually costs
 something — 500 KB at the target resolution and a wider stride through the hot
-loop." Any design that wants a per-cell number — enemy ID, hit points,
-structural integrity — is proposing that cost.
+loop."~~ **Corrected 2026-08-13:** it had three, in the alignment hole between
+`type` and `color`, and `element.h`'s claim was counting the tail hole only.
+**They are spoken for** — E5a's velocity takes all three — so the *conclusion*
+here survives and the reasoning behind it does not: any design wanting a per-cell
+number is still proposing a cost, and the cost is **four bytes, not one**, because
+alignment rounds 13 up to 16. That is 7.9 MB at 1920x1080. Any design that wants a
+per-cell number — enemy ID, hit points, structural integrity — is proposing that.
 
 **2. `Element::ticks` is already double-booked and the assert knows it.** It is
 free-fall time for a structural cell and fuel for a Fire cell, safe only
