@@ -16,6 +16,18 @@ void DigTool::march(const Grid& grid, int from_x, int from_y, int aim_x, int aim
 
     // Range is a real distance, not a cell count along the dominant axis --
     // otherwise a diagonal dig would reach ~1.4x as far as a straight one.
+    //
+    // **⚠️ These floats are the last ones on the simulation's determinism path,
+    // and they are not harmless.** F5 (2026-08-12) converted the player because
+    // float results are not reproducible across compilers or architectures;
+    // `march` was out of that item's scope and still picks *which cells a dig
+    // deletes* from a `sqrt` and two `lround`s. Digging writes to the grid, so a
+    // last-bit difference here is a different world, not a different pixel -
+    // and until this is closed, "determinism is portable" is not a claim this
+    // project can make. It is small: `len <= RANGE` becomes
+    // `dx*dx + dy*dy <= RANGE*RANGE`, and the two `lround`s become rounded
+    // integer division. Unscheduled rather than refused; the argument is in
+    // ENGINEERING_NOTES.md under the F5 entry.
     const float len = std::sqrt(static_cast<float>(dx * dx + dy * dy));
     const int steps = (len <= static_cast<float>(RANGE))
                           ? span

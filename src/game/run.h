@@ -51,7 +51,18 @@ public:
     // display allows and calls `step()` as many times as have accumulated.
     // Owned here rather than by `main.cpp` now that `Run` is what actually
     // advances by this amount each call.
-    static constexpr double FIXED_DT = 1.0 / 60.0;
+    //
+    // **This is the frame pacer's copy of the rate, not the simulation's.**
+    // `main.cpp` accumulates real elapsed seconds against it and interpolates
+    // the drawn position by the leftover; nothing inside a step reads it. The
+    // physics uses `fx::STEPS_PER_SECOND` instead, as an integer, because a
+    // step's worth of gravity has to be the same number on every machine and a
+    // double reciprocal is not (F5). So it is *derived* from the integer rather
+    // than written as `1.0 / 60.0` beside it: two spellings of one rate is two
+    // chances to change one of them, and a pacer running at a rate the physics
+    // does not believe in fails as a character that moves at the wrong speed -
+    // a bug that looks like a tuning complaint and gets answered as one.
+    static constexpr double FIXED_DT = 1.0 / fx::STEPS_PER_SECOND;
 
     // Matches how `main.cpp` built these three before this step existed: the
     // player spawns in mid-air over the middle of the world. There is no

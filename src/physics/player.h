@@ -1,4 +1,5 @@
 #pragma once
+#include "fixed.h"
 #include "grid.h"
 
 // What the player is being told to do this step.
@@ -52,9 +53,17 @@ public:
     static constexpr int WIDTH = 8;
     static constexpr int HEIGHT = 20;
 
-    // Cells per second, and cells per second squared. Real units rather than
-    // per-step amounts, so the tuning still means the same thing if the fixed
-    // step ever changes.
+    // Cells per second, and cells per second squared, in `fx` fixed point.
+    // Real units rather than per-step amounts, so the tuning still means the
+    // same thing if the fixed step ever changes.
+    //
+    // **Written as exact rationals, never as a float cast.** `from_ratio(225,
+    // 2)` is 112.5 and is the same 7372800 on every compiler; `fx::v(112.5f *
+    // 65536)` is a float expression a compiler is free to fold its own way, and
+    // the whole point of F5 is that no such freedom exists anywhere on the path
+    // from a constant to a cell. Read the second number as the denominator of
+    // the value in TUNING.md - `from_int(500)` and `from_ratio(1000, 2)` are
+    // the same thing, and the first is the one to write.
     //
     // All five of these are lengths per unit time, so they are all 2.5x what
     // they were before the body grew by 2.5x. That factor is not a coincidence
@@ -63,10 +72,10 @@ public:
     // what makes the character feel unchanged at the new scale rather than
     // merely be the same size. Tune from here by feel; do not tune from the
     // pre-scale numbers, which now describe a much slower character.
-    static constexpr float MOVE_SPEED = 112.5f;
-    static constexpr float JUMP_SPEED = 175.0f;  // ~30 cells, still ~1.5 bodies
-    static constexpr float GRAVITY = 500.0f;
-    static constexpr float MAX_FALL_SPEED = 400.0f;
+    static constexpr fx::v MOVE_SPEED = fx::from_ratio(225, 2);  // 112.5
+    static constexpr fx::v JUMP_SPEED = fx::from_int(175);  // ~30 cells, still ~1.5 bodies
+    static constexpr fx::v GRAVITY = fx::from_int(500);
+    static constexpr fx::v MAX_FALL_SPEED = fx::from_int(400);
 
     // --- flight ---------------------------------------------------------
     //
@@ -117,9 +126,9 @@ public:
     // under its own power, and is not a helicopter" is the design; it is a
     // property of the margin rather than of any one constant, so tune the pair
     // together or the character becomes one or the other.
-    static constexpr float FLAP_IMPULSE = 177.0f;    // cells/s removed from vel_y per beat
-    static constexpr float FLAP_MAX_CLIMB = 98.0f;   // cells/s ceiling on upward speed
-    static constexpr int FLAP_INTERVAL_STEPS = 14;   // fixed steps between beats
+    static constexpr fx::v FLAP_IMPULSE = fx::from_int(177);    // cells/s removed from vel_y per beat
+    static constexpr fx::v FLAP_MAX_CLIMB = fx::from_int(98);   // cells/s ceiling on upward speed
+    static constexpr int FLAP_INTERVAL_STEPS = 14;             // fixed steps between beats
 
     // Tallest lip the player walks over without jumping. This is the whole of
     // "walking over uneven powder": a settled sand slope is a staircase of
@@ -155,7 +164,17 @@ public:
     // Advances the player by one fixed step. Call this at the same fixed rate
     // as Grid::update(), and after it, so collision is tested against the world
     // as it now is rather than as it was.
-    void update(const Grid& grid, const PlayerInput& input, float dt);
+    //
+    // **There is no `dt` parameter, and its absence is the point.** It used to
+    // take one, and every caller passed the same compile-time constant into it -
+    // which made the timestep look like something that varies and is not. A
+    // parameter nobody varies is an invitation to vary it, and the first caller
+    // that passed a real frame time would have made the simulation a function
+    // of framerate again, which is the exact defect F1 spent a whole item
+    // closing. The rate is `fx::STEPS_PER_SECOND`, it is known at compile time,
+    // and every per-step amount below is therefore folded by the compiler
+    // rather than multiplied at runtime.
+    void update(const Grid& grid, const PlayerInput& input);
 
     // Top-left corner of the body, in cells.
     int cell_x() const { return pos_x; }
@@ -174,15 +193,32 @@ public:
     //
     // They exist because discarding the remainder at draw time was a visible
     // defect (PLAYTEST_LOG.md session 1, A1) rather than a rounding detail:
-    // MOVE_SPEED is 45 cells/s against a 60 Hz step, which is 0.75 cells per
-    // step, so `cell_x()` advances on three steps out of four and stalls on the
-    // fourth. The simulation was right the whole time - the renderer was
-    // throwing away the part that made the motion smooth.
-    float visual_x() const { return static_cast<float>(pos_x) + rem_x; }
-    float visual_y() const { return static_cast<float>(pos_y) + rem_y; }
+    // MOVE_SPEED was 45 cells/s at the time against a 60 Hz step, which is 0.75
+    // cells per step, so `cell_x()` advanced on three steps out of four and
+    // stalled on the fourth. (It is 112.5 now, or 1.875 cells per step - the
+    // defect is the same shape at any speed with a fraction in it.) The
+    // simulation was right the whole time - the renderer was throwing away the
+    // part that made the motion smooth.
+    //
+    // Float here rather than fixed point, and only here: this is the one number
+    // the player hands to the renderer, which multiplies it by a screen scale
+    // and rounds it to a pixel. Converting at the boundary keeps the float on
+    // the render side of it, where a last-bit difference between two machines
+    // is a pixel that was going to be rounded anyway.
+    float visual_x() const { return static_cast<float>(pos_x) + fx::to_float(rem_x); }
+    float visual_y() const { return static_cast<float>(pos_y) + fx::to_float(rem_y); }
 
     bool is_on_ground() const { return on_ground; }
-    float velocity_y() const { return vel_y; }
+
+    // Downward speed in **fx cells per second** - compare it against the
+    // constants above, or against `fx::from_int(n)`, not against a plain number.
+    // `fx::trunc()` gives whole cells per second for a readout.
+    //
+    // S0's fall damage is the first consumer that will read this for anything
+    // other than a sign, and it is the reason this is fixed point rather than a
+    // float: a damage threshold is a *rule*, and a run that kills the player on
+    // one machine and not another is a worse bug than a wrong threshold.
+    fx::v velocity_y() const { return vel_y; }
 
     // True on the step a wing beat actually fired - not while the key is
     // held. Added for the animation selector, which needs the *event* rather
@@ -198,7 +234,12 @@ public:
     // and the second false, and a walk cycle that plays on the input walks on
     // the spot against every wall in the game. No new state: this is the same
     // field move_x already keeps.
-    float velocity_x() const { return vel_x; }
+    // fx cells per second, like velocity_y(). It is exactly zero or exactly
+    // +/-MOVE_SPEED, so a caller asking "is the body travelling" compares
+    // against 0 rather than against an epsilon - which the float version could
+    // not do, and which is one small place where the conversion made a check
+    // correct rather than merely portable.
+    fx::v velocity_x() const { return vel_x; }
 
     // True if a body placed with its top-left at (px, py) would overlap any
     // solid cell. Public because "the player is not inside a wall" is the
@@ -212,13 +253,19 @@ private:
     // class of float-edge bugs where a box is "0.0001 into" a wall. The
     // remainder carries the fractional part of a move into the next step, which
     // is what keeps motion smooth at speeds below one cell per step.
+    //
+    // The remainder and the velocities are `fx` rather than `float` (F5). The
+    // integer cell was always the half that mattered for collision; making the
+    // other half integer too is what turns "deterministic on this binary" into
+    // "deterministic anywhere", which is what `tests/test_run.cpp`'s replay
+    // check has been quietly assumed to prove and did not.
     int pos_x;
     int pos_y;
-    float rem_x = 0.0f;
-    float rem_y = 0.0f;
+    fx::v rem_x = 0;
+    fx::v rem_y = 0;
 
-    float vel_x = 0.0f;
-    float vel_y = 0.0f;
+    fx::v vel_x = 0;
+    fx::v vel_y = 0;
     bool on_ground = false;
 
     // Steps remaining before the next wing beat is allowed, and whether one
@@ -253,3 +300,34 @@ private:
     // the caller should skip normal physics.
     bool resolve_overlap(const Grid& grid);
 };
+
+// Three relationships the constants above have to hold, asserted rather than
+// written down - the same move `element.h` and `reaction.h` make about their
+// data tables, and for the same reason: TUNING.md invites these numbers to be
+// changed by feel, and a prose sentence about how two of them relate is a
+// sentence that goes stale the first time one is retuned alone.
+
+// Headroom. `rem_y` holds at most a whole cell plus one step of the fastest
+// motion in the game before the whole part is taken out of it, so the ceiling
+// is nowhere near int32_t's - but "nowhere near" is a claim about MAX_FALL_SPEED,
+// and MAX_FALL_SPEED is a knob. A retune that overflowed this would show up as
+// a body teleporting on the frame it hit terminal velocity.
+static_assert(fx::ONE + fx::per_step(Player::MAX_FALL_SPEED) < INT32_MAX / 256,
+              "MAX_FALL_SPEED has been raised far enough to threaten the fixed-point "
+              "range; widen fx::v before raising it further");
+
+// Flight climbs at all. A beat has to pay GRAVITY for the whole interval it
+// covers, and what is left over is the climb - so raising FLAP_INTERVAL_STEPS
+// or GRAVITY without touching FLAP_IMPULSE eventually makes the wingbeat a
+// slower fall rather than a climb. That is a legitimate design choice and this
+// is not blocking it; it is refusing to let it happen *silently*, which is how
+// it would otherwise be discovered.
+static_assert(Player::FLAP_IMPULSE > fx::per_step(Player::GRAVITY) * Player::FLAP_INTERVAL_STEPS,
+              "a wingbeat no longer outweighs the gravity it has to pay for, so holding "
+              "the key would sink rather than climb");
+
+// The standing jump stays the strongest single upward move. The whole reason
+// the ground beat sets vel_y outright and the air beat is capped.
+static_assert(Player::FLAP_MAX_CLIMB < Player::JUMP_SPEED,
+              "sustained flight is now at least as fast as a standing jump, which makes "
+              "the character a helicopter - see the flight comment above");

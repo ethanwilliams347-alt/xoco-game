@@ -51,7 +51,7 @@ bool Run::step(const Input& input) {
     player_input.aim_x = input.cursor_x;
     player_input.aim_y = input.cursor_y;
     player_input.dig = input.dig;
-    player.update(grid, player_input, static_cast<float>(FIXED_DT));
+    player.update(grid, player_input);
 
     // Last, so the dig is aimed from where the body actually ended up this
     // step. Called every step whether or not the button is held, because

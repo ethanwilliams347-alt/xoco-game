@@ -1,6 +1,6 @@
 #include "player.h"
 #include <algorithm>
-#include <cmath>
+#include <cstdlib>
 
 Player::Player(int start_x, int start_y) : pos_x(start_x), pos_y(start_y) {}
 
@@ -45,8 +45,8 @@ void Player::move_x(const Grid& grid, int amount) {
             // A real wall. Drop the leftover sub-cell motion too, otherwise it
             // accumulates while held against the wall and fires the instant the
             // wall is removed.
-            vel_x = 0.0f;
-            rem_x = 0.0f;
+            vel_x = 0;
+            rem_x = 0;
             return;
         }
 
@@ -62,8 +62,8 @@ void Player::move_y(const Grid& grid, int amount) {
         if (overlaps_solid(grid, pos_x, pos_y + sign)) {
             // Landed on something, or hit a ceiling. Either way the fall (or
             // the jump) is over.
-            vel_y = 0.0f;
-            rem_y = 0.0f;
+            vel_y = 0;
+            rem_y = 0;
             return;
         }
         pos_y += sign;
@@ -147,9 +147,9 @@ bool Player::resolve_overlap(const Grid& grid) {
 
                 pos_x += dx;
                 pos_y += dy;
-                rem_x = 0.0f;
-                rem_y = 0.0f;
-                vel_y = 0.0f;
+                rem_x = 0;
+                rem_y = 0;
+                vel_y = 0;
                 return true;
             }
         }
@@ -161,7 +161,7 @@ bool Player::resolve_overlap(const Grid& grid) {
     return true;
 }
 
-void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
+void Player::update(const Grid& grid, const PlayerInput& input) {
     // Cleared before the early return below, not after it. `did_flap` is a
     // one-step event and the overlap path returns without ever reaching the
     // flap code, so leaving the reset down there would latch the last beat
@@ -175,7 +175,7 @@ void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
     // No acceleration curve: horizontal speed is a direct function of input.
     // Barebones on purpose -- acceleration, friction and air control are feel
     // work, and feel work is worth doing once there is something to feel.
-    vel_x = 0.0f;
+    vel_x = 0;
     if (input.left)  vel_x -= MOVE_SPEED;
     if (input.right) vel_x += MOVE_SPEED;
 
@@ -216,19 +216,24 @@ void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
     // visible.** The remainder is *pending, collision-untested* motion, so
     // cancelling the velocity that produced it while leaving it in place keeps
     // exactly the movement that was just decided against. Standing still, that
-    // was a whole cell of sink: gravity re-added 200 * dt every step, `rem_y`
+    // was a whole cell of sink: gravity re-added a step's worth every step
+    // (`GRAVITY` was 200 then, so ~3.3 cells/s), `rem_y`
     // grew by ~0.056 of a cell each time, and `move_y` was not called at all
     // until it crossed 1.0 - at which point the floor test finally ran, blocked,
     // and snapped the body back. A ~0.3s bob, running the entire time and
     // invisible only because the renderer truncated the fraction away. The
     // simulation has always been wrong here; the render fix is what exposed it,
     // which is worth remembering the next time a display change "causes" a bug.
-    if (on_ground && vel_y > 0.0f) {
-        vel_y = 0.0f;
-        rem_y = 0.0f;
+    if (on_ground && vel_y > 0) {
+        vel_y = 0;
+        rem_y = 0;
     }
 
-    vel_y += GRAVITY * dt;
+    // One step's worth of GRAVITY, folded at compile time. The float version
+    // wrote `GRAVITY * dt` and recomputed the same product every step; this is
+    // the same number, decided once, and it is *exactly* the same number on
+    // every machine - which the product was not.
+    vel_y += fx::per_step(GRAVITY);
     if (vel_y > MAX_FALL_SPEED) vel_y = MAX_FALL_SPEED;
 
     // The same rule on the other three sides, applied before the remainder is
@@ -238,27 +243,28 @@ void Player::update(const Grid& grid, const PlayerInput& input, float dt) {
     // the horizontal half of the same defect, seen as phasing into walls, sand
     // and wood. `climb_for` rather than a bare overlap test, so walking up a
     // one-cell step is still a move rather than a wall.
-    if (vel_x != 0.0f && climb_for(grid, vel_x > 0.0f ? 1 : -1) < 0) {
-        vel_x = 0.0f;
-        rem_x = 0.0f;
+    if (vel_x != 0 && climb_for(grid, vel_x > 0 ? 1 : -1) < 0) {
+        vel_x = 0;
+        rem_x = 0;
     }
-    if (vel_y < 0.0f && overlaps_solid(grid, pos_x, pos_y - 1)) {
-        vel_y = 0.0f;
-        rem_y = 0.0f;
+    if (vel_y < 0 && overlaps_solid(grid, pos_x, pos_y - 1)) {
+        vel_y = 0;
+        rem_y = 0;
     }
 
     // Axes are resolved separately, horizontal first, so that sliding along a
     // surface works: being blocked vertically must not also cancel the
-    // horizontal move. The cast truncates toward zero, which is what the
-    // remainder scheme needs in both directions.
-    rem_x += vel_x * dt;
-    const int step_x = static_cast<int>(rem_x);
-    rem_x -= static_cast<float>(step_x);
+    // horizontal move. `fx::trunc` truncates toward zero, which is what the
+    // remainder scheme needs in both directions and is why it is not a shift -
+    // see the comment on it.
+    rem_x += fx::per_step(vel_x);
+    const int step_x = fx::trunc(rem_x);
+    rem_x = fx::frac(rem_x);
     if (step_x != 0) move_x(grid, step_x);
 
-    rem_y += vel_y * dt;
-    const int step_y = static_cast<int>(rem_y);
-    rem_y -= static_cast<float>(step_y);
+    rem_y += fx::per_step(vel_y);
+    const int step_y = fx::trunc(rem_y);
+    rem_y = fx::frac(rem_y);
     if (step_y != 0) move_y(grid, step_y);
 
     // Asked once, at the end, against the world the body actually ended up in.

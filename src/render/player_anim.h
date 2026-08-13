@@ -47,7 +47,15 @@ struct Conditions {
 
     // Sign is what matters: it chooses between the two poses sharing the
     // airborne row. Down is positive, matching the grid's y axis.
-    float vel_y = 0.0f;
+    //
+    // **A plain `int` carrying whatever units the caller had.** It was a float
+    // and F5 made `Player::velocity_y()` fixed point; rather than follow that
+    // type in here, this stays the loosest thing that can hold a sign, because
+    // the magnitude is genuinely never read. Naming `fx::v` would put a
+    // src/physics/ header into a RENDER_SOURCES file to express nothing the
+    // selector uses, and the direction of that dependency is the one thing the
+    // source-set split exists to keep visible.
+    int vel_y = 0;
 
     // Where the tool is in its swing: 0 at the start, up to but never reaching
     // 1, and negative when no swing is in progress. Straight from

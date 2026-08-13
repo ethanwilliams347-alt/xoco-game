@@ -15,7 +15,7 @@ const Anim& select(const Conditions& c) {
         // Zero counts as rising, so the apex of a jump does not flicker
         // between the two poses on the one step the velocity passes through
         // it.
-        return c.vel_y <= 0.0f ? player_sprite::RISE : player_sprite::FALL;
+        return c.vel_y <= 0 ? player_sprite::RISE : player_sprite::FALL;
     }
     return c.moving ? player_sprite::WALK : player_sprite::IDLE;
 }

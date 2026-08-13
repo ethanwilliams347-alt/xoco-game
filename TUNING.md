@@ -16,12 +16,21 @@ for now* rather than as right, by someone who said in the same breath that the
 controls as a whole will want revisiting. So the values in the movement table
 are a floor, not a settled answer — and the honest reading of a row that says
 "accepted on a look" is that nobody has yet compared it against an alternative.
-The prerequisite is not more tuning: it is `F5`, which makes these constants
-integers, since retuning a float kinematics model and then converting it means
-tuning it twice.
+The prerequisite was `F5`, on the grounds that retuning a float kinematics model
+and then converting it means tuning it twice. **`F5` shipped 2026-08-12, so that
+prerequisite is met and the feel pass is now unblocked** — still unscheduled,
+which is a different thing.
 
 Two rules that apply to everything below:
 
+- **The speeds are `fx` fixed point, not floats — write them as exact rationals.**
+  *(F5, 2026-08-12.)* `fx::from_int(500)` is 500 cells/s; `fx::from_ratio(225, 2)`
+  is 112.5. **Never `fx::v(112.5f * 65536)`**: a compile-time float fold is as
+  machine-dependent as a runtime one, and machine-independence is the entire
+  reason these stopped being floats. The value in the `Now` column below is the
+  number you would say out loud; the code writes it as the rational that produces
+  it exactly. `MAX_STEP_HEIGHT` and `FLAP_INTERVAL_STEPS` are plain `int` and
+  always were — they count cells and steps, not distance per time.
 - **Velocities are in cells per second, and one cell is 4 screen pixels**
   (`Camera::SCALE`, [src/game/camera.h:10](src/game/camera.h#L10)). The player
   body is 8x20 cells, so "a body height" is 20.
@@ -36,11 +45,11 @@ Two rules that apply to everything below:
 
 | Knob | Line | Now | What it does |
 |---|---|---|---|
-| `MOVE_SPEED` | [66](src/physics/player.h#L66) | 112.5 | Horizontal speed. Applied directly with no acceleration or friction, so this is the whole of how fast walking feels. |
-| `JUMP_SPEED` | [67](src/physics/player.h#L67) | 175.0 | Standing jump. Set outright rather than added, and uncapped by `FLAP_MAX_CLIMB`, so it stays the strongest single upward move. ~1.5 body heights. |
-| `GRAVITY` | [68](src/physics/player.h#L68) | 500.0 | Downward acceleration. **Affects flight too** — there is no separate flight gravity — so raising it makes the character heavier in the air as well as falling faster. |
-| `MAX_FALL_SPEED` | [69](src/physics/player.h#L69) | 400.0 | Terminal velocity. Higher reads as heavier, and costs frame time in the `collapsing` scenario (see [PERFORMANCE.md](PERFORMANCE.md)). |
-| `MAX_STEP_HEIGHT` | [133](src/physics/player.h#L133) | 3 | Tallest lip walked over without jumping. Lower it and settled sand becomes a staircase you have to jump up; raise it and terrain stops reading as terrain — the body climbs a fifth of its own height instantly and with no animation, which at 5 played as piles not being there at all. **Both failures now have tests in `player_test`** (cliff cases derived from the constant, plus a settled-pile case that must pass at any value), but neither can judge whether the climb *feels* like effort. |
+| `MOVE_SPEED` | [75](src/physics/player.h#L75) | 112.5 | Horizontal speed. Applied directly with no acceleration or friction, so this is the whole of how fast walking feels. |
+| `JUMP_SPEED` | [76](src/physics/player.h#L76) | 175.0 | Standing jump. Set outright rather than added, and uncapped by `FLAP_MAX_CLIMB`, so it stays the strongest single upward move. ~1.5 body heights. |
+| `GRAVITY` | [77](src/physics/player.h#L77) | 500.0 | Downward acceleration. **Affects flight too** — there is no separate flight gravity — so raising it makes the character heavier in the air as well as falling faster. |
+| `MAX_FALL_SPEED` | [78](src/physics/player.h#L78) | 400.0 | Terminal velocity. Higher reads as heavier, and costs frame time in the `collapsing` scenario (see [PERFORMANCE.md](PERFORMANCE.md)). |
+| `MAX_STEP_HEIGHT` | [154](src/physics/player.h#L154) | 3 | Tallest lip walked over without jumping. Lower it and settled sand becomes a staircase you have to jump up; raise it and terrain stops reading as terrain — the body climbs a fifth of its own height instantly and with no animation, which at 5 played as piles not being there at all. **Both failures now have tests in `player_test`** (cliff cases derived from the constant, plus a settled-pile case that must pass at any value), but neither can judge whether the climb *feels* like effort. |
 
 **Scale warning.** These were all multiplied by 2.5 when the body grew. Tune
 from the current values by feel; the pre-scale numbers now describe a much
@@ -48,7 +57,7 @@ slower character.
 
 ## Flight weight
 
-[src/physics/player.h:71-122](src/physics/player.h#L71)
+[src/physics/player.h:80-131](src/physics/player.h#L80)
 
 The felt weight of flight is **one relationship**, not one constant: a beat has
 to pay `GRAVITY * (FLAP_INTERVAL_STEPS / 60)` ≈ 117 cells/s of gravity, and how
@@ -56,9 +65,9 @@ much of `FLAP_IMPULSE` is left over is the climb.
 
 | Knob | Line | Now | What it does |
 |---|---|---|---|
-| `FLAP_IMPULSE` | [120](src/physics/player.h#L120) | 177.0 | Subtracted from `vel_y` per beat. Sets how many beats it costs to arrest a dive — most of what "heavy" means moment to moment. Margin over the gravity toll is ~60. |
-| `FLAP_MAX_CLIMB` | [121](src/physics/player.h#L121) | 98.0 | Ceiling on upward speed. **This, not the impulse, sets sustained climb rate.** |
-| `FLAP_INTERVAL_STEPS` | [122](src/physics/player.h#L122) | 14 | Steps between beats. Sets the rhythm, and scales the gravity toll — a longer interval is heavier for free. **Tied to the fly animation's `wait`, below.** |
+| `FLAP_IMPULSE` | [129](src/physics/player.h#L129) | 177.0 | Subtracted from `vel_y` per beat. Sets how many beats it costs to arrest a dive — most of what "heavy" means moment to moment. Margin over the gravity toll is ~60. |
+| `FLAP_MAX_CLIMB` | [130](src/physics/player.h#L130) | 98.0 | Ceiling on upward speed. **This, not the impulse, sets sustained climb rate.** |
+| `FLAP_INTERVAL_STEPS` | [131](src/physics/player.h#L131) | 14 | Steps between beats. Sets the rhythm, and scales the gravity toll — a longer interval is heavier for free. **Tied to the fly animation's `wait`, below.** |
 
 **Raise the impulse without raising the cap and you will still be told it feels
 heavy** — the extra only goes into recovering from falls, while climbing stays
@@ -148,6 +157,15 @@ the numbers.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-12** — **every movement and flight constant changed type and none
+  changed value** (F5). `float` → `fx` signed 16.16 fixed point, written as exact
+  rationals. This is in the History because the *line numbers above all moved* and
+  because "112.5" is now spelled `fx::from_ratio(225, 2)`, not because anything
+  feels different: the recorded traces are cell-for-cell identical on walk and
+  jump, and differ on 7 of 1381 steps of fall and flight, each by one cell and
+  each re-converging within a step. **That is the size of a retune's smallest
+  possible effect, and it was not a retune — do not treat those 7 steps as a feel
+  change to chase.**
 - **2026-08-12** — **steam's lifetime stopped being a temperature and became a
   number** (E9, the steam half). `STEAM_LIFETIME_MEAN` 200 and
   `STEAM_LIFETIME_SPREAD` 40 are new; the `{ Steam → Water, 0..26 }` row in

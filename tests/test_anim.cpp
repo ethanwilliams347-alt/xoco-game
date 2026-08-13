@@ -24,8 +24,8 @@ namespace {
 
 Conditions standing() { Conditions c; c.on_ground = true;  c.moving = false; return c; }
 Conditions walking()  { Conditions c; c.on_ground = true;  c.moving = true;  return c; }
-Conditions rising()   { Conditions c; c.on_ground = false; c.vel_y = -5.0f;  return c; }
-Conditions falling()  { Conditions c; c.on_ground = false; c.vel_y =  5.0f;  return c; }
+Conditions rising()   { Conditions c; c.on_ground = false; c.vel_y = -5;  return c; }
+Conditions falling()  { Conditions c; c.on_ground = false; c.vel_y =  5;  return c; }
 
 void run(State& s, const Conditions& c, int steps) {
     for (int i = 0; i < steps; ++i) update(s, c, 1);
@@ -42,7 +42,7 @@ void test_selection() {
     // The apex of a jump passes through zero. If zero picked `fall`, the pose
     // would flip for exactly one step on the way up and flip back - a
     // one-frame flicker at the top of every single jump.
-    Conditions apex; apex.on_ground = false; apex.vel_y = 0.0f;
+    Conditions apex; apex.on_ground = false; apex.vel_y = 0;
     check("apex of a jump holds the rising pose", &select(apex) == &ps::RISE);
 
     // Input held against a wall is the case `moving` exists for. Selecting on

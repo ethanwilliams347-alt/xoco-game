@@ -75,7 +75,11 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
   floats, no threading in `Grid`. Randomness is `sim_random`: a pure function of
   seed, step, cell index and a `Stream` tag. **`Stream` values are arbitrary and
   permanent** — changing one changes every world its seed ever produced.
-  (`Player` is the known float exception, deliberately.)
+  **`Player` was the known float exception and is not one any more** (F5,
+  2026-08-12): its velocities and sub-cell remainder are `fx` 16.16 fixed point
+  ([src/physics/fixed.h](src/physics/fixed.h)). The one float left in the body
+  is `visual_x()`/`visual_y()`, which exist for the renderer and which nothing in
+  `src/physics/` may read.
 - **All cell writes go through `set_element`, `paint` or `swap_elements`**, and
   the first two delegate to a private `place()`. A fourth write path that
   reimplements `place()` rather than calling it produces material frozen in

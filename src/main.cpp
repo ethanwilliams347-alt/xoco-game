@@ -859,8 +859,11 @@ int main(int argc, char* argv[]) {
             // would present as an art problem.
             player_anim::Conditions cond;
             cond.on_ground = run.player.is_on_ground();
-            cond.moving = std::abs(run.player.velocity_x()) > 0.01f;
-            cond.vel_y = run.player.velocity_y();
+            // `!= 0` rather than an epsilon, which F5 made correct rather than
+            // merely tidy: horizontal velocity is now exactly zero or exactly
+            // +/-MOVE_SPEED, with no float noise for the epsilon to absorb.
+            cond.moving = run.player.velocity_x() != 0;
+            cond.vel_y = run.player.velocity_y();  // sign only; see Conditions
             // Read off the tool rather than off the step's return value, and
             // that is the D1 fix arriving at the call site. The old line took
             // the one step a dig *landed* on and restarted the swing there,

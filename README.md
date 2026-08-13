@@ -136,6 +136,10 @@ that wrong once already.
 
    **Animation, which is the half no suite can see.** `anim_test` pins which animation each state selects and that the clock advances correctly; what it cannot see is whether the result looks right. Walk both ways and confirm the cycle plays and the feet do not slide. Stop and confirm it settles to idle rather than freezing mid-stride. Jump and confirm the pose changes on the way up and again on the way down, and does not flicker at the apex. Dig and confirm the swing plays once and completes — then spam clicks and confirm it never sticks mid-swing. **Then press into a wall and hold the key**: the figure must stand, not walk on the spot, which is the whole reason the selector reads `velocity_x()` rather than the input. **Hold the dig button on solid terrain rather than clicking once**: the swing must *cycle* for as long as the button is down, at a visibly heavier pace than the walk — this is the D1 check and the failure it replaces was the figure pinned on the first frame of the swing until the button came up. Watch for the seam, too: the next swing starts on the step the last one ends, so there must be no hitch at the top of each one. **A swing is now a real duration and the dig rate is tied to it** — under two digs a second, deliberately. If it reads as feeble, the note in [ROADMAP.md](ROADMAP.md)'s wave 4 says the radius is the knob, not the rate. **Finally, if you can run the window at a different frame rate, confirm the walk cycle's speed does not change** — the clock is the fixed step for exactly this reason, and a cycle that speeds up with the display is the defect [src/render/player_anim.h](src/render/player_anim.h) exists to prevent. Walk it up a one-cell sand step without jumping ([The player](#the-player) — `MAX_STEP_HEIGHT`). Confirm it cannot walk through Wall, Wood, or a settled sand pile.
 
+   **Flight, which nothing above ever asked for and which is a shipped feature.** Hold the jump key in mid-air. The character is a bird: the key should beat wings on a rhythm rather than doing nothing or reading as a thrust — discrete downstrokes you can count, at 4 pixels per cell, are the whole point. Confirm a standing jump is still the strongest single upward move you have, that sustained climbing is a slow laboured grind rather than a helicopter, and that arresting a dive costs several beats and visibly loses height while you do it. All three are properties of the *margin* between `FLAP_IMPULSE` and the gravity a beat has to pay for, not of any one constant ([TUNING.md](TUNING.md), Flight weight), so "feels heavy" and "feels weightless" are the same row read from two sides.
+
+   **This row and the two above are what F5 (2026-08-12) is owed a look for.** The player's velocities became fixed point instead of float that day, and the recorded traces say motion did not change — walk and jump are step-for-step identical, and fall and flight differ on 7 of 1381 steps, each by one cell and each re-converging immediately. **So the expected result of this whole step is "exactly as before".** Anything you can actually feel is a real finding, and flight is where to look first, since five of those seven steps were in sustained flight.
+
    **Then walk into a settled sand pile several cells tall and judge whether climbing it costs you anything.** A one-cell step is the *floor* of what `MAX_STEP_HEIGHT` permits and this row used to check only that, so the constant itself had never been tested by the thing that exists to test it. Playtest session 5 reported the result as "walking into a settled pile does nothing, the player walks over it", filed as an observation about the player/material relationship before it was traced to a number. **A body that climbs a quarter of its own height instantly, with no animation and no slowdown, reads as terrain not being there at all.**
 
    **`MAX_STEP_HEIGHT` was lowered from 5 to 3 on 2026-08-12, so this row now has two opposite failures to watch for, and the second one is the new risk.** Climbing a pile should cost you something — but a settled slope is a staircase of *one-cell* steps and must still be walkable at a steady pace. If sand you could previously stroll up now stops the body, or makes you jump repeatedly to get anywhere, the change went too far. `player_test` holds the headless half of this (it walks the body over a settled pile and asserts it gets across, at whatever the constant happens to be); what it cannot judge is whether the climb *reads* as effort or as an obstruction. That half is this row.
@@ -460,13 +464,24 @@ step in the input, because it's a one-time authored value rather than a
 per-step decision — a cell erased and repainted in the same spot comes
 back the same shade instead of a new one.
 
-**This covers the simulation, not yet the game.** The brush is painted
-once per rendered frame outside the fixed-step loop, and a held key is
-sampled once per rendered frame and applied to every fixed step inside
-it — so the same seed and the same physical input can still produce a
-different world at a different framerate. Closing that gap means moving
-input onto a per-step log rather than sampling it in the render loop, which
-is separate, not-yet-built work.
+**This used to say "covers the simulation, not yet the game"**, on the
+grounds that the brush painted once per rendered frame and a held key was
+sampled once per frame and replayed into every fixed step inside it. **F2.3
+closed that** — one `Input` now drives exactly one fixed step, brush
+included (`src/game/run.h`), so a recorded sequence replays the same
+however the original session was paced. The old wording is kept here rather
+than deleted because it was true for several revisions and the same
+sentence would otherwise be written again from memory.
+
+**What it covers now, stated exactly, because two later items spend this
+sentence as a guarantee.** The grid, the input path and — since F5,
+2026-08-12 — the player's motion are integer arithmetic end to end and
+reproduce on any conforming compiler. **`DigTool::march` is the one
+remaining exception**: it picks which cells a dig removes using a `float`
+`sqrt` and two `lround`s, and digging writes to the grid, so a replay that
+contains digging is reproducible within one binary and not across
+toolchains. It is small and unscheduled rather than refused; until it
+closes, **"determinism is portable" is not a claim this project can make.**
 
 Replacing the generator with the hash cost a small amount rather than
 saving one — see the RNG entry in `ENGINEERING_NOTES.md` for
@@ -490,6 +505,18 @@ rather than a hair inside the floor, and the whole class of "the box is 0.0001
 into the wall" bugs never comes up. The remainder carries the fractional part of
 a move into the next step, which is what keeps motion smooth below one cell per
 step.
+
+**The remainder and the velocities are fixed point** — `fx`, signed 16.16, in
+`src/physics/fixed.h` — and were `float` until 2026-08-12. Nothing about the
+character's motion changed; what changed is that it is now the same motion on
+every machine, since float arithmetic is not reproducible across compilers,
+optimisation levels or architectures and the sub-cell remainder is precisely
+where a last-bit difference grows into a whole cell. Speeds are stated in cells
+per *second* and converted to a per-step amount by `fx::per_step()`; the
+timestep is not a parameter anywhere, because it is fixed and a parameter nobody
+varies is an invitation to vary it. `visual_x()`/`visual_y()` are still float and
+are the only ones: they exist so the renderer can interpolate between steps, and
+nothing in `src/physics/` may read them.
 
 Movement resolves one cell at a time, each axis separately. Sub-stepping makes
 tunnelling impossible by construction rather than by being fast enough — a

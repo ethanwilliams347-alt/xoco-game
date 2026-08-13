@@ -65,10 +65,24 @@ these variables removes the only thing enforcing the boundary.
   they are properties of the material at that coordinate, not decisions retaken
   each step. A per-step re-roll of an ignition point just fires on the first frame
   the lowest roll comes up.
-- `Grid` is integer-only. `Player` uses a float sub-cell remainder and is the
-  known, documented exception — reproducible within one binary, not across
-  toolchains. Do not quote "the simulation is deterministic" as covering the
-  player.
+- `Grid` is integer-only, and **so is `Player` since F5 (2026-08-12)**. This bullet
+  used to read "`Player` uses a float sub-cell remainder and is the known,
+  documented exception — reproducible within one binary, not across toolchains",
+  and that is left here rather than deleted because the shape of it is worth
+  recognising: the exception was correctly identified, correctly written down, and
+  then quoted as portable by three separate later items anyway. Writing a
+  limitation down does not stop people spending it.
+- **Fixed point is `fx` ([src/physics/fixed.h](../../src/physics/fixed.h)), signed
+  16.16.** Speeds are cells *per second*, matching TUNING.md; `fx::per_step()` is
+  the only way a per-second constant becomes a per-step amount. Two traps:
+  `fx::trunc` truncates toward zero and **must not** be "optimised" into `>> 16`,
+  which floors (a static_assert holds this); and a constant is built with
+  `fx::from_int`/`fx::from_ratio`, never by casting a float literal, since a
+  compile-time float fold is as machine-dependent as a runtime one.
+- **The one float left on `Player` is `visual_x()`/`visual_y()`**, and it is the
+  boundary to the renderer rather than an exception to this rule. Nothing under
+  `src/physics/` may read them, and no test asserts on them except the two A1
+  regression cases that exist to watch the remainder itself.
 
 ## Things that look like bugs and are not
 

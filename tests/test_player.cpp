@@ -24,8 +24,6 @@
 
 namespace {
 
-constexpr float DT = 1.0f / 60.0f;
-
 // A world roomy enough for the body at any plausible size: tall enough for a
 // long fall above the floor, wide enough that a second of walking at
 // MOVE_SPEED never reaches the far border.
@@ -46,7 +44,7 @@ constexpr int OBSTACLE_X = WORLD_W / 2;
 void step(Grid& g, Player& p, const PlayerInput& in, int n) {
     for (int i = 0; i < n; ++i) {
         g.update();
-        p.update(g, in, DT);
+        p.update(g, in);
     }
 }
 
@@ -101,7 +99,9 @@ int main() {
     // drop is stated in terms of MAX_FALL_SPEED rather than as a fixed height,
     // which is what keeps it a terminal-velocity test after a retune.
     {
-        const int drop = static_cast<int>(Player::MAX_FALL_SPEED) * 2;
+        // `fx::trunc` rather than a cast: the speeds are fixed point since F5,
+        // and a plain cast of one would be a drop of six million cells.
+        const int drop = fx::trunc(Player::MAX_FALL_SPEED) * 2;
         const int thin_floor_y = drop + Player::HEIGHT;
         Grid g(WORLD_W, thin_floor_y + 4);
         for (int x = 0; x < WORLD_W; ++x) g.set_element(x, thin_floor_y, ElementType::Wall);
@@ -125,7 +125,7 @@ int main() {
         // slack absorbs the steps spent landing, and the claim ("it actually
         // travels at roughly the speed it is configured for") survives a
         // retune of MOVE_SPEED, which a literal would not.
-        const int expected = static_cast<int>(Player::MOVE_SPEED * 0.66f);
+        const int expected = fx::trunc(Player::MOVE_SPEED) * 66 / 100;
         check("player walks along flat ground", p.cell_x() - start_x > expected,
               "moved=" + std::to_string(p.cell_x() - start_x) + " cells, wanted >" +
                   std::to_string(expected));
