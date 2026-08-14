@@ -75,6 +75,33 @@ at exactly its old speed. The two move together.
 
 Too much margin makes a helicopter; too little makes a rock that flaps.
 
+## Damage and losing the run
+
+*(S0, 2026-08-14.)* [src/physics/player.h:176-224](src/physics/player.h#L176)
+
+**Every one of these is only correct relative to a constant somewhere else, and
+four of those relationships are held by `static_assert`s at the bottom of
+[player.h](src/physics/player.h) rather than by this table.** That is deliberate
+and it is the reason this section can be short: if you retune one side and not
+the other, the build fails with the sentence explaining which pair you broke.
+Read those asserts before changing anything here.
+
+| Knob | Line | Now | What it does |
+|---|---|---|---|
+| `MAX_HEALTH` | [181](src/physics/player.h#L181) | 100 | The size of the bar, and the unit the two rules below are priced in. Everything else here is a fraction of it, so raising this alone makes the game easier by exactly that ratio rather than changing anything's character. |
+| `BURN_TEMPERATURE` | [198](src/physics/player.h#L198) | 100 | How hot a cell the body is standing **in** has to be to hurt. Sits in a gap: above Steam's spawn of 88 so a doused fire is not a weapon, well below Fire's 250 and Charred's 200. **Not a difficulty knob** — the gap is narrow at the bottom and both sides are asserted. Contact only; air carries no heat, so a fire you are not touching does nothing. |
+| `BURN_DAMAGE` / `BURN_INTERVAL_STEPS` | [205-206](src/physics/player.h#L205) | 2 / 6 | 20 health a second, so five seconds in flame kills. Tune as the **pair** — the rate is what matters and either one alone moves it. A per-step version is 120/s, which reads as an instant death with nothing to react to, and reacting is the whole content of a hazard. |
+| `SAFE_FALL_SPEED` | [223](src/physics/player.h#L223) | 240.0 | Landing speed below which a fall is free. Has to clear `JUMP_SPEED` plus a step of gravity or the character hurts itself by jumping — asserted. At the current `GRAVITY` this is a drop of about 58 cells, ~3 body heights. |
+| `FALL_DAMAGE_DIVISOR` | [224](src/physics/player.h#L224) | 2 | Damage is `(landing speed − SAFE_FALL_SPEED) / this`, in whole cells per second. At terminal velocity that is 80 of 100: **one free terminal-velocity mistake, and the second one kills.** Lowering it past the point where a terminal landing exceeds `MAX_HEALTH` makes the worst fall an instant death, which is a design change and is asserted against. |
+| `Run::OBJECTIVE_REACH` | [133](src/game/run.h#L133) | 6 | How close the collision box has to get, in cells, for the objective to count as reached. Measured box-to-point, so it reads the same from beside or under. Under half a body height — large enough not to need pixel-accuracy at 4 screen pixels per cell. |
+
+**The one number here that is not a feel knob and looks like one is
+`BURN_TEMPERATURE`.** It is a threshold into `MATERIALS`, and MATERIALS has
+already moved one of the two numbers it sits between, for an unrelated reason
+(Steam's spawn went 220 → 88 because at 220 it was a fire-starter). If it ever
+moves back up, this stops meaning what the table says and starts meaning "steam
+hurts you".
+
 ## Animation timing
 
 [tools/player_sheet.py:89](tools/player_sheet.py#L89) — the `ANIMATIONS` table.
@@ -156,6 +183,19 @@ the numbers.
 ## History
 
 Newest first. One line per retune: what moved, and what was being fixed.
+
+- **2026-08-14** — **six new knobs and no existing one moved** (S0). Health, the
+  burn threshold and rate, the safe landing speed and the fall-damage divisor,
+  and the objective's reach. In History because the table gained a section, not
+  because anything was retuned: **every number in it is a first value chosen to
+  sit in a stated relationship with a constant that already existed**, and four
+  of those relationships are `static_assert`s rather than rows here. **None of
+  them has been playtested.** The two worth watching first are the burn rate —
+  five seconds in flame to die, chosen so there is time to react and not
+  otherwise argued — and `SAFE_FALL_SPEED`, whose whole job is to be high enough
+  that jumping never hurts and low enough that a real drop does. The line
+  numbers of every constant above this section are **unchanged**, which was
+  checked rather than assumed.
 
 - **2026-08-12** — **every movement and flight constant changed type and none
   changed value** (F5). `float` → `fx` signed 16.16 fixed point, written as exact

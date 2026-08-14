@@ -159,6 +159,70 @@ public:
     // material, or a burial that used to be escapable no longer is.
     static constexpr int MAX_UNSTUCK_RADIUS = 20;
 
+    // --- S0: health, and the two things that take it away ------------------
+    //
+    // **Health lives on the body, and the damage is the body asking the grid a
+    // question.** That direction is the rule `tool.cpp` established and S0 is
+    // the first gameplay system that spans both sides of it: the grid does not
+    // know the player exists, so there is no health field on `Grid`, no damage
+    // column on `Element`, and nothing in the update loop that knows a player
+    // is standing there. Both sources below are reads of the world the body is
+    // already in, taken in `update()` where collision takes its own.
+    //
+    // **Two sources and no damage model**, which is the whole of what S0 admits
+    // (the full item is in ROADMAP.md's Medium Term list). A third source wants
+    // a table; two want an `if` each, and writing the table before there is
+    // anything to put in it is how the spike stops being a spike.
+    //
+    // Integer, like everything else on the simulation path: a threshold is a
+    // *rule*, and a run that kills the player on one machine and not on another
+    // is a worse defect than a wrongly tuned threshold. This is the consumer
+    // `velocity_y()` was converted to `fx` for (F5).
+    static constexpr int MAX_HEALTH = 100;
+
+    // **Contact heat, not proximity heat.** Damage is taken from the hottest
+    // cell the body is actually standing *in*, which is the same question
+    // `overlaps_solid` asks and answered against the same box. Air is not
+    // simulated - `Empty` has conductivity 0 in MATERIALS - so heat travels
+    // through matter in contact and nowhere else, and a body in a room with a
+    // fire it is not touching is genuinely not being heated by it. Fire is a
+    // Gas, so a flame occupies cells the body can stand in; that is what makes
+    // this reachable at all.
+    //
+    // 100 is water's boiling point on `Element`'s Celsius-flavoured scale, and
+    // it is chosen to sit in a specific gap rather than to feel right: above
+    // Steam's spawn temperature of 88, so a puff of steam is not a weapon, and
+    // far below Fire's 250 and Charred's 200, so both of those hurt with the
+    // whole margin to spare. Both halves of that are asserted at the bottom of
+    // this file rather than written down here alone.
+    static constexpr uint8_t BURN_TEMPERATURE = 100;
+
+    // 2 damage every 6 fixed steps is 20 a second, so a body left standing in
+    // flame dies in five seconds. A rate rather than per-step damage because
+    // per-step is 120 a second and burns a full bar down in under one, which
+    // reads as an instant death with no chance to react to it - and reacting is
+    // the whole content of a hazard.
+    static constexpr int BURN_DAMAGE = 2;
+    static constexpr int BURN_INTERVAL_STEPS = 6;
+
+    // **Fall damage is linear in the speed *over* a safe landing, not in the
+    // height fallen**, because the body already carries a speed and does not
+    // carry a height - deriving a fall's distance would mean remembering where
+    // it started, which is state that exists only to be turned back into the
+    // number `vel_y` already holds.
+    //
+    // 240 cells/s is the floor of it. It has to clear a standing jump's landing
+    // with room - `JUMP_SPEED` is 175 and the arc comes back a step of gravity
+    // faster than it left - or the character takes damage for jumping, which is
+    // the one thing a movement game may never do. The assert below holds that.
+    //
+    // At `MAX_FALL_SPEED` (400) the excess is 160 and the damage is 80: a
+    // terminal-velocity landing is survivable exactly once from full health,
+    // which is the shape worth having. In cells that is a fall of about 160 -
+    // eight body heights - since v^2 = 2*GRAVITY*h.
+    static constexpr fx::v SAFE_FALL_SPEED = fx::from_int(240);
+    static constexpr int FALL_DAMAGE_DIVISOR = 2;
+
     Player(int start_x, int start_y);
 
     // Advances the player by one fixed step. Call this at the same fixed rate
@@ -241,10 +305,28 @@ public:
     // correct rather than merely portable.
     fx::v velocity_x() const { return vel_x; }
 
+    // Health remaining, 0 to MAX_HEALTH. Clamped at zero rather than allowed
+    // to go negative: "how dead" is not a quantity anything reads, and a
+    // negative bar is a rendering bug waiting on a big enough fall.
+    int health() const { return hp; }
+    bool is_alive() const { return hp > 0; }
+
+    // Damage taken on this step, zero on most of them. The same shape as
+    // `flapped()` and `DigTool`'s "a blow landed" - an *event* rather than a
+    // level, because what a hit indicator or a sound wants is the moment, and
+    // deriving the moment from a falling health number at the call site means
+    // every consumer keeps its own copy of last step's value.
+    int damage_this_step() const { return hurt_this_step; }
+
     // True if a body placed with its top-left at (px, py) would overlap any
     // solid cell. Public because "the player is not inside a wall" is the
     // single most useful thing for a test to assert.
     bool overlaps_solid(const Grid& grid, int px, int py) const;
+
+    // The hottest cell the body currently occupies. Public because it is the
+    // input to the burn rule and a test that could only see the *output* would
+    // have to work backwards from a health number to say why it moved.
+    uint8_t hottest_overlap(const Grid& grid) const;
 
 private:
     // Position is an integer cell plus a sub-cell remainder rather than a plain
@@ -274,6 +356,27 @@ private:
     // on every machine.
     int flap_timer = 0;
     bool did_flap = false;
+
+    // S0. `burn_timer` is steps until the next burn tick and is *cleared*
+    // rather than decremented when the body is not in anything hot, so leaving
+    // a fire and stepping straight back into it costs a tick immediately
+    // instead of resuming a countdown the player cannot see. `hurt_this_step`
+    // is rebuilt every step, like `did_flap`.
+    //
+    // `has_landed` is false until the body's feet have touched anything once,
+    // which is what makes the spawn drop free - see the fall-damage block in
+    // update(). It is a fact about the run having started, not about the body,
+    // and it is reset with the body because `Run::reset` replaces the whole
+    // object.
+    int hp = MAX_HEALTH;
+    int burn_timer = 0;
+    int hurt_this_step = 0;
+    bool has_landed = false;
+
+    // Takes `amount` off the health, clamped at zero, and records it for
+    // `damage_this_step()`. One writer for both sources, so a third one added
+    // later cannot forget the clamp or the event.
+    void hurt(int amount);
 
     // How far the body would have to be lifted to move one cell towards `sign`,
     // or -1 if that direction is a wall rather than a step. Zero means the way
@@ -331,3 +434,48 @@ static_assert(Player::FLAP_IMPULSE > fx::per_step(Player::GRAVITY) * Player::FLA
 static_assert(Player::FLAP_MAX_CLIMB < Player::JUMP_SPEED,
               "sustained flight is now at least as fast as a standing jump, which makes "
               "the character a helicopter - see the flight comment above");
+
+// --- and three more for S0's damage thresholds -------------------------------
+//
+// Same argument as the three above: these are numbers TUNING.md invites people
+// to change by feel, and each of them is only correct *relative to* a constant
+// living somewhere else - two of them in a different file. A prose sentence
+// about that relationship goes stale the first time one side is retuned alone,
+// which is the failure mode this project keeps rediscovering.
+
+// **Jumping never hurts.** A standing jump comes back down at JUMP_SPEED plus
+// the step of gravity applied on the way past the apex, so the safe-landing
+// floor has to clear that sum and not merely JUMP_SPEED. Raising JUMP_SPEED
+// without raising this would make the character damage itself by playing the
+// game correctly, and it would present as "falling is broken" rather than as a
+// jump constant.
+static_assert(Player::SAFE_FALL_SPEED > Player::JUMP_SPEED + fx::per_step(Player::GRAVITY),
+              "a standing jump now lands hard enough to take fall damage; raise "
+              "SAFE_FALL_SPEED or lower JUMP_SPEED");
+
+// **The worst possible landing is survivable from full health, and it costs
+// something.** The upper bound is the design - one free terminal-velocity
+// mistake, the second one kills - and the lower bound is what stops the whole
+// rule quietly becoming decorative if MAX_FALL_SPEED is ever lowered below the
+// safe threshold.
+static_assert(Player::MAX_FALL_SPEED > Player::SAFE_FALL_SPEED,
+              "terminal velocity is now below the safe landing speed, so no fall can "
+              "ever do damage and the rule is dead code");
+static_assert(fx::trunc(Player::MAX_FALL_SPEED - Player::SAFE_FALL_SPEED) /
+                  Player::FALL_DAMAGE_DIVISOR <= Player::MAX_HEALTH,
+              "a terminal-velocity landing now kills outright from full health; that is "
+              "a design change, not a tuning one - see SAFE_FALL_SPEED");
+
+// **Steam does not burn and Fire does.** The burn threshold sits in a gap
+// between two numbers in MATERIALS, and MATERIALS has already moved one of them
+// once for an unrelated reason: Steam's spawn temperature went from 220 to 88
+// because at 220 it was a fire-starter. A move back up would silently turn
+// every doused flame into a hazard that damages the player through a cloud, and
+// nothing about editing that row suggests reading this one.
+static_assert(Player::BURN_TEMPERATURE > material_of(ElementType::Steam).spawn_temperature,
+              "steam now spawns hot enough to burn the player, so putting out a fire "
+              "hurts you - see Steam's row in MATERIALS");
+static_assert(Player::BURN_TEMPERATURE < material_of(ElementType::Fire).spawn_temperature &&
+                  Player::BURN_TEMPERATURE < material_of(ElementType::Charred).heat_source,
+              "fire or burning wood is no longer hot enough to hurt the player, which is "
+              "the one thing S0's burn rule exists to do");

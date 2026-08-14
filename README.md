@@ -286,6 +286,16 @@ two are not directly comparable.
 
     **Two limits on reading a recording as this step, worth knowing before doing it again.** The census reports materials **co-present in the world**, not *near* each other — this step says "near", and world-wide co-presence is the weaker claim. And a recording can only ever show the step's *crash* half; the reason step 9 is a manual step is that a person also notices things that are wrong but not fatal, which no replay will report. **A recording strengthens this step and does not replace it.**
 
+10. **The run can be lost (`S0`, new 2026-08-14).** The other nine steps ask whether the engine is still correct. **This one asks whether there is a game**, and it is the only step on this list whose result is a design decision rather than a pass or a fail — the combat question in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed) is due on it.
+
+    **The mechanical half, which is what can actually regress.** At launch the HUD reads `HP:100` and a `GOAL:` bearing, and an `Objective: (1700, 932)` line prints beside the seed — a missing objective line means the column scanned no ground and the run cannot be won. Confirm the spawn drop costs nothing: the body falls several hundred cells at startup and must land at `HP:100`, because that fall is priced at 80 of 100 and is free by an explicit rule. Then **jump repeatedly and confirm jumping never costs health** — that is the rule most likely to break silently, since it is a relationship between two constants and only one of them is in this file. Walk off the diving ledge above the water channel and confirm a real drop *does* cost health. Paint Fire (`7`) onto yourself and confirm the bar comes down at about a fifth a second, then step out and confirm it stops; paint Steam (`6`) onto yourself and confirm it does **not** — steam spawns twelve degrees under the burn threshold, deliberately, and that gap is the one a MATERIALS retune could close without anybody noticing.
+
+    **Then lose, and then win.** Stand in fire until the bar empties: the world freezes, `YOU DIED` reads over it, and the terrain behind stays visible — a panel that hid the world would hide the whole content of the ending. Press `R`, confirm the run starts over with the terrain restored, the body at full health and the objective still there. Then go and reach it: the objective is east across the water channel, which is walled on both sides and **cannot be walked across** — flight is the intended answer and this is the first thing in the built game that has ever required it. Confirm `OBJECTIVE REACHED` and that `R` works from there too.
+
+    **What to be fussy about, in order.** *`R` must do nothing while the run is playing* — it is inert on purpose, and a mid-run restart would be a session thrown away by a mis-hit. *The `GOAL:` bearing must count down as you approach*, since a bearing that does not is worse than none. *And a body dug out of burning terrain must still be burning*: the burn rule sits deliberately above the unstuck path, so being buried in fire is not a way to stop taking damage.
+
+    **The half that is not a check.** Play it as a run rather than as a test — spawn, cross, arrive — and then answer the question the item was built to ask: **does this need an enemy to be interesting?** Neither "yes" nor "no" is a failure and both close a decision that has been open for months. Record the answer in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed) and the symptoms in [PLAYTEST_LOG.md](PLAYTEST_LOG.md), the usual way round.
+
 ## Controls
 
 **Player**
@@ -320,6 +330,7 @@ two are not directly comparable.
 - **`7`**: **Fire** — gas; rises, fades from white-hot to red, and dies within a fifth of a second. A flame is what burning *throws off* — the thing actually on fire is the charred wood underneath it, which is what heats its neighbours and spreads the burn.
 - **`8`**: **Eraser** — deletes pixels.
 - **`ESC`**: Open the settings menu. **This used to quit outright**, which is the wrong thing for a key sitting next to a menu — quitting is now an item inside it, so it takes two deliberate presses.
+- **`R`**: Start a new run — **only once the current one is over**, and inert while you are playing. A key that throws a session away is a bad one to mis-hit, which is the same reason quitting moved off `ESC`.
 - **`F9`**: Write everything played so far to `session.rec` — the benchmark's replayed row (P4). A line appears under the HUD saying what was written and how many steps it holds. Every session is recorded from its first step whether or not you ever press this; see [The replayed row](#the-replayed-row-and-recording-one-p4). It is on `F9` rather than a letter because every letter within reach of the movement keys is a hotbar slot, and a key that writes a file is a bad one to hit while reaching for sand.
 
 **Settings menu** (`ESC`)
@@ -327,12 +338,36 @@ two are not directly comparable.
 - Offers 1920x1080, 2560x1440 and 3440x1440. The pixel scale is fixed at 4 screen pixels per cell in every mode, so a wider window shows *more world* rather than a bigger one — 480x270 cells at 1080p up to 860x360 at 3440x1440, which is the framing of the reference footage this game's art is measured against. A mode larger than your desktop is listed but greyed out rather than hidden.
 - The chosen mode is written to `settings.txt` beside the executable and reloaded next launch. If that file names a resolution the current display cannot fit — a monitor changed between runs — it is ignored with a note on stderr and the largest mode that does fit is used. The mode actually chosen prints at startup next to the seed.
 
-The HUD in the top-left corner of the window shows the current framerate,
-selected material, brush size, and awake-chunk count (see [Chunked
-updates](#chunked-updates)); the window title bar itself is just a static
-label. The player spawns in mid-air in the middle of the world; the F4 test
-scene loaded at startup gives it plenty to land on, and the brush still works
-for drawing more terrain anywhere else.
+**The run (`S0`)**
+- You have **100 health** and two ways to lose it: **standing in something hot**
+  — a flame, or wood that has caught — and **landing too fast**. Contact only,
+  so a fire across the room does nothing; air carries no heat in this engine and
+  that is a simulation property rather than a gameplay simplification. A drop of
+  about three body heights is free and a terminal-velocity landing costs 80, so
+  the worst fall in the game is survivable exactly once. **The drop you take at
+  spawn is free** — it is several hundred cells and would otherwise be the
+  hardest fall you ever take.
+- **Beating your wings arrests a fall**, which is what makes a bad landing a
+  mistake rather than an accident.
+- The **objective** is the gold-and-white marker east of the water channel,
+  ~740 cells from where you spawn. The `GOAL:` figure in the HUD is the distance
+  to it in cells and which way it lies. The channel is walled on both sides and
+  full nearly to the top: **you cannot walk there**, and flight is the intended
+  answer.
+- Reaching it ends the run as a win, running out of health ends it as a loss.
+  Either way the world **freezes where it was** rather than clearing, so the
+  thing that killed you is still there to look at, and `R` starts a new one.
+- **Everything about this is deliberately thin** — one objective hard-coded into
+  the test scene, two damage sources, no save, no death animation. See `S0` in
+  [ROADMAP.md](ROADMAP.md) for what it is not, and why it was built before the
+  rest of the engine track.
+
+The HUD in the top-left corner of the window shows health and the objective
+bearing, then the current framerate, selected material, brush size, and
+awake-chunk count (see [Chunked updates](#chunked-updates)); the window title bar
+itself is just a static label. The player spawns in mid-air in the middle of the
+world; the F4 test scene loaded at startup gives it plenty to land on, and the
+brush still works for drawing more terrain anywhere else.
 
 ## Engine Architecture
 

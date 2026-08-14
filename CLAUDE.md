@@ -158,8 +158,10 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
 3. **`ctest` proves mechanics in isolation; it cannot prove they compose.** After
    any change to `src/physics/`, `src/game/` or `main.cpp` that the suites do not
    fully exercise, the Manual Tester Checklist in [README.md](README.md) is the
-   other half. Each of its nine steps names a regression that has actually
-   happened. **I cannot run it** — flag when it is owed and say which steps matter.
+   other half. Each of its ten steps names a regression that has actually
+   happened — **except step 10, which is new with S0 and is the one step whose
+   result is a design decision rather than a pass or a fail.** **I cannot run
+   it** — flag when it is owed and say which steps matter.
 4. **Performance claims need bracketed measurement.** Same sitting, back to back,
    with a control scenario that the change cannot affect. Timings on one machine
    have differed by more than 2x on identical code. See

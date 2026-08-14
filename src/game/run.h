@@ -46,6 +46,14 @@ struct Input {
 // test.
 class Run {
 public:
+    // S0: how this run ended, or that it has not.
+    //
+    // **`Playing` is a real state and not the absence of the other two**, which
+    // is the whole reason this is an enum rather than a pair of bools: a run
+    // that is somehow both won and lost is unrepresentable, and the "neither"
+    // case has a name that reads correctly at the call site.
+    enum class Outcome : uint8_t { Playing, Won, Lost };
+
     // The simulation advances in fixed steps so that sand falls at the same
     // rate on a 60 Hz and a 144 Hz display; rendering runs as fast as the
     // display allows and calls `step()` as many times as have accumulated.
@@ -75,6 +83,16 @@ public:
     // and `player`/`dig_tool` are replaced outright since neither owns anything
     // a wipe would need to preserve. Grid size cannot change through a reset,
     // for the same reason `Grid::reset()` cannot change it - see there.
+    //
+    // **Two things it deliberately does not restore, and both are named rather
+    // than left to be discovered.** The objective survives, for the reason at
+    // the field below - it is a property of the level and not of the run. And
+    // **the world's terrain does not come back**, because `Run` does not own it:
+    // the scene is loaded from two BMPs by `main.cpp`, so a caller that wants
+    // the level it started with has to re-stamp it after calling this. That is
+    // a real sharp edge and it is the caller's, not this class's; the argument
+    // for leaving it there rather than giving `Run` the scene is in
+    // ENGINEERING_NOTES.md, along with what would make it come due.
     void reset(uint64_t seed);
 
     // Advances grid, player and dig tool by exactly one fixed step, in that
@@ -96,7 +114,56 @@ public:
     // arithmetic.
     bool step(const Input& input);
 
+    // --- S0: the objective, and how a run ends -----------------------------
+    //
+    // **The objective is a point in the world, not a cell**, and that is a
+    // deliberate limit on the thin half of the item. A cell would mean a row in
+    // MATERIALS, which would mean answering what happens when it is dug, burnt,
+    // displaced or buried - four questions the full "Objective + Extraction"
+    // item in ROADMAP.md exists to answer and which a spike has no business
+    // deciding by accident. A point is reached or it is not.
+    //
+    // Placed by the caller rather than by a generator, because there is no
+    // generator; `main.cpp` scans the fixture's terrain for a surface the same
+    // way it plants props, which is the closest thing to "in the level" that a
+    // hard-coded objective can honestly be.
+    void set_objective(int x, int y);
+    bool has_objective() const { return objective_set; }
+    int objective_x() const { return goal_x; }
+    int objective_y() const { return goal_y; }
+
+    // How close the body has to get, in cells, measured from the objective to
+    // the nearest point of the collision box rather than to the body's centre -
+    // so a 8x20 body reaches the same objective from the same distance whether
+    // it is standing beside it or under it.
+    //
+    // 6 is a little under half a body height. Small enough that it reads as
+    // touching the marker, large enough that it does not need pixel-accurate
+    // positioning against a marker drawn at four screen pixels per cell.
+    static constexpr int OBJECTIVE_REACH = 6;
+
+    Outcome outcome() const { return run_outcome; }
+
     Grid grid;
     Player player;
     DigTool dig_tool;
+
+private:
+    // **The outcome latches.** Once a run is over it stays over, even though
+    // `step()` keeps simulating: freezing the world is a presentation decision
+    // and `main.cpp` makes it by not accumulating time, the same way it already
+    // does for the settings menu. A `Run` driven headlessly past its own ending
+    // - which every test here does - must not have the answer flicker back.
+    Outcome run_outcome = Outcome::Playing;
+
+    // **The objective survives `reset()`, and this is the second documented
+    // exception to "reset restores a fresh Run", after `Grid::vent_radius`.**
+    // The argument is the same shape: it is a property of the *level*, not of
+    // the run played through it, and the caller re-stamps the same scene on
+    // reset, so a cleared objective would be one the caller has to remember to
+    // place again. Forgetting would produce a run that is unwinnable and says
+    // nothing, which is the worst available failure for this particular field.
+    bool objective_set = false;
+    int goal_x = 0;
+    int goal_y = 0;
 };

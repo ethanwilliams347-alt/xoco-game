@@ -409,5 +409,154 @@ int main() {
         }
     }
 
+    // ========================================================================
+    // S0: the run can be won and it can be lost.
+    //
+    // Driven entirely through run.step(), like everything above - a run that
+    // ends because a test called a setter is not evidence that a played one
+    // ever would.
+    // ========================================================================
+
+    // --- a fresh run is Playing, and stays Playing with nowhere to go ---
+    // The negative case first, because it is the one that makes the two below
+    // mean anything: an outcome that latched to Won on construction would pass
+    // a "reaching the objective wins" test perfectly.
+    {
+        Run run(200, 120, 5150);
+        build_floor(run, 100);
+        check("S0: a fresh run is Playing", run.outcome() == Run::Outcome::Playing);
+        check("S0: ...and has no objective until one is placed", !run.has_objective());
+
+        step(run, NOTHING, 200);
+        check("S0: a run with no objective and no hazard stays Playing",
+              run.outcome() == Run::Outcome::Playing && run.player.is_alive(),
+              "hp=" + std::to_string(run.player.health()));
+    }
+
+    // --- an objective out of reach does not end the run; walking to it does ---
+    // One scenario rather than two, for the same reason the fall-damage tests
+    // in test_player.cpp are one: the claim is about the *boundary*, and a rule
+    // that fired everywhere would pass the second half alone.
+    {
+        Run run(400, 120, 5151);
+        build_floor(run, 100);
+        step(run, NOTHING, 120);           // land first
+        check("the player lands before the objective is placed", run.player.is_on_ground());
+
+        const int start_x = run.player.cell_x();
+        // Well beyond OBJECTIVE_REACH, and beyond the body's own width so the
+        // box cannot be overlapping it at placement time.
+        const int goal = start_x + Player::WIDTH + 4 * Run::OBJECTIVE_REACH + 40;
+        run.set_objective(goal, run.player.center_y());
+        check("S0: an objective can be placed", run.has_objective() &&
+              run.objective_x() == goal);
+
+        run.step(NOTHING);
+        check("S0: an objective out of reach does not end the run",
+              run.outcome() == Run::Outcome::Playing,
+              "player x=" + std::to_string(run.player.cell_x()) +
+                  " goal x=" + std::to_string(goal));
+
+        // Walk to it. Bounded rather than "until it wins", so a rule that never
+        // fires fails the check instead of hanging the suite.
+        for (int i = 0; i < 300 && run.outcome() == Run::Outcome::Playing; ++i)
+            run.step(held_right());
+
+        check("S0: walking onto the objective wins the run",
+              run.outcome() == Run::Outcome::Won,
+              "player x=" + std::to_string(run.player.cell_x()) +
+                  " goal x=" + std::to_string(goal));
+    }
+
+    // --- dying loses the run ---
+    // Killed by fire painted through the brush, which is a path a player has:
+    // the point is that the loss arrives through the simulation rather than
+    // through a test reaching into the body.
+    {
+        Run run(200, 120, 5152);
+        build_floor(run, 100);
+        step(run, NOTHING, 120);
+
+        Input burn;
+        burn.brush_active = true;
+        burn.brush_type = ElementType::Fire;
+        burn.brush_size = Player::HEIGHT / 2;
+
+        for (int i = 0; i < 4000 && run.outcome() == Run::Outcome::Playing; ++i) {
+            burn.cursor_x = run.player.center_x();
+            burn.cursor_y = run.player.center_y();
+            run.step(burn);
+        }
+
+        check("S0: a body burnt to zero health loses the run",
+              run.outcome() == Run::Outcome::Lost && !run.player.is_alive(),
+              "hp=" + std::to_string(run.player.health()));
+
+        // The outcome latches. `main.cpp` freezes the world by not accumulating
+        // time, so nothing in the SDL shell would notice this - but a headless
+        // caller drives straight past the ending, and a run that reported
+        // Playing again once the flames went out would be worse than useless.
+        step(run, NOTHING, 300);
+        check("S0: ...and the outcome does not un-latch when the hazard clears",
+              run.outcome() == Run::Outcome::Lost);
+    }
+
+    // --- reset restarts the run and keeps the objective ---
+    // The objective surviving `reset()` is the second documented exception to
+    // "reset gives you a fresh Run" and it is asserted rather than written
+    // down, for the same reason `test_grid.cpp` asserts `vent_radius` survives:
+    // a hand-written wipe can forget a field, and this one silently produces an
+    // unwinnable run when it does.
+    {
+        Run run(200, 120, 5153);
+        build_floor(run, 100);
+        step(run, NOTHING, 120);
+        run.set_objective(run.player.center_x(), run.player.center_y());
+        run.step(NOTHING);
+        check("S0: the run is Won before the reset", run.outcome() == Run::Outcome::Won);
+
+        run.reset(5153);
+        check("S0: reset puts the run back to Playing",
+              run.outcome() == Run::Outcome::Playing);
+        check("S0: ...with the body back at full health",
+              run.player.health() == Player::MAX_HEALTH);
+        check("S0: ...and the objective still placed",
+              run.has_objective(), "an objective cleared by reset leaves an "
+                                   "unwinnable run that says nothing");
+    }
+
+    // --- the recorder's guarantee survives a restart ---
+    //
+    // **This is the interaction P4 would otherwise lose silently.** A session
+    // log replays by rebuilding the world from the seed and the scene and then
+    // feeding the recorded inputs back in - so a reset in the middle of a
+    // recording would replay into the wrong world and the bench could not tell.
+    // `main.cpp` starts a *new* recording on restart instead, and the reason
+    // that is sound is asserted here: reset with the same seed, re-stamped with
+    // the same terrain, is the same world the first recording started in.
+    {
+        Run a(120, 80, 5154);
+        build_floor(a, 60);
+        const uint64_t before = input_log::fingerprint(a.grid);
+
+        step(a, held_right(), 200);
+        Input paint;
+        paint.brush_active = true;
+        paint.brush_type = ElementType::Sand;
+        paint.brush_size = 3;
+        paint.cursor_x = 40;
+        paint.cursor_y = 20;
+        step(a, paint, 40);
+        check("the world actually moved before the reset",
+              input_log::fingerprint(a.grid) != before);
+
+        a.reset(5154);
+        build_floor(a, 60);   // what main.cpp's re-stamp of the scene stands in for
+        check("S0: reset plus a re-stamp reproduces the world a recording starts from",
+              input_log::fingerprint(a.grid) == before,
+              "a mismatch here means a restarted session's log replays into a "
+              "different world than it was recorded in");
+    }
+
     return report();
 }

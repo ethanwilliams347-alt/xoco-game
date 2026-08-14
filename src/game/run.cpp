@@ -10,6 +10,16 @@ void Run::reset(uint64_t seed) {
     grid.reset(seed);
     player = Player(grid.get_width() / 2, grid.get_height() / 4);
     dig_tool = DigTool();
+    run_outcome = Outcome::Playing;
+    // `objective_set`, `goal_x` and `goal_y` are deliberately not cleared - see
+    // the field comment in run.h for the argument, which is the same one
+    // `Grid::reset` makes about `vent_radius`.
+}
+
+void Run::set_objective(int x, int y) {
+    goal_x = x;
+    goal_y = y;
+    objective_set = true;
 }
 
 bool Run::step(const Input& input) {
@@ -56,6 +66,36 @@ bool Run::step(const Input& input) {
     // Last, so the dig is aimed from where the body actually ended up this
     // step. Called every step whether or not the button is held, because
     // that is what advances the tool's cooldown.
-    return dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
-                           input.cursor_x, input.cursor_y);
+    const bool dug = dig_tool.update(grid, input.dig, player.center_x(), player.center_y(),
+                                     input.cursor_x, input.cursor_y);
+
+    // --- S0: has the run ended? ---
+    //
+    // Asked after everything else has moved, against the world and the body as
+    // this step left them - the same reason the player updates after the grid.
+    //
+    // **Death is checked before the objective**, so a body that reaches the
+    // marker on the step its last health goes has lost rather than won. That is
+    // an arbitrary call between two things that cannot both be true, and it is
+    // written down here so it is a decision rather than an accident of ordering:
+    // being killed by the thing you were escaping is the more legible reading of
+    // the two, and it is the one a player would describe.
+    if (run_outcome == Outcome::Playing) {
+        if (!player.is_alive()) {
+            run_outcome = Outcome::Lost;
+        } else if (objective_set) {
+            // Distance from the objective to the nearest point of the body's
+            // box, clamped per axis - the standard box/point distance, in
+            // integers, squared so there is no root and therefore no float.
+            const int bx0 = player.cell_x(), bx1 = bx0 + Player::WIDTH - 1;
+            const int by0 = player.cell_y(), by1 = by0 + Player::HEIGHT - 1;
+            const int dx = (goal_x < bx0) ? bx0 - goal_x : (goal_x > bx1 ? goal_x - bx1 : 0);
+            const int dy = (goal_y < by0) ? by0 - goal_y : (goal_y > by1 ? goal_y - by1 : 0);
+            if (dx * dx + dy * dy <= OBJECTIVE_REACH * OBJECTIVE_REACH) {
+                run_outcome = Outcome::Won;
+            }
+        }
+    }
+
+    return dug;
 }

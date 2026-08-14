@@ -16,6 +16,29 @@ bool Player::overlaps_solid(const Grid& grid, int px, int py) const {
     return false;
 }
 
+// The same box `overlaps_solid` walks, asking a different question of it. Kept
+// as its own scan rather than folded into that one: they are called at
+// different moments (this once per step, that one several times, on speculative
+// positions the body may not end up in) and a combined "is it solid and how hot
+// is it" would have to be called with the answer to one of them discarded.
+uint8_t Player::hottest_overlap(const Grid& grid) const {
+    uint8_t hottest = 0;
+    for (int cy = pos_y; cy < pos_y + HEIGHT; ++cy) {
+        for (int cx = pos_x; cx < pos_x + WIDTH; ++cx) {
+            const uint8_t t = grid.get_element(cx, cy).temperature;
+            if (t > hottest) hottest = t;
+        }
+    }
+    return hottest;
+}
+
+void Player::hurt(int amount) {
+    if (amount <= 0) return;
+    if (amount > hp) amount = hp;  // clamp before the subtraction, so the event matches the loss
+    hp -= amount;
+    hurt_this_step += amount;
+}
+
 // Blocked at foot height is not the same as blocked. Before calling it a wall,
 // try lifting the whole body by up to MAX_STEP_HEIGHT and re-testing: if the
 // body fits there, what we hit was a step. Testing the *destination* box rather
@@ -167,10 +190,36 @@ void Player::update(const Grid& grid, const PlayerInput& input) {
     // flap code, so leaving the reset down there would latch the last beat
     // true for every step the body spent buried.
     did_flap = false;
+    hurt_this_step = 0;
+
+    // S0's burn rule, and it is deliberately **above** the overlap early return
+    // rather than below it. A body buried in burning terrain is exactly the case
+    // where being on fire matters most, and putting this under the return would
+    // have made "being dug out of a fire" free - a rule that switches itself off
+    // in the situation it is for.
+    //
+    // The timer is decremented before it is read, so the interval between ticks
+    // is BURN_INTERVAL_STEPS and not one more than it, and a body that steps out
+    // of the heat clears it rather than pausing it - see the field comment.
+    if (burn_timer > 0) --burn_timer;
+    if (hottest_overlap(grid) >= BURN_TEMPERATURE) {
+        if (burn_timer == 0) {
+            hurt(BURN_DAMAGE);
+            burn_timer = BURN_INTERVAL_STEPS;
+        }
+    } else {
+        burn_timer = 0;
+    }
 
     // Running the normal movement code while inside terrain would just find
     // every direction blocked, so digging out replaces this step entirely.
     if (resolve_overlap(grid)) return;
+
+    // Where the feet were at the *start* of the step, which is the only way to
+    // recognise a landing. See the fall-damage block at the bottom of this
+    // function for why the obvious test - "did the downward move get blocked" -
+    // is not the one used.
+    const bool was_on_ground = on_ground;
 
     // No acceleration curve: horizontal speed is a direct function of input.
     // Barebones on purpose -- acceleration, friction and air control are feel
@@ -262,6 +311,12 @@ void Player::update(const Grid& grid, const PlayerInput& input) {
     rem_x = fx::frac(rem_x);
     if (step_x != 0) move_x(grid, step_x);
 
+    // Read before the move, because the move is what destroys it: `move_y`
+    // zeroes `vel_y` the moment it hits something. This is the speed the body
+    // was actually travelling at when it arrived, to within the one step of
+    // gravity applied above.
+    const fx::v impact_speed = vel_y;
+
     rem_y += fx::per_step(vel_y);
     const int step_y = fx::trunc(rem_y);
     rem_y = fx::frac(rem_y);
@@ -271,4 +326,35 @@ void Player::update(const Grid& grid, const PlayerInput& input) {
     // Deriving it from "did the downward move get blocked" instead would report
     // false on any step slow enough not to attempt a whole cell of movement.
     on_ground = overlaps_solid(grid, pos_x, pos_y + 1);
+
+    // S0's fall damage. **A landing is `on_ground` going from false to true**,
+    // not `move_y` reporting a block, and the difference is a whole class of
+    // missed landings: a body falling six cells a step onto a floor exactly six
+    // cells below walks the full distance without ever being blocked, ends the
+    // step flush on the ground with its velocity intact, and has its `vel_y`
+    // quietly zeroed by the resting rule at the top of the *next* step. Written
+    // the obvious way, terminal-velocity falls would have done no damage
+    // whenever the arithmetic happened to come out even.
+    //
+    // Damage is linear in the speed over a safe landing; `fx::trunc` takes both
+    // sides to whole cells per second first, so the subtraction and the divide
+    // are plain integers rather than fixed-point ones and the result is the
+    // number TUNING.md quotes.
+    //
+    // **The first landing of a run is free, and that is about the spawn and not
+    // about mercy.** `Run` puts the body a quarter of the world's height up in
+    // open air on purpose, so the very first thing every run contains is a fall
+    // of several hundred cells that reaches terminal velocity - which, priced
+    // by the rule above, is 80 of 100 health for doing nothing. Charging it
+    // would make the drop the hardest thing in the game and would make it
+    // impossible to tune the rule against anything a player actually did. It is
+    // a property of how the world is set up, so it is spent here rather than
+    // worked around by moving the spawn, which `Run` cannot place on terrain it
+    // does not know about.
+    if (!was_on_ground && on_ground) {
+        if (has_landed && impact_speed > SAFE_FALL_SPEED) {
+            hurt(fx::trunc(impact_speed - SAFE_FALL_SPEED) / FALL_DAMAGE_DIVISOR);
+        }
+        has_landed = true;
+    }
 }

@@ -51,6 +51,38 @@ const int GRID_HEIGHT = 1080;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
+// S0's objective, and it is a column rather than a point because the row it
+// sits at is scanned off the terrain below it (see `terrain_surface`). Placing
+// a y here would be the mistake the prop format refuses by construction - a
+// number an author tunes for an afternoon while the loader ignores it - and it
+// is the same mistake that buried three trees in the snowbank.
+//
+// 1700 is chosen for what stands between it and the spawn, not for where it is.
+// The player starts at GRID_WIDTH / 2, so this is ~740 cells east: past the
+// jump ledges, across F4's water channel (cells 1000-1402, walled on both sides
+// and full to within 175 cells of the top), and out onto the sleeper run. That
+// is a traverse the character cannot walk, which makes flight the thing the run
+// is actually about - and flight was a shipped feature nothing in the built game
+// had ever asked for.
+//
+// **It is hard-coded, and that is S0's stated limit rather than an oversight.**
+// A real objective is placed by a generator into a level format with a slot for
+// it; both of those are the full "Objective + Extraction" item in ROADMAP.md and
+// neither is started here.
+const int OBJECTIVE_X = 1700;
+
+// The first solid row in a column, or -1 if the column is open all the way
+// down. The same scan the prop planter does over a footprint, kept separate
+// rather than shared with it: that one takes the *lowest* surface across a
+// sprite's width so a tree leans into a hill, and this one is a single column,
+// so a shared helper would have to be told which of the two it was being.
+int terrain_surface(const Grid& grid, int x) {
+    if (x < 0 || x >= grid.get_width()) return -1;
+    for (int y = 0; y < grid.get_height(); ++y)
+        if (is_solid(grid.get_element(x, y).type)) return y;
+    return -1;
+}
+
 // **The scene loader moved to `src/scene/bmp.cpp` (P4) and this is all that is
 // left of it here.** It used to be 90 lines of `SDL_LoadBMP` and surface
 // conversion in this file, which meant nothing headless could stamp the world
@@ -498,6 +530,35 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // S0's objective, planted on whatever terrain is actually at OBJECTIVE_X the
+    // same way a prop is. Its row is the centre of a body standing on that
+    // surface, so "reach the objective" means "stand where the marker is" rather
+    // than something the player has to work out from a floating icon.
+    //
+    // **A column with no ground under it drops the objective rather than
+    // defaulting it**, which is the prop planter's rule and it is here for the
+    // same reason: the only fallback available is the top of the world, and an
+    // objective hanging in the sky is exactly as wrong as one buried. A run with
+    // no objective is still playable - you can still die - so this is a warning
+    // and not a refusal to start.
+    auto place_objective = [&]() {
+        const int surface = terrain_surface(run.grid, OBJECTIVE_X);
+        if (surface < 0) {
+            std::fprintf(stderr, "WARNING: no ground under the objective column x=%d; "
+                                 "this run has no objective and cannot be won.\n", OBJECTIVE_X);
+            return;
+        }
+        run.set_objective(OBJECTIVE_X, surface - Player::HEIGHT / 2);
+    };
+    place_objective();
+
+    // Printed for the same reason the seed and the scene count are: an objective
+    // that silently failed to place is a run that cannot be won, and that is not
+    // something a player can tell apart from one they have not found yet.
+    if (run.has_objective()) {
+        std::printf("Objective: (%d, %d)\n", run.objective_x(), run.objective_y());
+    }
+
     // --- P4: the session recorder ---
     //
     // **Recording is always on, and F9 saves what has been recorded so far.**
@@ -660,6 +721,46 @@ int main(int argc, char* argv[]) {
     float prev_player_x = run.player.visual_x();
     float prev_player_y = run.player.visual_y();
 
+    // --- S0: starting the run over ---
+    //
+    // **One path, `Run::reset(seed)`, and not a second set of code that puts
+    // things back.** A win and a loss both come here, and so would a debug
+    // reset hotkey when T1 builds one.
+    //
+    // The scene has to be re-stamped because `Run::reset` wipes the grid - the
+    // run does not own the level, `main.cpp` does - and the objective has to be
+    // re-derived because the terrain it was scanned off has just been rebuilt.
+    // Both are cheap and both happen while the world is frozen.
+    //
+    // **The recording starts over too, and that is what keeps P4's guarantee
+    // intact.** A session log replays by rebuilding the world from the seed and
+    // the scene and replaying the inputs into it; a log that spanned a reset
+    // would replay into a world two minutes of play deep and the bench could not
+    // tell that from a stale log. Resetting on the *same seed* and re-stamping
+    // the *same scene* reproduces the world the recording started in exactly -
+    // `run_test` asserts that against the fingerprint - so the new log is as
+    // valid as the first, and what is lost is only the part of the session
+    // before the restart. `saved_logs` is deliberately not reset, so a second
+    // F9 still writes to a new file rather than over the first.
+    auto restart_run = [&]() {
+        run.reset(world_seed);
+        if (scene.width > 0) load_scene(run.grid, scene, 0, 0);
+        place_objective();
+
+        recording.steps.clear();
+        recording.header.start_fingerprint = input_log::fingerprint(run.grid);
+        recording_full = false;
+
+        // The body is somewhere else entirely now, so last step's drawn
+        // position is not something to ease away from. The interpolation clamp
+        // below would catch this on its own; setting them is the honest version
+        // of relying on that.
+        prev_player_x = run.player.visual_x();
+        prev_player_y = run.player.visual_y();
+        anim_state = player_anim::State{};
+        accumulator = 0.0;
+    };
+
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -739,6 +840,15 @@ int main(int argc, char* argv[]) {
                 if (e.key.keysym.sym == SDLK_ESCAPE) {
                     screen = Screen::Settings;
                     menu_cursor = mode_index;
+                }
+                // S0. **Only while the run is over**, so `R` is inert during
+                // play rather than a key that throws a session away by
+                // mis-hitting it - which is the same argument that moved
+                // quitting off ESC and into the settings menu. When T1 adds a
+                // world-reset hotkey it will want the unconditional version and
+                // will have to answer that question for itself.
+                if (e.key.keysym.sym == SDLK_r && run.outcome() != Run::Outcome::Playing) {
+                    restart_run();
                 }
                 // F9 writes everything played so far to a session log (P4).
                 // Deliberately not bound to a letter: every letter within reach
@@ -834,7 +944,14 @@ int main(int argc, char* argv[]) {
         // one burst of catch-up steps on the way out, which at MAX_FRAME_TIME's
         // quarter-second clamp is a visible lurch. Not accumulating means the
         // world is exactly where it was left.
-        if (screen == Screen::Playing) accumulator += frame_time;
+        // A finished run freezes the same way the settings menu does, and by the
+        // same mechanism rather than by a second one: time stops accumulating,
+        // so the world is exactly where the run left it instead of banking
+        // seconds and spending them in one lurch when the next run starts. It
+        // matters more here than it does for the menu - the last thing that
+        // happened is the thing the player has to be able to look at.
+        const bool run_over = run.outcome() != Run::Outcome::Playing;
+        if (screen == Screen::Playing && !run_over) accumulator += frame_time;
         while (accumulator >= Run::FIXED_DT) {
             prev_player_x = run.player.visual_x();
             prev_player_y = run.player.visual_y();
@@ -1019,6 +1136,45 @@ int main(int argc, char* argv[]) {
         };
         SDL_RenderCopyF(renderer, targets.cells, nullptr, &world_dst);
 
+        // --- S0's objective marker ---
+        //
+        // **Drawn in world cells, not screen pixels**, which is the opposite
+        // choice from the reticle above and for the opposite reason: the reticle
+        // is a cursor and has to keep its legibility at any scale, while this is
+        // a thing that is *somewhere* and has to sit still in the world as the
+        // camera moves over it. A screen-space marker would slide against the
+        // terrain it is standing on.
+        //
+        // Drawn after the world and before the player, so the body passes in
+        // front of it - reaching an objective you are standing on top of should
+        // not leave you hidden behind it - and before the light pass, which is
+        // additive and therefore leaves an unlit marker at exactly the colour
+        // written here rather than dimming it into the terrain.
+        //
+        // Three concentric squares rather than a sprite: no new asset, no
+        // manifest entry, and the dark ring is what stops it disappearing
+        // against sand for the same reason the reticle has an outline.
+        if (run.has_objective()) {
+            const float gx = static_cast<float>(run.objective_x());
+            const float gy = static_cast<float>(run.objective_y());
+            struct Ring { int cells; uint8_t r, g, b; };
+            const Ring rings[3] = {
+                { 12, 0x14, 0x10, 0x22 },  // sky_deep, the same dark the frame clears to
+                { 10, 0xF0, 0xC0, 0x40 },
+                {  4, 0xFF, 0xFF, 0xFF },
+            };
+            for (const Ring& ring : rings) {
+                SDL_SetRenderDrawColor(renderer, ring.r, ring.g, ring.b, 255);
+                const SDL_FRect box{
+                    camera.world_to_screen_x(gx - ring.cells / 2.0f),
+                    camera.world_to_screen_y(gy - ring.cells / 2.0f),
+                    static_cast<float>(camera.scale_length(ring.cells)),
+                    static_cast<float>(camera.scale_length(ring.cells))
+                };
+                SDL_RenderFillRectF(renderer, &box);
+            }
+        }
+
         // The player is not a cell, so it is not in the pixel buffer either -
         // it is drawn on top of the world as its own sprite. Float rect and
         // float position: rounding either one here is the defect coming back.
@@ -1151,6 +1307,30 @@ int main(int argc, char* argv[]) {
                    " BRUSH:" + material_of(current_brush).name + "(" + std::to_string(brush_size) + ")" +
                    " CHUNKS:" + std::to_string(run.grid.active_chunk_count());
 
+        // --- S0's readout ---
+        //
+        // **`HP` goes first, ahead of the three diagnostics.** The rest of this
+        // line is an instrument for whoever is building the engine; this is the
+        // one thing on it a player is playing against, and reading it should not
+        // mean scanning past a frame rate.
+        //
+        // **`GOAL` is a bearing, and it is text on the line that already exists
+        // rather than an arrow at the screen edge**, which keeps S0's "no UI
+        // beyond the readout" limit intact while answering the question the
+        // objective actually raises: it is ~740 cells from the spawn and the
+        // viewport is 480 cells wide, so it starts off-screen. Without this the
+        // run is "walk east until you find it", which is not a difficulty, it is
+        // a missing instrument. Distance is to the body's centre, in cells.
+        std::string status = "HP:" + std::to_string(run.player.health());
+        if (run.has_objective()) {
+            const int gdx = run.objective_x() - run.player.center_x();
+            const int gdy = run.objective_y() - run.player.center_y();
+            const int gdist = static_cast<int>(std::sqrt(
+                static_cast<double>(gdx) * gdx + static_cast<double>(gdy) * gdy));
+            status += "  GOAL:" + std::to_string(gdist) + (gdx < 0 ? "W" : "E");
+        }
+        hud_text = status + "  " + hud_text;
+
         // Scaled with the window rather than fixed at 2 (see
         // DisplayMode::ui_scale): a HUD that keeps its pixel size keeps
         // shrinking as a fraction of the screen every time a wider mode is
@@ -1196,6 +1376,46 @@ int main(int argc, char* argv[]) {
             if (ui::HOTBAR[i].type == current_brush) hotbar_selected = i;
         }
         ui::draw_hotbar(renderer, mode.window_w, mode.window_h, mode.ui_scale(), hotbar_selected);
+
+        // --- S0: how a finished run says so ---
+        //
+        // Two lines over a dimming wash, drawn after the hotbar and before the
+        // settings menu, so ESC still opens a menu that sits on top of this.
+        //
+        // **Over a wash rather than a solid panel, for the same reason the
+        // settings screen is**: the world behind it is the thing the player has
+        // to be able to look at - the fire they walked into, the drop they
+        // misjudged - and a panel that covered it would hide the whole content
+        // of the ending. The simulation is frozen behind this, not running.
+        //
+        // Deliberately not a menu. A run that has ended offers exactly one
+        // choice and a cursor over one item is furniture.
+        if (run_over) {
+            const int scale = mode.ui_scale();
+            const bool won = run.outcome() == Run::Outcome::Won;
+            const std::string headline = won ? "OBJECTIVE REACHED" : "YOU DIED";
+            const std::string prompt = "PRESS R FOR A NEW RUN";
+
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 140);
+            const SDL_Rect wash{0, 0, mode.window_w, mode.window_h};
+            SDL_RenderFillRect(renderer, &wash);
+
+            // The headline is drawn at twice the HUD's scale, which is the only
+            // place in the game anything is - it is the one string that has to
+            // read from across a room rather than be looked at.
+            const int head_scale = scale * 2;
+            const int head_y = mode.window_h / 2 - (ui::GLYPH_HEIGHT * head_scale) / 2;
+            ui::draw_text(renderer,
+                          mode.window_w / 2 - ui::text_width(headline, head_scale) / 2,
+                          head_y, head_scale, headline,
+                          won ? 0xFFF0C040 : 0xFFD05050);
+            ui::draw_text(renderer,
+                          mode.window_w / 2 - ui::text_width(prompt, scale) / 2,
+                          head_y + ui::GLYPH_HEIGHT * head_scale + 6 * scale, scale, prompt,
+                          0xFFC0C0C0);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+        }
 
         // --- the settings menu ---
         //

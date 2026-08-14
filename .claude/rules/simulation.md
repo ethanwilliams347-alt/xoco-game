@@ -110,6 +110,47 @@ Do not "fix" these without a measured reason; each is recorded with its argument
   machinery rather than a stopgap.
 - **Player feel is raw on purpose** — no acceleration, friction, air control,
   coyote time or jump buffering. Do not add them as polish.
+- **The burn rule sits *above* `resolve_overlap`'s early return in
+  `Player::update`, and the fall-damage block sits at the very bottom.** Neither
+  is where it landed by accident. Moving the burn check below the return makes
+  being dug out of a fire free — a hazard that switches itself off in the
+  situation it exists for. The fall check has to be after `on_ground` is
+  recomputed, because that is the edge it reads.
+- **The first landing of a run does no fall damage** (`Player::has_landed`).
+  `Run` spawns the body a quarter of the world up, so the spawn drop reaches
+  terminal velocity and is priced at 80 of 100 health. This is not mercy and not
+  a magic number; it is the world setup being charged to the player.
+- **`Run`'s objective survives `Run::reset`**, the second such exception after
+  `Grid::vent_radius` and for a parallel reason — it is a property of the level,
+  and the caller re-stamps the same scene. Pinned by a test in `test_run.cpp`.
+- **`Run::reset` does not restore the terrain.** `Run` does not own the scene;
+  `main.cpp` does. A caller that resets and does not re-stamp gets an empty
+  world, which is a sharp edge that is named at `Run::reset` rather than removed.
+
+## S0's damage rules, and the one trap in them
+
+**Fall damage keys on `on_ground` going false→true, never on `move_y` reporting
+a block**, and this is the mistake to not re-introduce. A body falling six cells
+a step onto a floor exactly six cells below walks the whole distance unblocked,
+lands flush with its velocity intact, and has `vel_y` zeroed by the resting rule
+on the *next* step — so the block never happens. Written the obvious way,
+terminal-velocity falls do no damage whenever the arithmetic comes out even.
+Both forms were built and measured: 100 health against the naive one, 20 against
+the correct one, in `player_test`. Same shape as D1's two clocks.
+
+**Four relationships between the damage constants and constants elsewhere are
+`static_assert`s at the bottom of `player.h`**, not comments — a standing jump
+must never hurt (against `JUMP_SPEED` and `GRAVITY`), the worst landing must be
+survivable and must cost something (against `MAX_FALL_SPEED` and `MAX_HEALTH`),
+and the burn threshold must sit between Steam's spawn temperature and Fire's
+(against two rows of `MATERIALS`). The last is the live one: MATERIALS has
+already moved Steam's spawn once, for an unrelated reason, and a move back up
+would silently make a doused fire a weapon.
+
+**Health is on the body and there is no health on `Grid` or `Element`.** S0 is
+the first gameplay system spanning both sides of the rule `tool.cpp` set, and it
+keeps the direction: damage is the player *asking* what it is standing in, the
+same way collision does. The grid still does not know a player exists.
 
 ## `Element`'s free bytes
 

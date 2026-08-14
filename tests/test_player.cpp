@@ -444,5 +444,176 @@ int main() {
               feet_detail(p) + "; " + pile);
     }
 
+    // ========================================================================
+    // S0: the body can be hurt, and by exactly two things.
+    //
+    // Every number asserted below is *derived from the constants* rather than
+    // written out, for the reason this file's header gives about the body's
+    // dimensions: a retune of SAFE_FALL_SPEED would otherwise leave these tests
+    // with their names intact and their meanings changed. What is pinned here
+    // is the shape of each rule - free, then linear, then clamped - not the
+    // tuning, which lives in TUNING.md and is allowed to move.
+    // ========================================================================
+
+    // --- the spawn drop costs nothing, and the second identical fall does ---
+    //
+    // These two are one scenario deliberately, because the whole content of the
+    // "first landing is free" rule is the *difference* between them: run the
+    // same fall twice and the first is 0 and the second is priced. Split into
+    // two tests against two worlds, a change that made the rule permanent
+    // instead of one-shot would pass both.
+    {
+        // Tall enough to reach MAX_FALL_SPEED with room to spare, so what is
+        // being measured is the clamp and not the height of this world.
+        // Terminal velocity arrives after v^2 / 2*GRAVITY cells - 160 at the
+        // current numbers - and this is 2.5 times that, stated as a multiple of
+        // the constant so it stays true if either one is retuned.
+        const int fall_cells = fx::trunc(Player::MAX_FALL_SPEED);
+        const int TALL_H = fall_cells + 4 * Player::HEIGHT;
+        const int TALL_FLOOR = TALL_H - Player::HEIGHT;
+        const int PLATFORM_Y = TALL_FLOOR - fall_cells;
+
+        Grid g = make_world(WORLD_W, TALL_H, TALL_FLOOR);
+        for (int x = 0; x < WORLD_W; ++x) g.set_element(x, PLATFORM_Y, ElementType::Wall);
+
+        // Spawned a few cells over the platform: the first landing is a short
+        // one anyway, so this scenario does not lean on the free rule to say
+        // that a *gentle* landing is free.
+        Player p(10, PLATFORM_Y - Player::HEIGHT - 3);
+        step(g, p, NOTHING, 30);
+        check("S0: a gentle first landing costs nothing",
+              p.health() == Player::MAX_HEALTH && feet(p) == PLATFORM_Y,
+              "hp=" + std::to_string(p.health()) + " " + feet_detail(p));
+
+        // Now take the floor away and let the same body fall the long way. It
+        // has landed once, so this one is charged.
+        for (int x = 0; x < WORLD_W; ++x) g.set_element(x, PLATFORM_Y, ElementType::Empty);
+        step(g, p, NOTHING, 4 * fall_cells);
+
+        const int expected = fx::trunc(Player::MAX_FALL_SPEED - Player::SAFE_FALL_SPEED) /
+                             Player::FALL_DAMAGE_DIVISOR;
+        check("S0: a terminal-velocity landing costs the full fall-damage price",
+              feet(p) == TALL_FLOOR && p.health() == Player::MAX_HEALTH - expected,
+              "hp=" + std::to_string(p.health()) + " expected " +
+                  std::to_string(Player::MAX_HEALTH - expected) + "; " + feet_detail(p));
+
+        // And the same again kills, which is the design stated at
+        // SAFE_FALL_SPEED: one free terminal-velocity mistake, not two. This is
+        // also the clamp - health stops at zero rather than going negative.
+        check("S0: two terminal-velocity landings are more than a full bar",
+              2 * expected >= Player::MAX_HEALTH,
+              std::to_string(expected) + " each of " + std::to_string(Player::MAX_HEALTH));
+    }
+
+    // --- the whole spawn drop is free, however far it is ---
+    // The bullet above tested a *short* first landing. This is the case the
+    // rule actually exists for: Run spawns the body a quarter of the world up.
+    {
+        const int TALL_H = fx::trunc(Player::MAX_FALL_SPEED) + 4 * Player::HEIGHT;
+        Grid g = make_world(WORLD_W, TALL_H, TALL_H - Player::HEIGHT);
+        Player p(10, AIR_Y);
+        step(g, p, NOTHING, 4 * TALL_H);
+
+        check("S0: the spawn drop is free at any height",
+              p.is_on_ground() && p.health() == Player::MAX_HEALTH,
+              "hp=" + std::to_string(p.health()) + "; " + feet_detail(p));
+    }
+
+    // --- jumping never hurts ---
+    // The static_assert in player.h holds the *constants* apart; this holds the
+    // code path, which is a different claim - the assert would still pass if the
+    // landing check read the speed at the wrong moment and measured a jump's
+    // launch instead of its arrival.
+    {
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        Player p(10, STAND_Y);
+        step(g, p, NOTHING, 60);
+
+        PlayerInput jump;
+        jump.jump = true;
+        for (int i = 0; i < 8; ++i) {
+            p.update(g, jump);                 // one beat
+            step(g, p, NOTHING, 90);           // up, over and back down
+            if (!p.is_on_ground()) break;
+        }
+        check("S0: a standing jump lands for free, every time",
+              p.is_on_ground() && p.health() == Player::MAX_HEALTH,
+              "hp=" + std::to_string(p.health()) + "; " + feet_detail(p));
+    }
+
+    // --- standing in fire burns, at the rate the constants name ---
+    // The flame is re-stamped every step because Fire is a gas with a lifetime
+    // and would otherwise rise out of the body within a dozen steps. What is
+    // being tested is the burn rule, not how long a flame lasts.
+    {
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        Player p(10, STAND_Y);
+        step(g, p, NOTHING, 60);
+        check("S0: the body starts a run at full health", p.health() == Player::MAX_HEALTH);
+
+        const int seconds_worth = 60;
+        for (int i = 0; i < seconds_worth; ++i) {
+            for (int y = p.cell_y(); y < p.cell_y() + Player::HEIGHT; ++y)
+                for (int x = p.cell_x(); x < p.cell_x() + Player::WIDTH; ++x)
+                    g.set_element(x, y, ElementType::Fire);
+            g.update();
+            p.update(g, NOTHING);
+        }
+
+        // A tick on the step the body first touches heat, then one every
+        // BURN_INTERVAL_STEPS after it.
+        const int ticks = 1 + (seconds_worth - 1) / Player::BURN_INTERVAL_STEPS;
+        check("S0: standing in fire costs health at the burn rate",
+              p.health() == Player::MAX_HEALTH - ticks * Player::BURN_DAMAGE,
+              "hp=" + std::to_string(p.health()) + " expected " +
+                  std::to_string(Player::MAX_HEALTH - ticks * Player::BURN_DAMAGE));
+    }
+
+    // --- and steam does not, which is the half a one-sided test would miss ---
+    // Steam spawns at 88 and the burn threshold is 100, a gap of twelve degrees
+    // that exists on purpose: at its old spawn temperature of 220 a doused fire
+    // would have been a weapon. player.h asserts the two numbers stay apart;
+    // this asserts the rule reads them.
+    {
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        Player p(10, STAND_Y);
+        step(g, p, NOTHING, 60);
+
+        for (int i = 0; i < 120; ++i) {
+            for (int y = p.cell_y(); y < p.cell_y() + Player::HEIGHT; ++y)
+                for (int x = p.cell_x(); x < p.cell_x() + Player::WIDTH; ++x)
+                    g.set_element(x, y, ElementType::Steam);
+            g.update();
+            p.update(g, NOTHING);
+        }
+        check("S0: standing in steam costs nothing", p.health() == Player::MAX_HEALTH,
+              "hp=" + std::to_string(p.health()) + ", steam spawns at " +
+                  std::to_string(material_of(ElementType::Steam).spawn_temperature) +
+                  " against a threshold of " + std::to_string(Player::BURN_TEMPERATURE));
+    }
+
+    // --- fire kills, and the health stops at zero ---
+    // The one scenario that runs the rule all the way to its end. Worth its own
+    // block rather than folded into the rate test above: a clamp that was
+    // missing would show up here as a negative number and nowhere else.
+    {
+        Grid g = make_world(WORLD_W, WORLD_H, FLOOR_Y);
+        Player p(10, STAND_Y);
+        step(g, p, NOTHING, 60);
+
+        // Long enough to take the bar past zero rather than exactly to it.
+        const int steps = 2 * Player::BURN_INTERVAL_STEPS *
+                          (Player::MAX_HEALTH / Player::BURN_DAMAGE);
+        for (int i = 0; i < steps; ++i) {
+            for (int y = p.cell_y(); y < p.cell_y() + Player::HEIGHT; ++y)
+                for (int x = p.cell_x(); x < p.cell_x() + Player::WIDTH; ++x)
+                    g.set_element(x, y, ElementType::Fire);
+            g.update();
+            p.update(g, NOTHING);
+        }
+        check("S0: a body left in fire dies, and stops at zero rather than below it",
+              p.health() == 0 && !p.is_alive(), "hp=" + std::to_string(p.health()));
+    }
+
     return report();
 }
