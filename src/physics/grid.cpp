@@ -96,6 +96,16 @@ void Grid::reset(uint64_t seed) {
     // long as the grid's dimensions never change out from under them. Nothing
     // in this class exposes a way to change them after construction, and reset()
     // must not become the first.
+    //
+    // **`vent_radius`, `seek_level_on` and `room_above_on` are also not here,
+    // and that is a choice rather than a constraint.** It is configuration - how this engine behaves - not a fact
+    // about this world, so a world reset that silently put it back to 3 would
+    // throw away a setting the caller made on purpose, and the run-reset hotkey
+    // (T1) is exactly the caller that would do it. Which way this went matters
+    // enough to be pinned by a test rather than left to whoever reads this file
+    // next: see the reset case in `test_grid.cpp`. Note that it makes reset()
+    // *not* quite "a fresh grid with this seed" - the header says that and this
+    // is the exception to it.
 }
 
 // Waking only the cell that changed is the classic dirty-rect bug. Erase a grain
@@ -193,7 +203,7 @@ void Grid::displace(int x, int y, ElementType type) {
         // the way the powder step does, was tried here and removed: the probe
         // could not tell the two apart to a single cell over 500 steps. It
         // sounds more correct and it measures as nothing, so it is not kept.
-        make_room_above(x, y);
+        if (room_above_on) make_room_above(x, y);
     }
 
     set_element(x, y, type);
@@ -963,7 +973,7 @@ bool Grid::step_fluid(int x, int y, const Material& mat, int dy) {
     // on MAX_PRESSURE_CELLS in the header. Gases are excluded: `dy < 0` has
     // already spent its vertical move on going up, and a gas finding its level
     // is not a thing anyone has asked to see.
-    if (dy > 0 && seek_level(x, y)) return true;
+    if (dy > 0 && seek_level_on && seek_level(x, y)) return true;
 
     return false;
 }
@@ -1070,8 +1080,8 @@ bool Grid::vent_fluid(int fx, int fy) {
     int drain_x = -1, drain_y = -1, drain_score = 0;
 
     int best_x = -1, best_y = -1, best_score = 0;
-    for (int oy = -VENT_RADIUS; oy <= VENT_RADIUS; ++oy) {
-        for (int ox = -VENT_RADIUS; ox <= VENT_RADIUS; ++ox) {
+    for (int oy = -vent_radius; oy <= vent_radius; ++oy) {
+        for (int ox = -vent_radius; ox <= vent_radius; ++ox) {
             // `dir` mirrors the scan rather than steering it, so the choice
             // between two equally good cells either side of a grain is not
             // always the left one. Same trick and same stream as the fluid

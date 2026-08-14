@@ -8,12 +8,6 @@ command and every `tools/` script from here.**
      ~200 lines. Anything that is a multi-step procedure, or only matters in one
      part of the tree, belongs in .claude/rules/ instead. -->
 
-## Response Etiquette
-
-**Use clear and consise language when responding.** There will be both vibe-coders 
-and senior developers working on this project. Prefer language suitable for junior
-developers (and vibe-coders) without sacrificing the quality and comprehensive of 
-your responses.
 
 ## The one thing to know before changing anything
 
@@ -93,10 +87,11 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
   awake. **Read the `contents` census under the replay row before quoting the
   timing above it** — that census exists because the number alone was
   uninterpretable, and "the session was really played" would never have shown it.
-  Session 2 settled it: **`churning` is not representative of played work.** The
-  statistic that did it is the **worst single step**, not the census's awake peak
-  — timings are measured every step, the census samples every sixtieth, so **a
-  sampled figure cannot bound anything.**
+  Session 2 settled it: **`churning` is not representative of played work.** Read
+  that off **p99 and steps-over-budget**, never the census's sampled awake peak
+  and **not off `worst` either** — four identical replays in one process spread
+  `worst` by 72% while p99 held to 1.2%. A sampled figure cannot bound anything;
+  a single largest sample is mostly the operating system.
 - **The played row proves the budget is intact; it cannot price a change.** It
   costs 0.12 ms a step, so 10% of it is under the noise floor. A merge reading
   needs both halves: p99 and steps-over-budget on the replayed row, *and* the

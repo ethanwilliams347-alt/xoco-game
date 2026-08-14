@@ -195,6 +195,59 @@ figure and a per-step figure support the same sentence, write it against the
 per-step one.** `churning` keeps its row — it is still the authority on sustained
 liquid churn, and nothing about this demotes it to noise.
 
+**`worst` is the least stable number the replay prints, and the paragraph above
+originally leaned on it.** Replaying one session four times in a single process,
+on identical code and identical input, gives means within 0.3% and p99s within
+1.2% — and worsts of 4.82, 4.84, 4.86 and 8.29 ms. **One sample out of 20,415
+catches whatever the OS was doing at that instant.** The `churning` conclusion
+survives it (a factor of eight is far outside a 72% band) but the general rule
+gains a clause: prefer the per-step statistic over the sampled one, **and prefer
+the distribution over its single largest sample.** p99 and steps-over-budget are
+what the frame-budget rule names, and they were the right pair all along.
+
+**`VENT_RADIUS` is `Grid::set_vent_radius` since 2026-08-13**, and the bench
+sweeps r=0/2/3/4 over both `churning` and the recorded session in one process.
+Three things to know before touching it:
+
+- **Every sweep row but r=3 reports a diverged end state, by design.** A
+  different radius is a different simulation, so identical inputs are *supposed*
+  to produce a different world. **The r=3 row reading `exact` is the real check**
+  — if the shipped radius ever stops replaying byte for byte, the toggle changed
+  the simulation, which is the one outcome it must not do.
+- **`reset()` deliberately does not clear it.** It is configuration, not world
+  state, and a world-reset hotkey silently reverting a caller's setting would be
+  the defect. Pinned by a test in `test_grid.cpp`; argument at `Grid::reset`.
+- **The conversion off `constexpr` costs `churning` 32% and the played session
+  nothing measurable.** That was established with a cross-build A/B, which is
+  admissible *because it had a control*: **`churning` is the only bench scenario
+  containing water**, so the other six rows are untouchable by the change and
+  all moved under 2% (`burning` 7.7% at one size, the widest excursion). The rule
+  is "back to back with a control the change cannot affect", not "never rebuild"
+  — this project has read it as the latter at least once, in the very header
+  comment being corrected.
+
+**Three displacement rules are ablatable at runtime** — `vent_fluid` (radius 0),
+`seek_level` and `make_room_above` — and `grid_bench` removes them one at a time
+to price what E5b retires. Two rules for reading that table:
+
+- **The rows are separate simulations, not a partition of a step.** Removing a
+  rule changes what the world does, so every later step in that run is doing
+  different work. A row's gap from `all` is that rule's share *of that scenario*.
+  Do not turn it into a pie chart.
+- **Look for the null control before believing a small number.**
+  `make_room_above` cannot fire on `churning`, which never paints, so that row
+  measures the instrument: it reads +0.2%, and that is what makes `seek_level`'s
+  0.3% on the same scenario readable as "at the floor" rather than "small". **An
+  ablation table without a rule that cannot fire in it has no noise floor.**
+
+**The synthetic scenario and the played session disagree about *which* fluid rule
+is expensive, not just by how much.** Venting is 47% of `churning` and 0.1% of
+the played session; `seek_level` is 0.3% of `churning` and 7.3% of the played
+session. `churning` is powder sinking into fluid everywhere - all venting, no
+settled surface to seek from - and a played world is large quiet pools with long
+surfaces. **When quoting a synthetic row about a subsystem, that is the failure
+mode to check for**: unrepresentative in kind, not merely in degree.
+
 **The census table skips `Empty`** (the print loop starts at `t = 1`), so brush
 strokes that *erase* are counted in `brush` and appear in no material row. Session
 2's painted column sums to 8,493 against `brush 9158` — 665 erasing steps,

@@ -75,6 +75,11 @@ public:
     // to mean anything - compare `seed()` unchanged with a fresh grid built on
     // a *different* seed and the two would trivially fail to match for a reason
     // that has nothing to do with whether the wipe worked.
+    //
+    // **One documented exception since 2026-08-13: `vent_radius` survives a
+    // reset**, because it is configuration rather than world state. The argument
+    // is at the end of `reset()`'s definition and the behaviour is asserted in
+    // `test_grid.cpp`, so this sentence has something holding it true.
     void reset(uint64_t seed);
 
     // Advances the simulation by exactly one fixed step. The caller is
@@ -132,6 +137,66 @@ public:
     // because nothing was stepping it.
     bool has_pending_support_checks() const { return !pending_support.empty(); }
 
+    // How far `vent_fluid` searches for somewhere to put displaced fluid. See
+    // `vent_radius` in the private section for what the number means and what it
+    // was swept against; this trio exists so the sweep can be *re-run*.
+    //
+    // **It is settable at runtime because the only other way to price it is a
+    // rebuild, and this project has already been burned by that.** The recorded
+    // sweep (r=2/3/4 against `churning`) was taken from three separate builds,
+    // which is exactly the method PERFORMANCE.md's E1 entry records producing a
+    // confident 28% that turned out to be the compiler re-laying-out the hot
+    // loop. One binary, one sitting, the same input stream, the radius moved
+    // between runs is the only reading this project accepts for a cost knob.
+    //
+    // **This is configuration, not world state**, which is why `reset()` leaves
+    // it alone and why nothing derives it from the seed. Two consequences worth
+    // stating: a grid at a non-default radius is still fully deterministic, and
+    // two grids at *different* radii are different simulations that will diverge
+    // from identical inputs. The second is not a defect - it is the thing being
+    // measured - but it does mean a replay at a non-default radius will report a
+    // different end state, and that report is not evidence of a stale log.
+    //
+    // Public so that a test and the bench can name the shipped value instead of
+    // writing `3` and quietly disagreeing with this header later.
+    static constexpr int DEFAULT_VENT_RADIUS = 3;
+
+    int get_vent_radius() const { return vent_radius; }
+
+    // Negatives are clamped to zero rather than rejected, and zero is a real
+    // setting: at r=0 the search box is the fluid's own cell, which is never
+    // Empty, so `vent_fluid` always returns false and every caller falls back to
+    // the plain swap. That is "venting off" - the baseline the original sweep
+    // could only get by editing the source out, and now the one row in the sweep
+    // that is measured on the same instrument as the others.
+    void set_vent_radius(int r) { vent_radius = r > 0 ? r : 0; }
+
+    // The other two displacement rules, switchable for the same reason and by
+    // the same argument as the radius above: **the fluid spike is owed a price,
+    // and a price needs the rule turned off as well as on.**
+    //
+    // These three - venting, `seek_level` and the brush's `make_room_above` -
+    // are the displacement machinery E5b would retire, and the replayed row
+    // times a whole `Run::step`, so it cannot say how much of itself is any of
+    // them. Ablation can, and it is the only method available that does not
+    // involve a rebuild per data point.
+    //
+    // **Gated at the call site rather than inside the function**, so an ablated
+    // rule costs a predictable-branch and not a call. Both are on by default;
+    // a Grid nobody configures runs the shipped simulation, and both recorded
+    // sessions still replay byte for byte with the switches present.
+    //
+    // **Turning one off does not merely remove its cost - it changes the
+    // simulation**, so every later step does different work and the world
+    // diverges. That is unavoidable in an ablation and it is why the numbers
+    // these produce are a *share of a scenario*, not a subtraction. Same
+    // caveat, in more detail, at `set_vent_radius`.
+    bool seek_level_enabled() const { return seek_level_on; }
+    void set_seek_level_enabled(bool on) { seek_level_on = on; }
+
+    bool room_above_enabled() const { return room_above_on; }
+    void set_room_above_enabled(bool on) { room_above_on = on; }
+
 private:
     // Bounds of the cells within one chunk that may still move, in world
     // coordinates, inclusive on both ends. max < min means the chunk is asleep.
@@ -186,7 +251,7 @@ private:
 
     // Moves the fluid at (fx, fy) to the nearest free surface of its own kind,
     // so a powder sinking into it does not have to hand it upwards. Returns
-    // false when no such surface is within `VENT_RADIUS`, in which case the
+    // false when no such surface is within `vent_radius`, in which case the
     // caller keeps the plain swap. See the call site in `step_powder` for the
     // defect this exists for (A6b).
     bool vent_fluid(int fx, int fy);
@@ -214,7 +279,54 @@ private:
     // release instead of setting. So this radius is priced against something
     // that clears itself, which is a weaker case for ever paying r=4 than the
     // sweep above was taken to make.
-    static constexpr int VENT_RADIUS = 3;
+    //
+    // **The sweep above was taken across three builds and is therefore not
+    // evidence by this project's own rule** (PERFORMANCE.md, E1), and re-running
+    // it in one binary on 2026-08-13 took the knee away. At one radius per run
+    // of the same process, `churning` at 960x540 reads **3.46 / 4.97 / 6.55 /
+    // 8.35 ms/step at r=0/2/3/4**: dead linear in the area of the box, about
+    // 0.063 ms per extra cell scanned at every radius, with **no knee anywhere.**
+    // The dip that made r=3 look like a bargain - the old sweep's r=3 costing 9%
+    // less per scanned cell than its r=2 - is not in the data when all four
+    // numbers come from one compile.
+    //
+    // **So "3 is the knee" was an artifact of the measurement, and 3 now has to
+    // stand on quality alone.** It still does: `water_probe`'s r=3-vs-r=4 gap is
+    // 50 steps of a transient that clears itself on release (see the D3 note
+    // above), which is not worth 27% more scan. The line above is kept unedited
+    // because recognising this shape again - a cost curve with a convenient dip
+    // in it, measured one build per point - is worth more than a tidy comment.
+    //
+    // Runtime rather than `constexpr` since the 2026-08-13 instrumentation
+    // sitting. **The default is the whole of the behaviour change** - a Grid
+    // nobody calls `set_vent_radius` on is the same simulation it was, and both
+    // recorded sessions still replay to their recorded end states byte for byte.
+    //
+    // **The conversion is not free, and this comment first said it could not be
+    // measured, which was wrong.** Written here as "the one thing this
+    // instrument cannot measure, since telling those apart needs the rebuild
+    // comparison the instrument exists to avoid" - and that missed that the
+    // rebuild comparison is legitimate when it has a control, which is the
+    // actual content of PERFORMANCE.md's rule. `churning` is the only bench
+    // scenario containing water, so every other row is a control this change
+    // cannot touch. Measured back to back the same afternoon: **`churning` costs
+    // 32% more at both world sizes, and every control moved by under 2%.**
+    //
+    // It is kept anyway, and the reason is the other half of the frame-budget
+    // rule: on the recorded session the same conversion moves the mean by 0.3%
+    // and p99 by 1.2%, both inside the noise of repeating the identical run.
+    // The 32% lands entirely on cells doing powder-into-fluid exchange, and a
+    // played world has few. **If that ever stops being true - E10's angle of
+    // repose and E5a's per-cell velocity both make powder livelier - this is a
+    // known 32% sitting on exactly the path that would get busier.** Numbers and
+    // the control table in PERFORMANCE.md.
+    int vent_radius = DEFAULT_VENT_RADIUS;
+
+    // The other two ablation switches. Configuration like `vent_radius`, and
+    // surviving `reset()` for the same reason it does. Accessors and the
+    // argument for them are in the public section.
+    bool seek_level_on = true;
+    bool room_above_on = true;
 
     // Lifts the movable cell at (x, y) to the first Empty cell above it, so the
     // caller can write into (x, y) without deleting what was there. Returns

@@ -114,9 +114,40 @@ and as a control: the scenario constants are written to reproduce their old
 values exactly at 960x540, and if that block stops matching the numbers on
 record, the refactor is what broke rather than the engine.
 
+**Corrected 2026-08-13 — that last sentence asks for the wrong comparison, and
+it is the one this page's own next paragraph forbids.** Absolute times are not
+portable across sittings, so "matches the numbers on record" cannot be the
+control. **What the small block controls is its awake-chunk and peak-fracture
+counts**, which are deterministic on a fixed seed: `churning` 105 → 0,
+`cascading` 75 → 105, 2,384 peak fractured cells, and at 1920x1080 360 → 90,
+270 → 300, 2,348. Those have now reproduced across four sittings and two
+different builds of the engine — including one pair whose `churning` times
+differ by 32% — while no timing in these documents has ever reproduced across
+sittings at all. If a count moves, the engine's behaviour changed; if a time
+moves, that may be nothing but the afternoon.
+
 The light section is run once rather than once per size, and deliberately: the
 field is sized to the viewport, not to the world, so a second size would produce
 a second identical number that invited being read as evidence about world size.
+
+**The last block is the `VENT_RADIUS` sweep**, which runs `churning` and the
+recorded session at r=0/2/3/4 — four radii inside one process, so the four rows
+are comparable to each other in a way that four builds would not be. Two things
+to know before reading it: **every row but r=3 reports a diverged end state and
+that is the measurement, not a failure** (a different radius is a different
+simulation, so the same inputs are supposed to end somewhere else), and **the
+r=3 row reading `exact` is the actual check** — it is what says the shipped
+simulation is unchanged. It costs about a minute of extra runtime.
+
+**After it comes the fluid breakdown**, which removes one displacement rule at a
+time — `vent_fluid`, `seek_level` and `make_room_above`, the three E5b would
+retire — and prices each on `churning` and on the recorded session. Read it with
+two things in mind: **the rows are separate simulations rather than a partition
+of a step** (removing a rule changes what the world does, so a row's gap from
+`all` is that rule's share of *that scenario*), and **`no lift` on `churning` is
+a null control** — nothing paints there, so that row prices the instrument and
+tells you the table's noise floor. Another minute or so of runtime; the whole
+benchmark is now around three minutes.
 
 Read `PERFORMANCE.md` before trusting a number out of it. Timings from different
 sittings on the same machine have been seen to differ by more than 2x on

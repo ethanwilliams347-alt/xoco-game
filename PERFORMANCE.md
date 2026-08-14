@@ -203,9 +203,21 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 
 **The statistic that carries it is `worst`, not the sampled awake peak, and this is the transferable part.** The census samples the world every 60 steps, so a one-second spike to 300 awake chunks would be invisible to it — quoting "44 of 510" as a bound is exactly the presence-not-absence error the census output warns about on its own last line. **The timing is not sampled.** Every one of the 20,415 steps was measured, and the largest was 4.83 ms; a step at `churning`'s load could not have hidden between two samples, because it would have had to hide from the clock as well. **When a sampled statistic and a per-step statistic support the same sentence, write the sentence against the per-step one** — the census is for saying what a session *contained*, not for bounding how busy it got.
 
+> **Corrected the same day by the `VENT_RADIUS` sitting, and the correction is about `worst`, not about the conclusion.** Replaying this session four times in one process on identical code gave means within **0.3%** and p99s within **1.2%** — and worsts of **4.8212, 4.8360, 4.8608 and 8.2937 ms, a 72% spread.** `worst` is one observation out of 20,415 and it catches whatever the operating system was doing at that instant, which is exactly the failure mode "read p99, never the mean" was written to avoid at the other end of the distribution. **The paragraph above reached past the two statistics the budget rule already names for a more dramatic one.** The `churning` conclusion is unaffected — 4.83 against 37.25 ms/step *sustained* is a factor of eight, far outside a 72% band, and p99 at 1.19 ms carries it just as well — but the sentence should have been built on **p99 and 0 of 20,415 steps over budget**, which are stable to about 1% and exact respectively. Both remain true. The general rule stands with a clause added: prefer the per-step statistic over the sampled one, **and prefer the distribution over its single largest sample.**
+
 **What this does not do is price anything**, and the two-part rule above is unchanged: p99 and steps-over-budget here, the bracketed synthetic rows for whether a change costs anything at all. **`churning` is not deleted or demoted by this finding** — it remains the authority on the engine under sustained liquid churn, which is a thing worth having a number for. What it stops being is a candidate for "a realistic frame".
 
 **Do not read the two sessions' means against each other.** 0.2061 against session 1's 0.1212 is a 70% gap across different sittings *and* different content, and this document forbids the first comparison and has no method for the second. The gap is *consistent with* content — 44 peak awake against 16, 43 at the end against 8 — and that is a plausibility check, not a measurement. **What is measured is that each session is far under budget on its own worst step.**
+
+> **The comparison became admissible at the `VENT_RADIUS` sitting, and it says something the means alone did not.** Both sessions were replayed on one binary minutes apart, and the synthetic `churning` rows in the two processes agree to **0.3%** — which is the control this document asks for, and its absence was the whole reason the paragraph above refused. Read against each other:
+>
+> | | session 1 (painting) | session 2 (digging, fluids, steam) |
+> |---|---|---|
+> | mean | 0.1247 ms | **0.2082 ms** — +67% |
+> | p99 | **1.5042 ms** | 1.2189 ms — **-19%** |
+> | over budget | 0 of 24,437 | 0 of 20,415 |
+>
+> **The busier session costs two thirds more per step on average and has a *quieter* tail.** That is the opposite of the shape a budget worries about, and it is the more useful reading of the two: terrain work shows up as **steady throughput**, in more chunks awake on more steps, rather than as spikes. Nothing here is a fluid *stall*. **Do not turn this into a rule about fluids being cheap** — it is one reading of each of two sessions, and the p99 repeat band is 1.2% while these differ by 19%, which makes the direction trustworthy and the magnitude not. What it does retire is the guess that session 2's higher mean implied a worse frame anywhere.
 
 **E9's steam question is still open, and the census is now precise about why.** Steam reached **10,731 cells and appears in 28 of 341 samples**, so the material occurs in real play at real scale. But `painted 484` says some of it came from the hotbar, and **the census cannot separate painted steam from boiled steam** — the player reports doing both. So the pocket-collecting-under-a-ceiling case E9's cost question is actually about did occur, and is *not isolable from this row*. **Structurally it never could have been:** the replayed row is one baseline number with no A/B in it, and pricing a branch needs two readings. What session 2 supplies is the **calibration target** the E9 entry above said nothing in this file could produce — a steam row built to ~10.7k cells against a ceiling is now a scenario with a played number behind its size, instead of a guess.
 
@@ -215,6 +227,95 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 
 **Both recordings are kept, under names that say what they contain** — `session_1_painting.rec` and `session_2_digging_fluids_steam.rec`. Session 1 survived only because it had been committed: `F9` writes `session.rec` on the first save *of each process*, so relaunching the game and pressing `F9` overwrites the previous session's recording, which is what happened here. A session costs several minutes of a person's time and is the one input in this file that cannot be regenerated on demand.
 
+### `VENT_RADIUS` re-swept in one binary: the knee was not there, and the toggle itself costs `churning` 32%
+
+**2026-08-13, the instrumentation sitting's third item.** `VENT_RADIUS` was a compile-time `constexpr`, so pricing it meant one build per data point — the method the E1 entry above records producing a confident 28% that turned out to be the compiler re-laying-out the hot loop. It is now a runtime value (`Grid::set_vent_radius`), and `grid_bench` sweeps it: four radii, one process, and for the replayed row the same recorded input stream each time.
+
+**The sweep, `churning`, one sitting, one binary.** Baseline r=0 is venting off — the search box collapses to the fluid's own cell, which is never `Empty`, so `vent_fluid` always returns false. The original sweep could only get that baseline by editing the call out into a fourth build.
+
+| radius | cells scanned | 960x540 | per extra cell | 1920x1080 | per extra cell |
+|---|---|---|---|---|---|
+| r=0 (off) | 1 | 3.4611 ms | — | 26.0618 ms | — |
+| r=2 | 25 | 4.9748 ms | 0.0631 ms | 37.5291 ms | 0.478 ms |
+| **r=3** (ships) | 49 | **6.5541 ms** | **0.0644 ms** | **49.4125 ms** | **0.486 ms** |
+| r=4 | 81 | 8.3531 ms | 0.0612 ms | 62.9793 ms | 0.461 ms |
+
+**There is no knee.** Cost is linear in the area of the box to within 5% at every radius and at both world sizes — which is what a box scan should do, and is not what the recorded sweep said. That one read `3.13 / 4.12 / 4.93 / 6.72` at 960x540, i.e. **0.0413 / 0.0375 / 0.0449 ms per extra cell** — an r=3 point sitting 9% below its neighbour on one side and 16% below it on the other. **That dip is the entire argument for 3**, and it does not survive being measured on one compile.
+
+**So "3 is the knee: nearly all of 4's accuracy for three quarters of its cost" was an artifact, and 3 now stands on quality alone.** It still stands: r=4 buys 50 steps of a `water_probe` transient that D3 established clears itself on release, for 27% more scan. **The knob was set to the right value for a reason that was not true.** That is a better outcome than it sounds — the recorded sweep predicted the *shape* of the cost curve correctly, and got the one point wrong that it was being used to choose.
+
+**Internal control, and it is the reason the table above is trustworthy.** `churning` at the shipped radius is measured twice in the same process — once as the ordinary row, once as the sweep's r=3 — and the two agree to **0.2% at both sizes** (6.5409 vs 6.5541, 49.3008 vs 49.4125). Two readings of the same work, taken minutes apart in one binary, is the tightest agreement any pair of numbers in this document has ever shown.
+
+**The conversion from `constexpr` to runtime is not free, and it is measurable despite being cross-build.** The header comment first claimed the opposite — that telling the two apart needed the rebuild comparison this instrument exists to avoid — and that was wrong for a reason worth stating: **a cross-build comparison is legitimate when it has a control**, which is what this document's rule actually says. `churning` is the only bench scenario containing water, so **every other row is a control the change cannot touch.** Two builds, back to back, one sitting, nothing else different:
+
+| scenario | `constexpr` | runtime | change | |
+|---|---|---|---|---|
+| `churning` 960x540 | 4.9579 | 6.5409 | **+31.9%** | ← the only row with water in it |
+| `churning` 1920x1080 | 37.4535 | 49.3008 | **+31.6%** | ← same, at the played size |
+| `cascading` 960 / 1920 | 12.7423 / 44.9778 | 12.7908 / 44.9761 | +0.4% / -0.0% | control |
+| `collapsing` 960 / 1920 | 1.4736 / 2.9031 | 1.4715 / 2.9128 | -0.1% / +0.3% | control |
+| `shattering` 960 / 1920 | 1.3557 / 3.3079 | 1.3473 / 3.3399 | -0.6% / +1.0% | control |
+| `sparse` 960 / 1920 | 0.0694 / 0.0735 | 0.0708 / 0.0749 | +2.0% / +1.9% | control |
+| `burning` 960 / 1920 | 3.0097 / 7.8397 | 3.0608 / 8.4468 | +1.7% / **+7.7%** | control, and the widest excursion |
+| **replayed session** | **0.2076 mean, 1.2039 p99** | **0.2082 mean, 1.2189 p99** | **+0.3% / +1.2%** | |
+
+**Read the widest control before the result.** `burning` at 1920x1080 moved 7.7% under a change that cannot reach it, so the noise band on this pair of runs is ±8%, not ±2%. `churning`'s +32% is four times that and reproduced at both world sizes with the same magnitude, which noise does not do.
+
+**That `burning` figure is not a new anomaly — it is the same one D3 already caught, to the decimal.** ROADMAP.md's wave 4 records `burning` "first read as +7.7% and the repeat is what killed it", filed in this document for that reason rather than for its value. **A control scenario with a known ±8% mood, hit twice by different changes at the same magnitude, is the most useful thing in the control set:** it is the row that says how big a delta has to be before it means anything on this machine. Nothing in this project has ever been believed at 7.7%; `churning` at 32% is a different claim. **The cost is real:** losing the compile-time loop bound costs the powder-into-fluid path about a third.
+
+**And it is kept anyway, on the other half of the two-part rule.** On the recorded session the same conversion moves the mean by 0.3% and p99 by 1.2% — both inside the 0.3%/1.2% band that repeating the *identical* run produces, i.e. not distinguishable from nothing. The 32% lands entirely on cells doing powder/fluid exchange and a played world has few of them, which is the same finding as `churning` not being representative, arriving from the other direction. **This is the first time the two halves of the frame-budget rule have disagreed, and the disagreement is the answer rather than a problem with it:** the synthetic row is right that the change costs something, the played row is right that it costs nothing here, and both are needed to say *where* the cost is.
+
+**What to watch.** If played worlds ever get much livelier at the powder/fluid interface — **E10's angle of repose and E5a's per-cell velocity both do exactly that** — this is a known 32% sitting on precisely the path that would get busier, and the toggle that measured it is the instrument for re-deciding. E5b would remove `vent_fluid` altogether and take the question with it.
+
+**The played sweep is the second half, and it says the radius is nearly free in play.** Same session, four radii, one process:
+
+| radius | mean | p99 | over budget | end state |
+|---|---|---|---|---|
+| r=0 (off) | 0.2059 | 1.1821 | 0 of 20,415 | diverged |
+| r=2 | 0.2077 | 1.2020 | 0 of 20,415 | diverged |
+| **r=3** | **0.2082** | **1.2189** | **0 of 20,415** | **exact** |
+| r=4 | 0.2078 | 1.2160 | 0 of 20,415 | diverged |
+
+**Venting off to r=4 is worth about 1% of the played mean and 3% of p99, against 140% of `churning`'s.** **The diverged column is the measurement, not a failure** — a different radius is a different simulation, so identical inputs are supposed to produce a different world, and the bench reports end state rather than enforcing it for exactly this case. The row that has to read `exact` is r=3, and it does: making the constant runtime did not change the shipped simulation, at 20,415 steps of digging, fluid and steam, byte for byte. Session 1 replays exactly as well.
+
+**One incidental reading, recorded and not relied on.** `churning` at 1920x1080 under the `constexpr` build read 37.4535 against the 37.25 on record from an earlier sitting — 0.5% apart. That is a cross-sitting timing comparison and this document does not accept those as evidence; it is noted because it is the closest any two sittings in this file have come, not because anything rests on it.
+
+### The fluid spike, priced: E5b is worth 8% of a played step and 47% of `churning`, and the two disagree about which rule is expensive
+
+**2026-08-13, the instrumentation sitting's last item.** The replayed row times a whole `Run::step`, so it can say the budget is intact and nothing about which rule inside it costs. The three displacement rules E5b would retire together — `vent_fluid`, `find_lower_surface` (via `seek_level`) and `make_room_above` — are now individually switchable at runtime, and `grid_bench` ablates them one at a time in one process.
+
+**`churning` at 1920x1080, five configurations, one process.**
+
+| config | ms/step | vs `all` | |
+|---|---|---|---|
+| all | 47.2268 | — | |
+| **no vent** | **25.0018** | **−22.23 ms, −47.1%** | |
+| no seek | 47.0718 | −0.16 ms, −0.3% | at the noise floor |
+| no lift | 47.3265 | **+0.10 ms, +0.2%** | ← null control |
+| **none** | **24.7928** | **−22.43 ms, −47.5%** | the whole of E5b's territory |
+
+**Read the null control first.** `make_room_above` fires only on a brush write and `churning` never paints, so `no lift` removes a rule that cannot run — **whatever it reads is the table's noise floor, and it reads +0.2%.** That is what makes `no seek`'s 0.3% interpretable: it is *at* the floor, not above it. **`find_lower_surface` costs `churning` nothing measurable**, which is worth stating plainly because the table that reorganised the E-track lists it as "a search of up to 512 cells, per awake surface cell, per tick" — the most alarming-looking row of the four, and on this scenario it is free.
+
+**The played session, same five configurations, same process.**
+
+| config | mean | vs `all` | p99 | vs `all` | end state |
+|---|---|---|---|---|---|
+| all | 0.2006 | — | 1.1535 | — | **exact** |
+| no vent | 0.2009 | +0.1% | 1.1553 | +0.2% | diverged |
+| **no seek** | **0.1860** | **−7.3%** | **1.1159** | **−3.3%** | diverged |
+| no lift | 0.1996 | −0.5% | 1.1492 | −0.4% | diverged |
+| **none** | **0.1839** | **−8.3%** | **1.1009** | **−4.6%** | diverged |
+
+**The two scenarios invert.** On `churning`, venting is 47% of the row and seeking is zero. **In play, venting is zero and seeking is 7%.** Both are explicable and neither is noise: `churning` is powder sinking into fluid *everywhere*, which is all venting and leaves no settled surface to seek from, while a played world has large quiet pools whose long surfaces run `seek_level` on every awake cell of them. **A synthetic worst case does not merely exaggerate the played cost — here it points at a different rule.** That is a sharper version of the same lesson session 2 taught about `churning`, and it arrived from the other end: the scenario is not just unrepresentative in *degree*, it is unrepresentative in *kind*.
+
+**So the fluid spike's answer is: E5b cannot be justified on performance.** The whole of what it retires is **8.3% of the played mean and 4.6% of played p99**, on a row that already runs 0 of 20,415 steps over budget with ~11.8 ms of headroom at its busiest single moment. **8% of 1.2% of a frame is not a reason to build a second grid over the world.** E5b's case is D3 and D4 — fluids that do not flow, water that climbs — and those are quality defects that no timing can close. **The spike did its job by removing an argument rather than supplying one**, which is what a price is for: it stops E5b being proposed as an optimisation and leaves it standing on the six capabilities its entry actually lists.
+
+**How much to trust these numbers, stated in three parts.**
+
+- **Within-process repeatability is excellent.** `churning` at the shipped configuration is measured three separate times in this run — as the ordinary row, as the vent sweep's r=3, and as the ablation's `all` — reading **47.3446 / 47.1065 / 47.2268**, a spread of 0.5%. The replay's mean is measured twice at **0.2007 and 0.2006**. Nothing else in this document has ever agreed that closely.
+- **The ablation rows are separate simulations, not a partition of a step.** Removing a rule changes what the world does, so every later step in that run is doing different work. A row's gap from `all` is that rule's share *of this scenario*, and some of `no seek`'s 7.3% is the world having ended up quieter rather than the search itself. **Do not present these as a pie chart.** They happen to be nearly additive here — `no vent` + `no seek` + `no lift` comes to −22.29 ms against `none`'s −22.43 — and that is a consistency check, not a guarantee.
+- **Every ablated row diverges from the recorded end state and that is the measurement.** The `all` row reads `exact`, which is what says the switches only measure the simulation rather than changing it.
+
 ### The 960x540 control is a control on the counts, not on the times
 
 **2026-08-13, same run.** `.claude/rules/simulation.md` said the 960x540 block "should reproduce the numbers on record. If it stops matching, the refactor broke something rather than the engine." **That rule could not be obeyed as written, and it is corrected rather than deleted, because the reason is this file's own oldest rule.** Absolute timings are not portable across sittings — the note above records one unchanged binary spanning 2.3x within an hour — so a control defined as "reproduces the times on record" is defined against the one quantity this document forbids comparing across sittings. It also cannot account for work legitimately added since the table was measured (E9's steam branch is +3-4% on two rows, on the record, with an argument).
@@ -222,6 +323,8 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 **What did reproduce, exactly, is the part that is deterministic.** Against the P2 sitting: `churning` 105 -> 0 and `cascading` 75 -> 105 chunks awake at 960x540, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080, and peak fractured cells at 2384 and 2348. Every one matched. The times moved 0-13% row-wise in the same direction at both sizes, which is a sitting, not a refactor.
 
 **Confirmed again at the session 2 sitting, 2026-08-13** — all six counts reproduced a third time: `churning` 105 -> 0 and `cascading` 75 -> 105 at 960x540 with 2,384 peak fractured cells, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080 with 2,348. **Three sittings, six counts, no drift.** That is the case for this being the control, and it is worth noting that no timing in this document has ever reproduced across sittings that way.
+
+**Confirmed a fourth time at the `VENT_RADIUS` sitting, and this one is the strongest of the four** — the six counts reproduced across *two different builds* of the engine, `constexpr` and runtime, whose `churning` times differ by 32%. **A control that holds exactly while the thing it is controlling moves by a third is doing its job**, and it is the reason the 32% could be attributed to the change rather than to the compiler. Note what that also demonstrates: the counts are blind to cost. They say the engine is doing the same work, not that it is doing it at the same speed, and the whole `VENT_RADIUS` finding lives in the gap between those two statements.
 
 **So the control is the awake-chunk and fracture counts, and they are a better control than the times ever were:** the benchmark has run on a fixed seed since F1.1, so those counts are a property of the simulation and any change to what the engine *does* moves them, while the machine cannot. This is what the scene-loader extraction into `src/scene/bmp.cpp` was checked against, alongside the launch check's 334,901 cells.
 

@@ -292,12 +292,23 @@ int peak_fractured_cells(Grid& g, Bench& b) {
     return peak;
 }
 
+// The last parameter is the only one with a default that is a *setting* rather
+// than an absence: every row above the vent sweep passes nothing and therefore
+// runs the shipped simulation, which is what keeps those rows comparable with
+// the ones on record. It is threaded through here rather than set by the caller
+// on a grid it does not own, because `run` is what constructs the grid, and the
+// radius has to be in place before `build` puts sand on top of water.
 void run(const char* name, const WorldSize& size,
          void (*build)(Grid&, Bench&), int settle_steps,
          void (*on_step)(Grid&, Bench&) = nullptr,
-         int (*witness)(Grid&, Bench&) = nullptr, const char* witness_label = nullptr) {
+         int (*witness)(Grid&, Bench&) = nullptr, const char* witness_label = nullptr,
+         int vent_radius = Grid::DEFAULT_VENT_RADIUS,
+         bool seek_level = true, bool room_above = true) {
     Bench b{size.w, size.h};
     Grid g(b.w, b.h);
+    g.set_vent_radius(vent_radius);
+    g.set_seek_level_enabled(seek_level);
+    g.set_room_above_enabled(room_above);
     build(g, b);
 
     // Let the scenario reach its steady state before the clock starts, so the
@@ -780,6 +791,219 @@ void run_replay(const char* log_path) {
                 "", "");
 }
 
+// The radii the sweep visits. 0 is venting off, 3 is what ships, and 2 and 4 are
+// the two neighbours the original sweep chose between.
+//
+// **0 is in here because the original sweep's baseline could not be.** The
+// number it was priced against - "`churning` at 3.13 ms/step with no venting at
+// all" - came from a build with the call edited out, so the baseline and the
+// three readings above it were four different binaries. At runtime the radius
+// collapses the search box to the fluid's own cell, which is never Empty, so
+// `vent_fluid` returns false and every caller takes the plain swap: the same
+// behaviour, on the same instrument as everything it is being compared with.
+constexpr int VENT_RADII[] = { 0, 2, 3, 4 };
+constexpr int VENT_RADII_COUNT = static_cast<int>(sizeof(VENT_RADII) / sizeof(VENT_RADII[0]));
+
+// `churning` at each radius. This is the original sweep's scenario, re-run the
+// way the original sweep should have been run.
+//
+// Run at both world sizes for the reason P2 gives generally, and for one extra
+// reason here: the numbers on record were taken at 960x540, so the small block
+// is the only place the *shape* of the old sweep - how much each step of radius
+// cost relative to the last - can be held against the new one. The absolute
+// times cannot be compared across those sittings and are not being.
+void run_vent_sweep_synthetic(const WorldSize& size) {
+    std::printf("\n  `churning` at each radius, %dx%d - one binary, one sitting\n\n",
+                size.w, size.h);
+    for (int i = 0; i < VENT_RADII_COUNT; ++i) {
+        char label[16];
+        std::snprintf(label, sizeof(label), "vent r=%d", VENT_RADII[i]);
+        run(label, size, build_churning, 0, nullptr, nullptr, nullptr, VENT_RADII[i]);
+    }
+}
+
+// The same sweep against the recorded session, which is the half that answers
+// what the knob costs *in play* rather than under a worst case built to hurt.
+//
+// **Deliberately a separate function from `run_replay` rather than a refactor of
+// it.** `run_replay` prints the row the frame-budget rule reads, and the cheapest
+// way to make that row mean something slightly different is to reorganise the
+// code around it - one more world built before the clock starts changes what is
+// in cache when the first step runs. The staleness check below is therefore a
+// copy rather than a shared helper, and that is the trade being made knowingly:
+// two copies that can drift, against not touching the authority row to add an
+// instrument beside it.
+//
+// **Every row but r=3 will report a diverged end state, and that is the
+// measurement rather than a fault.** A different venting radius is a different
+// simulation; identical inputs are supposed to produce a different world. The
+// column is printed anyway because its *r=3* row is a real check - if the
+// shipped radius stopped replaying exactly, the conversion to a runtime value
+// changed the simulation, and that is the one outcome this whole exercise must
+// not have.
+// One engine configuration to replay the session under. `shipped` marks the row
+// whose end state has to come back `exact`.
+struct ReplayConfig {
+    const char* label;
+    int vent_radius;
+    bool seek_level;
+    bool room_above;
+    bool shipped;
+};
+
+void run_replay_configs(const char* log_path, const char* what,
+                        const ReplayConfig* configs, int count) {
+    input_log::Log log;
+    std::string error;
+    if (!input_log::read(log_path, log, &error)) {
+        std::printf("  %-9s not run: %s\n", what, error.c_str());
+        std::printf("            **Absent, not zero.** The synthetic table above is a worst case,\n"
+                    "            not a played frame, and cannot stand in for this.\n");
+        return;
+    }
+
+    std::string scene_error, scene_warning;
+    const Scene scene = bmp::load("assets/test_material.bmp", "assets/test_albedo.bmp",
+                                  &scene_error, &scene_warning);
+    if (!scene_error.empty()) {
+        std::printf("  %-9s not run: %s\n", what, scene_error.c_str());
+        std::printf("            Run this from `code/`, where assets/ is.\n");
+        return;
+    }
+
+    std::printf("\n  %s, %s: %d steps (%.1f s of play), seed %llu\n\n",
+                log_path, what, static_cast<int>(log.steps.size()), log.steps.size() / 60.0,
+                static_cast<unsigned long long>(log.header.seed));
+    std::printf("  %-10s %-12s %10s %10s %14s %14s\n",
+                "", "config", "mean ms", "p99 ms", "worst ms", "end state");
+
+    for (int i = 0; i < count; ++i) {
+        const ReplayConfig& cfg = configs[i];
+
+        Run run(log.header.grid_w, log.header.grid_h, log.header.seed);
+
+        // Before the scene is loaded, so that the world the clock sees was built
+        // under the setting being measured from its very first cell.
+        run.grid.set_vent_radius(cfg.vent_radius);
+        run.grid.set_seek_level_enabled(cfg.seek_level);
+        run.grid.set_room_above_enabled(cfg.room_above);
+
+        const int placed = load_scene(run.grid, scene, 0, 0);
+        if (placed != log.header.scene_cells ||
+            input_log::fingerprint(run.grid) != log.header.start_fingerprint) {
+            std::printf("  %-9s not run: the fixture scene has changed since this log was\n"
+                        "            recorded. Same refusal, and the same reason, as the row above.\n",
+                        what);
+            return;
+        }
+
+        std::vector<double> step_ms;
+        step_ms.reserve(log.steps.size());
+        for (const Input& in : log.steps) {
+            const auto t0 = std::chrono::steady_clock::now();
+            run.step(in);
+            const auto t1 = std::chrono::steady_clock::now();
+            step_ms.push_back(std::chrono::duration<double, std::milli>(t1 - t0).count());
+        }
+        if (step_ms.empty()) {
+            std::printf("  %-9s not run: the log contains no steps.\n", what);
+            return;
+        }
+
+        double total = 0.0;
+        int over_budget = 0;
+        for (double ms : step_ms) {
+            total += ms;
+            if (ms > FRAME_BUDGET_MS) over_budget++;
+        }
+        std::vector<double> sorted = step_ms;
+        std::sort(sorted.begin(), sorted.end());
+
+        const bool exact = input_log::fingerprint(run.grid) == log.header.end_fingerprint &&
+                           run.player.cell_x() == log.header.end_player_x &&
+                           run.player.cell_y() == log.header.end_player_y;
+
+        char label[16];
+        std::snprintf(label, sizeof(label), "%s%s", cfg.label, cfg.shipped ? "*" : "");
+        std::printf("  %-10s %-12s %10.4f %10.4f %14.4f %14s   %d over budget\n",
+                    "", label, total / step_ms.size(),
+                    sorted[static_cast<size_t>(sorted.size() * 99 / 100)], sorted.back(),
+                    exact ? "exact" : "diverged", over_budget);
+    }
+
+    std::printf("\n  %-10s * is the shipped configuration, and its row is the one that has to\n"
+                "  %-10s read `exact` - anything else means the switches changed the simulation\n"
+                "  %-10s rather than only measuring it. Every other row diverging is the point.\n",
+                "", "", "");
+}
+
+const ReplayConfig VENT_CONFIGS[] = {
+    { "r=0",  0, true, true, false },
+    { "r=2",  2, true, true, false },
+    { "r=3",  3, true, true, true  },
+    { "r=4",  4, true, true, false },
+};
+
+void run_vent_sweep_replay(const char* log_path) {
+    run_replay_configs(log_path, "vent radius", VENT_CONFIGS, 4);
+}
+
+// **The fluid breakdown - what the replayed row could not say about itself.**
+//
+// D4 is the loudest finding on the record, its plausible fix is E5b, and E5b's
+// case is that these three displacement rules should be replaced wholesale. The
+// replayed row times a whole `Run::step`, so it can say the budget is intact and
+// nothing at all about which rule inside it is expensive. **Ablation is the only
+// method available that does not need one build per data point**, which is the
+// method this project has already been burned by once.
+//
+// What each row removes:
+//
+//   no vent    `vent_fluid`, the 7x7 box scan per powder-touching-fluid per tick
+//   no seek    `seek_level`, and with it `find_lower_surface`'s flood fill of up
+//              to MAX_PRESSURE_CELLS per awake surface cell per tick
+//   no lift    `make_room_above`, the walk of up to MAX_DISPLACE_RISE cells that
+//              the brush pays per painted cell
+//   none       all three - **the whole of what E5b proposes to retire**, which
+//              is the number that item has never had
+//
+// **The rows do not have to add up to `all`, and reading them as a partition is
+// the mistake this comment exists to prevent.** Each is a separate simulation:
+// removing a rule changes what the world does, so every later step in that run
+// is doing different work, and the difference from `all` is that rule's share of
+// *this scenario* rather than its share of a step. Overlap and interference are
+// both possible and neither is a defect in the instrument.
+const ReplayConfig FLUID_CONFIGS[] = {
+    { "all",     Grid::DEFAULT_VENT_RADIUS, true,  true,  true  },
+    { "no vent", 0,                         true,  true,  false },
+    { "no seek", Grid::DEFAULT_VENT_RADIUS, false, true,  false },
+    { "no lift", Grid::DEFAULT_VENT_RADIUS, true,  false, false },
+    { "none",    0,                         false, false, false },
+};
+constexpr int FLUID_CONFIG_COUNT = static_cast<int>(sizeof(FLUID_CONFIGS) / sizeof(FLUID_CONFIGS[0]));
+
+// The same five configurations against `churning`, which is the scenario built
+// to hurt exactly here.
+//
+// **Run at the played size only.** The breakdown is about where played time
+// goes, and `churning` at 960x540 settles inside the window while 1920x1080 does
+// not - so the small world would answer a slightly different question at 15
+// seconds a row. The radius sweep above already covers both sizes.
+//
+// **`no lift` is a null control and should read as zero.** `make_room_above`
+// only fires on a brush write, and `churning` never paints - it builds its world
+// once and then steps it. A row that removes a rule which cannot run measures
+// the instrument, not the rule: whatever it reads is this table's noise floor,
+// and any other row smaller than it means nothing.
+void run_fluid_breakdown_synthetic(const WorldSize& size) {
+    std::printf("\n  `churning` with each displacement rule removed, %dx%d\n\n", size.w, size.h);
+    for (int i = 0; i < FLUID_CONFIG_COUNT; ++i) {
+        const ReplayConfig& cfg = FLUID_CONFIGS[i];
+        run(cfg.label, size, build_churning, 0, nullptr, nullptr, nullptr,
+            cfg.vent_radius, cfg.seek_level, cfg.room_above);
+    }
+}
+
 void run_all(const WorldSize& size) {
     std::printf("\nGrid %dx%d (%d cells), %d steps per scenario\n  %s\n\n",
                 size.w, size.h, size.w * size.h, BENCH_STEPS, size.note);
@@ -817,6 +1041,27 @@ int main(int argc, char** argv) {
     const char* log_path = argc > 1 ? argv[1] : "session.rec";
     std::printf("\nA replayed session - the row the frame-budget rule is aimed at (P4)\n\n");
     run_replay(log_path);
+
+    // Last, and after everything that was here before it, so that no output any
+    // document quotes moved when this was added.
+    std::printf("\n\nThe VENT_RADIUS sweep, re-run in one binary\n");
+    std::printf("  The radius is a cost knob and was swept across three builds, which is the\n"
+                "  method PERFORMANCE.md's E1 entry records producing a confident 28%% out of\n"
+                "  the compiler. Every row below comes from this process, this sitting, and -\n"
+                "  for the replay - the same recorded input stream.\n");
+    for (int i = 0; i < SIZE_COUNT; ++i) run_vent_sweep_synthetic(SIZES[i]);
+    run_vent_sweep_replay(log_path);
+
+    // The fluid spike's breakdown, last because it is the longest block and the
+    // one most likely to be skipped when someone only wants the budget row.
+    std::printf("\n\nWhere fluid time goes, by ablation (the fluid spike)\n");
+    std::printf("  Each row removes one displacement rule. **They are separate simulations,\n"
+                "  not a partition of a step** - removing a rule changes what the world does,\n"
+                "  so a row's gap from `all` is that rule's share of this scenario. `no lift`\n"
+                "  on `churning` is a null control: nothing paints there, so it prices the\n"
+                "  instrument. `none` is the whole of what E5b proposes to retire.\n");
+    run_fluid_breakdown_synthetic(SIZES[SIZE_COUNT - 1]);
+    run_replay_configs(log_path, "displacement rules", FLUID_CONFIGS, FLUID_CONFIG_COUNT);
 
     std::printf("\n");
     return 0;
