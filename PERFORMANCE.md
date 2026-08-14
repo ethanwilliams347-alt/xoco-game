@@ -92,6 +92,84 @@ This is filed for the method and not for the numbers. It is the third time on th
 
 **Reproduce it with `velocity_probe`** for the layout half — it prints `sizeof` and `offsetof` for each candidate rather than counting fields by hand, which is the mistake `ENGINEERING_NOTES.md` records this struct having made before. The timing half is `grid_bench` with the fields added by hand and taken out again.
 
+### A played session never touches the frame budget, and the mean is not why
+
+**2026-08-13, P4, first recorded session.** `grid_bench` has an eighth row that is not hand-built: it replays a recorded session — one `Input` per fixed step, from a file — through `Run::step`, in the world the game actually boots into. A session was played and saved with `F9`, and the row now has numbers in it.
+
+| | |
+|---|---|
+| session | 24,437 steps — **407.3 s of play**, seed 10949426797942825974, 334,901 scene cells |
+| mean | **0.1212 ms/step — 0.7% of a 60 Hz frame** |
+| p99 | **1.4745 ms — 8.8%** |
+| worst single step | **4.8193 ms — 28.9%** |
+| over budget | **0 of 24,437 steps** |
+| chunks awake | 129 -> 8 of 510 |
+| end state | **replayed to the recorded end state exactly** |
+
+**Corrected the same day, by the instrument built to answer the question this row raised.** The paragraphs below were written before `grid_bench` could report what a session *contained*, and two of them over-claimed. The census was added immediately afterwards and says this:
+
+```
+dig 0 steps, brush 8085, moving 384, jumping 97 (of 24437)
+material     painted    at start        peak  samples seen
+Sand               0       16001       16001       408/408
+Water              0       70350       70350       408/408
+Wall             392      243700      251987       408/408
+Wood            2468        4850       14670       408/408
+Oil             4068           0        5511       345/408
+Steam              -           -           -    never seen
+Fire            1157           0        5512       201/408
+Charred            0           0        4636       201/408
+peak 16 of 510 chunks awake once the scene had settled (129 in the opening sample)
+Fire+Water+Sand all present in 201 of 408 samples, digging in 0 of those
+```
+
+**This is not an ordinary played session and it should not be quoted as one.** The dig tool never fired once. The player was stationary for 98.4% of it. `Sand` and `Water` peak at *exactly* their starting counts, so in seven minutes not one grain of sand moved and not one cell of water. What it is, is a **painting session** — 8,085 brush steps, mostly Oil and Wood, set alight — and **its world was never more than 16 of 510 chunks awake** once the fixture scene had settled.
+
+**So "0 of 24,437 steps over budget" is a true measurement of a nearly-asleep world**, and the honest version of the headline is much narrower than the one written below: *a session that paints and burns, with the terrain untouched, does not come near the frame budget*. Whether an ordinary session does is **not answered**, and neither is whether `churning` is representative — this session cannot speak to sand-in-water because it contained no moving sand and no moving water.
+
+**The generalisable lesson, and it is the reason this correction is kept rather than folded away.** This row was built to end an argument about which hand-built scenario counts as realistic, on the reasoning that a *played* frame is realistic by construction. That reasoning has a hole in it that took a played session to expose: **a row is realistic by construction and representative only by evidence, and those are not the same property.** Every argument for P4 in this file and in `ROADMAP.md` conflated them. The instrument was right; the inference from one session was not, and nothing about "it was really played" would ever have shown it — only counting what was in it did. **A second session, played to cover the cases this one missed, is now a scheduled requirement rather than a nice-to-have.**
+
+**What survives unchanged**, because it does not depend on the session being typical: the two-part budget rule below (this session makes the case *stronger* — 16 of 510 chunks awake is exactly why a played row cannot price a per-cell change), the byte-exact 24,437-step replay, and the light-field ceiling. **What is now known rather than suspected: this session contained no steam at all, so E9's open question is untouched by it** — which is the thing the census was built to be able to say.
+
+**Not a bracketed A/B and not a five-run minimum — it is a baseline, and one run of it.** Nothing is being compared here, so there is no second reading for drift to hide in (the same argument the V7 entry makes). What it establishes is the number every later E-track merge reading is taken *against*, and the first such merge will be the first bracketed use of it.
+
+*The three paragraphs that follow are the original reading, kept as written. The first is true and narrower than it sounds; the second is withdrawn by the correction above.*
+
+**The headline: nothing in seven minutes of play came within three times the frame budget, counting parts the rows above do not count.** The worst step in the whole session — grid, player, dig tool and brush together — is 28.9% of a frame, and p99 is 8.8%. This does not license dividing it into `churning`'s 226%; it says something weaker and more useful, which is that the played row is bounded well under budget *including* the three subsystems the synthetic rows exclude, so no arithmetic relating the two is needed to read it.
+
+**~~`churning` is not representative of this session, and the question was half mis-framed.~~** *(Withdrawn. The reasoning about what "representative" has to mean is kept — it is the useful half — but the conclusion rested on comparing a liquid scenario against a session the census later showed contained no moving liquid and no moving powder at all. The question is open and session 2 is what closes it.)* The open question was whether `churning` at 226% of a frame is a defect or an artifact, and the answer is that it is neither: it is a real activity type — sand sinking through water, which F4.4 put a water channel in the fixture scene to produce — sustained at an intensity this session never reached. `churning` holds **360 of 510 chunks awake** and never settles inside its window; the played session opens at **129** and ends at **8**. The honest statement is *representative of what*: `churning` is a valid measure of the engine under sustained liquid churn and is not a measure of an ordinary played frame, and this row is the second of those and not the first. **Neither row should be deleted or re-labelled on the strength of the other.**
+
+**The finding the plan did not anticipate, and it corrects a decision this file's own P-track section pressed for.** ROADMAP_ITEMS.md says to decide the frame-budget rule "against that row, not against a taxonomy of the synthetic ones". With the number in hand that is **half right and half backwards**. A merge rule of "under 10% on the replayed row" is 10% of 0.1212 ms — **twelve microseconds**, far under this benchmark's run-to-run noise, on a row where 0 of 24,437 steps are anywhere near the budget. A per-awake-cell cost that matters only under load would pass that test while being invisible to it. **So the two kinds of row do different jobs and both are needed:** the replayed row is the authority on *whether the budget is broken* (p99 and steps-over-budget, never the mean), and the synthetic rows stay the authority on *whether a change costs anything at all*, because they are where a per-cell cost is large enough to see. The rule is restated on that basis in ROADMAP_ITEMS.md. The original wording is kept there rather than replaced, because the reasoning behind it was right — a budget is only as honest as the world it is measured in — and only the sensitivity half was wrong.
+
+**A second result that was not the point of the item: 24,437 steps of real play replayed byte-exact.** `test_run.cpp` already proved a recorded sequence replays identically, for short synthetic sequences. This is 6 minutes 47 seconds of a person actually playing — movement, digging, brush strokes — rebuilt from a seed and an input list and landing on the same world fingerprint. That is the strongest determinism evidence this project has, and it is also the first end-to-end confirmation that F5 and F6's fixed-point conversions hold over a long run rather than over a test.
+
+**What this row does *not* measure, stated because a number this comfortable invites over-reading:**
+
+- **Rendering is not in it.** `Run::step` is the simulation; the light field is per *frame* and lives in the section below. A lit frame costs **15.19 ms** at 3440x1440 in this same run — so the worst played step plus a large fire on an ultrawide is about 20 ms and **is** over budget, and the term that puts it there is the lighting, not the simulation. That ceiling is the light-field entry's, unchanged by this row.
+- **One session, one player, seven minutes, recorded by the person who wrote the engine.** It is evidence about what this session did, not a bound on what a player can make the engine do. *(Understated as written: the census above shows how far from a bound it is.)*
+- ~~**What the session contained is not reported, and that is a gap in the instrument.**~~ **Closed the same day.** The replay row now prints a census — inputs counted exactly from the log, world materials sampled once a second in a **second, untimed replay pass**. The second pass is not fussiness: a census walks 25 MB and evicts the whole cache, so sampling inside the timed loop would make ~1.7% of steps pay cold-cache costs, landing on p99 and worst — the two statistics the budget rule reads. **Determinism is what makes measuring twice free**, and it is the first time F2.3's replayability has paid for something other than a test.
+  - **Sampled means presence, not absence.** A fire that lit and burned out between two samples reads as never seen, and the output says so on its own last line rather than leaving it to be inferred.
+  - **The baseline sample is why the peaks are readable.** The fixture scene already contains Sand, Water, Wall and Wood, so "present in every sample" is a fact about the scene; the `at start` column is what turns a peak into a statement about the session. The same sample is excluded from the peak-awake figure, because loading the scene wakes 129 chunks that settle within the first second and would otherwise be reported as how busy the session was.
+
+**What the row is for.** Every other scenario in this file is hand-built, and twice now the plan has had to argue about which of them counts as a realistic frame — most recently over whether `churning` at 211% of a frame is a defect or an artifact. That argument cannot be settled by classifying scenarios; it can only be dissolved by having a row that is a played frame by construction. It is also the row the frame-budget rule is now stated against (ROADMAP_ITEMS.md, P track), so **every E-track item from E10 on takes its merge reading here.**
+
+**Method, and the two ways it differs from every table above:**
+
+- **The unit is a whole `Run::step`** — grid, player, dig tool and brush — not `Grid::update`. A played frame contains all four, and a budget quoted against the grid alone is a budget for part of a frame. **The rows above and this row are therefore not comparable by division**, and dividing them is the specific mistake this note exists to prevent.
+- **Four statistics, and the mean is the least useful.** Mean, p99, worst step, and how many steps went over 16.67 ms. A session that sleeps through 95% of its steps and spends the other 5% at 40 ms stutters visibly and has an excellent mean; "n of N steps over budget" is what a budget rule can actually be written against.
+
+**What makes a replayed row trustworthy, since it is the first row in this file whose input is a file on disk.** The log carries the seed, the fixture scene's cell count and a fingerprint of every cell of the world before the first step; the bench rebuilds the world and refuses to run if either disagrees. A log replayed into a world it was not recorded in is the failure mode this instrument exists to avoid and it is the one that would show as a perfectly plausible number. **The end state is checked too, and reported rather than enforced** — a changed simulation legitimately replays to a different world, and the bench cannot tell that from a stale log, so it says which it saw and leaves the judgement to the reader.
+
+**Verified before any session existed, and kept here because it is what made the first number believable on sight:** the format round-trips through disk with every field intact and a truncated log is refused (`run_test`); a log read back from disk replays into the recorded world, and the fingerprint notices a single changed cell (`run_test`); the fixture scene loads to 334,901 cells through the new headless loader, cross-checked against `tools/pixel_art.py`'s independent reader (`scene_test`, pinned); and the whole replay path — rebuild, staleness check, timing, end-state check — was exercised end to end against a scripted log built in a scratch directory and thrown away. **That scripted log is deliberately not in the repo:** a hand-written input sequence is exactly the thing this row exists not to measure.
+
+### The 960x540 control is a control on the counts, not on the times
+
+**2026-08-13, same run.** `.claude/rules/simulation.md` said the 960x540 block "should reproduce the numbers on record. If it stops matching, the refactor broke something rather than the engine." **That rule could not be obeyed as written, and it is corrected rather than deleted, because the reason is this file's own oldest rule.** Absolute timings are not portable across sittings — the note above records one unchanged binary spanning 2.3x within an hour — so a control defined as "reproduces the times on record" is defined against the one quantity this document forbids comparing across sittings. It also cannot account for work legitimately added since the table was measured (E9's steam branch is +3-4% on two rows, on the record, with an argument).
+
+**What did reproduce, exactly, is the part that is deterministic.** Against the P2 sitting: `churning` 105 -> 0 and `cascading` 75 -> 105 chunks awake at 960x540, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080, and peak fractured cells at 2384 and 2348. Every one matched. The times moved 0-13% row-wise in the same direction at both sizes, which is a sitting, not a refactor.
+
+**So the control is the awake-chunk and fracture counts, and they are a better control than the times ever were:** the benchmark has run on a fixed seed since F1.1, so those counts are a property of the simulation and any change to what the engine *does* moves them, while the machine cannot. This is what the scene-loader extraction into `src/scene/bmp.cpp` was checked against, alongside the launch check's 334,901 cells.
+
 ## The light field does not fit the widest display mode
 
 Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:

@@ -3,7 +3,7 @@
 This is the project's "why" and "how big is this allowed to get" document — goals, the discipline that keeps the plan from over-growing, and the wish list it protects against. None of it is a task list; for the actual sequenced engineering work, see [ROADMAP.md](ROADMAP.md).
 
 ## 🎯 Project Goals
-- **Core:** A production-level, barebones application.
+- **Core:** A production-level, visually impressive, and fun game.
 - **Engine:** Custom pixel art destructible environment running on its own cellular automata physics engine.
 - **The selling point — the engine and how it looks.** This is what the project is bought on, and it is a goal rather than a quality bar applied at the end. A pixel-physics game is judged on how its world *behaves* and how it *looks behaving* — depth in the simulation and a distinctive, deliberately-authored visual identity are the product, not the finish on it. Both are therefore allowed real investment ahead of the slice, and [ROADMAP.md](ROADMAP.md)'s Engine & Visual Depth section is where that investment is scheduled and bounded.
 - **Performance:** Strict no-bloat philosophy. Must run on low-end PCs (Windows/macOS/Linux).

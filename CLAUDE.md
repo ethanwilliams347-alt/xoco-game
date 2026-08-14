@@ -11,7 +11,7 @@ command and every `tools/` script from here.**
 ## Response Etiquette
 
 **Use clear and consise language when responding.** There will be both vibe-coders 
-and senior developers working on this project. Prefer language preferable to junior
+and senior developers working on this project. Prefer language suitable for junior
 developers (and vibe-coders) without sacrificing the quality and comprehensive of 
 your responses.
 
@@ -49,7 +49,7 @@ reason to run a subset — always run all of it.
 Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
 
 ```bash
-.\build\Release\grid_bench.exe        # timings; read the 1920x1080 block
+.\build\Release\grid_bench.exe        # timings; read the 1920x1080 block, then the replayed row
 .\build\Release\preview_light.exe     # dumps a frame; pipe through tools/rawpng.py
 .\build\Release\burn_probe.exe        # burn timing and shape, in numbers
 .\build\Release\water_probe.exe       # where poured water ends up
@@ -74,6 +74,26 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
   `Props: 10 of 10 placed` printing before the planting scan could drop one.
 - Windows-only so far. The build is portable and uses no platform-specific code,
   but macOS and Linux have never been built — do not claim they work.
+- **`grid_bench`'s last row needs a file nobody at a keyboard-less session can
+  produce.** It replays a recorded session (`session.rec`, written by pressing
+  `F9` in the game) and it is the row the frame-budget rule is aimed at.
+  **Absent is not zero** — when it prints "not run", say so rather than quoting
+  the seven hand-built rows as if the played frame had been measured. P4 in
+  ROADMAP.md; how to record one in README. **A session exists as of 2026-08-13**
+  (0 of 24,437 steps over budget) — but it is not in the repo and each machine
+  records its own, so the row is still absent until someone plays one.
+- **A played row is realistic by construction and representative only by
+  evidence.** Those were treated as the same thing for the whole of P4's design,
+  and the first recorded session broke the equation: it never dug once, never
+  moved a grain of sand or a cell of water, and peaked at 16 of 510 chunks
+  awake. **Read the `contents` census under the replay row before quoting the
+  timing above it** — that census exists because the number alone was
+  uninterpretable, and "the session was really played" would never have shown it.
+- **The played row proves the budget is intact; it cannot price a change.** It
+  costs 0.12 ms a step, so 10% of it is under the noise floor. A merge reading
+  needs both halves: p99 and steps-over-budget on the replayed row, *and* the
+  bracketed synthetic rows at 1920x1080. Stated in full in ROADMAP_ITEMS.md's P
+  track; this bullet exists because the rule used to name only the first half.
 
 ## Invariants — breaking one of these is a defect, not a design choice
 

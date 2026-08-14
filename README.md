@@ -124,6 +124,74 @@ identical code, so a comparison is only worth anything if both sides were
 measured back to back — and that document explains how a claim in these docs got
 that wrong once already.
 
+### The replayed row, and recording one (P4)
+
+The seven scenarios above are all hand-built, and the plan has twice had to
+argue about which of them counts as a realistic frame. The last row of the
+benchmark ends that argument by not being hand-built: it replays a **recorded
+session** — what someone actually did, one input per fixed step — so it is a
+played frame by construction. **It is the row the frame-budget rule in
+`ROADMAP_ITEMS.md` is aimed at.**
+
+```bash
+.\build\Release\SlopPhysics.exe      # play for a minute or two, then press F9
+.\build\Release\grid_bench.exe       # reads session.rec from the current directory
+.\build\Release\grid_bench.exe other_session.rec   # or name one
+```
+
+**Recording is always on and F9 writes what you have played so far**, from the
+first step of the session — not from when you pressed the key. A log has to
+begin at a world the replay can rebuild, and that world is the fixture scene
+before the first step; there is no way to start one in the middle. Press F9
+again later in the same session and you get `session_2.rec`, a longer take,
+not an overwrite.
+
+**Play the session you want measured.** A minute of standing still measures a
+sleeping world and is a worse row than no row. Dig, pour water into the channel,
+set something alight, walk somewhere — the kinds of thing step 9 of the manual
+checklist asks for.
+
+**The row prints a `contents` census under the timing, and you should read it
+first.** It counts what you did (exact, from the log) and samples what was in the
+world once a second, in a second untimed pass. It exists because the first
+recorded session read **0 of 24,437 steps over budget** and nobody could tell
+whether that meant the engine was fast or the session was quiet. The census
+answered it: **that session never dug once, never moved a single grain of sand or
+cell of water, and peaked at 16 of 510 chunks awake.** A real session, and not a
+representative one — see [PERFORMANCE.md](PERFORMANCE.md).
+
+**So: play the expensive cases on purpose, and check the census afterwards.** The
+row cannot be quoted as a budget for ordinary play until a session exists that
+contains ordinary play. Worth covering, because the first one covered none of
+them: **digging** (0 steps last time), **sand falling into water** (untouched),
+**steam under a ceiling** (never seen — this is the one E9 has been waiting on),
+and **moving around** (the player stood still for 98.4% of it). The census line
+`Fire+Water+Sand all present in N of M samples, digging in N of those` is checklist
+step 9 asked as one question.
+
+**Sampled means presence, not absence.** A fire that lit and burned out between
+two samples reads as never seen. Do not read a `never seen` row as proof the
+session lacked something — read it as the instrument not having caught it.
+
+**Three things invalidate a log**, and the first two are refused rather than
+measured:
+
+- **the fixture scene changed** — the replay would start in a different world.
+  `scene_test` fails first, on the pinned cell count, which is the cheap warning;
+- **the log format changed** — a version mismatch, refused by name;
+- **the simulation changed** — which is *not* a failure. The replay reports that
+  the end state differs and keeps the timing, because an E-track item that
+  changes physics legitimately changes where the session ends up. Only you can
+  tell that apart from a stale log, so the bench says what it saw rather than
+  guessing.
+
+The row reports a mean, a p99 and a worst step, and how many steps went over
+budget. **The mean is the least useful of the four**: a session that sleeps
+through 95% of its steps and spends the rest at 40 ms stutters badly and has an
+excellent mean. Note also that this row times a whole `Run::step` — grid, player,
+dig tool and brush — where every row above it times `Grid::update` alone, so the
+two are not directly comparable.
+
 ## Manual Testing
 
 `ctest` proves each mechanic is correct in isolation, headlessly, one suite per concern. It cannot prove they still *compose* — that digging near falling sand near fire near water still feels and looks right together — because nothing about running in a window, taking real input, and rendering a frame is exercised by a suite that never opens one. The checklist below is the other half. It is not the playtest gate in `ROADMAP.md`'s Medium Term section, which is about whether the game is *fun* for someone who did not build it; this is about whether it is still *correct*, run by whoever just built the feature, in the two or three minutes before calling it done.
@@ -196,6 +264,7 @@ that wrong once already.
 - **`7`**: **Fire** — gas; rises, fades from white-hot to red, and dies within a fifth of a second. A flame is what burning *throws off* — the thing actually on fire is the charred wood underneath it, which is what heats its neighbours and spreads the burn.
 - **`8`**: **Eraser** — deletes pixels.
 - **`ESC`**: Open the settings menu. **This used to quit outright**, which is the wrong thing for a key sitting next to a menu — quitting is now an item inside it, so it takes two deliberate presses.
+- **`F9`**: Write everything played so far to `session.rec` — the benchmark's replayed row (P4). A line appears under the HUD saying what was written and how many steps it holds. Every session is recorded from its first step whether or not you ever press this; see [The replayed row](#the-replayed-row-and-recording-one-p4). It is on `F9` rather than a letter because every letter within reach of the movement keys is a hotbar slot, and a key that writes a file is a bad one to hit while reaching for sand.
 
 **Settings menu** (`ESC`)
 - **Arrow keys / `W` / `S`:** Move the cursor. **`Enter`:** Choose. **`ESC`:** Resume.

@@ -5,10 +5,6 @@ backdrop — and how to swap one out quickly to look at a design.
 
 All commands run from `code/` (the repo root), like every other `tools/` script.
 
-For the player character specifically there is a longer, drawing-first walkthrough
-in [`../drawing_to_sprite.md`](../drawing_to_sprite.md) — that one starts at "I
-have a drawing", this one starts at "I have a file and I want the game to load it".
-
 ---
 
 ## Loading a sprite: the one command

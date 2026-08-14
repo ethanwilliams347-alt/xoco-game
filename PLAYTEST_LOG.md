@@ -512,3 +512,56 @@ steam half is no longer owed a playtest, and neither is F6. **What it does not
 close:** nothing here says anything about determinism across machines — step 3
 was run on the same machine as every other test this project has ever run, which
 is the gate prerequisite's job and not this pass's.
+
+---
+
+## Spot check — 2026-08-13 — the P4 recording run
+
+Not a session, and **not run as a checklist pass either** — someone played seven
+minutes to produce the recorded session `P4`'s benchmark row needs, and two
+checklist steps fell out of it. They are recorded here because the evidence
+exists, in the terms the evidence actually supports rather than the terms the
+checklist asks in.
+
+- **World seed:** `10949426797942825974`
+- **`Scene:` line:** `Scene: 1920x1080, 334901 cells placed` — and `Props: 9 of 9 placed`
+- **Session:** 24,437 fixed steps, 407.3 s, written to `session.rec`
+
+| # | Question | Result |
+|---|----------|--------|
+| 1 | Launch: does the window open, does the seed print, and does the scene load to its pinned count with terrain visible? | **Pass.** 334,901 cells, exactly the pinned figure; terrain reported visible. |
+| 9 | Stability: a few minutes of mixed activity without a crash. | **Not covered — see below.** No crash in 407 s, but the census shows none of the mixed activity happened. |
+
+**Step 1 is the row that mattered**, because `P4` moved the scene loader out of
+`main.cpp` into `src/scene/bmp.cpp` and the game had not been launched since.
+The count is the check rather than the eyeballing, and it is now agreed on by
+three independent readers — the C++ loader in the game, `tools/pixel_art.py`, and
+the figure this checklist has carried since the SDL-side loader existed.
+
+**Step 9 is recorded as a fail-to-cover, not a pass — and this is no longer a
+judgement call.** It was first written up as "partial" on the reasoning that
+nothing crashed in 407 seconds but the session's contents were unknown. The
+benchmark's session census, added the same afternoon, made them known:
+
+```
+dig 0 steps, brush 8085, moving 384, jumping 97 (of 24437)
+Sand   at start 16001, peak 16001     Water  at start 70350, peak 70350
+Steam  never seen
+peak 16 of 510 chunks awake once the scene had settled
+Fire+Water+Sand all present in 201 of 408 samples, digging in 0 of those
+```
+
+**The dig tool never fired. Sand and Water peak at exactly their starting counts,
+so nothing in the terrain moved for seven minutes. The player stood still for
+98.4% of the steps.** Step 9 asks for digging near falling sand near fire near
+water, with movement keys held through a collapse, and **none of those four
+happened.** No crash in a world that was 3% awake is a much weaker statement than
+"a few minutes of doing several of the above at once", and recording it as
+partial credit would be the "nothing crashed" → "the hard case was tried" slide
+this file exists to prevent.
+
+**What this spot check therefore contributes is step 1 and a measurement**, and
+its more useful output is a warning about itself: **a session being genuinely
+played does not make it a representative one**, and until the census existed
+there was no way to notice. **Step 9 is owed in full**, and the next recording run
+is where it gets done.

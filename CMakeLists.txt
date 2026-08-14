@@ -25,6 +25,7 @@ set(ENGINE_SOURCES
     src/physics/player.cpp
     src/physics/tool.cpp
     src/game/run.cpp
+    src/game/input_log.cpp
     src/scene/scene.cpp
 )
 
@@ -39,8 +40,16 @@ set(RENDER_SOURCES
     src/render/player_anim.cpp
 )
 
-# V4's prop list parser. Its own variable rather than a line in either of the
-# two above, because it belongs to neither and the distinction is the point.
+# V4's prop list parser, and P4's BMP reader. Its own variable rather than a
+# line in either of the two above, because it belongs to neither and the
+# distinction is the point.
+#
+# `bmp.cpp` joined it rather than ENGINE_SOURCES on the same test: it turns an
+# authored file into a record (a `Scene`), knows no SDL, and nothing under
+# src/physics/ may read it. It is here rather than in main.cpp - where the same
+# code used to live - because P4's replayed benchmark row has to stamp the world
+# the game actually plays in, and a loader inside the SDL shell is a loader no
+# headless instrument can reach.
 # It is not ENGINE_SOURCES: a prop exercises no system, is never dug, ignited or
 # displaced, and nothing under src/physics/ has any business reading this. It is
 # not RENDER_SOURCES either, since it draws nothing and knows no SDL - it turns
@@ -50,6 +59,7 @@ set(RENDER_SOURCES
 set(SCENE_PROP_SOURCES
     src/scene/props.cpp
     src/scene/sprites.cpp
+    src/scene/bmp.cpp
 )
 
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
@@ -109,9 +119,12 @@ if(BUILD_TESTING)
     target_include_directories(run_test PRIVATE src tests)
     add_test(NAME run_test COMMAND run_test)
 
-    add_executable(scene_test tests/test_scene.cpp ${ENGINE_SOURCES})
+    # Links the BMP reader too, and runs from the source tree, because part of
+    # what this suite now checks is that the *shipped* fixture scene still loads
+    # to the cell count P4's session log was recorded against.
+    add_executable(scene_test tests/test_scene.cpp ${ENGINE_SOURCES} ${SCENE_PROP_SOURCES})
     target_include_directories(scene_test PRIVATE src tests)
-    add_test(NAME scene_test COMMAND scene_test)
+    add_test(NAME scene_test COMMAND scene_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
     add_executable(light_test tests/test_light.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
     target_include_directories(light_test PRIVATE src tests)
@@ -138,7 +151,9 @@ if(BUILD_TESTING)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
-    add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES})
+    # Links SCENE_PROP_SOURCES as of P4: the replayed row rebuilds the fixture
+    # scene through the same loader the game uses.
+    add_executable(grid_bench tests/bench_grid.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES})
     target_include_directories(grid_bench PRIVATE src tests)
 
     # Headless frame preview. Not an add_test() either, and for a stronger reason

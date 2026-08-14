@@ -1,7 +1,35 @@
 #include "scene/scene.h"
+#include "scene/bmp.h"
 #include "scene/legend.h"
 #include "physics/grid.h"
 #include "test_util.h"
+#include <cstdio>
+#include <string>
+
+namespace {
+
+// What `assets/test_material.bmp` currently stamps into an empty world.
+//
+// **Pinned deliberately, and a failure here is not necessarily a defect.** The
+// fixture scene is the world P4's recorded session was played in, so this
+// number is that session log's identity: if the fixture changes, the log is
+// stale and the replayed benchmark row has to be re-recorded. That is exactly
+// the trap P4's entry names - a stale log replays into a world that no longer
+// matches and silently measures nothing - and this is the cheapest place to
+// catch it, because it fails in `ctest` rather than in a benchmark nobody runs
+// on the commit that broke it.
+//
+// So: if you changed the scene on purpose, update this number **and** re-record
+// the session (README, "Recording a session"). If you did not, something has
+// changed the legend or the loader underneath you.
+// Cross-checked against `tools/pixel_art.py`'s reader, which is an independent
+// implementation of the same format: 1,738,699 of the fixture's 2,073,600
+// pixels are background, leaving exactly this many that name a material. That
+// agreement is what stands behind moving the loader out of `main.cpp` - the
+// number is not "what the new code happens to produce".
+constexpr int FIXTURE_SCENE_CELLS = 334901;
+
+} // namespace
 
 int main() {
     // --- the material-map legend ---
@@ -131,6 +159,33 @@ int main() {
         bad.albedo.assign(16, 0xFF808080);
         check("a malformed scene places nothing", load_scene(g, bad) == 0);
         check("...and leaves the grid alone", g.get_element(0, 0).type == ElementType::Empty);
+    }
+
+    // --- the shipped fixture, loaded the way the game loads it (P4) ---
+    //
+    // This is the first test that reads the *actual* scene files. Everything
+    // above builds a Scene by hand, which is the right shape for testing the
+    // stamping rules and is blind to the thing that has actually gone wrong
+    // here twice: the world the game boots into being empty or different from
+    // what everyone believes. The loader was unreachable from a test until P4
+    // moved it out of main.cpp.
+    {
+        std::string error, warning;
+        const Scene s = bmp::load("assets/test_material.bmp", "assets/test_albedo.bmp",
+                                  &error, &warning);
+        check("the shipped fixture scene loads", error.empty(), error);
+        check("...at the size main.cpp simulates", s.width == 1920 && s.height == 1080,
+              std::to_string(s.width) + "x" + std::to_string(s.height));
+        // A warning here means an authored pixel matched no legend entry, which
+        // is the failure that emptied the whole world once and said nothing.
+        check("...with every authored pixel in the legend", warning.empty(), warning);
+
+        Grid g(1920, 1080, 1);
+        const int placed = load_scene(g, s, 0, 0);
+        check("...and stamps the cell count P4's session log was recorded against",
+              placed == FIXTURE_SCENE_CELLS,
+              std::to_string(placed) + " now, " + std::to_string(FIXTURE_SCENE_CELLS) +
+                  " pinned - see the note on FIXTURE_SCENE_CELLS");
     }
 
     return report();

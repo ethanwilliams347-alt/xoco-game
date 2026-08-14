@@ -8,8 +8,10 @@
 // see.
 
 #include "game/run.h"
+#include "game/input_log.h"
 #include "test_util.h"
 #include <algorithm>
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -308,6 +310,103 @@ int main() {
               worlds_match(a.grid, b.grid));
         check("...and the same player position",
               a.player.cell_x() == b.player.cell_x() && a.player.cell_y() == b.player.cell_y());
+
+        // --- P4: the same sequence, through a file ---
+        //
+        // The suite above proves a sequence held in memory replays identically.
+        // P4's benchmark row depends on a stronger claim - that a sequence
+        // written to disk and read back is *the same sequence* - and that claim
+        // is about a byte format rather than about the simulation. It is
+        // checked here rather than in its own suite because the thing it has to
+        // agree with is `run.step()`, which is what this file is about.
+        {
+            input_log::Log out;
+            out.header.grid_w = 90;
+            out.header.grid_h = 50;
+            out.header.seed = 4040;
+            out.header.scene_cells = 0;
+            out.header.start_fingerprint = 12345;
+            out.header.end_fingerprint = input_log::fingerprint(a.grid);
+            out.header.end_player_x = a.player.cell_x();
+            out.header.end_player_y = a.player.cell_y();
+            out.steps = sequence;
+
+            const char* path = "test_run_log.rec";
+            std::string error;
+            check("a session log writes", input_log::write(path, out, &error), error);
+
+            input_log::Log in;
+            check("...and reads back", input_log::read(path, in, &error), error);
+            check("...with every header field intact",
+                  in.header.grid_w == out.header.grid_w && in.header.grid_h == out.header.grid_h &&
+                  in.header.seed == out.header.seed &&
+                  in.header.scene_cells == out.header.scene_cells &&
+                  in.header.start_fingerprint == out.header.start_fingerprint &&
+                  in.header.end_fingerprint == out.header.end_fingerprint &&
+                  in.header.end_player_x == out.header.end_player_x &&
+                  in.header.end_player_y == out.header.end_player_y);
+            check("...and the same number of steps", in.steps.size() == sequence.size(),
+                  std::to_string(in.steps.size()) + " vs " + std::to_string(sequence.size()));
+
+            bool inputs_identical = in.steps.size() == sequence.size();
+            for (size_t k = 0; k < in.steps.size() && inputs_identical; ++k) {
+                const Input& x = in.steps[k];
+                const Input& y = sequence[k];
+                inputs_identical = x.left == y.left && x.right == y.right && x.jump == y.jump &&
+                                   x.dig == y.dig && x.cursor_x == y.cursor_x &&
+                                   x.cursor_y == y.cursor_y && x.brush_active == y.brush_active &&
+                                   x.brush_type == y.brush_type && x.brush_size == y.brush_size;
+            }
+            check("...and every field of every Input", inputs_identical);
+
+            // The assertion the row actually rests on: a log is only worth
+            // benchmarking if replaying it lands in the same world. Asserted on
+            // the *fingerprint* rather than by comparing grids, because the
+            // fingerprint is what `grid_bench` checks and a test that checked
+            // something else would leave the thing being trusted untested.
+            Run c(90, 50, 4040);
+            build_floor(c, 45);
+            for (const Input& in_step : in.steps) c.step(in_step);
+            check("a log read from disk replays into the recorded world",
+                  input_log::fingerprint(c.grid) == in.header.end_fingerprint);
+            check("...and leaves the player where the recording did",
+                  c.player.cell_x() == in.header.end_player_x &&
+                  c.player.cell_y() == in.header.end_player_y);
+
+            // A fingerprint that cannot tell two worlds apart would make every
+            // check above vacuous - it would pass on a log replayed into the
+            // wrong world, which is the one failure this instrument exists to
+            // catch.
+            c.grid.set_element(1, 1, ElementType::Wall);
+            check("...and the fingerprint notices a single changed cell",
+                  input_log::fingerprint(c.grid) != in.header.end_fingerprint);
+
+            // Truncation is refused rather than read as a shorter session. A
+            // log cut off by a crash mid-write is the realistic way this
+            // happens, and a short replay would quietly measure a fraction of
+            // the session it names.
+            {
+                std::FILE* f = std::fopen(path, "rb");
+                std::fseek(f, 0, SEEK_END);
+                const long size = std::ftell(f);
+                std::fseek(f, 0, SEEK_SET);
+                std::vector<unsigned char> bytes(static_cast<size_t>(size));
+                (void)std::fread(bytes.data(), 1, bytes.size(), f);
+                std::fclose(f);
+
+                const char* cut_path = "test_run_log_cut.rec";
+                std::FILE* g = std::fopen(cut_path, "wb");
+                std::fwrite(bytes.data(), 1, bytes.size() - 7, g); // mid-record
+                std::fclose(g);
+
+                input_log::Log cut;
+                check("a truncated log is refused, not read short",
+                      !input_log::read(cut_path, cut, &error));
+                std::remove(cut_path);
+            }
+
+            std::remove(path);
+        }
     }
 
     return report();

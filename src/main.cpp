@@ -7,10 +7,11 @@
 #include <vector>
 #include "game/camera.h"
 #include "game/display.h"
+#include "game/input_log.h"
 #include "game/run.h"
 #include "render/light.h"
 #include "render/player_anim.h"
-#include "scene/legend.h"
+#include "scene/bmp.h"
 #include "scene/props.h"
 #include "scene/scene.h"
 #include "scene/sprites.h"
@@ -50,100 +51,21 @@ const int GRID_HEIGHT = 1080;
 
 const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
 
+// **The scene loader moved to `src/scene/bmp.cpp` (P4) and this is all that is
+// left of it here.** It used to be 90 lines of `SDL_LoadBMP` and surface
+// conversion in this file, which meant nothing headless could stamp the world
+// the game actually plays in - and P4's replayed benchmark row has to, or it
+// measures a session replayed into a world it was not recorded in. The
+// unmatched-colour reporting went with it unchanged; see scene/bmp.h for why
+// there is one reader rather than a headless one beside this one.
 Scene load_scene_from_bmp(const char* material_path, const char* albedo_path) {
-    Scene scene;
-    SDL_Surface* mat_surf = SDL_LoadBMP(material_path);
-    SDL_Surface* alb_surf = SDL_LoadBMP(albedo_path);
-
-    if (!mat_surf || !alb_surf) {
-        if (mat_surf) SDL_FreeSurface(mat_surf);
-        if (alb_surf) SDL_FreeSurface(alb_surf);
-        std::fprintf(stderr, "Failed to load scene BMPs\n");
-        return scene;
-    }
-
-    if (mat_surf->w != alb_surf->w || mat_surf->h != alb_surf->h) {
-        SDL_FreeSurface(mat_surf);
-        SDL_FreeSurface(alb_surf);
-        std::fprintf(stderr, "Scene BMP dimensions do not match\n");
-        return scene;
-    }
-
-    scene.width = mat_surf->w;
-    scene.height = mat_surf->h;
-    scene.materials.resize(scene.width * scene.height, ElementType::Empty);
-    scene.albedo.resize(scene.width * scene.height, 0);
-
-    // Assuming 24-bit or 32-bit BMPs.
-    // We should lock surfaces if needed, but SDL_LoadBMP gives 24-bit or 8-bit.
-    // For simplicity, we convert both to 32-bit ARGB.
-    SDL_Surface* mat_32 = SDL_ConvertSurfaceFormat(mat_surf, SDL_PIXELFORMAT_ARGB8888, 0);
-    SDL_Surface* alb_32 = SDL_ConvertSurfaceFormat(alb_surf, SDL_PIXELFORMAT_ARGB8888, 0);
-
-    SDL_FreeSurface(mat_surf);
-    SDL_FreeSurface(alb_surf);
-
-    if (!mat_32 || !alb_32) {
-        if (mat_32) SDL_FreeSurface(mat_32);
-        if (alb_32) SDL_FreeSurface(alb_32);
-        return scene;
-    }
-
-    // Indexed via pitch rather than width * 4: SDL_ConvertSurfaceFormat is free
-    // to pad each row for alignment, and reading straight across the buffer as
-    // if pitch == width * 4 would drift a row further off with every line on
-    // any width where that assumption doesn't hold.
-    const uint8_t* mat_base = static_cast<const uint8_t*>(mat_32->pixels);
-    const uint8_t* alb_base = static_cast<const uint8_t*>(alb_32->pixels);
-
-    // A pixel that names no material is a *fault in the scene file*, not an
-    // empty cell, and the two used to be indistinguishable here - which is how
-    // a palette change silently emptied the whole world. Counted, reported, and
-    // the first few offenders named, because "3 unmatched" sends you looking
-    // and "#4444FF" tells you what happened.
-    int unmatched = 0;
-    uint32_t first_unmatched[4] = {0, 0, 0, 0};
-    int first_unmatched_n = 0;
-
-    for (int y = 0; y < scene.height; ++y) {
-        const uint32_t* mat_row = reinterpret_cast<const uint32_t*>(mat_base + y * mat_32->pitch);
-        const uint32_t* alb_row = reinterpret_cast<const uint32_t*>(alb_base + y * alb_32->pitch);
-        for (int x = 0; x < scene.width; ++x) {
-            int idx = y * scene.width + x;
-            uint32_t m_col = mat_row[x];
-            uint32_t a_col = alb_row[x];
-
-            // The legend is its own frozen table (scene/legend.h), deliberately
-            // not the render palette - see there for what binding the two cost.
-            ElementType type = ElementType::Empty;
-            if (!element_from_legend(m_col, type)) {
-                const uint32_t rgb = m_col & 0xFFFFFF;
-                bool seen = false;
-                for (int i = 0; i < first_unmatched_n; ++i) if (first_unmatched[i] == rgb) seen = true;
-                if (!seen && first_unmatched_n < 4) first_unmatched[first_unmatched_n++] = rgb;
-                ++unmatched;
-                type = ElementType::Empty;
-            }
-
-            scene.materials[idx] = type;
-            scene.albedo[idx] = a_col | 0xFF000000; // force alpha
-        }
-    }
-
-    if (unmatched > 0) {
-        std::fprintf(stderr,
-                     "WARNING: %s has %d pixel(s) whose colour is in no legend entry; they loaded as Empty.\n"
-                     "         Unrecognised colours include:", material_path, unmatched);
-        for (int i = 0; i < first_unmatched_n; ++i) std::fprintf(stderr, " #%06X", first_unmatched[i]);
-        std::fprintf(stderr, "\n         The legend is src/scene/legend.h and is frozen; the render palette"
-                             " in material.h is not the legend.\n");
-    }
-
-    SDL_FreeSurface(mat_32);
-    SDL_FreeSurface(alb_32);
-
+    std::string error, warning;
+    Scene scene = bmp::load(material_path, albedo_path, &error, &warning);
+    if (!error.empty()) std::fprintf(stderr, "Failed to load scene: %s\n", error.c_str());
+    if (!warning.empty()) std::fprintf(stderr, "WARNING: %s\n", warning.c_str());
     return scene;
 }
+
 
 // Loads a plain (non-scene) authored BMP as a texture - the backdrop and
 // prop art V8/V4 add on top of F4's scene loader above. `colorkey` marks
@@ -567,13 +489,46 @@ int main(int argc, char* argv[]) {
     // immediately", and a blank world is exactly what a broken legend, a
     // missing file and an empty file all look like from here.
     Scene scene = load_scene_from_bmp("assets/test_material.bmp", "assets/test_albedo.bmp");
+    int scene_cells = 0;
     if (scene.width > 0) {
-        const int placed = load_scene(run.grid, scene, 0, 0);
-        std::printf("Scene: %dx%d, %d cells placed\n", scene.width, scene.height, placed);
-        if (placed == 0) {
+        scene_cells = load_scene(run.grid, scene, 0, 0);
+        std::printf("Scene: %dx%d, %d cells placed\n", scene.width, scene.height, scene_cells);
+        if (scene_cells == 0) {
             std::fprintf(stderr, "WARNING: the scene named no material anywhere - the world is empty.\n");
         }
     }
+
+    // --- P4: the session recorder ---
+    //
+    // **Recording is always on, and F9 saves what has been recorded so far.**
+    // The alternative - F9 starts recording - was tried on paper and does not
+    // work: a log has to begin at a world state the replay can rebuild, and the
+    // only such state is the one right here, before the first step. A recording
+    // started two minutes in would replay from the fixture scene into inputs
+    // that assume two minutes of dug tunnels and poured water, which is the
+    // "silently measures nothing" failure P4 exists to remove rather than
+    // introduce.
+    //
+    // The cost of always-on is one 24-byte `Input` per fixed step - about 1.4 MB
+    // per hour - and no work per step beyond the copy. The cap below is what
+    // keeps that a fact rather than a hope; it stops recording rather than
+    // dropping the oldest steps, because a log missing its middle is not a
+    // session and there is no honest way to replay one.
+    input_log::Log recording;
+    recording.header.grid_w = GRID_WIDTH;
+    recording.header.grid_h = GRID_HEIGHT;
+    recording.header.seed = world_seed;
+    recording.header.scene_cells = scene_cells;
+    recording.header.start_fingerprint = input_log::fingerprint(run.grid);
+    constexpr size_t MAX_RECORDED_STEPS = 60 * 60 * 30; // half an hour of play
+    bool recording_full = false;
+
+    // Shown under the HUD for a few seconds after F9, because a save that
+    // reports only on stdout is a save a player in a fullscreen window cannot
+    // see happen.
+    std::string record_notice;
+    double record_notice_timer = 0.0;
+    int saved_logs = 0;
 
     // Plant each prop on the terrain that is actually under it, rather than on
     // a hardcoded ground line. **This is a fix for a class of bug, not for the
@@ -785,6 +740,40 @@ int main(int argc, char* argv[]) {
                     screen = Screen::Settings;
                     menu_cursor = mode_index;
                 }
+                // F9 writes everything played so far to a session log (P4).
+                // Deliberately not bound to a letter: every letter within reach
+                // of the movement keys is a hotbar slot, and a key that saves a
+                // file is a bad thing to hit while reaching for sand.
+                if (e.key.keysym.sym == SDLK_F9) {
+                    // The end state is captured at the moment of writing, not at
+                    // the end of the session, because this *is* the end of the
+                    // recording being written - the replay has to check against
+                    // the world the last recorded step produced.
+                    recording.header.end_fingerprint = input_log::fingerprint(run.grid);
+                    recording.header.end_player_x = run.player.cell_x();
+                    recording.header.end_player_y = run.player.cell_y();
+
+                    // A second save in one session does not overwrite the first:
+                    // two takes of a session are two measurements, and the
+                    // interesting one is often the earlier.
+                    const std::string path = saved_logs == 0
+                        ? std::string("session.rec")
+                        : "session_" + std::to_string(saved_logs + 1) + ".rec";
+
+                    std::string log_error;
+                    if (input_log::write(path.c_str(), recording, &log_error)) {
+                        saved_logs++;
+                        record_notice = "SAVED " + path + "  " +
+                                        std::to_string(recording.steps.size()) + " STEPS";
+                        std::printf("Recorded session written to %s: %d steps, seed %llu\n",
+                                    path.c_str(), static_cast<int>(recording.steps.size()),
+                                    static_cast<unsigned long long>(world_seed));
+                    } else {
+                        record_notice = "COULD NOT SAVE THE SESSION LOG";
+                        std::fprintf(stderr, "ERROR: %s\n", log_error.c_str());
+                    }
+                    record_notice_timer = 4.0;
+                }
             }
         }
 
@@ -837,6 +826,7 @@ int main(int argc, char* argv[]) {
         if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
 
         if (menu_notice_timer > 0.0) menu_notice_timer -= frame_time;
+        if (record_notice_timer > 0.0) record_notice_timer -= frame_time;
 
         // The menu freezes the simulation by not accumulating time, rather than
         // by skipping the step loop with the accumulator still filling: the
@@ -848,6 +838,23 @@ int main(int argc, char* argv[]) {
         while (accumulator >= Run::FIXED_DT) {
             prev_player_x = run.player.visual_x();
             prev_player_y = run.player.visual_y();
+
+            // Captured here, inside the fixed-step loop, and this placement is
+            // the whole of what makes the log replayable. One record per
+            // *step*, never per rendered frame: the same session played at 60
+            // and at 165 fps produces the same list of records, because there is
+            // no sampling left in it. Recording up in the input-building block
+            // instead would store one record per frame and put the frame rate
+            // back into the measurement - which is F1 and F2.3 undone by the
+            // instrument built to check them.
+            if (recording.steps.size() < MAX_RECORDED_STEPS) {
+                recording.steps.push_back(input);
+            } else if (!recording_full) {
+                recording_full = true;
+                std::fprintf(stderr, "Session recording stopped at %d steps (half an hour); "
+                                     "F9 still writes what was recorded up to that point.\n",
+                             static_cast<int>(MAX_RECORDED_STEPS));
+            }
 
             run.step(input);
 
@@ -1160,6 +1167,23 @@ int main(int argc, char* argv[]) {
         SDL_RenderFillRect(renderer, &hud_backing);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
+
+        // The recorder's line, drawn only while it has something to say (P4).
+        // A permanent "REC" indicator was the other option and is worse: this
+        // records every session, so an always-on marker would be furniture
+        // within a minute and invisible by the time it mattered.
+        if (record_notice_timer > 0.0 && !record_notice.empty()) {
+            const int notice_y = hud_y + ui::GLYPH_HEIGHT * hud_scale + 8;
+            const SDL_Rect backing{
+                hud_x - 4, notice_y - 4,
+                ui::text_width(record_notice, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
+            };
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_RenderFillRect(renderer, &backing);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            ui::draw_text(renderer, hud_x, notice_y, hud_scale, record_notice, 0xFFFFC080);
+        }
 
         // --- the material hotbar (V10) ---
         //

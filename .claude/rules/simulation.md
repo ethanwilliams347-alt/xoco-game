@@ -155,9 +155,47 @@ number, that is the signal — until then it has not arrived.
 ## Measuring
 
 `grid_bench` is not a test and must not become one — a slow machine should not
-fail the build. Read the **1920x1080** block; the 960x540 block is a historical
-control and should reproduce the numbers on record. If it stops matching, the
-refactor broke something rather than the engine.
+fail the build.
+
+**The replayed row (P4) is the one the frame-budget rule is aimed at**, and it is
+the only row whose input is a file: `session.rec`, one `Input` per fixed step,
+written by `F9` in the game. It times a whole `Run::step` rather than
+`Grid::update`, so **do not compare it with the rows above by division**. If it
+prints "not run", the row is *absent*, not zero. The bench refuses a log recorded
+against a different fixture scene; a differing *end state* is reported instead,
+because a changed simulation and a stale log look identical from there and only a
+person knows which happened.
+
+**Read the `contents` census before quoting the timing above it.** The row prints
+what the session contained — inputs counted exactly from the log, world materials
+sampled once a second in a **second, untimed replay pass** (a census evicts the
+cache, so sampling inside the timed loop would perturb p99 and worst, the two
+statistics the rule reads; determinism is what makes a second pass free and
+exact). **Sampled means presence, not absence** — `never seen` is the instrument
+not catching it, not proof it was absent. The first recorded session read 0 of
+24,437 steps over budget and the census showed why: no digging, no moving sand or
+water, 16 of 510 chunks awake. **A played row is realistic by construction and
+representative only by evidence**, and P4's whole design ran those together.
+
+**The two kinds of row do different jobs and a merge reading needs both.** The
+first recorded session (2026-08-13) reads 0.12 ms mean with 0 of 24,437 steps
+over budget, so "under 10% on the replayed row" is 10% of twelve microseconds —
+under this benchmark's noise, and blind to a per-awake-cell cost that only bites
+under load. **The replayed row is the authority on whether the budget is broken**
+— read p99 and steps-over-budget, never the mean — **and the synthetic rows are
+the authority on whether a change costs anything at all.** Numbers and the
+correction in `PERFORMANCE.md`.
+
+Recording is always on from step 0 and `F9` writes what has been played — a log
+that starts mid-session cannot be replayed, since the replay can only rebuild the
+world as it was before the first step. Read the **1920x1080** block; the 960x540 block is a historical
+control. **What it controls is the awake-chunk and peak-fracture counts, not the
+times** — the bench runs on a fixed seed, so those counts are a property of the
+simulation and a refactor that changes what the engine does moves them, while the
+machine cannot. This bullet used to say the block "should reproduce the numbers
+on record", which asked for exactly the cross-sitting timing comparison the rule
+below forbids; corrected 2026-08-13 in `PERFORMANCE.md`, where the counts that did
+reproduce are listed.
 
 Compare only within one sitting, back to back, with a **control scenario the
 change cannot affect**. A confident 28% on this project once turned out to be the
