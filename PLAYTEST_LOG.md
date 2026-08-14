@@ -565,3 +565,58 @@ its more useful output is a warning about itself: **a session being genuinely
 played does not make it a representative one**, and until the census existed
 there was no way to notice. **Step 9 is owed in full**, and the next recording run
 is where it gets done.
+
+> **One correction to the paragraph above, filed 2026-08-13 and kept beside it
+> because the conclusion survives and the reasoning does not.** "Sand and Water
+> peak at exactly their starting counts, **so** nothing in the terrain moved" is
+> not a valid step: material moving conserves its count, so equal counts prove
+> only that no sand was painted or dug. What actually supports the conclusion is
+> **16 of 510 chunks awake** — every write wakes its 3x3 neighbourhood, so a
+> world with matter in motion cannot be 3% awake. **The census's material rows
+> cannot see movement at all; its awake-chunk figure is the column that can.**
+> Worth knowing before the next session is read, because the same wrong step is
+> available every time.
+
+## Spot check — 2026-08-13 — the second P4 recording, played to cover step 9
+
+Same shape as the run above: not a full session, someone played to produce the
+recording `P4` was blocked on, **and this time the cases were chosen in advance**
+from the list the first census exposed as missing.
+
+- **World seed:** `505286022235307382`
+- **Session:** 20,415 fixed steps, 340.2 s, saved with `F9`
+- **Kept as:** `session_2_digging_fluids_steam.rec`
+
+| # | Question | Result |
+|---|----------|--------|
+| 9 | Stability: a few minutes of mixed activity without a crash. | **Pass, with one clause outstanding.** No crash in 340 s; three of the step's four activities are evidenced, the fourth is not. |
+
+**What the census evidences directly:** 479 dig steps, 9,158 brush steps,
+`Fire`+`Water`+`Sand` all present in **198 of 341 samples with digging inside 11
+of them**, `Steam` present at up to 10,731 cells, and 44 of 510 chunks awake at
+peak against the first session's 16. The recording replayed byte-exact
+afterwards, so nothing in those 340 seconds put the simulation into a state it
+could not reproduce.
+
+**What is not evidenced is "movement keys held through a collapse."** The player
+moved on 647 steps and jumped on 351, but **a collapse is not a material and no
+census column can show one**, and the tester did not watch for it specifically.
+Recording that as covered would be the same "nothing crashed" → "the hard case
+was tried" slide the entry above refuses, so it is named instead: **step 9 passes
+on digging-near-sand-near-fire-near-water, on back-to-back brush strokes and on
+not crashing, and the collapse clause is still owed.**
+
+**Two limits on using a recording as this step at all**, both worth carrying
+forward. The census reports materials **co-present in the world**, not *near* one
+another — step 9 says "near", and co-presence is the weaker claim, so the 11
+samples are an upper bound on the real overlap rather than a measurement of it.
+And a recording can only ever answer the *crash* half of a stability step: the
+reason step 9 is manual is that a person also notices what is wrong without being
+fatal, and no replay reports that. **A recording strengthens step 9; it does not
+retire it.**
+
+**The unexplained `0xC0000409` did not recur**, in this session or the previous
+one — roughly 12.5 minutes of play across the two. Recorded as an observation and
+not as progress: it was only ever seen twice under heavy machine load, and two
+clean sessions on an unloaded machine is not evidence about a load-dependent
+crash.

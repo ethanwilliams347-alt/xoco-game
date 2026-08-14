@@ -177,6 +177,31 @@ not catching it, not proof it was absent. The first recorded session read 0 of
 water, 16 of 510 chunks awake. **A played row is realistic by construction and
 representative only by evidence**, and P4's whole design ran those together.
 
+**Two sessions exist and both are tracked in git** — `session_1_painting.rec` and
+`session_2_digging_fluids_steam.rec`. Pass the path as an argument; with none,
+the bench reads `session.rec`. **`F9` overwrites `session.rec` on the first save
+of each launch** (the "second save does not overwrite" counter is per-process), so
+copy a recording to a descriptive name before playing again — session 1 was
+overwritten this way and recovered from a commit.
+
+**`churning` is settled as of 2026-08-13: not representative of played work.**
+Session 2 drove sand into water deliberately and its worst step of 20,415 was
+4.83 ms, against `churning`'s 37.25 ms/step sustained at 360 of 510 chunks awake.
+**Note which statistic did that.** The census's awake-chunk peak (44 of 510) is
+sampled every 60 steps and **cannot bound anything** — a one-second spike hides
+between two samples. The timing is not sampled: every step is measured, so a step
+at `churning`'s load would have had to hide from the clock. **When a sampled
+figure and a per-step figure support the same sentence, write it against the
+per-step one.** `churning` keeps its row — it is still the authority on sustained
+liquid churn, and nothing about this demotes it to noise.
+
+**The census table skips `Empty`** (the print loop starts at `t = 1`), so brush
+strokes that *erase* are counted in `brush` and appear in no material row. Session
+2's painted column sums to 8,493 against `brush 9158` — 665 erasing steps,
+invisible. If the columns do not add up, that gap is the eraser, not a bug.
+Worth fixing if the census is touched again: erasing destroys matter as an
+external write, the same category as digging.
+
 **The two kinds of row do different jobs and a merge reading needs both.** The
 first recorded session (2026-08-13) reads 0.12 ms mean with 0 of 24,437 steps
 over budget, so "under 10% on the replayed row" is 10% of twelve microseconds —

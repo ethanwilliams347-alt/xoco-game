@@ -79,9 +79,13 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
   `F9` in the game) and it is the row the frame-budget rule is aimed at.
   **Absent is not zero** — when it prints "not run", say so rather than quoting
   the seven hand-built rows as if the played frame had been measured. P4 in
-  ROADMAP.md; how to record one in README. **A session exists as of 2026-08-13**
-  (0 of 24,437 steps over budget) — but it is not in the repo and each machine
-  records its own, so the row is still absent until someone plays one.
+  ROADMAP.md; how to record one in README. **Two sessions exist as of 2026-08-13,
+  both tracked in git**, so the row runs on a fresh clone — this bullet used to
+  say recordings were "not in the repo", which was false.
+  `session_2_digging_fluids_steam.rec` is the one to read (digging, fluids,
+  steam); `session_1_painting.rec` is the quiet one. **`F9` overwrites
+  `session.rec` on the first save of each launch** — that is how session 2 landed
+  on session 1, which survived only in a commit. Copy one before playing again.
 - **A played row is realistic by construction and representative only by
   evidence.** Those were treated as the same thing for the whole of P4's design,
   and the first recorded session broke the equation: it never dug once, never
@@ -89,6 +93,10 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
   awake. **Read the `contents` census under the replay row before quoting the
   timing above it** — that census exists because the number alone was
   uninterpretable, and "the session was really played" would never have shown it.
+  Session 2 settled it: **`churning` is not representative of played work.** The
+  statistic that did it is the **worst single step**, not the census's awake peak
+  — timings are measured every step, the census samples every sixtieth, so **a
+  sampled figure cannot bound anything.**
 - **The played row proves the budget is intact; it cannot price a change.** It
   costs 0.12 ms a step, so 10% of it is under the noise floor. A merge reading
   needs both halves: p99 and steps-over-budget on the replayed row, *and* the

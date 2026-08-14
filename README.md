@@ -146,6 +146,18 @@ before the first step; there is no way to start one in the middle. Press F9
 again later in the same session and you get `session_2.rec`, a longer take,
 not an overwrite.
 
+**That protection ends when the game does, and it has already cost a recording.**
+The counter behind it lives in the running process, so the *first* F9 of the next
+launch writes `session.rec` again and overwrites whatever is there. Session 1
+survived on 2026-08-13 only because it had been committed to git; session 2
+landed on top of it a day later. **Copy a recording you care about to a name that
+says what is in it** — `session_1_painting.rec`,
+`session_2_digging_fluids_steam.rec` — before launching the game again. A session
+is several minutes of a person's time and is the only benchmark input in this
+project that cannot be regenerated on demand. `grid_bench` takes the path as an
+argument (`grid_bench.exe session_2_digging_fluids_steam.rec`), so a renamed
+recording is not a less convenient one.
+
 **Play the session you want measured.** A minute of standing still measures a
 sleeping world and is a worse row than no row. Dig, pour water into the channel,
 set something alight, walk somewhere — the kinds of thing step 9 of the manual
@@ -168,6 +180,15 @@ them: **digging** (0 steps last time), **sand falling into water** (untouched),
 and **moving around** (the player stood still for 98.4% of it). The census line
 `Fire+Water+Sand all present in N of M samples, digging in N of those` is checklist
 step 9 asked as one question.
+
+**Session 2 covered them, on 2026-08-13** — 479 dig steps, sand into the channel,
+fire under a ceiling, 20,415 steps replayed byte-exact and **0 of them over
+budget**. The paragraph above is kept because it is still the instruction for
+recording a *new* session, and because the gap it describes is the reason the
+project has two recordings instead of one. **A third session is not owed.** If you
+record one anyway, the case none of them has covered yet is **movement held
+through a collapse** — the one clause of step 9 the census cannot see, since a
+collapse is not a material and does not appear in any column.
 
 **Sampled means presence, not absence.** A fire that lit and burned out between
 two samples reads as never seen. Do not read a `never seen` row as proof the
@@ -229,6 +250,10 @@ two are not directly comparable.
     What this step is actually for is a *change* in that behaviour. Judge it against `PERFORMANCE.md`'s table: `sparse` — a large static world with a small patch of action, i.e. ordinary play — is 0.4% of a frame and should feel like nothing at all, and `burning` is 44%. **If ordinary play bogs, that is a real lead**; if a deliberately pathological sand-over-water fill bogs, that is the table being obeyed. Either way it is a lead and not a verdict — follow it up with `grid_bench`, bracketed, per `PERFORMANCE.md`; a felt slowdown on its own is exactly the kind of unbracketed reading that document warns against trusting.
 
 9. **Stability.** A few minutes of doing several of the above at once — digging near falling sand near fire near water, brush strokes back to back, movement keys held through a collapse — without a crash. There is one unexplained `0xC0000409` on record, seen twice under heavy machine load and never reproduced; if it recurs, note what else was running on the machine at the time and fold it into the crash-diagnosis item in `ROADMAP.md`'s Presentation & Tooling section rather than letting it evaporate again.
+
+    **Covered on 2026-08-13 by the session 2 recording, on three of its four activities, and the fourth is named rather than assumed.** 5 minutes 40 seconds of play: 479 dig steps, 9,158 brush steps, `Fire`+`Water`+`Sand` all present in 198 of 341 samples with digging inside 11 of them, no crash, and the whole thing replayed byte-exact afterwards. **What is not covered is "movement keys held through a collapse"** — the player moved on 647 steps, but a collapse is not a material and the census has no column that could show one, and the tester did not watch for it. So this step is **passed with that clause outstanding**, which is a different thing from passed.
+
+    **Two limits on reading a recording as this step, worth knowing before doing it again.** The census reports materials **co-present in the world**, not *near* each other — this step says "near", and world-wide co-presence is the weaker claim. And a recording can only ever show the step's *crash* half; the reason step 9 is a manual step is that a person also notices things that are wrong but not fatal, which no replay will report. **A recording strengthens this step and does not replace it.**
 
 ## Controls
 
