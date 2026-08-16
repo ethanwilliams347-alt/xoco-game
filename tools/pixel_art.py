@@ -53,15 +53,46 @@ import struct
 # fill is warm near-black rather than cool near-black so unlit dirt still
 # reads as earth instead of void; the rim is the one bright, warm accent in
 # the whole terrain layer.
+# **The backdrop group was raised wholesale on 2026-08-16 (V20) and the reason
+# is the one mistake that produced every symptom playtest session 6 reported.**
+# The value ladder was built *downward from a floor*. `sky_deep` was authored at
+# luminance 18 out of 255 and every band added since was a per-layer Grade, which
+# is a multiply and can therefore only darken - so each new band was pushed
+# toward zero from a sky that was already at the bottom. Measured on the played
+# frame, the whole composition occupied **L 15.5 to 24.5**: nine levels, against
+# the reference's 51.6 to 173.6, and smaller than the reference's *smallest
+# single band join* (14 levels, at the horizon). The reference's **night** frame
+# has its sky at L 163.
+#
+# So the numbers below are stated as post-grade luminance targets, since that is
+# what reaches the screen, and the RGB is whatever hits the target on the hue
+# the group already had:
+#
+#     sky top        95      mountain rim     71    (grade 0.60)
+#     sky horizon    62      mountain body    44    (grade 0.60)
+#     ground far     30      ground near      78    (grade 0.53)
+#
+# Two relationships in that table are the point of it rather than side effects.
+# **`ground_far` is the darkest value in the frame** - entry 7's mechanism 2, the
+# horizon as the frame's dark pinch - and it sits 14 below the mountains above
+# it, which is the reference's own horizon join. And **the sky now darkens
+# downward**, top to horizon, where it used to brighten downward; the old
+# direction put the frame's brightest row immediately above the row that is
+# supposed to be its darkest.
 PALETTE = {
-    # sky (V8, layer 1) - cool, deep, no warm colour anywhere in this group
-    'sky_deep':     (0x14, 0x10, 0x22),
-    'sky_horizon':  (0x28, 0x1F, 0x3E),
-    'star':         (0xC7, 0xC2, 0xDE),
+    # sky (V8, layer 1) - cool, deep, no warm colour anywhere in this group.
+    # `sky_deep` is the top of the frame and `sky_horizon` the bottom of the sky;
+    # deep is now the brighter of the two - see the note above.
+    'sky_deep':     (0x68, 0x54, 0xB1),
+    'sky_horizon':  (0x46, 0x37, 0x6D),
+    'star':         (0xE8, 0xE4, 0xFF),
 
-    # mountains (V8, layer 2) - one flat silhouette tone plus a faint peak rim
-    'mountain':     (0x20, 0x19, 0x30),
-    'mountain_rim': (0x30, 0x27, 0x48),
+    # mountains (V8, layer 2) - one flat silhouette tone plus a peak rim.
+    # **The rim is authored to land *brighter than the sky behind it*** (71
+    # against the sky's 62 at that height), because it is the one lit edge in the
+    # band and a rim at or below the sky is a rim nobody can see.
+    'mountain':     (0x53, 0x41, 0x7C),
+    'mountain_rim': (0x83, 0x6A, 0xC5),
 
     # the ground plane (V19, drawn behind the world) - the one band in the
     # frame that recedes *within itself*, so it is authored as a ramp rather
@@ -73,12 +104,22 @@ PALETTE = {
     # deliberate.** A per-layer Grade multiplies uniformly, so it cannot make a
     # surface brighten toward the viewer - only the tile can. What the grade
     # then does is place the whole band on the value ladder, which is the knob
-    # V11 argues a direction change should be. Ratio near/far here is 1.83
-    # against the reference plane's 1.78 (notes/reference_observations.txt
-    # entry 7, 77.5 -> 138.2).
-    'ground_far':   (0x18, 0x14, 0x26),
-    'ground_near':  (0x2C, 0x25, 0x40),
-    'ground_mark':  (0x3C, 0x34, 0x52),
+    # V11 argues a direction change should be.
+    #
+    # **This comment used to end "ratio near/far here is 1.83 against the
+    # reference plane's 1.78", and that sentence is the whole V20 error in one
+    # line.** It is arithmetically true and it was the wrong quantity: entry 7
+    # records the reference plane as 77.5 -> 138.2, which is a ratio of 1.78
+    # *and* a difference of 61 levels. Matched as a ratio down at this end of the
+    # scale, 1.83 bought a ramp of 18 levels before the grade and **9.8 after**,
+    # and the tester's report was "the effect isn't very convincing". Kept rather
+    # than deleted because the shape recurs: **when a mechanism is absolute
+    # contrast, matching its ratio is not matching it.** The pair below is now
+    # stated as a difference - 30 to 78 post-grade, 48 levels - and the ratio it
+    # happens to have is not the thing being held.
+    'ground_far':   (0x3E, 0x33, 0x61),
+    'ground_near':  (0xA5, 0x8C, 0xBE),
+    'ground_mark':  (0xB9, 0x9C, 0xCB),
 
     # trees (V4 props, layer 3) - desaturated green, warmer than the sky,
     # cooler than the terrain rim, so it sits legibly between the two

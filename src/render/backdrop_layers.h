@@ -46,6 +46,34 @@ inline constexpr Layer GROUND{0.28f, 0.11f, 256, 256};
 // the only place the argument lives.
 inline constexpr float GROUND_NEAR_X = 0.52f;
 
+// **Where the plane's far edge goes, and the reason it is a row of the
+// mountains BMP rather than a fraction of the window.** V19 authored the
+// horizon at 0.55 of the window height, independently of where the mountain
+// silhouette actually sat, and the two were contradictory at every camera
+// position the world reaches: the plane is opaque and is drawn after the
+// mountains, so it covered the entire band and the tester reported the
+// mountains as missing. Deriving the horizon from the silhouette makes that
+// contradiction unrepresentable instead of unlikely.
+//
+// This is the *deepest* row the skyline reaches, so the whole jagged edge is
+// above the plane and the band below it - which is solid mountain across the
+// full width - is what the plane is allowed to cover.
+//
+// It is generated because it is a fact about the art: mountain_skyline() is a
+// pure function of random.Random(3) and the two composition fractions, so a
+// change to either moves this number without anyone having to remember to.
+//
+// **A fraction of the layer's height and not a row index, which is not
+// cosmetic.** The renderer multiplies it by whatever mountains texture was
+// actually loaded, so the horizon lands on the silhouette for any mountain
+// image - including the small synthetic one the golden-frame fixture builds,
+// which is 300 rows against the shipped BMP's 1642. Stated as a row it
+// was a number only one image could satisfy, and the fixture answered by
+// pushing the whole plane off the bottom of its window and quietly losing
+// the layer from the checksum.
+// Shipped BMP: 1642 rows, skyline 285..623.
+inline constexpr float MOUNTAINS_SKYLINE_MAX = 0.379415f;
+
 // The inputs the sizes above are derived from, so a reader can tell whether
 // a mismatch is a stale asset or a changed display table.
 inline constexpr int GRID_WIDTH = 1920;

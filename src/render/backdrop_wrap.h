@@ -140,6 +140,25 @@ struct Strip {
 // The source rows come from the strip's actual edges and not from its midpoint,
 // because those have to *meet*: strip i's bottom source row is strip i+1's top
 // source row, or the texture repeats or skips a row at every boundary.
+// v(t), written out. d_far and d_near are the reciprocals of the two factors;
+// the subtraction below is (1/f - 1/f_near) / (1/f_far - 1/f_near), which is v
+// with both reciprocals left in place rather than expanded - legible beats
+// clever here, and this runs n times a frame, not per pixel.
+//
+// **A free function rather than a lambda inside plane_strip, because
+// plane_src_row below has to evaluate it at exactly the same t values.** That is
+// the whole of how adjacent strips are made to meet in integer rows.
+inline float plane_src_at(const Plane& p, float t) {
+    const float th = static_cast<float>(p.tile_h);
+    const float d_far = 1.0f / p.far_factor;
+    const float d_near = 1.0f / p.near_factor;
+    const float span = d_far - d_near;
+    if (span <= 0.0f) return t * th;   // degenerate: far and near are one depth
+    const float d = 1.0f / (p.far_factor + (p.near_factor - p.far_factor) * t);
+    const float v = (d - d_near) / span;
+    return (1.0f - v) * th;
+}
+
 inline Strip plane_strip(const Plane& p, int i, int n) {
     if (n <= 0 || p.tile_h <= 0 || p.far_factor <= 0.0f || p.near_factor <= 0.0f)
         return Strip{0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
@@ -151,28 +170,45 @@ inline Strip plane_strip(const Plane& p, int i, int n) {
     const float f_mid = p.far_factor +
                         (p.near_factor - p.far_factor) * 0.5f * (t0 + t1);
 
-    // v(t), written out. d_far and d_near are the reciprocals of the two
-    // factors; the subtraction below is (1/f - 1/f_near) / (1/f_far - 1/f_near),
-    // which is v with both reciprocals left in place rather than expanded -
-    // legible beats clever here, and this runs n times a frame, not per pixel.
-    const float d_far = 1.0f / p.far_factor;
-    const float d_near = 1.0f / p.near_factor;
-    const float span = d_far - d_near;
-    const float th = static_cast<float>(p.tile_h);
-
-    auto src_at = [&](float t) {
-        if (span <= 0.0f) return t * th;   // degenerate: far and near are one depth
-        const float d = 1.0f / (p.far_factor + (p.near_factor - p.far_factor) * t);
-        const float v = (d - d_near) / span;
-        return (1.0f - v) * th;
-    };
-
-    const float s0 = src_at(t0);
-    const float s1 = src_at(t1);
+    const float s0 = plane_src_at(p, t0);
+    const float s1 = plane_src_at(p, t1);
 
     return Strip{f_mid,
                  p.horizon_y + band * t0, band * (t1 - t0),
                  s0, s1 - s0};
+}
+
+// The **integer** source row of boundary `i` of `n`, for i in [0, n].
+//
+// **This exists because the guarantee three paragraphs up was stated and then
+// not kept at the draw call, and the tester saw the result as "black bands
+// appearing in between the plane pixels".** `SDL_Rect` is integer, so the float
+// rows above have to be rounded somewhere; frame.cpp used to round them
+// independently per strip, as `(int)src_y` with `(int)src_h + 1` for the height.
+// Truncating each strip's start and its height separately means strip i's last
+// sampled row and strip i+1's first are unrelated numbers - the texture repeats
+// a row at some boundaries and skips one at others, which is exactly what the
+// comment above says must not happen.
+//
+// Rounding the *boundaries* instead makes it true by construction: strip i ends
+// at boundary i+1 and strip i+1 begins at boundary i+1, which is one number
+// evaluated once. There is nothing left for the two to disagree about.
+//
+// **The seam is only half of what that defect was, and this fixes the half a
+// headless test can see.** The other half is that the tile was a 49/49 dither
+// between two tones, point-sampled at up to ten source rows per screen row near
+// the horizon, so which rows a strip happened to land on decided whether it came
+// out dark - a band that moved as the camera moved. That half is fixed in the
+// art, by generate_backdrop.py's banded_ramp, and no arithmetic here could have.
+inline int plane_src_row(const Plane& p, int i, int n) {
+    if (n <= 0 || p.tile_h <= 0 || p.far_factor <= 0.0f || p.near_factor <= 0.0f)
+        return 0;
+    const float t = static_cast<float>(i) / static_cast<float>(n);
+    const float row = plane_src_at(p, t);
+    const int r = static_cast<int>(row + 0.5f);
+    if (r < 0) return 0;
+    if (r > p.tile_h) return p.tile_h;
+    return r;
 }
 
 } // namespace backdrop_wrap

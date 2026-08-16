@@ -13,51 +13,61 @@ tester needs in order to tell a known cost from a new defect.
 
 *Written so it can be done without reading the rest of this file. An item goes on
 the moment a session asks for it and comes off the moment it is done — if this
-list is empty, nothing is waiting on a human.*
+list is empty, nothing is waiting on a human. Always clarify what my response should be*
 
-**Build and launch first:** `cmake --build build --config Release`, then
-`.\build\Release\SlopPhysics.exe`. Roughly ten minutes of play covers all four.
+**Build and launch:** 
+
+cmake --build build --config Release
+
+.\build\Release\SlopPhysics.exe
 
 ---
 
-**1. Walk a long way sideways and stare at the ground behind the world.**
-Below the horizon, behind the terrain, there is a flat receding plane with dashes
-on it. It is one small image repeated across the screen, so watch for **a
-repeating vertical line where one copy meets the next** — it can appear anywhere,
-not just at the map edge. The dashes should stream past smoothly and continuously.
-*(Full detail: step 11.)*
+### Five things, all in one look at the backdrop. **Added 2026-08-16 (V20).**
 
-**2. While doing that, watch the same plane for horizontal banding.**
-It is drawn as 24 thin horizontal strips, each scrolling at a slightly different
-speed to fake distance. Near the bottom of the screen should always scroll
-**faster** than near the horizon. Look for a **visible stair-step between strips**,
-or any strip sliding backwards compared to the one above it. *(Step 11.)*
+Your last four reports have all been fixed. **None of the fixes can be checked by
+a test** — one is a palette, one is a composition, and one only shows itself
+while the camera is moving. Walk out to somewhere with open sky and a clear view
+into the distance, then answer these in order. One line each is plenty.
 
-**3. Find open sky and judge whether the picture has depth.**
-The mountains should read as a dark cut-out against the sky. The ground plane
-should be **darkest where it meets the horizon and brighter as it comes toward
-you** — the darkest line in the whole frame is that horizon join. Two failures to
-call out: the plane and the sky looking like one flat surface, or the mountains
-gone so dark they are a black hole rather than mountains. *(Step 12.)*
+**A warning before you start:** item 1 is a big deliberate swing and it may have
+gone too far. Say so if it has — "too bright" is a completely valid answer and is
+the single most useful thing you can tell me today.
 
-> Items 1–3 all landed on 2026-08-16 with the new ground plane and have never
-> been looked at by a human. The automated frame test cannot see any of them — it
-> checks a still picture drawn in software, and these are graphics-card, you-have-
-> to-be-moving defects.
+1. **Is it still a night scene?** The whole backdrop was brightened a long way on
+   purpose — it used to occupy about 9 shades of grey out of 255, which is why
+   nothing separated. Look at the sky, the mountains and the ground behind the
+   world together. **Wanted:** it reads as moonlit, and you can tell the three
+   apart at a glance. **Report:** too bright / too washed out / the colours look
+   wrong / fine.
+2. **Can you see the mountains now?** They should stand as a dark jagged ridge in
+   the upper-middle of the screen, with a lighter edge along their peaks, and the
+   ground plane should start *below* them and never cover them — at any height
+   you walk or fall to. **Report:** visible / still hidden / visible but they
+   look wrong.
+3. **Do the black bands still appear?** This is the one that needs **movement** —
+   a still screenshot will not show it. Walk slowly left and right for a few
+   seconds while watching the flat ground *behind* the world, below the
+   mountains. **Wanted:** smooth, no horizontal dark stripes appearing and
+   disappearing. **Report:** gone / still there / different now.
+4. **Does that ground look like it goes away from you?** It should be darkest
+   right where it meets the mountains and get steadily lighter as it comes toward
+   the bottom of the screen, with the dashes on it getting bigger and more
+   frequent nearer to you. **Report:** convincing / still looks like a flat wall.
+5. **Is the frame rate still fine?** That ground is drawn in 24 slices and
+   nothing here has ever measured what that costs. Just say whether it feels as
+   smooth as it did.
 
-**4. Play it as a game once, then answer one question.**
-Spawn, fly east across the water channel, reach the objective. Then tell me:
-**does this need an enemy to be interesting?** "No" is as useful an answer as
-"yes" — it closes a decision that has been open for months and unblocks two
-roadmap items. *(Step 10.)*
+**Where answers go:** what you saw →
+[PLAYTEST_LOG.md](PLAYTEST_LOG.md) (symptoms only, no theories). A decision →
+[ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). Or just tell me and I will
+file them.
 
-**5. If you get the chance:** hold the movement keys down *while* a structure
-collapses under or around you, and confirm nothing breaks. It is the one thing a
-recorded session cannot check for us. *(Step 9.)*
-
-**Where answers go:** what you saw → [PLAYTEST_LOG.md](PLAYTEST_LOG.md)
-(symptoms only, no theories). The enemy answer → [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed).
-Or just tell me and I will file them.
+*Previous pass (five items on V19 4b) came back complete on 2026-08-16 and is
+filed at
+[PLAYTEST_LOG.md, session 6](PLAYTEST_LOG.md#session-6--2026-08-16-v19-4bs-ground-plane-first-human-eyes);
+the combat decision it closed is in
+[ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed).*
 
 ---
 
@@ -121,6 +131,8 @@ Or just tell me and I will file them.
 
     **The wrapping layer, which is a second and different way to make a seam (`V19`, added 2026-08-16).** The ground plane behind the world is not an image covering the pan range — it is a **tile repeated across the window**, so it cannot run out of image and the check above does not apply to it. What it can do instead is show a **vertical join** where one copy meets the next, at any camera position rather than only at the map's edge. Walk slowly across the surface and watch the plane below the horizon: the dashes on it should stream past continuously, with no repeating vertical line and no one-pixel column of the mountains showing through. **The plane is also drawn as 24 horizontal strips at 24 different parallax rates**, so there is a third thing to look for that no other layer can produce — a *horizontal* stair-step between strips, or a strip sliding the wrong way relative to the one above it. The near edge must always scroll faster than the horizon edge; if any part of the plane scrolls backwards relative to the part above it, the recession has inverted locally and the strip arithmetic is wrong.
 
+    **What this step found on 2026-08-16, because it changes what you are looking at (`V20`).** The first run of the paragraph above came back "there seem to be some visual bugs with black bands appearing in between the plane pixels" and "mountains are not visible just the plane". Both were real and both are fixed, and **the second one was not a seam at all** — the plane's far edge was authored as a fraction of the *window* while the mountains were authored in their own image's coordinates, the two contradicted each other at every camera position, and since the plane is opaque and drawn after the mountains it simply covered them. So this step gains a check it did not have: **the plane's far edge must always sit below the mountains' skyline, at every height you can reach.** Walk to the surface, then fall as far as you can, and watch the join. If the ground ever climbs over the ridge, the horizon derivation has come loose from the art — it is `ground_horizon_y` in [src/render/frame.cpp](src/render/frame.cpp) and it should not be tunable.
+
     **The horizon, which is a standing check rather than a pass/fail.** V11 built a **mid-ground band** between the mountains and the world, at parallax 0.40, because five of eight reference frames spend most of their depth there — and removed it on 2026-08-16 when this step was run and the answer came back that **our terrain already fills that part of the frame** ([notes/reference_observations.txt](notes/reference_observations.txt) entry 4, which predicted its own disproof and got it). Nothing is owed here now. What this step keeps is the **reopen trigger**: if you are ever looking at a location whose terrain does *not* fill the space between the mountains and the ground — a flatter scene with a low horizon, or a zoomed-out camera once `Camera::SCALE` is runtime — say so, because the band becomes worth building again and the layer table makes it one row.
 
     **Do not judge depth by counting bands.** Our depth bands used to overlap almost completely in brightness, which is why a busy frame read flat. That was a renderer defect and **it was fixed on 2026-08-16** (step 3 of the V block) — the light pass could only add, and separating bands needs a multiply. **A frame that reads flat is that defect and not a missing layer**, which is exactly the mistake the mid-ground band nearly shipped as a fix for. That inference is still the right one; what has changed is where it points.
@@ -129,9 +141,15 @@ Or just tell me and I will file them.
 
     **What should be true.** The mountains should sit *darker* than the sky behind them and read as a cut-out shape against it. Before this change they measured luminance 28 against a sky of 26 — two levels of separation out of 255, and the far band was the brighter of the two, which is why the horizon was mush. They now carry a 0.60 multiply and should measure about 16 against 26.
 
+    **⚠️ The luminance figures in this step are pre-V20 and none of them is current.** On 2026-08-16 the backdrop palette was raised wholesale — the whole frame had been occupying 9 levels out of 255 — so "16 against 26" is now roughly **44 against 62**. The grades themselves did not move; what they multiply did. The *arguments* below all survive the raise and the *numbers* do not, so read them for shape and re-measure before quoting a figure. Full entry at V20 in [ROADMAP.md](ROADMAP.md).
+
+    **⚠️ And the question this step asks has flipped.** It was written to catch the grades over-correcting *downward*. V20 raised everything they multiply, so **the live risk is now the opposite: a frame that is too bright to be a night scene at all.** That is what to look for first, and it is item 1 of the owed list at the top of this file.
+
     **The failure to look for is over-correction, not under.** The number was chosen from a measurement rather than by eye, and those are not the same thing — **it was looked at for the first time on 2026-08-16 and came back good**, so this step is now a standing regression check rather than an open question. If the ridge reads as a black hole punched in the sky, or the mountains have stopped being visibly *mountains* and are just a dark edge, the value is too low; the knob is the `mountains` row in [src/render/frame.cpp](src/render/frame.cpp)'s layer table and the row in [TUNING.md](TUNING.md). **Retuning it moves `golden_frame_test`'s checksum, which is correct** — put the new value in the same commit.
 
     **The ground plane is the second graded band (`V19` step 4b, 2026-08-16) and it is judged the same way.** It sits behind the world, below the horizon, at a 0.53 multiply. What should be true: it is **darker than the sky at its far edge and brighter at its near edge**, and the darkest line anywhere in the frame is where it meets the horizon. Measured on the art it runs 0.44 to 0.81 of the sky's luminance; by eye that is "the ground fades into the horizon and comes up to meet you". **The failure this exists to catch is the plane and the sky reading as the same surface**, which is what the played frame showed before this step — 22.7 against 22.3, a flat fill the size of a third of the screen. If the plane looks flat rather than receding, the fault is the tile's ramp and not the grade, because a grade multiplies uniformly and cannot brighten one end of a band.
+
+    **That last sentence was right and the ramp was the fault (`V20`, 2026-08-16).** The first run of this step came back "the effect isn't very convincing", and the tile measured a ramp of **9.8 levels against the reference plane's 61** — with its near third, where the recession is supposed to be strongest, completely flat. Two causes, both in the art: the palette had nowhere to ramp *to*, and the tile was an ordered dither between exactly two colours, which saturates. It is now ten distinct tones running **30 to 81** after the grade. The grade is still not the knob for this; the tile is.
 
     **Also confirm nothing else moved.** Only the mountains and the ground plane are graded. The sky, the terrain, the trees, the props and the player are all at 1.00 on purpose, so if the *whole frame* looks darker rather than just the ridge, the grade has landed in the wrong place — check whether `Params::world_grade` has acquired a caller.
 

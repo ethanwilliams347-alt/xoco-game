@@ -139,13 +139,45 @@ void draw_mountains(SDL_Renderer* renderer, const Params& p, const Grade& g) {
 // in the running game, which is checklist work.
 constexpr int GROUND_STRIPS = 24;
 
-// Where the plane's far edge sits, as a fraction of the window's height. **A
-// fraction and not a pixel count, because the window is switchable at runtime**
-// (1920x1080, 2560x1440, 3440x1440) and a horizon authored in pixels would sit
-// at three different heights in the frame. 0.55 is where the played frame's
-// terrain skyline already sits, so the plane meets the world rather than
-// floating above it.
-constexpr float GROUND_HORIZON_FRACTION = 0.55f;
+// **Where the plane's far edge sits used to be a fraction of the window height,
+// and V20 replaced it with a row of the mountains BMP. The replacement is the
+// fix for "mountains are not visible just the plane" (playtest session 6).**
+//
+// The old constant was `GROUND_HORIZON_FRACTION = 0.55f`, justified as "where
+// the played frame's terrain skyline already sits". That justification named the
+// *terrain* and the layer it collides with is the *mountains*, which were
+// authored independently, in their own image's coordinates, by a different
+// script. The two were contradictory at every camera position the world reaches:
+// the plane's horizon ran between screen rows 594 and 238 while the mountain
+// silhouette began at 604 and ran to 1124. The plane is opaque RGB with no
+// colour key and its row in LAYERS below is drawn *after* the mountains', so it
+// covered the band completely. Nothing was faint and no grade was
+// over-correcting - measured, the mountains against the sky were the largest
+// contrast anywhere in the frame.
+//
+// **A fraction of the window was the right shape of constant and the wrong
+// space to state it in.** The reason a fraction was chosen still holds: the
+// window is switchable at runtime (1920x1080, 2560x1440, 3440x1440) and a
+// horizon in window pixels would sit at three different heights. But the plane's
+// far edge is not a fact about the window at all - it is the place where the
+// ground meets the mountains, which is a fact about the mountains. Stated there,
+// it is resolution-independent for free and it cannot contradict the art,
+// because it *is* the art: backdrop_layers::MOUNTAINS_SKYLINE_MAX_ROW is
+// generated from the same seeded walk that draws the silhouette.
+//
+// The deepest row of the skyline, and not the highest, so the whole jagged edge
+// stands clear above the plane and only the solid body below it is covered.
+//
+// `mountain_h` is the loaded texture's height rather than the generated one, so
+// the horizon follows the art that is actually on screen. That matters for more
+// than tidiness: the golden-frame fixture builds a 300-row synthetic mountain
+// texture where the shipped BMP is 1642, and against an absolute row index the
+// plane fell off the bottom of the fixture's window and stopped being in the
+// checksum at all.
+float ground_horizon_y(const Camera& camera, int mountain_h) {
+    return camera.parallax_origin_y(backdrop_layers::MOUNTAINS.parallax_y) +
+           static_cast<float>(mountain_h) * backdrop_layers::MOUNTAINS_SKYLINE_MAX;
+}
 
 void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     SDL_Texture* tex = p.backdrop.ground;
@@ -156,13 +188,19 @@ void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     const int window_w = p.padded_w * Camera::SCALE;
     const int window_h = p.padded_h * Camera::SCALE;
 
-    // The horizon moves with the camera at the *far* factor, which is what stops
-    // the plane being glued to the window: walk down and the horizon rises, the
-    // way a horizon does. The band then runs from wherever that lands to the
-    // bottom of the window, so it always meets the near edge exactly.
+    // The horizon moves with the camera at the **mountains'** vertical factor
+    // and not the plane's own, which is the second half of the same correction.
+    // A receding plane's far edge is the most distant thing in the frame - it is
+    // at infinity by construction - so its parallax factor has to be the
+    // *smallest* in the scene, not the plane's near-edge one. Given 0.11 it slid
+    // upward at nearly twice the rate of the band it recedes toward, which is
+    // the motion half of the same defect: even a correctly placed horizon would
+    // have climbed past the mountains within a few hundred cells of descent.
+    //
+    // The band then runs from wherever that lands to the bottom of the window,
+    // so it always meets the near edge exactly.
     const backdrop_wrap::Plane plane{
-        static_cast<float>(window_h) * GROUND_HORIZON_FRACTION +
-            camera.parallax_origin_y(backdrop_layers::GROUND.parallax_y),
+        ground_horizon_y(camera, p.backdrop.mountain_h),
         static_cast<float>(window_h),
         backdrop_layers::GROUND.parallax_x,
         backdrop_layers::GROUND_NEAR_X,
@@ -185,8 +223,23 @@ void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
         // the way every other layer's does. Rounding the destination is the A1
         // defect coming back on a new layer - the plane would jerk in whole
         // pixels while the world under it scrolls smoothly.
-        SDL_Rect src{0, static_cast<int>(s.src_y), p.backdrop.ground_w,
-                     static_cast<int>(s.src_h) + 1};
+        //
+        // **The two rows come from plane_src_row, one boundary at a time, and
+        // not from rounding this strip's start and height independently.** The
+        // latter is what shipped and it is half of the black banding the tester
+        // saw: two neighbouring strips rounded in isolation do not meet, so the
+        // texture repeats a row at some boundaries and skips one at others. The
+        // argument is at plane_src_row, and the other half of the defect was in
+        // the tile's art.
+        //
+        // A strip whose two boundaries round to the same row is one whose depth
+        // range has collapsed below a single texel, which happens at the horizon
+        // end where the compression is steepest. It gets one row rather than
+        // being skipped: a skipped strip is a transparent gap in the destination
+        // band, which is the defect being fixed, only worse.
+        const int row0 = backdrop_wrap::plane_src_row(plane, i, GROUND_STRIPS);
+        const int row1 = backdrop_wrap::plane_src_row(plane, i + 1, GROUND_STRIPS);
+        SDL_Rect src{0, row0, p.backdrop.ground_w, row1 - row0 > 0 ? row1 - row0 : 1};
         if (src.y + src.h > p.backdrop.ground_h) src.h = p.backdrop.ground_h - src.y;
         if (src.h <= 0) continue;
 

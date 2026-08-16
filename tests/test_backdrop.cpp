@@ -271,6 +271,83 @@ int main() {
               far_s.src_h > 0.0f && near_s.src_h > 0.0f, detail);
     }
 
+    // Property 7: the **integer** source rows meet, which property 4 above says
+    // nothing about and which is where the shipped defect actually was.
+    //
+    // Playtest session 6: "there seem to be some visual bugs with black bands
+    // appearing in between the plane pixels". `SDL_Rect` is integer, so the
+    // float rows property 4 checks have to be rounded before they reach a draw
+    // call, and frame.cpp rounded each strip's start and its height
+    // independently - `(int)src_y` with `(int)src_h + 1`. Property 4 passed the
+    // whole time, because the floats did meet; nothing asked whether their
+    // roundings did, and they do not.
+    //
+    // **This is the general shape worth recognising, not just this bug.** When a
+    // continuous quantity is checked for a property and then quantised before
+    // use, the property has to be re-checked on the quantised value - the test
+    // that passes is measuring something the renderer never sees.
+    // The assertion is *conservation*: the integer heights the draw call builds
+    // must sum to the tile, exactly. That is what a gap and an overlap both
+    // break, in opposite directions, and it is the one number the shipped scheme
+    // could not have produced. Run against the unfixed arithmetic at this
+    // fixture's geometry, `(int)src_y` with `(int)src_h + 1` draws **268 rows of
+    // a 256-row tile and misses at 12 of its 23 boundaries** - over half of them,
+    // which is why the symptom was a set of bands rather than one line.
+    {
+        int total = 0;
+        bool bounded = true;
+        std::string first_bad;
+        for (int i = 0; i < N; ++i) {
+            const int a = backdrop_wrap::plane_src_row(PLANE, i, N);
+            const int b = backdrop_wrap::plane_src_row(PLANE, i + 1, N);
+            total += b - a;
+            if (a < 0 || b > PLANE.tile_h || b < a) {
+                bounded = false;
+                if (first_bad.empty())
+                    first_bad = "strip " + std::to_string(i) + " samples rows " +
+                                std::to_string(a) + ".." + std::to_string(b) +
+                                " of a " + std::to_string(PLANE.tile_h) + "-row tile";
+            }
+        }
+        check("the integer source rows partition the tile exactly",
+              total == PLANE.tile_h,
+              "the strips' integer heights sum to " + std::to_string(total) +
+                  ", the tile is " + std::to_string(PLANE.tile_h));
+        check("no integer source rect leaves the tile", bounded, first_bad);
+        check("the first strip starts at row 0 and the last ends at the tile's end",
+              backdrop_wrap::plane_src_row(PLANE, 0, N) == 0 &&
+                  backdrop_wrap::plane_src_row(PLANE, N, N) == PLANE.tile_h,
+              "row(0)=" + std::to_string(backdrop_wrap::plane_src_row(PLANE, 0, N)) +
+                  " row(N)=" + std::to_string(backdrop_wrap::plane_src_row(PLANE, N, N)));
+    }
+
+    // Property 8: the same, swept over every plane geometry the running game
+    // produces. The horizon moves with the camera, so `band` is not one number -
+    // the strips compress as the plane thins, and the near-horizon strips are
+    // the first to collapse below a texel. A rounding that meets at the shipped
+    // geometry and not at a thinner one is a defect that appears at one camera
+    // height, which is the class this file's other properties exist for.
+    {
+        bool all = true;
+        std::string first_bad;
+        for (int horizon = -400; horizon <= 1000; horizon += 7) {
+            const Plane p{static_cast<float>(horizon), 1080.0f, 0.28f, 0.52f, 256};
+            for (int i = 0; i < N; ++i) {
+                const int a = backdrop_wrap::plane_src_row(p, i, N);
+                const int b = backdrop_wrap::plane_src_row(p, i + 1, N);
+                if (b < a || a < 0 || b > p.tile_h) {
+                    all = false;
+                    if (first_bad.empty())
+                        first_bad = "horizon " + std::to_string(horizon) + " strip " +
+                                    std::to_string(i) + " rows " + std::to_string(a) +
+                                    ".." + std::to_string(b);
+                }
+            }
+        }
+        check("the integer rows stay ordered and in bounds at every horizon",
+              all, first_bad);
+    }
+
     // Degenerate input, the same contract wrap_axis has: a failed BMP load is a
     // zero-height tile, and it must produce a strip that draws nothing rather
     // than a division by zero.

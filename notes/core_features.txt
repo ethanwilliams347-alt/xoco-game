@@ -1,19 +1,17 @@
 Core Features
 
 Art Style:
-- Pixel art style, inspired by Noita
+- Pixel art style, inspired by Noita and Cast n Chill
 
 Core Gameplay Loop:
-- Rogue-lite / Extraction
-- Enter "quantum magic" worlds to complete gameplay objectives.
-- These objectives act as training data to train your secret AI agents in proof-of-work tasks.
+- Dark Souls 3 enemy/boss pacing with Cuphead/Noita/Dead Cells combat
+- Characters inspired from things in Bosch and others artwork
+- Plunder caves for items/weapons to use in above ground combat
 
 Key Mechanics:
 - Physics-based combat and exploration (inspired by Noita).
 - Physics-based destruction and simulation (inspired by Noita).
-- Pet ML Agent: An AI pet that trains on your runs.
-- Idle Progress: ML agent can run in the background on the AI economy to earn coins.
-- Base Building: Customizable home base to support illegal operations.
-- Itemization: Different items (clothing, cosmetics, decorations) have stats (+/-) for both agents and the player.
+- Idle Progress
+- Base Building: Customizable home base
+- Itemization: Different items (clothing, cosmetics, decorations) have stats (+/-)
 - Inventory: Grid-based / "block" / DayZ style inventory management.
-- Crime / Black Market: Sell illegal goods, steal from others.

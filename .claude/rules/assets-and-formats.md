@@ -141,9 +141,35 @@ Learned building the prop list; all four generalise to the next format.
   layer table in [src/render/frame.cpp](../../src/render/frame.cpp) carries a
   `Grade`, a multiply applied with `SDL_SetTextureColorMod`, and the mountains
   sit at 0.60. **This bullet used to end "that needs a multiply the light pass
-  does not have yet"**; it has one. What has not changed is the refusal attached
-  to it: **do not attempt band separation as a palette edit**, and do not attempt
-  it as a new band either.
+  does not have yet"**; it has one. The refusal attached to it stands and has
+  gained a boundary: **do not attempt band separation as a palette edit**, and do
+  not attempt it as a new band either.
+  - **V20 (2026-08-16) raised the backdrop palette wholesale, and that is not
+    the refused move — the distinction is the whole point of writing this down
+    rather than assuming the exemption.** The refusal is about *separating two
+    bands from each other* by recolouring one of them, which puts the ladder in
+    the art where a grade cannot reach it and makes every later direction change
+    an asset re-author. What V20 did is raise the **ceiling all the bands hang
+    from**, and it was forced by an asymmetry in the only tool available: `Grade`
+    is a multiply, so it can only ever darken, and `sky_deep` was authored at
+    luminance **18 of 255**. There was no headroom left to grade *into* — the
+    whole frame occupied 9 levels, against the reference's 123 and its *night*
+    frame's sky at L 163. The band-to-band separations stayed where they belong:
+    `mountains` 0.60 and `ground` 0.53 did not move.
+  - **The test for the next time this comes up:** if the change alters the
+    *ratio* between two bands, it is the refused move and belongs in a grade. If
+    it scales every band and leaves the ratios intact, it is a ceiling, and no
+    grade can do it.
+  - **V20 was not purely the second kind and it is worth being exact about
+    that**, because a rule stated and then quietly exceeded is the failure this
+    project keeps having. Two ratios *did* change in the same commit, both
+    inside a single layer rather than between layers, and neither is reachable by
+    a grade: the sky's ramp was **inverted** (it ran dark-at-top to bright-at-
+    horizon, putting the frame's brightest row directly above the row that has to
+    be its darkest), and the ground tile's internal far-to-near ramp was widened
+    from 1.83 to 2.7. **A grade is uniform, so a ramp *within* a band is always
+    the art's job** — that is already stated three bullets down. The refusal is
+    about the ladder *between* bands, and that is what stayed in the grades.
   - The measurement, because it is the thing that makes the knob worth having:
     in luminance the sky averages 26 and the mountains were **flat 28** — two
     levels of separation out of 255, with the far band the brighter. TUNING.md's

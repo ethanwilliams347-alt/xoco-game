@@ -1,9 +1,9 @@
 Project Goals
 
 Core Implementation:
-- Build a production-level, barebones application.
+- Build a production-level game to ship on Steam
 - Implement a pixel art destructible environment running on its own custom physics engine.
-- Include basic player functionality.
+- Include full player functionality.
 
 Architecture & Extensibility:
 - Design and architect the application to easily allow for adding more features and complex mechanics later.

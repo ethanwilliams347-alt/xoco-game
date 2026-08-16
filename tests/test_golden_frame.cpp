@@ -390,13 +390,56 @@ int main() {
     // because the intermediate is not recoverable from the file afterwards, and
     // it is the one that says the two causes were never mixed.
     //
-    // Fifth move. `git log -S` on this constant remains the instrument.
-    constexpr uint64_t GOLDEN = 0x24eb769681836a0eull;
+    // **V20 moved it a sixth time, on 2026-08-16, and this one has no no-op half
+    // at all - not even an adapted one - because it is three causes that cannot
+    // be separated by construction.** Playtest session 6 reported black bands
+    // between the plane's strips, invisible mountains, and a plane that did not
+    // read as receding. The three fixes are: the backdrop palette raised
+    // wholesale (the whole frame occupied nine levels of luminance where the
+    // reference occupies 123); the plane's horizon re-derived from the mountains'
+    // skyline instead of a window fraction, which is what had been covering the
+    // band; and the strips' integer source rows rounded at their shared
+    // boundaries instead of independently. Every one of them moves pixels and
+    // none of them can be staged at identity. **Stated plainly rather than
+    // dressed up as the house procedure**, because a procedure claimed and not
+    // followed is worse than one openly set aside: the separation this commit
+    // does not have is carried instead by `backdrop_test`'s two new properties,
+    // which pin the rounding independently of any frame.
+    //
+    // Sixth move. `git log -S` on this constant remains the instrument.
+    constexpr uint64_t GOLDEN = 0xcde4dc1a39927fcaull;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),
                   static_cast<unsigned long long>(GOLDEN));
     check("the composed frame matches the golden checksum", first == GOLDEN, detail);
+
+    // **The ground plane has to be *in* the frame for the number above to say
+    // anything about it, and V20 is where that stopped being obvious.**
+    // .claude/rules/simulation.md already warns that a checksum over a layer with
+    // a null texture covers the layer's absence; this is the same hazard reached
+    // by geometry instead. The horizon was briefly derived from an absolute row
+    // of the shipped 1642-row mountains BMP, and against this fixture's 300-row
+    // synthetic one that put the entire plane below the window - the frame
+    // composed cleanly, every check in this file passed, and the checksum
+    // silently reverted to a value from before the plane existed. It was caught
+    // only because that value was recognised.
+    //
+    // So the layer's presence is now asserted rather than assumed, by the only
+    // instrument that can: compose again without it and require a different
+    // frame.
+    {
+        SDL_Texture* real_ground = p.backdrop.ground;
+        p.backdrop.ground = nullptr;
+        frame::compose(renderer, p);
+        const uint64_t without = hash_surface(surface);
+        p.backdrop.ground = real_ground;
+        frame::compose(renderer, p);
+        check("the ground plane actually reaches the fixture's window",
+              without != first,
+              "removing the plane's texture changed no pixel, so the golden "
+              "checksum is not covering the layer at all");
+    }
 
     // Composing the same inputs twice must give the same frame. This is not
     // redundant with the check above: it separates "the renderer changed" from

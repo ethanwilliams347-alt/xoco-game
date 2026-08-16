@@ -791,3 +791,70 @@ That second one is the same shape as the sky-versus-mountains reading that
 bought the 0.60 grade in step 3, on a larger pair of surfaces, and it was not
 caught then because the measurement that found it only compared the two backdrop
 bands. Symptoms only — what to do about it is V19 in ROADMAP.md.
+
+---
+
+## Session 6 — 2026-08-16: V19 4b's ground plane, first human eyes
+
+- **Build:** V19 4b, Release, MSVC. **Suites at time of test:** 13/13.
+- **Steps run:** the five items on MANUAL_TESTING.md's owed list — checklist
+  steps 9, 10, 11 and 12.
+- **Evidence:** `resources/game_screenshots/plane_test (1).png` through `(4).png`.
+  Reported without a seed, which is a gap the file's own rule names; three of the
+  four findings turned out to be measurable off the screenshots and the shipped
+  BMPs alone, so it did not cost anything this time. **It would have on the
+  fourth.**
+
+### Per-item result, in the tester's words
+
+| # | Asked | Came back |
+|---|-------|-----------|
+| 1 | Vertical tiling join in the plane; do the dashes stream smoothly? | *"dashes seem to move smoothly but the effect isn't very convincing"* — **no join reported.** The wrapping arithmetic passes; the read does not. |
+| 2 | Stair-step between the 24 parallax strips | *"there seem to be some visual bugs with black bands appearing in between the plane pixels"* — **fail.** |
+| 3 | Do mountains read as a dark cut-out; does the plane recede? | *"mountains are not visible just the plane"* — **fail.** |
+| 4 | Does the run need an enemy to be interesting? | *"needs an enemy but i will do that later"* — **answered yes.** Filed at [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). |
+| 5 | Movement keys held through a structure collapse | *"looks fine"* — **pass.** |
+
+### Defects
+
+| ID | Severity | Symptom |
+|----|----------|---------|
+| **F-1** | High | **Horizontal black bands across the ground plane**, between the strips rather than at their edges. Item 2. |
+| **F-2** | High | **The mountain band is not visible in any of the four frames.** The plane is the only backdrop that reads. Item 3. |
+| **F-3** | Medium | **The plane does not read as a receding surface** — the mechanism is there and the effect is not. Item 1. |
+
+### Observations, measured off the four frames rather than felt
+
+Kept separate from the table above, per this file's rule: these are numbers about
+how the frame reads, and every fix suggested by one is a hypothesis.
+
+**The whole frame occupies 9 levels of luminance.** Row-mean Rec. 709 down
+`plane_test (1)` and `(4)`, HUD rows excluded: **L 15.5 to 24.5** in frame 1,
+**15.9 to 23.3** in frame 4. For scale, the reference frames measured in
+`notes/reference_observations.txt` entry 7 run **L 51.6 to 173.6** — a 123-level
+spread — and **the smallest single band join in that reference, the horizon at 14
+levels, is larger than our entire frame's range.**
+
+**The plane's authored far-to-near ramp is 18.5 levels before grading and 9.8
+after.** Measured down `assets/backdrop_ground.bmp`, row means: L 22.1 at the far
+edge to 40.7 at the near, times the 0.53 grade. The same ramp in the reference is
+**77.5 to 138.2, 61 levels.** Entry 7 calls this the mechanism that needs no
+light source and no colour, and it is built — at a sixth of the amplitude.
+
+**The near third of that ramp is flat.** Tile rows 160 through 255 all read
+40.4 ± 0.4. Entry 7's mechanism 3 says contrast *grows* with nearness and the
+reference spends most of its budget in the last two layers; ours spends none
+there.
+
+**The plane's texture is three colours.** `(24,20,38)`, `(44,37,64)` and a sparse
+`(60,52,82)`, in a 49/49/2 split — so the "ramp" above is a dither *density*
+gradient between two tones 18 levels apart, not a value gradient.
+
+**The mountains' one silhouette tone is L 28.1, graded to 16.9.** The sky rows
+they stand against read 26.7 to 35.2. That is a 10-to-18-level separation, which
+is the largest contrast anywhere in the frame — so **F-2 is not the 0.60 grade
+over-correcting**, which is what checklist step 12 was written to catch. Step 12
+asked the right question about the wrong layer.
+
+Symptoms and measurements only. What causes each and what to do about it is
+ROADMAP.md's.

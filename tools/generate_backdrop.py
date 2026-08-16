@@ -47,7 +47,44 @@ Run from the repo root:
 """
 import random
 import sys
-from pixel_art import PALETTE, COLOR_KEY, dither_mix, write_bmp
+from pixel_art import PALETTE, COLOR_KEY, bayer_threshold, write_bmp
+
+
+# --- banded ramps ----------------------------------------------------------
+#
+# **V20 replaced two-colour dithering with N flat tones, and the distinction it
+# turns on is worth stating because it looks like the rule being broken.**
+#
+# `dither_mix` picks between exactly two colours, so a "ten band" gradient built
+# out of it contains **two colours and no more** - the bands are ten different
+# *proportions* of the same pair. That works while the pair is far apart and
+# collapses when it is not, and it collapsed here: measured on the shipped
+# ground tile, rows 160-255 were a flat 40.4 because the proportion had already
+# saturated, so **the near third of the plane's recession ramp had no gradient
+# at all** - the third of it where the reference spends most of its contrast.
+#
+# The rule V5 actually set is "transitions between flat tones, not a per-pixel
+# smooth blend", and ten flat tones with dithered hand-offs is still that. What
+# it is not is *two* flat tones, which is what the rule had quietly become.
+def band_tone(a, b, t):
+    """One flat tone t of the way from a to b. Not per-pixel: a whole band."""
+    return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
+
+
+def banded_ramp(x, y, height, a, b, bands, dither_rows=2):
+    """Colour at (x, y) of a vertical ramp of `bands` flat tones from a to b,
+    with the last `dither_rows` rows of each band ordered-dithered into the next
+    so the seam is a stepped hand-off rather than a hard line."""
+    band = min(y * bands // height, bands - 1)
+    this = band_tone(a, b, band / (bands - 1))
+    if band == bands - 1:
+        return this
+    next_start = (band + 1) * height // bands
+    if next_start - y <= dither_rows:
+        nxt = band_tone(a, b, (band + 1) / (bands - 1))
+        share = 1.0 - (next_start - y) / (dither_rows + 1)
+        return nxt if bayer_threshold(x, y) < share else this
+    return this
 
 # --- must match main.cpp -----------------------------------------------
 GRID_WIDTH, GRID_HEIGHT = 1920, 1080
@@ -144,25 +181,20 @@ def generate_sky():
     top = PALETTE['sky_deep']
     bottom = PALETTE['sky_horizon']
 
-    # Steps by whole bands (V5's dithering rule: transitions between flat
-    # tones, not a per-pixel smooth blend) - dither only at each band
-    # boundary, not across the whole gradient.
+    # Ten flat tones with dithered hand-offs - see banded_ramp above for why
+    # this is no longer dither_mix between the endpoints.
+    #
+    # **The ramp now runs bright to dark downward, where it used to run dark to
+    # bright** (V20). Nothing in this loop changed to do that; `sky_deep` is
+    # simply the brighter of the pair now. It matters enough to say here because
+    # the old direction put the frame's *brightest* row immediately above the row
+    # that entry 7's mechanism 2 requires to be its darkest, and a reader
+    # checking the sky against that mechanism will look at this function first.
     bands = 10
     pixels = [None] * (w * h)
     for y in range(h):
-        band = min(y * bands // h, bands - 1)
-        t_this = band / (bands - 1)
         for x in range(w):
-            # Within 2px of the next band's start, dither toward it, so the
-            # seam is a stepped hand-off instead of a hard line.
-            next_band_start = (band + 1) * h // bands
-            if band < bands - 1 and next_band_start - y <= 2:
-                t_next = (band + 1) / (bands - 1)
-                pixels[y * w + x] = dither_mix(x, y, top, bottom,
-                                                t_this + (t_next - t_this) *
-                                                (1 - (next_band_start - y) / 3))
-            else:
-                pixels[y * w + x] = dither_mix(x, y, top, bottom, t_this)
+            pixels[y * w + x] = banded_ramp(x, y, h, top, bottom, bands)
 
     rng = random.Random(7)
     star = PALETTE['star']
@@ -176,43 +208,77 @@ def generate_sky():
 
 
 # --- mountains: jagged silhouette, colour-keyed, drawn onto the sky's tone -
+#
+# **The two constants below are a composition, not a texture, and V20 moved them
+# because they were the cause of "mountains are not visible, just the plane".**
+#
+# They used to be `base_y = 0.58h`, `peak_span = 0.22h`, which put the silhouette
+# between image rows 604 and 1124 of 1642. The ground plane's far edge was
+# separately authored at 0.55 of the *window*, and at every camera position the
+# world reaches, that landed the plane's horizon between screen rows 594 and 238
+# - **above the mountains' highest peak, at every camera position there is.** The
+# plane's BMP is opaque RGB with no colour key and its layer table row is drawn
+# after the mountains', so it painted over the whole band. The mountains were
+# never faint; they were covered.
+#
+# The fix has two halves and needs both. This half raises the silhouette into
+# the frame's upper middle so there is room below it for a plane at all; the
+# other half is in render/frame.cpp, which now derives the plane's horizon from
+# `MOUNTAINS_SKYLINE_MAX_ROW` instead of a free-floating window fraction, so the
+# two can no longer be authored into a contradiction.
+MOUNTAIN_BASE_FRACTION = 0.31
+MOUNTAIN_PEAK_FRACTION = 0.14
+MOUNTAIN_SEGMENT_W = 48
+
+
+# The skyline, as one row per column. **Hoisted out of generate_mountains
+# because the header generator needs it too** - the plane's horizon is derived
+# from this curve's deepest row, and a second copy of the walk in the header
+# path is the duplicated-constant failure V11 retired for the parallax factors.
+# It is a pure function of `random.Random(3)`, so both callers get the same
+# curve without either of them having to open the BMP.
+def mountain_skyline(w, h):
+    rng = random.Random(3)
+    base_y = int(h * MOUNTAIN_BASE_FRACTION)
+    peak_span = int(h * MOUNTAIN_PEAK_FRACTION)
+
+    # A jagged skyline as a random walk between segment points, the same
+    # "seeded RNG, blocky rather than smooth" texture generate_test_scene.py
+    # already uses for the snowbank slope - deliberate variation, not noise.
+    points = []
+    x = 0
+    while x <= w:
+        points.append((x, base_y + rng.randint(-peak_span, peak_span // 2)))
+        x += MOUNTAIN_SEGMENT_W + rng.randint(-10, 10)
+    points.append((w, points[-1][1]))
+
+    rows = []
+    seg = 0
+    for px in range(w):
+        while seg < len(points) - 2 and px > points[seg + 1][0]:
+            seg += 1
+        x0, y0 = points[seg]
+        x1, y1 = points[seg + 1]
+        t = 0 if x1 == x0 else (px - x0) / (x1 - x0)
+        rows.append(int(round(y0 + (y1 - y0) * t)))
+    return rows
+
+
 def generate_mountains():
     w, h = layer_size(PARALLAX_MOUNTAIN)
     mountain = PALETTE['mountain']
     rim = PALETTE['mountain_rim']
 
-    # A jagged skyline as a random walk between segment points, the same
-    # "seeded RNG, blocky rather than smooth" texture generate_test_scene.py
-    # already uses for the snowbank slope - deliberate variation, not noise.
-    rng = random.Random(3)
-    base_y = int(h * 0.58)
-    peak_span = int(h * 0.22)
-    segment_w = 48
-
-    points = []
-    x = 0
-    while x <= w:
-        points.append((x, base_y + rng.randint(-peak_span, peak_span // 2)))
-        x += segment_w + rng.randint(-10, 10)
-    points.append((w, points[-1][1]))
-
-    def skyline_y(px):
-        for i in range(len(points) - 1):
-            x0, y0 = points[i]
-            x1, y1 = points[i + 1]
-            if x0 <= px <= x1:
-                t = 0 if x1 == x0 else (px - x0) / (x1 - x0)
-                return y0 + (y1 - y0) * t
-        return points[-1][1]
-
+    rows = mountain_skyline(w, h)
     pixels = [COLOR_KEY] * (w * h)
     for px in range(w):
-        sy = int(round(skyline_y(px)))
+        sy = rows[px]
         for py in range(max(sy, 0), h):
             pixels[py * w + px] = rim if py < sy + 2 else mountain
 
     write_bmp('assets/backdrop_mountains.bmp', w, h, pixels)
-    print(f'wrote assets/backdrop_mountains.bmp ({w}x{h})')
+    print(f'wrote assets/backdrop_mountains.bmp ({w}x{h}) - '
+          f'skyline rows {min(rows)}..{max(rows)}')
 
 
 # --- ground plane: a tile whose rows are distance, not height --------------
@@ -246,29 +312,51 @@ def generate_ground():
 
     # V5's dithering rule again: flat bands with dithered hand-offs, not a
     # per-pixel smooth blend. Ten bands, matching the sky's, so the two graded
-    # surfaces are made of the same size of step.
+    # surfaces are made of the same size of step. **Ten distinct tones since
+    # V20, not ten proportions of two** - see banded_ramp, and note that the
+    # measurement which forced it was taken on exactly this tile.
     bands = 10
     pixels = [None] * (w * h)
     for y in range(h):
-        band = min(y * bands // h, bands - 1)
-        t = band / (bands - 1)
         for x in range(w):
-            pixels[y * w + x] = dither_mix(x, y, far, near, t)
+            pixels[y * w + x] = banded_ramp(x, y, h, far, near, bands)
 
     # Horizontal dashes - the ground's texture, and the thing whose apparent
     # width the strip loop varies. **Every dash wraps in x**, because this is a
     # tiling texture and a dash clipped at the right edge is a hard vertical
     # seam repeating across the whole band at every tile boundary.
+    #
+    # **The marks are weighted toward the near edge and start below MARK_START,
+    # and both of those are V20 corrections rather than taste.** The tile's rows
+    # are world distance, so the strip loop compresses its top rows into a
+    # handful of screen rows near the horizon; a mark up there is a mark being
+    # point-sampled at ten to one, which is a speckle that flickers as the camera
+    # moves rather than texture. It is also the wrong end of the frame for it:
+    # entry 7's mechanism 3 is that contrast *grows* with nearness, and mechanism
+    # 2 wants the horizon row to be the frame's clean dark pinch. Density rising
+    # linearly toward the near edge is that mechanism authored where the geometry
+    # cannot supply it.
+    MARK_START = 0.30
     rng = random.Random(11)
-    for _ in range(220):
+    placed = 0
+    for _ in range(1200):
         my = rng.randrange(h)
+        depth = my / (h - 1)
+        if depth < MARK_START:
+            continue
+        # Rejection weighting: keep a mark with probability rising from 0 at
+        # MARK_START to 1 at the near edge.
+        if rng.random() > (depth - MARK_START) / (1.0 - MARK_START):
+            continue
         mx = rng.randrange(w)
         length = rng.randint(3, 11)
         for i in range(length):
             pixels[my * w + (mx + i) % w] = mark
+        placed += 1
 
     write_bmp('assets/backdrop_ground.bmp', w, h, pixels)
-    print(f'wrote assets/backdrop_ground.bmp ({w}x{h}) - a tile, not a pan-sized layer')
+    print(f'wrote assets/backdrop_ground.bmp ({w}x{h}) - a tile, not a '
+          f'pan-sized layer; {placed} marks, all below row {int(h * MARK_START)}')
 
 
 # --- the generated header --------------------------------------------------
@@ -340,6 +428,36 @@ def generate_header(path='src/render/backdrop_layers.h'):
     out.append('// geometric ladder - see the comment in tools/generate_backdrop.py, which is')
     out.append('// the only place the argument lives.')
     out.append(f'inline constexpr float GROUND_NEAR_X = {PARALLAX_GROUND_NEAR_X}f;')
+    out.append('')
+    mw, mh = layer_size(PARALLAX_MOUNTAIN)
+    skyline = mountain_skyline(mw, mh)
+    out.append('// **Where the plane\'s far edge goes, and the reason it is a row of the')
+    out.append('// mountains BMP rather than a fraction of the window.** V19 authored the')
+    out.append('// horizon at 0.55 of the window height, independently of where the mountain')
+    out.append('// silhouette actually sat, and the two were contradictory at every camera')
+    out.append('// position the world reaches: the plane is opaque and is drawn after the')
+    out.append('// mountains, so it covered the entire band and the tester reported the')
+    out.append('// mountains as missing. Deriving the horizon from the silhouette makes that')
+    out.append('// contradiction unrepresentable instead of unlikely.')
+    out.append('//')
+    out.append('// This is the *deepest* row the skyline reaches, so the whole jagged edge is')
+    out.append('// above the plane and the band below it - which is solid mountain across the')
+    out.append('// full width - is what the plane is allowed to cover.')
+    out.append('//')
+    out.append('// It is generated because it is a fact about the art: mountain_skyline() is a')
+    out.append('// pure function of random.Random(3) and the two composition fractions, so a')
+    out.append('// change to either moves this number without anyone having to remember to.')
+    out.append('//')
+    out.append('// **A fraction of the layer\'s height and not a row index, which is not')
+    out.append('// cosmetic.** The renderer multiplies it by whatever mountains texture was')
+    out.append('// actually loaded, so the horizon lands on the silhouette for any mountain')
+    out.append('// image - including the small synthetic one the golden-frame fixture builds,')
+    out.append('// which is 300 rows against the shipped BMP\'s ' + str(mh) + '. Stated as a row it')
+    out.append('// was a number only one image could satisfy, and the fixture answered by')
+    out.append('// pushing the whole plane off the bottom of its window and quietly losing')
+    out.append('// the layer from the checksum.')
+    out.append(f'// Shipped BMP: {mh} rows, skyline {min(skyline)}..{max(skyline)}.')
+    out.append(f'inline constexpr float MOUNTAINS_SKYLINE_MAX = {max(skyline) / mh:.6f}f;')
     out.append('')
     out.append('// The inputs the sizes above are derived from, so a reader can tell whether')
     out.append('// a mismatch is a stale asset or a changed display table.')

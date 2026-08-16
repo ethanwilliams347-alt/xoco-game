@@ -1,5 +1,8 @@
 Story & Lore (Working Title: SLOP, XOCO, TOOP)
 
+Story to be developed within the world of the GOED painting.
+
+## everything below is outdated
 Setting:
 - A dystopian United States where a clippy-like AI chat bot took over the government.
 - It is now illegal for humans to participate in the economy. All intellectual work must be done by AI agents because humans are deemed inefficient and untrustworthy.
