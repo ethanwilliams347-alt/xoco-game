@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "game/camera.h"
+#include "game/debug_view.h"
 #include "game/display.h"
 #include "game/input_log.h"
 #include "game/run.h"
@@ -761,6 +762,75 @@ int main(int argc, char* argv[]) {
         accumulator = 0.0;
     };
 
+    // --- T1: the debug tooling ---------------------------------------------
+    //
+    // The state and every decision in it are in `game/debug_view.h`, which is
+    // SDL-free and has a suite; what is left down here is the key bindings and
+    // the drawing.
+    DebugView debug;
+
+    // Exactly one fixed step, and the only place one happens.
+    //
+    // **Extracted so that pause's single-step and the frame pacer run the same
+    // code rather than two copies of it.** The alternative - a second copy under
+    // the `.` key - is how the recorder would end up being fed by one path and
+    // not the other, and a session log missing the steps taken while paused is
+    // not a session: it replays into a world those steps had changed. This is
+    // the same argument F2.2 made for `Run` itself, one level up.
+    //
+    // The accumulator is deliberately *not* touched here. Time is the pacer's
+    // business, and a single-step is a step that no time was spent on.
+    auto advance_one_step = [&](const Input& step_input) {
+        prev_player_x = run.player.visual_x();
+        prev_player_y = run.player.visual_y();
+
+        // Captured here, inside the one place a step happens, and this placement
+        // is the whole of what makes the log replayable. One record per *step*,
+        // never per rendered frame: the same session played at 60 and at 165 fps
+        // produces the same list of records, because there is no sampling left
+        // in it. Recording up in the input-building block instead would store
+        // one record per frame and put the frame rate back into the measurement
+        // - which is F1 and F2.3 undone by the instrument built to check them.
+        if (recording.steps.size() < MAX_RECORDED_STEPS) {
+            recording.steps.push_back(step_input);
+        } else if (!recording_full) {
+            recording_full = true;
+            std::fprintf(stderr, "Session recording stopped at %d steps (half an hour); "
+                                 "F9 still writes what was recorded up to that point.\n",
+                         static_cast<int>(MAX_RECORDED_STEPS));
+        }
+
+        run.step(step_input);
+
+        // The animation clock. Advanced here, inside the one place a step
+        // happens, and nowhere else - see the timing note at the top of
+        // render/player_anim.h. Driving it from the render loop would make the
+        // walk cycle's speed a function of frame rate, which is the class of bug
+        // F1 and F2.3 spent two sections retiring and which would present as an
+        // art problem.
+        player_anim::Conditions cond;
+        cond.on_ground = run.player.is_on_ground();
+        // `!= 0` rather than an epsilon, which F5 made correct rather than
+        // merely tidy: horizontal velocity is now exactly zero or exactly
+        // +/-MOVE_SPEED, with no float noise for the epsilon to absorb.
+        cond.moving = run.player.velocity_x() != 0;
+        cond.vel_y = run.player.velocity_y();  // sign only; see Conditions
+        // Read off the tool rather than off the step's return value, and that is
+        // the D1 fix arriving at the call site. The old line took the one step a
+        // dig *landed* on and restarted the swing there, which pinned the figure
+        // on frame 0 whenever the button was held: the tool landed a dig every 6
+        // steps and the swing needed 24.
+        //
+        // The swing is now a duration the simulation owns and this only reports
+        // where in it the tool is. **The direction still holds** -
+        // ENGINEERING_NOTES.md refuses rendering that drives simulation, and
+        // this is a read, on the fixed step, of a value the tool would have
+        // computed with no window attached.
+        cond.dig_progress = run.dig_tool.swing_progress();
+        cond.flapped = run.player.flapped();
+        player_anim::update(anim_state, cond, 1);
+    };
+
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -844,11 +914,68 @@ int main(int argc, char* argv[]) {
                 // S0. **Only while the run is over**, so `R` is inert during
                 // play rather than a key that throws a session away by
                 // mis-hitting it - which is the same argument that moved
-                // quitting off ESC and into the settings menu. When T1 adds a
-                // world-reset hotkey it will want the unconditional version and
-                // will have to answer that question for itself.
-                if (e.key.keysym.sym == SDLK_r && run.outcome() != Run::Outcome::Playing) {
+                // quitting off ESC and into the settings menu.
+                //
+                // **T1 adds the unconditional version and does not merge the
+                // two, and that is left as a decision rather than closed.** The
+                // debug reset works mid-run, which is exactly the mis-hit `R`
+                // refuses, so it takes a modifier: Ctrl+R is not a key anybody
+                // reaches for while aiming for sand, and the two meanings stay
+                // apart without `R` acquiring a second one. Whether they should
+                // eventually be one key is still open in ROADMAP_ITEMS.md.
+                //
+                // `else if`, because with the run over both branches match and a
+                // reset that ran twice would be invisible - the second one
+                // produces exactly the world the first one did.
+                // **Held keys repeat, and every binding below except `.` is a
+                // toggle or a one-shot.** SDL sends a KEYDOWN per repeat, so
+                // without this a held `P` flickers the pause on and off at the
+                // OS repeat rate and a held `Ctrl`+`R` resets the world dozens
+                // of times a second - both of which read as the key not working
+                // rather than as working too well. `.` is the exception and
+                // wants the repeats: stepping at the repeat rate is how you
+                // scrub through a collapse.
+                const bool repeat = e.key.repeat != 0;
+                const bool ctrl_held = (e.key.keysym.mod & KMOD_CTRL) != 0;
+                if (e.key.keysym.sym == SDLK_r && ctrl_held && !repeat) {
+                    // **The same seed, not a fresh one, and there are two
+                    // reasons.** A debugging session is worth nothing if the
+                    // world it is being debugged in changes underneath it. And
+                    // the recorder's header seed is written once at startup, so
+                    // a reset onto a new seed would silently make every session
+                    // saved afterwards replay into the wrong world - a log that
+                    // is wrong rather than absent, which is the failure P4
+                    // exists to prevent rather than introduce. A reseeding reset
+                    // would have to rewrite that header, and nothing in the plan
+                    // asks for one.
                     restart_run();
+                    record_notice = "WORLD RESET";
+                    record_notice_timer = 2.0;
+                } else if (e.key.keysym.sym == SDLK_r && !repeat &&
+                           run.outcome() != Run::Outcome::Playing) {
+                    restart_run();
+                }
+
+                // --- T1: pause, single-step, the free camera, the inspector ---
+                if (e.key.keysym.sym == SDLK_p && !repeat) debug.toggle_pause();
+                if (e.key.keysym.sym == SDLK_PERIOD) debug.request_single_step();
+                if (e.key.keysym.sym == SDLK_i && !repeat) debug.inspector = !debug.inspector;
+                if (e.key.keysym.sym == SDLK_f && !repeat) {
+                    if (debug.free_camera) {
+                        debug.attach_camera();
+                    } else {
+                        // Handed the *player's* centre rather than the camera's
+                        // own, which are the same view: `Camera::follow` was
+                        // given this exact number last frame and clamped it, and
+                        // `detach_camera` clamps it the same way. Reading it back
+                        // off the camera would mean deriving a centre from a
+                        // clamped view, which is the one arithmetic here that
+                        // could put the view somewhere it was not.
+                        debug.detach_camera(static_cast<float>(run.player.center_x()),
+                                            static_cast<float>(run.player.center_y()),
+                                            mode.padded_w(), mode.padded_h(),
+                                            GRID_WIDTH, GRID_HEIGHT);
+                    }
                 }
                 // F9 writes everything played so far to a session log (P4).
                 // Deliberately not bound to a letter: every letter within reach
@@ -887,12 +1014,64 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        // **Moved above the camera by T1**, because the free camera pans in real
+        // time and has to have panned before the view is aimed - otherwise the
+        // pan lands a frame late and, worse, the mouse-to-world conversion below
+        // it resolves the cursor against last frame's view, which is a cell of
+        // aiming error at every pan speed and several at a fast one.
+        const uint64_t now_counter = SDL_GetPerformanceCounter();
+        double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
+        prev_counter = now_counter;
+        if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
+
+        if (menu_notice_timer > 0.0) menu_notice_timer -= frame_time;
+        if (record_notice_timer > 0.0) record_notice_timer -= frame_time;
+
+        // Movement is read from live key state rather than key events, so
+        // holding a key keeps moving instead of firing once and repeating on the
+        // OS key-repeat delay. Sampled here, once, and used for both the free
+        // camera's pan and the body's input below.
+        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+
+        // --- T1: panning the free camera ---
+        //
+        // The same keys that move the body, because while the camera is detached
+        // the body is not being driven - see the input block below. Two sets of
+        // movement keys, one of them dead depending on a mode, is how you end up
+        // pressing the wrong one for a whole session.
+        //
+        // Real seconds rather than fixed steps: the camera is presentation, it
+        // moves while the world is paused, and a pan measured in simulated time
+        // would stop dead exactly when you paused to look at something.
+        if (debug.free_camera && screen == Screen::Playing) {
+            float pan_x = 0.0f, pan_y = 0.0f;
+            if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT])  pan_x -= 1.0f;
+            if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) pan_x += 1.0f;
+            if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    pan_y -= 1.0f;
+            if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN])  pan_y += 1.0f;
+            const bool fast = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+            const float speed = DebugView::PAN_CELLS_PER_SECOND *
+                                (fast ? DebugView::PAN_FAST_MULTIPLIER : 1.0f) *
+                                static_cast<float>(frame_time);
+            debug.pan(pan_x * speed, pan_y * speed, mode.padded_w(), mode.padded_h(),
+                      GRID_WIDTH, GRID_HEIGHT);
+        }
+
         // The viewport follows the player, clamped at the world's edges
         // (F3.4). Recomputed once per rendered frame, same as the mouse and
         // keyboard samples below it - "the player's position this frame" has
         // exactly the same one-sample-per-frame character as those do.
-        camera.follow(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
-                      mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+        //
+        // Or follows T1's free camera, which is the whole of what detaching
+        // means: `Camera` is unchanged and still owns every conversion and the
+        // clamp, it is simply handed a different centre.
+        if (debug.free_camera) {
+            camera.follow(debug.cam_x, debug.cam_y,
+                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+        } else {
+            camera.follow(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
+                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+        }
 
         // Handle continuous mouse pressing
         int mouseX, mouseY;
@@ -907,14 +1086,21 @@ int main(int argc, char* argv[]) {
         // happened yet". What changed is what happens to this sample: every
         // fixed step this frame accumulates gets its own call to run.step()
         // with it, rather than the brush being painted once up here before
-        // the loop even starts. Movement is read from live key state rather
-        // than key events, so holding a key keeps moving instead of firing
-        // once and repeating on the OS key-repeat delay.
-        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+        // the loop even starts.
+        //
+        // **The free camera drives the pan keys instead of the body, and the
+        // suppression happens here rather than inside `Run`.** Two consequences
+        // worth stating. The body genuinely stands still while you look around,
+        // rather than walking off the far side of the world unwatched. And what
+        // the recorder stores is what the simulation was given, so a session
+        // with debug camera work in it still replays exactly - the alternative,
+        // suppressing after the record, would write a log of keys the world
+        // never saw.
         Input input;
-        input.left  = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT];
-        input.right = keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT];
-        input.jump  = keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP];
+        input.left  = !debug.free_camera && (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT]);
+        input.right = !debug.free_camera && (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]);
+        input.jump  = !debug.free_camera &&
+                      (keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP]);
         // Sticky facing, updated only when a direction is actually held. Both
         // keys down at once keeps the current facing rather than picking one,
         // which matches what the body does - Player cancels the two against
@@ -930,14 +1116,6 @@ int main(int argc, char* argv[]) {
         input.brush_type = current_brush;
         input.brush_size = brush_size;
 
-        const uint64_t now_counter = SDL_GetPerformanceCounter();
-        double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
-        prev_counter = now_counter;
-        if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
-
-        if (menu_notice_timer > 0.0) menu_notice_timer -= frame_time;
-        if (record_notice_timer > 0.0) record_notice_timer -= frame_time;
-
         // The menu freezes the simulation by not accumulating time, rather than
         // by skipping the step loop with the accumulator still filling: the
         // second version banks every second spent in the menu and spends it in
@@ -950,68 +1128,33 @@ int main(int argc, char* argv[]) {
         // seconds and spending them in one lurch when the next run starts. It
         // matters more here than it does for the menu - the last thing that
         // happened is the thing the player has to be able to look at.
+        // T1's pause is the third user of that one mechanism rather than a
+        // second mechanism, and that is the whole of why it is one clause here.
         const bool run_over = run.outcome() != Run::Outcome::Playing;
-        if (screen == Screen::Playing && !run_over) accumulator += frame_time;
+        if (screen == Screen::Playing && !run_over && !debug.paused) accumulator += frame_time;
         while (accumulator >= Run::FIXED_DT) {
-            prev_player_x = run.player.visual_x();
-            prev_player_y = run.player.visual_y();
-
-            // Captured here, inside the fixed-step loop, and this placement is
-            // the whole of what makes the log replayable. One record per
-            // *step*, never per rendered frame: the same session played at 60
-            // and at 165 fps produces the same list of records, because there is
-            // no sampling left in it. Recording up in the input-building block
-            // instead would store one record per frame and put the frame rate
-            // back into the measurement - which is F1 and F2.3 undone by the
-            // instrument built to check them.
-            if (recording.steps.size() < MAX_RECORDED_STEPS) {
-                recording.steps.push_back(input);
-            } else if (!recording_full) {
-                recording_full = true;
-                std::fprintf(stderr, "Session recording stopped at %d steps (half an hour); "
-                                     "F9 still writes what was recorded up to that point.\n",
-                             static_cast<int>(MAX_RECORDED_STEPS));
-            }
-
-            run.step(input);
-
-            // The animation clock. Advanced here, inside the fixed-step loop,
-            // and nowhere else - see the timing note at the top of
-            // render/player_anim.h. Driving it from the render loop would make
-            // the walk cycle's speed a function of frame rate, which is the
-            // class of bug F1 and F2.3 spent two sections retiring and which
-            // would present as an art problem.
-            player_anim::Conditions cond;
-            cond.on_ground = run.player.is_on_ground();
-            // `!= 0` rather than an epsilon, which F5 made correct rather than
-            // merely tidy: horizontal velocity is now exactly zero or exactly
-            // +/-MOVE_SPEED, with no float noise for the epsilon to absorb.
-            cond.moving = run.player.velocity_x() != 0;
-            cond.vel_y = run.player.velocity_y();  // sign only; see Conditions
-            // Read off the tool rather than off the step's return value, and
-            // that is the D1 fix arriving at the call site. The old line took
-            // the one step a dig *landed* on and restarted the swing there,
-            // which pinned the figure on frame 0 whenever the button was held:
-            // the tool landed a dig every 6 steps and the swing needed 24.
-            //
-            // The swing is now a duration the simulation owns and this only
-            // reports where in it the tool is. **The direction still holds** -
-            // ENGINEERING_NOTES.md refuses rendering that drives simulation,
-            // and this is a read, on the fixed step, of a value the tool would
-            // have computed with no window attached.
-            cond.dig_progress = run.dig_tool.swing_progress();
-            cond.flapped = run.player.flapped();
-            player_anim::update(anim_state, cond, 1);
-
+            advance_one_step(input);
             accumulator -= Run::FIXED_DT;
         }
+
+        // T1's single-step. Outside the pacer's loop and spending none of its
+        // time, which is what makes `.` advance the world by exactly one step
+        // and leave the accumulator where the pause left it.
+        while (debug.consume_single_step()) advance_one_step(input);
 
         // How far between the last simulated state and the current one this
         // frame falls. Zero steps this frame is the normal case at 165 Hz, and
         // it is why `prev_*` lives outside the loop: alpha keeps climbing
         // towards 1 and the draw keeps easing towards the state already
         // computed, rather than freezing until the next step lands.
-        const float alpha = static_cast<float>(accumulator / Run::FIXED_DT);
+        //
+        // **Pinned to 1 while paused**, so what is on screen is the state that
+        // was actually simulated rather than a fraction of the way towards it.
+        // A single-step debugger whose picture is 40% of the way between two
+        // steps is showing a world that never existed, which is the one thing it
+        // must not do - the whole reason to stop the world is to look at it.
+        const float alpha =
+            debug.paused ? 1.0f : static_cast<float>(accumulator / Run::FIXED_DT);
         float draw_player_x = prev_player_x + (run.player.visual_x() - prev_player_x) * alpha;
         float draw_player_y = prev_player_y + (run.player.visual_y() - prev_player_y) * alpha;
 
@@ -1031,8 +1174,15 @@ int main(int argc, char* argv[]) {
         // step; this one is what the *render* needs, and using the pre-step
         // camera for it would reintroduce exactly the whole-frame lag between
         // the player and the world that this defect is about.
-        camera.follow(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
-                      mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+        //
+        // The detached camera has nothing to re-aim - it is not tracking
+        // anything that moved - so this whole correction is the attached case's,
+        // and applying it to a free camera would drag the view towards the
+        // player it was detached from.
+        if (!debug.free_camera) {
+            camera.follow(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
+                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+        }
 
         // Upload only the visible rect (F3.3), not the whole grid, starting
         // from the camera's current view (F3.4) rather than always (0, 0).
@@ -1306,6 +1456,15 @@ int main(int argc, char* argv[]) {
         hud_text = "FPS:" + std::to_string(fps_display) +
                    " BRUSH:" + material_of(current_brush).name + "(" + std::to_string(brush_size) + ")" +
                    " CHUNKS:" + std::to_string(run.grid.active_chunk_count());
+        // **`CHUNKS:0` does not mean the world has stopped**, and this suffix is
+        // the correction arriving on screen. A falling structural piece is
+        // carried by the support queue rather than by the chunk rects, so a slab
+        // can fall the height of the world with this counter reading zero the
+        // whole way - found on 2026-08-14 with T1's own inspector, corrected at
+        // `Grid::active_chunk_count()` and pinned in `test_debug.cpp`. Shown as
+        // a flag rather than a count because the queue's length is a number of
+        // seeds, not of pieces, and would read as far more work than it is.
+        if (run.grid.has_pending_support_checks()) hud_text += "+FALLING";
 
         // --- S0's readout ---
         //
@@ -1348,21 +1507,49 @@ int main(int argc, char* argv[]) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
 
-        // The recorder's line, drawn only while it has something to say (P4).
-        // A permanent "REC" indicator was the other option and is worse: this
-        // records every session, so an always-on marker would be furniture
-        // within a minute and invisible by the time it mattered.
-        if (record_notice_timer > 0.0 && !record_notice.empty()) {
-            const int notice_y = hud_y + ui::GLYPH_HEIGHT * hud_scale + 8;
+        // The lines under the HUD, stacked in the order they are drawn. A cursor
+        // rather than a y computed per line, because T1 makes three of them
+        // conditional and a set of independently-computed offsets is how two end
+        // up drawn on top of each other in whichever combination nobody tried.
+        int next_line_y = hud_y + ui::GLYPH_HEIGHT * hud_scale + 8;
+        auto draw_hud_line = [&](const std::string& line, uint32_t colour) {
             const SDL_Rect backing{
-                hud_x - 4, notice_y - 4,
-                ui::text_width(record_notice, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
+                hud_x - 4, next_line_y - 4,
+                ui::text_width(line, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
             };
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_RenderFillRect(renderer, &backing);
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            ui::draw_text(renderer, hud_x, notice_y, hud_scale, record_notice, 0xFFFFC080);
+            ui::draw_text(renderer, hud_x, next_line_y, hud_scale, line, colour);
+            next_line_y += ui::GLYPH_HEIGHT * hud_scale + 8;
+        };
+
+        // The recorder's line, drawn only while it has something to say (P4).
+        // A permanent "REC" indicator was the other option and is worse: this
+        // records every session, so an always-on marker would be furniture
+        // within a minute and invisible by the time it mattered.
+        if (record_notice_timer > 0.0 && !record_notice.empty()) {
+            draw_hud_line(record_notice, 0xFFFFC080);
+        }
+
+        // --- T1's two lines ---
+        //
+        // The mode line first, because it is the one that explains why the game
+        // is not responding the way it usually does, and a player who has hit
+        // `P` by accident has to be told before anything else.
+        {
+            const std::string modes = debug_status(debug);
+            if (!modes.empty()) draw_hud_line(modes, 0xFF80D0FF);
+        }
+        if (debug.inspector) {
+            // Reads the cell the cursor names, which the free camera can now put
+            // outside the world - `describe_cell` says so rather than clamping,
+            // because "there is no cell there" and "there is an empty cell
+            // there" are different answers and a debug tool that conflates them
+            // is the same failure as a legend resolving an unknown colour to
+            // Empty.
+            draw_hud_line(describe_cell(run.grid, gridX, gridY), 0xFFE0E0E0);
         }
 
         // --- the material hotbar (V10) ---

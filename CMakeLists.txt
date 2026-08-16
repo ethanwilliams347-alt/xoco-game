@@ -119,6 +119,14 @@ if(BUILD_TESTING)
     target_include_directories(run_test PRIVATE src tests)
     add_test(NAME run_test COMMAND run_test)
 
+    # T1's debug tooling. Links only ENGINE_SOURCES because src/game/debug_view.h
+    # is a header - it deliberately does not become a fourth source variable, so
+    # the guard the three above enforce is untouched. What it needs from the
+    # engine is a Grid to inspect.
+    add_executable(debug_test tests/test_debug.cpp ${ENGINE_SOURCES})
+    target_include_directories(debug_test PRIVATE src tests)
+    add_test(NAME debug_test COMMAND debug_test)
+
     # Links the BMP reader too, and runs from the source tree, because part of
     # what this suite now checks is that the *shipped* fixture scene still loads
     # to the cell count P4's session log was recorded against.

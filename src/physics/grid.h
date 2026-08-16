@@ -124,11 +124,42 @@ public:
     // the generator is gone (F1.3).
     uint64_t steps() const { return step_count; }
 
-    // Number of chunks that will be simulated on the next step. Zero means the
-    // world has come completely to rest. Exposed for tests and for the on-screen
-    // diagnostic, so "is anything actually sleeping?" is observable rather than
-    // assumed.
+    // Number of chunks that will be swept on the next step. Exposed for tests
+    // and for the on-screen diagnostic, so "is anything actually sleeping?" is
+    // observable rather than assumed.
+    //
+    // **"Zero means the world has come completely to rest" was the second
+    // sentence here and it is false.** Left named rather than quietly reworded,
+    // because it is the kind of claim that stops people checking. A falling
+    // structural piece is carried by `pending_support`, and `resolve_support()`
+    // runs *before* `update()` swaps the chunk rects - so its writes mark the set
+    // that is about to become this step's work, and the sweep adds nothing of its
+    // own, because a Static cell does nothing in the sweep. **A slab can fall the
+    // whole height of the world with this reading zero the entire way.**
+    //
+    // Nothing about the fall is wrong; the counter simply does not cover that
+    // path. **"At rest" is this AND `has_pending_support_checks()`**, and code
+    // asking whether the world has settled has to ask both. Found on 2026-08-14
+    // by pointing T1's cell inspector at a slab in mid-fall, which is the first
+    // instrument in the project that could look at one; pinned by a test in
+    // `test_debug.cpp`.
     int active_chunk_count() const;
+
+    // Whether the chunk containing (x, y) is one of them. Out of bounds is
+    // false - there is no chunk there to be awake.
+    //
+    // **Read off the same array `active_chunk_count()` counts**, so the two can
+    // never disagree about what "awake" means, and answering "next step" rather
+    // than "last step" for the same reason it does: what a debugger wants to
+    // know is whether this pile is still going to move, not whether it just did.
+    //
+    // Exposed for T1's cell inspector, which is the first thing that needed the
+    // question asked *at a place*. The world-wide count that has been on the HUD
+    // since A2 cannot answer it: "30 chunks awake" does not say whether this
+    // pile is one of them, and that distinction is the whole verify condition of
+    // E10 - a poured pile that holds a slope is a pile whose chunks have gone
+    // back to sleep with the slope still standing.
+    bool chunk_awake_at(int x, int y) const;
 
     // Whether a structure removal is still waiting to be re-examined by
     // `resolve_support()`. Exposed for the same reason `active_chunk_count()`

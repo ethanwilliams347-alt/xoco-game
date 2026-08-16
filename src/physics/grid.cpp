@@ -132,6 +132,11 @@ int Grid::active_chunk_count() const {
     return n;
 }
 
+bool Grid::chunk_awake_at(int x, int y) const {
+    if (!is_within_bounds(x, y)) return false;
+    return !chunk_next[(y / CHUNK_SIZE) * chunks_x + (x / CHUNK_SIZE)].is_empty();
+}
+
 bool Grid::is_within_bounds(int x, int y) const {
     return x >= 0 && x < width && y >= 0 && y < height;
 }

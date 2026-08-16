@@ -622,3 +622,47 @@ one — roughly 12.5 minutes of play across the two. Recorded as an observation 
 not as progress: it was only ever seen twice under heavy machine load, and two
 clean sessions on an unloaded machine is not evidence about a load-dependent
 crash.
+
+## Spot check — 2026-08-14 — step 10 runs, and the question is held open
+
+Not a session: one step of README's Manual Tester Checklist, **step 10**, owed
+since `S0` was built the same day. It is the only step on that list whose result
+is a design decision rather than a pass or a fail, and it is the thing the combat
+question has been waiting on for months.
+
+- **Suites at time of test:** 10/10 green (11 including `debug_test`, added after)
+- **World seed / `Scene:` line:** **not captured.** Recorded as missing rather
+  than left blank, the same way the 2026-08-13 pair was, and it costs nothing for
+  the same reason: there were no findings. A defect out of this step would have
+  been unreproducible.
+
+### Result
+
+**Passed. Nothing was reported.**
+
+**What that does and does not evidence, stated because the difference matters
+here more than usual.** What came back was a global "looks good" on the step as a
+whole. The step names three things to be fussy about — that `R` is inert while
+the run is playing, that the `GOAL:` bearing counts down as you approach, and
+that a body dug out of burning terrain is still burning — and **none of the three
+was reported on individually.** Recording them as separately verified would be
+inventing evidence out of an absence of complaints, which is the same slide from
+"nothing was wrong" to "the hard case was tried" that the step-9 entry above
+refuses. So: **the step passed, and the three fussy clauses are covered by the
+tester not hitting them rather than by anyone having gone looking.** They are
+cheap to re-run and worth naming the next time the run is played.
+
+### The half that is not a check
+
+**The combat question was deliberately not answered, and that is a decision about
+the decision rather than the step failing.** The item was built to make the
+question answerable by playing, and the sitting that made it answerable chose to
+hold it open. The entry in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed)
+is updated to say that, in place of a date it would have missed.
+
+**This is exactly the state that entry warns about, so it is written down as
+such:** the decision has been open for months precisely because it had a gate
+instead of a deadline, and "we will decide after the next thing" is how it gets
+another one. The difference this time is that the thing it was waiting for now
+exists and can be played again in five minutes, which is a much cheaper way to
+close it than any of the previous ones.

@@ -37,7 +37,7 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\SlopPhysics.exe
 ```
 
-**The full suite is 10 headless suites and runs in about a second.** There is no
+**The full suite is 11 headless suites and runs in about a second.** There is no
 reason to run a subset — always run all of it.
 
 Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:

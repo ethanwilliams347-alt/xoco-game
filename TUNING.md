@@ -178,12 +178,37 @@ the numbers.
 | `ITERATIONS` | [light.h:58](src/render/light.h#L58) | 24 | Propagation passes. Must be raised with the reach or light stops short of where the falloff says it should get. |
 | `BLOCK` | [light.h:43](src/render/light.h#L43) | 4 | Cells per light sample. Doubling it is ~4x cheaper and **re-opens a defect a playtest found** — light bleeding through thin walls. Don't turn this one quietly. |
 
+## Debug camera
+
+[src/game/debug_view.h](src/game/debug_view.h)
+
+**Here under protest, and the protest is the useful part.** This file is for how
+the *game* feels and the free camera is a dev tool nobody ships. It is listed
+anyway because the rule above is "weight, speed, timing, animation" and this is a
+speed you would retune by feel — and because a tool speed that is wrong wastes
+exactly the sittings T1 exists to make cheaper. **Nothing else in this table
+should follow it in**: the test is whether you would change the number by looking
+at the result, not whether the number is a speed.
+
+| Knob | Line | Now | What it does |
+|---|---|---|---|
+| `PAN_CELLS_PER_SECOND` | [debug_view.h](src/game/debug_view.h) | 200 | Free-camera pan speed. Crosses the 480-cell viewport in ~2.4s, which is a speed you can stop *on* something — the failure at the fast end is overshooting the thing you detached the camera to look at. |
+| `PAN_FAST_MULTIPLIER` | [debug_view.h](src/game/debug_view.h) | 4 | Held `Shift`. Crosses the whole 1920-cell world in ~2.4s, so the two speeds are "inspect" and "travel" rather than two versions of one. |
+
 ---
 
 ## History
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-14** — **two new knobs, both dev-facing, and no existing one moved**
+  (T1). The free camera's pan speed and its fast multiplier. In History because
+  the table gained a section, not because anything was retuned — **and the
+  section is here under a stated protest**, since this file is about how the game
+  feels and these are the feel of a tool. The line worth keeping is the admission
+  test written at that section: a constant belongs here if you would change it by
+  looking at the result, not because it happens to be a speed. Both are first
+  values and neither has been used for a session's worth of work yet.
 - **2026-08-14** — **six new knobs and no existing one moved** (S0). Health, the
   burn threshold and rate, the safe landing speed and the fall-damage divisor,
   and the objective's reach. In History because the table gained a section, not

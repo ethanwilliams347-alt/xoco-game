@@ -64,14 +64,16 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-ten suites, one per concern — `grid_test` for the cellular automata,
+eleven suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
 `light_test` for the emissive light field, `anim_test` for the player's
-animation selector, `props_test` for the prop list format, and `sprites_test`
-for the sprite manifest that decides which BMP each key loads — and CTest runs
-all of them.
+animation selector, `props_test` for the prop list format, `sprites_test`
+for the sprite manifest that decides which BMP each key loads, and `debug_test`
+for T1's debug tooling — the pause, the free camera's clamp and the cell
+inspector's text, none of which would be reachable by any test had they been
+written where the keys are bound — and CTest runs all of them.
 
 The last three are not simulation, and they are headless for the same reason it
 is: `LightField` produces a plain ARGB buffer, `player_anim` produces a sheet
@@ -292,7 +294,7 @@ two are not directly comparable.
 
     **Then lose, and then win.** Stand in fire until the bar empties: the world freezes, `YOU DIED` reads over it, and the terrain behind stays visible — a panel that hid the world would hide the whole content of the ending. Press `R`, confirm the run starts over with the terrain restored, the body at full health and the objective still there. Then go and reach it: the objective is east across the water channel, which is walled on both sides and **cannot be walked across** — flight is the intended answer and this is the first thing in the built game that has ever required it. Confirm `OBJECTIVE REACHED` and that `R` works from there too.
 
-    **What to be fussy about, in order.** *`R` must do nothing while the run is playing* — it is inert on purpose, and a mid-run restart would be a session thrown away by a mis-hit. *The `GOAL:` bearing must count down as you approach*, since a bearing that does not is worse than none. *And a body dug out of burning terrain must still be burning*: the burn rule sits deliberately above the unstuck path, so being buried in fire is not a way to stop taking damage.
+    **What to be fussy about, in order.** *`R` must do nothing while the run is playing* — it is inert on purpose, and a mid-run restart would be a session thrown away by a mis-hit. **`Ctrl`+`R` is a different key and does reset mid-run**, added by `T1`; that is deliberate and not this step failing. *The `GOAL:` bearing must count down as you approach*, since a bearing that does not is worse than none. *And a body dug out of burning terrain must still be burning*: the burn rule sits deliberately above the unstuck path, so being buried in fire is not a way to stop taking damage.
 
     **The half that is not a check.** Play it as a run rather than as a test — spawn, cross, arrive — and then answer the question the item was built to ask: **does this need an enemy to be interesting?** Neither "yes" nor "no" is a failure and both close a decision that has been open for months. Record the answer in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed) and the symptoms in [PLAYTEST_LOG.md](PLAYTEST_LOG.md), the usual way round.
 
@@ -331,6 +333,16 @@ two are not directly comparable.
 - **`8`**: **Eraser** — deletes pixels.
 - **`ESC`**: Open the settings menu. **This used to quit outright**, which is the wrong thing for a key sitting next to a menu — quitting is now an item inside it, so it takes two deliberate presses.
 - **`R`**: Start a new run — **only once the current one is over**, and inert while you are playing. A key that throws a session away is a bad one to mis-hit, which is the same reason quitting moved off `ESC`.
+
+**Debug tooling (`T1`, dev-facing)**
+*None of this is player-facing and none of it changes the simulation. It exists because the two items after it — powders coming to rest (`E10`) and per-cell velocity (`E5a`) — are both verified by looking closely at a place, and until now the camera was bolted to the player, the world could not be stopped, and a cell's state could not be read at all.*
+- **`P`**: Pause and resume. The world freezes by the same mechanism the settings menu and a finished run use — time stops accumulating — so nothing is banked and there is no burst of catch-up steps on resume. A `PAUSED` line appears under the HUD, because a stopped world that says nothing is indistinguishable from a hung one.
+- **`.`**: Advance exactly one fixed step. Only while paused; ignored otherwise, since a step on top of the steps a frame already runs is a stutter rather than a single-step. Holding it steps at the key-repeat rate, which is the way to scrub through a collapse. **The brush and the dig tool act on the step you take** — they are part of a step, not of a frame — so pausing to line up a stroke and pressing `.` is how you place material precisely.
+- **`F`**: Detach the camera from the player and pan it with the movement keys (**hold `Shift`** for fast). The body stands still while the camera is loose rather than walking off unwatched. **The brush still paints wherever the camera is looking**, which is the point — it is how a test scene gets built somewhere the player is not. Digging still works too, but it is aimed and range-limited from the body, so it will not reach. `F` again returns the camera.
+- **`I`**: The cell inspector — a line under the HUD reading what is in the cell under the cursor: material, temperature, whether its chunk is awake, and whichever of the fall clock, gas lifetime and piece tag apply. `E2` and `E3` both added per-cell state that has never been readable while the thing being debugged was on screen.
+- **`Ctrl`+`R`**: Reset the world unconditionally, mid-run included — the debug version of `R`. It keeps the current seed, so the world you were debugging comes back exactly; a fresh seed would also invalidate the session recorder's header, which is written once at startup. The modifier is what keeps it away from a key you might mis-hit.
+- **`CHUNKS:` on the HUD gains `+FALLING`** when a structural piece is in the air. `CHUNKS:0` on its own does *not* mean the world has stopped — a falling slab is carried by the support queue rather than by the chunk rects, so the counter can read zero the whole way down.
+
 - **`F9`**: Write everything played so far to `session.rec` — the benchmark's replayed row (P4). A line appears under the HUD saying what was written and how many steps it holds. Every session is recorded from its first step whether or not you ever press this; see [The replayed row](#the-replayed-row-and-recording-one-p4). It is on `F9` rather than a letter because every letter within reach of the movement keys is a hotbar slot, and a key that writes a file is a bad one to hit while reaching for sand.
 
 **Settings menu** (`ESC`)

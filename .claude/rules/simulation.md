@@ -25,6 +25,16 @@ thing standing in the way of a test.
 A new suite is a new `add_executable` + `add_test` pair in `CMakeLists.txt`
 linking the **narrowest** source set that compiles it (see the next section).
 
+**T1 added an eleventh suite and the reason generalises.** `debug_test` covers
+`src/game/debug_view.h` — the pause, the single-step queue, the free camera's
+clamp and the cell inspector's text. Every one of those is a decision with a
+wrong answer, and every one of them would have been **unreachable by any test**
+had it been written in the SDL event switch where the keys are bound. So: when a
+shell feature has a decision in it, the decision goes in an SDL-free header under
+`src/game/` and the key binding stays in `main.cpp`. `debug_view.h` is a header
+on purpose and deliberately did **not** become a fourth source-set variable,
+which is what leaves the guard below intact.
+
 **Write the failing test before the fix, and verify it against the unfixed
 code.** A test written after the fix passes for reasons nobody has checked. Six
 of session 1's eight defects lived in code the existing suites could already
@@ -96,6 +106,19 @@ these variables removes the only thing enforcing the boundary.
 
 Do not "fix" these without a measured reason; each is recorded with its argument.
 
+- **`CHUNKS:0` while a slab is falling.** `active_chunk_count()` counts what the
+  *sweep* will visit, and a falling structural piece is not swept — it is carried
+  by `pending_support`, and `resolve_support()` runs **before** `update()` swaps
+  the chunk rects, so its writes mark the set that is about to become this step's
+  work and the sweep after it adds none of its own (a Static cell does nothing in
+  the sweep). **A slab can fall the height of the world with the counter reading
+  zero the whole way.** Nothing is broken; the sentence that used to sit on that
+  method — "zero means the world has come completely to rest" — was. **"At rest"
+  is `active_chunk_count() == 0` *and* `!has_pending_support_checks()`**, and
+  anything asking whether the world has settled has to ask both. Found 2026-08-14
+  by pointing T1's cell inspector at a falling slab; pinned in `test_debug.cpp`.
+  Worth knowing *why* no test caught it for months: **every suite that cares about
+  sleep uses powders**, which do all their moving inside the sweep.
 - **`Element::updated_tag` wraparound.** One byte, so a cell asleep for an exact
   multiple of 256 steps is skipped for one step. Known, harmless, cheaper than a
   wider counter.
