@@ -174,7 +174,7 @@ of the file.
   link had failed with `LNK1104` because the game was running (PID 17812), and it
   went through afterwards: the exe is newer than every source it links. The
   standing half of the bullet is still worth knowing — *a link blocked by a
-  running game leaves everything compiling and all twelve suites passing, so the
+  running game leaves everything compiling and every suite passing, so the
   only symptom is the screen being one build behind.*
 - Step 3's docs are done: `TUNING.md` (new "Depth grading" section, rows, and a
   dated History line), `ROADMAP.md`, `ROADMAP_ITEMS.md`,
@@ -206,10 +206,10 @@ stays `V7-rest` despite the name now being wrong, because four documents cite it
 
 ```bash
 cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure    # 12 suites, ~1s, all of them
+ctest --test-dir build -C Release --output-on-failure    # 13 suites, ~1s, all of them
 ```
 
-There is no reason to run a subset. `golden_frame_test` is the twelfth and the
-only one that links SDL2-static; it still needs no display. **It hashes software
+There is no reason to run a subset. `golden_frame_test` is the last of them and
+the only one that links SDL2-static; it still needs no display. **It hashes software
 rasterisation and is blind to a GPU-only defect — do not quote it as covering the
 shipped frame.**

@@ -751,3 +751,43 @@ Step 11 re-run because the layer table changed shape; no seam at the pan limit.
 
 Symptoms only, as ever. What the numbers are and why they are those numbers is in
 TUNING.md's "Depth grading" section and at step 3 in ROADMAP_ITEMS.md.
+
+## Gate screenshot — 2026-08-16 — does terrain fill the mid-ground band?
+
+V19's own precondition, asked before any band was authored. The question is the
+reopen trigger V11 wrote down when it deleted its mid-ground layer on the same
+day: **a location whose terrain does not fill the band.** One frame supplied,
+`resources/game_screenshots/visual_rework_1.png`.
+
+**Answer: it does not fill it. The trigger fires.** Measured over the frame in
+Rec. 709 luminance, taking each row's median as its background and counting
+pixels more than 4 levels off it:
+
+```
+region            rows      non-background    background L
+upper sky        60- 250          0.7%          18 - 35
+mid band        250- 470         30.3%          18 - 35
+low band        470- 588         51.0%          18 - 112
+ground plane    600-1000          0.5%          22.7 flat
+```
+
+The horizon sits at y≈590 of 1080. The mid band is **70% bare sky**, and what
+occupies the other 30% is the terrain hill at the far left and the trees at the
+far right — not the band's own depth. V11's deletion was made against F4's
+snowbank, whose terrain rose into that space; this location's does not.
+
+Two things nobody went looking for, and they are the reason this entry is longer
+than the question deserved.
+
+**The ground plane has no internal variation at all.** Luminance 22.70 on every
+sampled pixel across 400 rows — a spread of 0.0 — over 37% of the frame. Not a
+flat *band*: a flat *fill*.
+
+**The ground plane and the upper sky are the same value.** Sky at rows 100–240
+reads 22.3–22.4 against the plane's 22.70. Four tenths of a level out of 255
+between the nearest thing in the frame and one of the most distant.
+
+That second one is the same shape as the sky-versus-mountains reading that
+bought the 0.60 grade in step 3, on a larger pair of surfaces, and it was not
+caught then because the measurement that found it only compared the two backdrop
+bands. Symptoms only — what to do about it is V19 in ROADMAP.md.

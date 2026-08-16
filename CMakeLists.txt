@@ -173,6 +173,19 @@ if(BUILD_TESTING)
     target_include_directories(sprites_test PRIVATE src tests)
     add_test(NAME sprites_test COMMAND sprites_test)
 
+    # V19's wrapping backdrop arithmetic. **Links no source set at all** - the
+    # narrowest link line in the project, because src/render/backdrop_wrap.h is
+    # a header of pure arithmetic and nothing else. That is not an accident of
+    # how it was written: the size relationship between a backdrop layer and the
+    # pan range is what V16 retires, and the replacement's one hard part is
+    # where the copies go, which needs no window to check. It sits next to
+    # golden_frame_test and links a fraction of what it does, which is the split
+    # worth preserving if this file grows a wrapping *draw* test later - that one
+    # would belong in the golden frame, not here.
+    add_executable(backdrop_test tests/test_backdrop.cpp)
+    target_include_directories(backdrop_test PRIVATE src tests)
+    add_test(NAME backdrop_test COMMAND backdrop_test)
+
     # V17's golden frame. **The first test target in the project that links
     # SDL**, and that is worth saying out loud rather than leaving to be noticed
     # from the link line: every suite above it is headless by construction, and
