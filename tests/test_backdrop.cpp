@@ -17,10 +17,14 @@
 #include "render/backdrop_wrap.h"
 #include "test_util.h"
 
+#include <cmath>
 #include <string>
 
 using backdrop_wrap::wrap_axis;
 using backdrop_wrap::Tiling;
+using backdrop_wrap::Plane;
+using backdrop_wrap::Strip;
+using backdrop_wrap::plane_strip;
 
 namespace {
 
@@ -147,6 +151,137 @@ int main() {
             }
         }
         check("the copy count is minimal", all, first_bad);
+    }
+
+    // --- V19's ground plane strips -----------------------------------------
+    //
+    // The plane is the item's centre of gravity and this is the half of it that
+    // does not need a window. Four properties, and the reason they are
+    // properties rather than a table of expected numbers is that the strip
+    // arithmetic has no *right answer* to assert against - it has relationships
+    // that must hold, and any set of them that does is a legitimate tuning.
+    //
+    // The fixture is the shipped geometry: a 1080-tall window, the horizon at
+    // 0.55 of it, and the two factors either side of the plane on the geometric
+    // ladder V19 derives its bands from.
+    const Plane PLANE{594.0f, 1080.0f, 0.28f, 0.52f, 256};
+    constexpr int N = 24;
+
+    // Property 3: the strips tile the band exactly. A gap is a row of whatever
+    // was drawn behind the plane showing through it; an overlap is a row drawn
+    // twice at two different depths, which on a graded layer is a visible seam
+    // rather than a harmless double-draw.
+    {
+        bool contiguous = true;
+        std::string first_bad;
+        for (int i = 0; i < N; ++i) {
+            const Strip s = plane_strip(PLANE, i, N);
+            const float want_y = i == 0
+                ? PLANE.horizon_y
+                : plane_strip(PLANE, i - 1, N).dst_y + plane_strip(PLANE, i - 1, N).dst_h;
+            if (std::fabs(s.dst_y - want_y) > 0.01f) {
+                contiguous = false;
+                if (first_bad.empty())
+                    first_bad = "strip " + std::to_string(i) + " starts at " +
+                                std::to_string(s.dst_y) + ", previous ends at " +
+                                std::to_string(want_y);
+            }
+        }
+        const Strip last = plane_strip(PLANE, N - 1, N);
+        check("the strips tile the band with no gap and no overlap", contiguous, first_bad);
+        check("the last strip reaches the near edge",
+              std::fabs(last.dst_y + last.dst_h - PLANE.bottom_y) < 0.01f,
+              "ends at " + std::to_string(last.dst_y + last.dst_h));
+    }
+
+    // Property 4: the source rows meet, cover the whole tile, and stay inside
+    // it. The tile is laid out in world distance from far edge to near, so the
+    // plane uses it exactly once from top to bottom - a strip sampling outside
+    // it is reading a neighbouring row of the same tile and repeating a mark
+    // where the geometry says there is none.
+    {
+        bool ok = true;
+        std::string first_bad;
+        float cursor = 0.0f;
+        for (int i = 0; i < N; ++i) {
+            const Strip s = plane_strip(PLANE, i, N);
+            if (std::fabs(s.src_y - cursor) > 0.01f || s.src_y < -0.01f ||
+                s.src_y + s.src_h > static_cast<float>(PLANE.tile_h) + 0.01f) {
+                ok = false;
+                if (first_bad.empty())
+                    first_bad = "strip " + std::to_string(i) + " samples " +
+                                std::to_string(s.src_y) + "+" + std::to_string(s.src_h) +
+                                ", expected to start at " + std::to_string(cursor);
+            }
+            cursor = s.src_y + s.src_h;
+        }
+        check("the source rows meet and stay inside the tile", ok, first_bad);
+        check("the plane uses the whole tile from far edge to near",
+              std::fabs(cursor - static_cast<float>(PLANE.tile_h)) < 0.01f,
+              "the last strip ends at source row " + std::to_string(cursor));
+    }
+
+    // Property 5: the factors run from far to near and never backwards. This is
+    // what makes it a plane rather than a wall - a strip that scrolls slower
+    // than the one above it is nearer *and* further at once, and the whole
+    // recession inverts locally where it happens.
+    {
+        bool monotonic = true;
+        std::string first_bad;
+        for (int i = 1; i < N; ++i) {
+            const float a = plane_strip(PLANE, i - 1, N).factor;
+            const float b = plane_strip(PLANE, i, N).factor;
+            if (!(b > a)) {
+                monotonic = false;
+                if (first_bad.empty())
+                    first_bad = "strip " + std::to_string(i) + " scrolls at " +
+                                std::to_string(b) + ", the one above it at " +
+                                std::to_string(a);
+            }
+        }
+        check("each strip scrolls faster than the one further away", monotonic, first_bad);
+
+        const Strip far_s = plane_strip(PLANE, 0, N);
+        const Strip near_s = plane_strip(PLANE, N - 1, N);
+        check("every strip's factor is inside the declared range",
+              far_s.factor > PLANE.far_factor && near_s.factor < PLANE.near_factor,
+              "far " + std::to_string(far_s.factor) + ", near " +
+                  std::to_string(near_s.factor));
+    }
+
+    // Property 6: the texture gradient, which is mechanism 4 of entry 7 and the
+    // reason the source mapping is a curve rather than a straight line.
+    //
+    // **A linear source mapping passes every property above and fails this
+    // one**, which is exactly why it is here: strips of equal screen height
+    // sampling equal source height is a self-consistent, contiguous,
+    // in-bounds mapping of a plane that is not receding at all. The near strip
+    // must be magnified relative to the far one, and by a lot - the reference
+    // measures 1.3x to 3.0x and the geometry here gives more.
+    {
+        const Strip far_s = plane_strip(PLANE, 0, N);
+        const Strip near_s = plane_strip(PLANE, N - 1, N);
+        const double far_zoom = far_s.dst_h / far_s.src_h;
+        const double near_zoom = near_s.dst_h / near_s.src_h;
+        const std::string detail =
+            "near strip is magnified " + std::to_string(near_zoom) +
+            "x, far strip " + std::to_string(far_zoom) + "x";
+        check("marks widen toward the viewer", near_zoom > far_zoom * 1.3, detail);
+        check("no strip samples backwards or nothing",
+              far_s.src_h > 0.0f && near_s.src_h > 0.0f, detail);
+    }
+
+    // Degenerate input, the same contract wrap_axis has: a failed BMP load is a
+    // zero-height tile, and it must produce a strip that draws nothing rather
+    // than a division by zero.
+    {
+        const Plane broken{594.0f, 1080.0f, 0.28f, 0.52f, 0};
+        const Strip s = plane_strip(broken, 3, N);
+        check("a zero-height tile draws nothing",
+              s.dst_h == 0.0f && s.src_h == 0.0f, "got dst_h " + std::to_string(s.dst_h));
+        const Strip none = plane_strip(PLANE, 0, 0);
+        check("zero strips draw nothing", none.dst_h == 0.0f,
+              "got dst_h " + std::to_string(none.dst_h));
     }
 
     return report();

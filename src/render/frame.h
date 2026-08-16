@@ -58,11 +58,23 @@ struct Prop {
 // separately generated scenes rather than one camera pan (notes/
 // reference_observations.txt entry 1). A retune during the restructure would
 // have left the golden checksum unable to say which of the two moved it.
+// **`ground` is the first layer here that is a *tile* rather than an image**
+// (V19). The other two are as wide as the window plus the whole pan range at
+// their own factor, which is why the nearer one is the larger file; the plane
+// sits nearer than either and would have been over 30 MB priced that way. It
+// wraps instead - `ground_w`/`ground_h` are a tile size, and how many copies
+// the window needs is asked of backdrop_wrap::wrap_axis every frame.
+//
+// Its height is not a height. The tile's rows are the plane's *depth*, sampled
+// top to bottom exactly once across the band, which is what lets one texture
+// carry both the value ramp and the mark gradient.
 struct Backdrop {
     SDL_Texture* sky = nullptr;
     SDL_Texture* mountains = nullptr;
+    SDL_Texture* ground = nullptr;
     int sky_w = 0, sky_h = 0;
     int mountain_w = 0, mountain_h = 0;
+    int ground_w = 0, ground_h = 0;
 };
 
 // A multiply. 255 is "unchanged", 128 is "half", 0 is "black" - V11's fourth

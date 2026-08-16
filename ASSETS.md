@@ -398,10 +398,24 @@ where each region exists to exercise one named system.
 
 ## Backdrops
 
-Two static parallax layers drawn behind everything: `backdrop_sky.bmp` (opaque)
-and `backdrop_mountains.bmp` (colour-keyed).
+Three layers drawn behind everything: `backdrop_sky.bmp` (opaque),
+`backdrop_mountains.bmp` (colour-keyed) and — since V19, 2026-08-16 —
+`backdrop_ground.bmp` (opaque, and **a tile rather than an image**).
 
-These are the one asset type you should not hand-size. They are authored in
+**The third one breaks the rule the other two are sized by, on purpose.** A
+pan-sized layer covers the window plus the camera's whole pan range at its own
+factor, so the nearer the band the larger the file; the ground plane sits nearer
+than either of the others and would have cost over 30 MB that way. It **wraps**
+instead: a 256x256 tile, 0.2 MB, repeated across the window as many times as
+`backdrop_wrap::wrap_axis` says the window needs. Two consequences for anyone
+replacing it — it **must tile seamlessly left to right**, and **its rows are
+depth, not height**: the top row is the plane's horizon edge and the bottom row
+its near edge, sampled once across the band by the strip loop in
+[src/render/frame.cpp](src/render/frame.cpp). The far-to-near value ramp lives in
+those rows, because the layer's `Grade` is a uniform multiply and cannot produce
+one.
+
+The other two are the one asset type you should not hand-size. They are authored in
 **screen pixels**, and their dimensions are derived from `GRID_WIDTH/HEIGHT`,
 the display-mode table, `Camera::SCALE` and the parallax factors together — a
 layer that is too small runs out of image before the camera runs out of world,

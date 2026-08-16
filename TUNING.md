@@ -199,6 +199,9 @@ has produced. That is the one way to misuse the golden test.
 | `mountains` grade | [frame.cpp](src/render/frame.cpp) | 0.60 (153) | How dark the mountain band sits against the sky. **Measured, not eyeballed** — the only number in the backdrop that is. At 1.00 the sky averages luminance 26 and the mountains are flat 28, so the two most distant bands separate by two levels out of 255 and the far one is the *brighter*; at 0.60 the pair reads 26 against 16 and the mountains become a silhouette. Lower reads as a heavier, closer ridge; above about 0.85 the band stops separating at all. |
 | `sky` grade | [frame.cpp](src/render/frame.cpp) | 1.00 | Deliberately identity. The sky is the reference every other band's value is judged against, so grading it moves all of them at once and none of them relative to each other. |
 | `cells` grade | [frame.cpp](src/render/frame.cpp) | 1.00 | Deliberately identity. The world's own spread (Oil 38 to Sand 171) is already the widest in the frame; grading it compresses the one band that does not need help. |
+| `ground` grade | [frame.cpp](src/render/frame.cpp) | 0.53 (135) | **Where the ground plane sits on the value ladder, and it is the one grade derived from the reference rather than from our own art.** The reference's plane runs 0.45 to 0.80 of its sky; the tile is authored with that 1.8x internal ramp baked in (a uniform multiply cannot produce a ramp), so this number places the whole band. At 135 the plane measures **0.44 to 0.81 of our sky**, and its horizon edge lands at luminance 11.7 — below the graded mountains at 16.9 and below the darkest sky row at 18.1, which is what makes the horizon the darkest line in the frame. Raise it and the plane climbs toward the sky, which is exactly the defect the played frame showed (plane 22.7 against sky 22.3); lower it and the horizon pinch swallows the near edge too. |
+| `GROUND_STRIPS` | [frame.cpp](src/render/frame.cpp) | 24 | How many depths the plane is cut into. **The only knob in this file that is a cost as well as a look** — it multiplies the plane's draw calls. Below about 12 the parallax step between adjacent strips reads as banding while walking; above 24 buys nothing visible. **Not priced against the frame budget**, because `grid_bench` times the simulation and cannot see a draw call; the instrument is the frame rate in the running game. |
+| `GROUND_HORIZON_FRACTION` | [frame.cpp](src/render/frame.cpp) | 0.55 | Where the plane's far edge sits, as a fraction of window height. A fraction and not a pixel count because the window is switchable at runtime. 0.55 is where the played frame's terrain skyline already sits, so the plane meets the world instead of floating above it. |
 | `Params::world_grade` | [frame.h](src/render/frame.h) | identity | The world-*wide* multiply — night, underground, fog, per-biome. **Nothing sets it yet**; at identity the quad is not drawn at all. Set it and every world layer dims together while the fire does not, which is why the grade pass is ordered before the light pass and not after. |
 
 ## Debug camera
@@ -224,6 +227,21 @@ at the result, not whether the number is a speed.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-16** — **three new knobs, none of them a retune: V19's ground plane**
+  (step 4b of the visual rework). `ground` grade **0.53**, `GROUND_STRIPS` **24**,
+  `GROUND_HORIZON_FRACTION` **0.55**. What was being fixed is a measurement
+  nobody went looking for: on the played frame
+  (`resources/game_screenshots/visual_rework_1.png`) the surface below the
+  terrain's skyline has a luminance spread of **exactly 0.0** across 400 rows and
+  37% of the frame, and sits at **22.7 against the upper sky's 22.3** — four
+  tenths of a level out of 255 between the nearest surface in the frame and one
+  of the most distant. Same shape as the sky-versus-mountains reading that bought
+  the 0.60 grade above, on a much larger pair of surfaces, and step 3's
+  measurement could not have caught it because it only compared the two backdrop
+  bands to each other. **The grade is derived from the reference's ladder and
+  then checked against our own art**, which is the first time both routes have
+  been available for one number: authored and graded, the plane measures 0.44 to
+  0.81 of our sky against the reference's 0.45 to 0.80.
 - **2026-08-16** — **one knob moved and it is the first retune in this file that
   was measured rather than judged by eye** (V11's grade, step 3 of the visual
   rework). The mountain backdrop went from 1.00 to **0.60**. What was being

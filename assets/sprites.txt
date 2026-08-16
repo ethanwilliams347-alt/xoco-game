@@ -39,8 +39,16 @@ player_sheet            player_sheet.bmp            14 26
 # There were briefly three. V11 added a mid-ground band on 2026-08-16 and
 # removed it the same day - our terrain already fills that part of the frame.
 # See ASSETS.md's Backdrops section before adding one.
+#
+# **`backdrop_ground` is a tile and the two above are not**, which is the one
+# thing to know before rebinding it. V19 made the ground plane a wrapping layer,
+# so its size has no relationship to the pan range at all - it is repeated
+# across the window instead of covering it. A replacement must still tile
+# seamlessly left to right, and its *rows are depth*: the top row is the plane's
+# horizon edge and the bottom row its near edge, sampled once across the band.
 backdrop_sky            backdrop_sky.bmp
 backdrop_mountains      backdrop_mountains.bmp
+backdrop_ground         backdrop_ground.bmp
 
 # --- props ----------------------------------------------------------------
 # A prop's key is the name assets/test_props.txt already uses, so rebinding one

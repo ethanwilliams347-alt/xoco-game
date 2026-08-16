@@ -1,6 +1,6 @@
 # Playtest Log
 
-Session records from running README's Manual Tester Checklist, and the supplementary checklists below, against a real build.
+Session records from running the Manual Tester Checklist ([MANUAL_TESTING.md](MANUAL_TESTING.md) — it lived in README.md until 2026-08-16, which is what the older entries below mean when they say so), and the supplementary checklists below, against a real build.
 
 **This file holds questions and answers. Nothing else.** What was asked at a session, what came back, and in whose words — that is the whole of it. Everything downstream of a finding lives in [ROADMAP.md](ROADMAP.md): why it happened, what was done about it, what that cost, and what the fix got wrong on the way. A finding here is a symptom and a status, and the status is a link.
 

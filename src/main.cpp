@@ -364,12 +364,21 @@ int main(int argc, char* argv[]) {
         renderer, sprites.path_for("backdrop_sky", "backdrop_sky.bmp").c_str(), false);
     backdrop.mountains = load_art_texture(
         renderer, sprites.path_for("backdrop_mountains", "backdrop_mountains.bmp").c_str(), true);
+    // **V19's ground plane, and it loads with no colour key** - it is an opaque
+    // surface rather than a silhouette, so there is nothing in it to key out and
+    // a key would punch holes in the plane wherever the ramp happened to land on
+    // the key colour.
+    backdrop.ground = load_art_texture(
+        renderer, sprites.path_for("backdrop_ground", "backdrop_ground.bmp").c_str(), false);
 
     if (backdrop.sky)
         SDL_QueryTexture(backdrop.sky, nullptr, nullptr, &backdrop.sky_w, &backdrop.sky_h);
     if (backdrop.mountains)
         SDL_QueryTexture(backdrop.mountains, nullptr, nullptr,
                          &backdrop.mountain_w, &backdrop.mountain_h);
+    if (backdrop.ground)
+        SDL_QueryTexture(backdrop.ground, nullptr, nullptr,
+                         &backdrop.ground_w, &backdrop.ground_h);
 
     // **The seam at the pan limit, turned into a printed line.** A backdrop
     // layer has to be large enough to cover the window plus the camera's whole
@@ -403,6 +412,15 @@ int main(int argc, char* argv[]) {
                      backdrop_layers::SKY);
     check_layer_size("mountains", backdrop.mountains, backdrop.mountain_w,
                      backdrop.mountain_h, backdrop_layers::MOUNTAINS);
+    // **The ground plane is checked by the same lambda and the number means
+    // something different for it**, which is worth a line because the warning
+    // text talks about a seam at the pan limit and a wrapping layer cannot have
+    // one. For a tile, undersized means the texture repeats sooner than the art
+    // was drawn for, and the vertical half is sharper still: the tile's rows are
+    // the plane's depth, so a short tile is a plane missing part of its
+    // recession. Same direction, same fix, different symptom.
+    check_layer_size("ground", backdrop.ground, backdrop.ground_w,
+                     backdrop.ground_h, backdrop_layers::GROUND);
 
     // V4's props: sprites from tools/generate_props.py, positioned by
     // assets/test_props.txt rather than by a list in this file. **That
@@ -1579,6 +1597,7 @@ int main(int argc, char* argv[]) {
     // and `props` holding several borrowed copies of each is not a double free.
     for (auto& entry : prop_textures)
         if (entry.second) SDL_DestroyTexture(entry.second);
+    if (backdrop.ground) SDL_DestroyTexture(backdrop.ground);
     if (backdrop.mountains) SDL_DestroyTexture(backdrop.mountains);
     if (backdrop.sky) SDL_DestroyTexture(backdrop.sky);
     SDL_DestroyTexture(targets.light_texture);

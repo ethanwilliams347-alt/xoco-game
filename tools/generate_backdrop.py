@@ -59,6 +59,46 @@ MODES = [(1920, 1080), (2560, 1440), (3440, 1440)]
 PARALLAX_SKY = (0.04, 0.02)                 # (x, y) factors
 PARALLAX_MOUNTAIN = (0.15, 0.06)
 
+# --- V19's ground plane ---------------------------------------------------
+#
+# **Two factors, because a receding plane has no single depth.** The plane is
+# drawn as horizontal strips, each at its own factor, interpolated between the
+# far edge (the horizon) and the near one; see plane_strip() in
+# src/render/backdrop_wrap.h for the relation and render/frame.cpp for the draw.
+#
+# **Both numbers are stated derivations and not measurements, and they are
+# labelled that way here because the reference cannot supply a parallax factor
+# at all** - notes/reference_observations.txt entry 1 established the three
+# frames are three generated lakes rather than one camera pan. Parallax is
+# inverse depth, so the defensible construction is a geometric ladder between
+# the two factors this project already ships: 0.04 -> 0.08 -> 0.15 -> 0.28 ->
+# 0.52 -> 1.00, a ratio of about 1.9. **It lands the existing mountains on 0.15
+# without moving them**, which is a check on the construction rather than a
+# coincidence to lean on. The plane occupies the two rungs between the
+# mountains and the world, which is exactly where a ground plane belongs.
+#
+# The y factor follows the ratio the two existing layers already use between
+# their axes (sky 0.02/0.04, mountains 0.06/0.15 - roughly 0.4), so the plane's
+# horizon drifts with the camera rather than being glued to the window.
+PARALLAX_GROUND_FAR = (0.28, 0.11)
+PARALLAX_GROUND_NEAR_X = 0.52
+
+# **The ground plane is a wrapping layer, so this is a tile size and not an
+# image size, and it must never be run through layer_size().** That function
+# encodes the relationship V16's wrapping layers exist to retire - window plus
+# the whole pan range at the layer's own factor - and at 0.52 it would price
+# this band at over 30 MB. A tile has no relationship to the pan range at all:
+# render/frame.cpp asks backdrop_wrap::wrap_axis how many copies the window
+# needs and issues that many. The next reader will assume otherwise, which is
+# why this paragraph is here rather than in a commit message.
+#
+# 256 wide is a compromise the strip loop makes visible: narrower means more
+# SDL_RenderCopy calls per strip per frame, wider means the repeat is easier to
+# see. 256 tall is the plane's whole depth - the tile is sampled top to bottom
+# exactly once across the band, never wrapped vertically, because its rows *are*
+# the recession.
+GROUND_TILE = (256, 256)
+
 # **There was briefly a third band here and there is a reason there is not
 # now.** V11 added a mid-ground layer at 0.40/0.16 on 2026-08-16, between the
 # mountains and the world, because notes/reference_observations.txt entry 4
@@ -175,19 +215,82 @@ def generate_mountains():
     print(f'wrote assets/backdrop_mountains.bmp ({w}x{h})')
 
 
+# --- ground plane: a tile whose rows are distance, not height --------------
+#
+# **The art is cheap on purpose and that is V19's scope decision rather than a
+# placeholder excuse.** One ramp and one mark colour. What makes it read as
+# ground is the strip loop's geometry, not the painting.
+#
+# Two things are baked into the tile and cannot be anywhere else:
+#
+# 1. **The value ramp**, far edge at the top to near edge at the bottom. This is
+#    the mechanism the item turns on - the plane is the one band that reads as
+#    receding *within itself*, which is where the into-the-page effect comes
+#    from, and no count of flat layers buys it. A per-layer Grade multiplies
+#    uniformly and cannot produce it.
+# 2. **The marks.** They are uniform in the tile, which is uniform in *world
+#    distance*, so the strip loop compresses them toward the horizon and
+#    magnifies them toward the viewer for free. That is entry 7's mechanism 4
+#    falling out of the geometry instead of being authored a second time.
+#
+# **The horizon edge is the darkest row in the frame and that is deliberate**
+# (entry 7's mechanism 2): the reference's row-mean luminance bottoms out at the
+# waterline, 69 against 156 above and 140 below. `ground_far` graded lands under
+# both the sky and the graded mountains, so the dark pinch at the horizon
+# survives the water going away.
+def generate_ground():
+    w, h = GROUND_TILE
+    far = PALETTE['ground_far']
+    near = PALETTE['ground_near']
+    mark = PALETTE['ground_mark']
+
+    # V5's dithering rule again: flat bands with dithered hand-offs, not a
+    # per-pixel smooth blend. Ten bands, matching the sky's, so the two graded
+    # surfaces are made of the same size of step.
+    bands = 10
+    pixels = [None] * (w * h)
+    for y in range(h):
+        band = min(y * bands // h, bands - 1)
+        t = band / (bands - 1)
+        for x in range(w):
+            pixels[y * w + x] = dither_mix(x, y, far, near, t)
+
+    # Horizontal dashes - the ground's texture, and the thing whose apparent
+    # width the strip loop varies. **Every dash wraps in x**, because this is a
+    # tiling texture and a dash clipped at the right edge is a hard vertical
+    # seam repeating across the whole band at every tile boundary.
+    rng = random.Random(11)
+    for _ in range(220):
+        my = rng.randrange(h)
+        mx = rng.randrange(w)
+        length = rng.randint(3, 11)
+        for i in range(length):
+            pixels[my * w + (mx + i) % w] = mark
+
+    write_bmp('assets/backdrop_ground.bmp', w, h, pixels)
+    print(f'wrote assets/backdrop_ground.bmp ({w}x{h}) - a tile, not a pan-sized layer')
+
+
 # --- the generated header --------------------------------------------------
+#
+# `tile` is None for a pan-sized layer and a (w, h) pair for a wrapping one.
+# **A wrapping row must not be sized through layer_size()** - see the comment at
+# GROUND_TILE for why, and note that `print_sizes` below says so in its own
+# output rather than quietly printing a number that would be wrong.
 LAYERS = [
-    ('SKY', 'backdrop_sky', PARALLAX_SKY),
-    ('MOUNTAINS', 'backdrop_mountains', PARALLAX_MOUNTAIN),
+    ('SKY', 'backdrop_sky', PARALLAX_SKY, None),
+    ('MOUNTAINS', 'backdrop_mountains', PARALLAX_MOUNTAIN, None),
+    ('GROUND', 'backdrop_ground', PARALLAX_GROUND_FAR, GROUND_TILE),
 ]
 
 
 def print_sizes():
     print(f'{"layer":<12}{"factor":<14}{"size":<14}{"BMP":>10}')
-    for name, _key, factor in LAYERS:
-        w, h = layer_size(factor)
+    for name, _key, factor, tile in LAYERS:
+        w, h = tile if tile else layer_size(factor)
         mb = w * h * 3 / 1024 / 1024
-        print(f'{name.lower():<12}{str(factor):<14}{f"{w}x{h}":<14}{mb:>9.1f}M')
+        note = '  (tile - wraps, no pan relationship)' if tile else ''
+        print(f'{name.lower():<12}{str(factor):<14}{f"{w}x{h}":<14}{mb:>9.1f}M{note}')
 
 
 def generate_header(path='src/render/backdrop_layers.h'):
@@ -215,6 +318,10 @@ def generate_header(path='src/render/backdrop_layers.h'):
     out.append('// reaches into a line at startup.')
     out.append('namespace backdrop_layers {')
     out.append('')
+    out.append('// **A wrapping layer\'s width/height is its *tile* size and is exact, where a')
+    out.append('// pan-sized layer\'s is a minimum.** main.cpp\'s warning reads it the second')
+    out.append('// way for both, which is the right direction for the case that matters: a')
+    out.append('// tile smaller than generated repeats sooner than the art was drawn for.')
     out.append('struct Layer {')
     out.append('    float parallax_x;')
     out.append('    float parallax_y;')
@@ -222,10 +329,17 @@ def generate_header(path='src/render/backdrop_layers.h'):
     out.append('    int height;')
     out.append('};')
     out.append('')
-    for name, key, factor in LAYERS:
-        w, h = layer_size(factor)
-        out.append(f'// assets/{key}.bmp')
+    for name, key, factor, tile in LAYERS:
+        w, h = tile if tile else layer_size(factor)
+        out.append(f'// assets/{key}.bmp' + ('  (a tile - this layer wraps)' if tile else ''))
         out.append(f'inline constexpr Layer {name}{{{factor[0]}f, {factor[1]}f, {w}, {h}}};')
+    out.append('')
+    out.append('// V19\'s ground plane is drawn as strips between two depths, so it needs a')
+    out.append('// second x factor that no other layer has. GROUND above carries the far edge')
+    out.append('// (the horizon); this is the near one. Both are stated derivations off the')
+    out.append('// geometric ladder - see the comment in tools/generate_backdrop.py, which is')
+    out.append('// the only place the argument lives.')
+    out.append(f'inline constexpr float GROUND_NEAR_X = {PARALLAX_GROUND_NEAR_X}f;')
     out.append('')
     out.append('// The inputs the sizes above are derived from, so a reader can tell whether')
     out.append('// a mismatch is a stale asset or a changed display table.')
@@ -250,3 +364,4 @@ if __name__ == '__main__':
     else:
         generate_sky()
         generate_mountains()
+        generate_ground()

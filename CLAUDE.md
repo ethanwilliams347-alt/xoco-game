@@ -25,6 +25,22 @@ stopped matching the code and kept being believed.
 Corollary, and it applies to this file too: **a claim here that has gone false is
 worse than no claim**, because it stops people checking.
 
+## How to answer me
+
+**End with a `**TL;DR**` whenever the reply contains a plan, an edit, or a
+question for me** — three or four lines, plain, no jargon I would have to look
+up. Answers to a question I asked, and status that changes nothing, do not need
+one.
+
+It exists because of the rule directly above: the reasoning *is* the deliverable
+here, so replies are long by design, and the TL;DR is what makes them long
+safely. So it summarises, it does not replace — **anything only in the TL;DR is
+not recorded**, and a decision, a number or a caveat belongs in the body and in
+the doc that owns it. Lead the TL;DR with what changed or what I have to decide,
+and always keep the things I have to act on: what is owed to me (the Manual
+Tester Checklist above, a playtest, a decision left open) and anything that
+failed or went unmeasured.
+
 ## Commands
 
 Multi-config Visual Studio generator, so `--config` / `-C` is required, not
@@ -165,18 +181,22 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
    fails for the right reason.
 3. **`ctest` proves mechanics in isolation; it cannot prove they compose.** After
    any change to `src/physics/`, `src/game/` or `main.cpp` that the suites do not
-   fully exercise, the Manual Tester Checklist in [README.md](README.md) is the
-   other half. Each of its twelve steps names a regression that has actually
+   fully exercise, the Manual Tester Checklist in
+   [MANUAL_TESTING.md](MANUAL_TESTING.md) is the other half — it moved out of
+   README on 2026-08-16, where `## General Testing` is now the short public
+   fundamentals pass and carries none of the reasoning. **MANUAL_TESTING.md opens
+   with the list of what is owed to the tester; put an item on it the moment you
+   ask for one, and take it off the moment it comes back.** Each of its twelve
+   steps names a regression that has actually
    happened — **except step 10, which is the one whose result is a design
-   decision rather than a pass or a fail.** Step 11 (V11's parallax check) had a
-   second such half for one day: it asked whether a mid-ground band was needed,
-   answered no, and **the band was deleted rather than kept** — what remains
-   there is a reopen trigger. **Step 12 is the newest**: the mountains' 0.60
-   grade was chosen from a luminance measurement rather than by eye, and the
-   failure it watches for is over-correction. It was the only step judging a
-   number nobody had looked at until **2026-08-16, when it was looked at and
-   passed** — it is a regression check now. **I cannot run any of it** —
-   flag when it is owed and say which steps matter.
+   decision rather than a pass or a fail.** Step 11 (V11's parallax check)
+   carried a reopen trigger for a mid-ground band, and **that trigger fired on
+   2026-08-16** (V19 4b) — so the step now checks a wrapping ground plane, not
+   two static layers, and its new failure modes are a vertical tiling join and a
+   stair-step between parallax strips. Step 12 watches the depth grades for
+   over-correction; the mountains' 0.60 was looked at and passed the same day,
+   and the ground's 0.53 joined it. **I cannot run any of it** — flag when it is
+   owed and say which steps matter.
 4. **Performance claims need bracketed measurement.** Same sitting, back to back,
    with a control scenario that the change cannot affect. Timings on one machine
    have differed by more than 2x on identical code. See
@@ -201,6 +221,17 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 | How to build/run/test; the manual checklist | README.md |
 | How to get art in | ASSETS.md, and `../drawing_to_sprite.md` for the player |
 | Raw lore, brainstorming, reference observations | `notes/` |
+
+**`notes/handoff_prompt.md` is the exception: do not edit it unless told to.**
+It is the last thing written before a session closes, and its job is to let the
+next session pick the work up where this one meant to leave it. Read it freely —
+it is usually the right file to start from. But it is a *handoff*, not a log:
+editing it mid-session turns it into a running commentary on work still moving,
+and the next session then starts from a description of a state that never
+settled. Everything worth keeping already has a home in the table above; the
+handoff points at those, it does not duplicate them. When asked to write it,
+write what is needed to continue and nothing else — no recap of finished work
+for its own sake.
 
 ## The detail lives in `.claude/rules/`
 

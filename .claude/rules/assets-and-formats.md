@@ -114,9 +114,18 @@ Learned building the prop list; all four generalise to the next format.
   window plus the full pan range at its own factor: sky 3678x1512 (16 MB),
   mountains 4311x1642 (20 MB), and a mid-ground at 0.40 would be 5750x1965
   (32 MB) — more than both together. `python tools/generate_backdrop.py --sizes`
-  prints the table; run it before committing to a layer. This is a real argument
-  for V16's wrapping layers, which need no size relationship to the pan range at
-  all.
+  prints the table; run it before committing to a layer.
+- **That relationship now has an exception, and which layers it applies to is
+  the thing to get right.** V19 pulled V16's wrapping layers forward on
+  2026-08-16 because five new pan-sized bands would have roughly tripled
+  `assets/`. **`backdrop_ground` is a tile: 256x256, 0.2 MB, against the 32 MB
+  the same band would have cost priced flat.** A wrapping layer has no size
+  relationship to the pan range at all — `backdrop_wrap::wrap_axis` says how
+  many copies the window needs. So: **a wrapping row must never be sized through
+  `layer_size()`**, which encodes the very relationship being retired; the
+  generator's `LAYERS` table carries a `tile` field and `--sizes` labels the row
+  so nobody reads the number as an image size. The sky and the mountains are
+  still pan-sized and the bullet above is still live for them.
 - **A mid-ground band was built and removed on 2026-08-16, and the reason is a
   rule about using reference at all.** `notes/reference_observations.txt` entry 4
   found that band doing most of the depth work in five of eight reference frames;
@@ -139,6 +148,19 @@ Learned building the prop list; all four generalise to the next format.
     in luminance the sky averages 26 and the mountains were **flat 28** — two
     levels of separation out of 255, with the far band the brighter. TUNING.md's
     "Depth grading" section has the row and the retune history.
+  - **The same reading was then taken on a much larger pair of surfaces and came
+    back worse** (V19, 2026-08-16): on the played frame the ground below the
+    terrain's skyline is a **flat fill** — luminance spread exactly 0.0 across
+    400 rows and 37% of the frame — sitting at 22.7 against the upper sky's
+    22.3. **Step 3's measurement could not have caught it**, because it compared
+    the two backdrop bands to each other and nothing else. Worth generalising:
+    when a value-separation measurement is taken, take it across *every* pair of
+    large surfaces in the frame, not the pair the item is about.
+  - **A grade cannot make a band recede within itself, and the ground plane is
+    the first band that has to.** A multiply is uniform, so the plane's far-to-
+    near ramp is authored into the tile and the grade only places the whole band
+    on the ladder. Two knobs, two jobs — do not try to buy the ramp with the
+    grade.
   - **Retuning a grade moves the golden frame checksum**, and the new value goes
     in the same commit. That is expected, not a breakage.
   - **A grade is per-layer, and that is not incidental.** A frame-wide multiply

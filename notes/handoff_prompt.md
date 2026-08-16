@@ -1,13 +1,9 @@
-# Handoff — V19, the seven-band scene, mid-item
+# Handoff — V19, the seven-band scene, mid-item (4c next)
 
 You are picking up a **visual-rework block** on Toop/Xoco, a from-scratch C++20 /
 SDL2 cellular-automata pixel-physics game. Repo root is `code/`; **run every
 command from there.** Read `code/CLAUDE.md` first — it is short, and it is the
 working agreement rather than a summary.
-
-This file is the *prompt*. The longer narrative of how steps 0–3 got built is in
-[handoff_visual_block.md](handoff_visual_block.md) next to it; read that only if
-you need the argument behind something you are about to change.
 
 ## The one rule that governs this block
 
@@ -40,12 +36,12 @@ arbitrary, find out whether it is.**
 | 1 | **V17** — extract composition to `render/frame.cpp` changing nothing, then checksum it | ✅ done 2026-08-16 |
 | 2 | **V11 core** — ordered layer table, parallax onto `Camera`, factors generated into a header | ✅ done 2026-08-16 |
 | 3 | **V11's tint bullet + V7-rest's darkening half** — the light pass gains a multiply | ✅ done 2026-08-16 |
-| 4 | **V19 — the seven-band scene with a ground plane** | **in progress — 4a done, 4b next** |
+| 4 | **V19 — the seven-band scene with a ground plane** | **in progress — 4a and 4b done, 4c next** |
 | 5 | **V18 — write the split view down, build none of it** | queued behind V19 |
 
 Committed: steps 0–3 as `5c53f06`, V19's plan as `890dc0e`, V19's 4a as `76a3d30`.
-The tree is clean at the time of writing, **which is a fact with a short shelf
-life — run `git status` rather than believing this line.**
+**4b is built and green but its state at the time of writing is what `git status`
+says, not what this line says** — run it.
 
 ## What V19 is
 
@@ -129,7 +125,66 @@ times the whole of `assets/` for art that is one repeating texture.
 - **Nothing calls it, so the golden checksum did not move.** Still
   `0x9d9e92a81c4df07b`. Fourth use of the house procedure.
 
-## Next step — 4b, the ground plane
+## What 4b built — the ground plane, and the first frame V19 changed
+
+**Done 2026-08-16.** The plane is `assets/backdrop_ground.bmp` (a 256x256 tile,
+0.2 MB against the 32 MB the same band costs priced flat), drawn by `draw_ground`
+in `src/render/frame.cpp` as a `"ground"` row between `mountains` and `props`,
+graded 0.53.
+
+- **It is drawn as 24 horizontal strips, each at its own parallax factor**, which
+  is V19's one piece of new rendering. A receding plane has no single depth, so
+  drawn flat at one factor it reads as a wall behind the world. `plane_strip` in
+  `backdrop_wrap.h` is the arithmetic — factor linear in distance below the
+  horizon, source rows falling out of the same relation so the texture gradient
+  is geometry rather than a second thing to author. Four new properties in
+  `tests/test_backdrop.cpp`, **verified against three mutations** (a linear
+  source mapping, a factor taken at the strip's top edge, source rows from the
+  midpoint), each caught by the property aimed at it.
+- **Factors 0.28 → 0.52**, the two rungs of the geometric ladder between the
+  mountains and the world. Stated derivations, labelled as such in the generator,
+  which is the only place the argument lives.
+- **The value ramp is in the tile and the level is in the grade**, and that split
+  is forced: a `Grade` multiplies uniformly and cannot brighten one end of a
+  band. Measured on the shipped art the plane runs **0.44 → 0.81 of our sky**
+  against the reference ladder's 0.45 → 0.80, internal ratio 1.84 against 1.78,
+  and its horizon edge at luminance 11.7 is **the darkest line in the frame** —
+  under the graded mountains at 16.9 and the darkest sky row at 18.1.
+- **The checksum moved twice and both numbers are in the constant's comment.**
+  The house procedure had to be adapted and the adaptation is what 4c should
+  copy: a new band that draws pixels has *no* no-op half, and nulling its texture
+  to manufacture one is the anti-pattern the rules name. So: plane at identity
+  gave `0xfd8e2f04b7037278`, the grade then took it to **`0x24eb769681836a0e`**.
+  The first is the geometry, the step between them is the grade alone.
+- **13 suites green.** One thing 4b could not do: `GROUND_STRIPS` is a per-frame
+  draw-call cost and **`grid_bench` times the simulation and cannot see a draw
+  call**, so neither half of the frame-budget rule can reach it. The instrument
+  is the frame rate in the running game.
+
+**The Manual Tester Checklist is owed for 4b and I could not run it.** Steps
+**11** and **12**, and 11 has gained new wording for two failure modes no earlier
+layer could produce: a **vertical tiling join** anywhere on the plane (not only
+at the pan limit — a wrapping layer cannot run out of image), and a **horizontal
+stair-step between strips**, or a strip scrolling backwards relative to the one
+above it. Step 12 gained the plane's own paragraph. Do not quote the golden test
+as covering either — it hashes a software rasterisation and is blind to a
+GPU-only defect.
+
+## Next step — 4c, the remaining three bands
+
+The far range, the near ridge and the shore treeline: three rows reusing 4b's
+draw path, one colour and a shade each, generated the same way. The gate that
+admits the last two is passed and written down — **do not re-ask it.** Entry 7's
+value ladder is what the grades are authored against, and **the treeline is the
+one band authored warm** (entry 8: sky 0.0% warm pixels, treeline 47%, with the
+warm population held at a near-constant luminance while the cool one descends).
+That inverts the player's own cool-against-warm isolation locally, so **the two
+have to be checked against each other** — a warm treeline and a warm world spends
+the player's isolation twice.
+
+The two-number procedure above is the one to use for each band.
+
+## The old 4b brief, kept because it is what was built against
 
 **This is the visible half, and it is the first thing in V19 that moves the
 checksum.** Do it before the other three bands: it is the item's centre of
@@ -162,11 +217,11 @@ most) and **12** (the grade, watching for over-correction). Say so; do not quote
 the golden test as covering it — **it hashes a software rasterisation and is blind
 to a GPU-only defect.**
 
-### After 4b
+### The ladder 4c authors against
 
 The far range, the near ridge and the shore treeline — three more rows reusing
-the same draw path, each one colour and a shade. Then the value ladder from entry
-7 is what the grades get tuned against:
+the same draw path, each one colour and a shade. The value ladder from entry 7 is
+what the grades get tuned against:
 
 ```
 band              L      x band behind    x sky

@@ -38,8 +38,22 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 | 1 | **V17 — the golden-frame check.** Split in two: extract the inline composition to `render/frame.cpp` *changing nothing*, then checksum that frame | afternoon | ✅ **done 2026-08-16** |
 | 2 | **V11 core** — the ordered layer list, a mid-ground band, parallax onto `Camera`, the factors generated into a header | days | ✅ **done 2026-08-16** |
 | 3 | **V11's tint bullet + V7-rest** — the light pass gains a multiply so it can darken | week | ✅ **done 2026-08-16** *(an afternoon; V7-rest's non-fire sources are **not** in it — see below)*. **Checklist steps 12, 11 and 5 all passed the same day** ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-16--the-grade-pass-is-looked-at)) — 12 on both halves, so the 0.60 grade has now been looked at and is not over-corrected |
-| 4 | **V19 — the seven-band scene, with a ground plane where the reference has water** | week | **next** — new 2026-08-16, inserted ahead of V18 by request |
+| 4 | **V19 — the seven-band scene, with a ground plane where the reference has water** | week | **in progress** — 4a and 4b done 2026-08-16, **4c next**. Sub-steps below |
 | 5 | **V18 — write the split view down, build none of it** | afternoon | queued behind V19 |
+
+**V19 in detail, because it is four commits and not one.** The gate it had to fire first is answered — [gate screenshot](PLAYTEST_LOG.md#gate-screenshot--2026-08-16--does-terrain-fill-the-mid-ground-band), the mid band is 70% bare sky, so the near ridge and the treeline have somewhere to go. **Do not re-ask it.**
+
+| step | what | state |
+|---|---|---|
+| 4a | **The wrapping arithmetic** — `render/backdrop_wrap.h`, a thirteenth suite linking no source set at all, nothing calling it and the checksum unmoved | ✅ done 2026-08-16 (`76a3d30`) |
+| 4b | **The ground plane** — the strip loop, the tile, the layer row and its grade. The item's centre of gravity, and the first thing in V19 to move the checksum | ✅ done 2026-08-16 |
+| 4c | **The far range, the near ridge and the shore treeline** — three rows reusing 4b's draw path, one colour and a shade each. **The treeline is the one band authored warm**; everything else stays on the cool ramp | next |
+| 4d | **The value ladder tuned against entry 7**, once all seven bands exist and can be judged together | queued |
+
+> **What 4b left open on purpose, and it is not an oversight to close inside 4c.** In the reference the plane is *brighter* than what stands on it; ours runs the other way, with the world row at grade 1.00. Grading the world down is coherent — grade multiplies and light adds, so fire lights it back up — but it changes how the play area reads while digging. **That is a `TUNING.md` row and a playtest, not an implementation detail**, and it must not be settled inside a commit that is about something else.
+>
+> **Checklist steps 11 and 12 are owed on 4b and have not been run.** 11 matters most: the layer table changed shape *and* a wrapping layer is a new way to produce a seam, plus 24 strips is a new way to produce a stair-step. 12 is the grade, watching for over-correction. `golden_frame_test` does not cover either — it hashes a software rasterisation and is blind to a GPU-only defect.
+
 
 > **Why this displaced E10, stated so the re-order is a decision and not a drift.** E10 is a good item and was correctly next. What moved it is that **the V track's first four items all turned out to be the same item**: V11 says there is no renderer, V17 says nothing checks the composed frame, V7-rest says the light pass cannot darken, and V8's remainder wants a third depth band — and every one of those is blocked on the ~350 lines of frame composition sitting inline in `main.cpp`. Doing them one at a time means extracting that code three times. This is the sitting where they get done together, and after it the V track is one item deep instead of four.
 >

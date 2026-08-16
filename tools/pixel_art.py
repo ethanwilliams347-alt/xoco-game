@@ -63,6 +63,23 @@ PALETTE = {
     'mountain':     (0x20, 0x19, 0x30),
     'mountain_rim': (0x30, 0x27, 0x48),
 
+    # the ground plane (V19, drawn behind the world) - the one band in the
+    # frame that recedes *within itself*, so it is authored as a ramp rather
+    # than as a tone. `ground_far` is its horizon edge and `ground_near` its
+    # near edge; the tile dithers between them top to bottom and the strip
+    # loop in render/frame.cpp turns that into distance.
+    #
+    # **The ramp is in the art and the level is in the grade, and that split is
+    # deliberate.** A per-layer Grade multiplies uniformly, so it cannot make a
+    # surface brighten toward the viewer - only the tile can. What the grade
+    # then does is place the whole band on the value ladder, which is the knob
+    # V11 argues a direction change should be. Ratio near/far here is 1.83
+    # against the reference plane's 1.78 (notes/reference_observations.txt
+    # entry 7, 77.5 -> 138.2).
+    'ground_far':   (0x18, 0x14, 0x26),
+    'ground_near':  (0x2C, 0x25, 0x40),
+    'ground_mark':  (0x3C, 0x34, 0x52),
+
     # trees (V4 props, layer 3) - desaturated green, warmer than the sky,
     # cooler than the terrain rim, so it sits legibly between the two
     'tree_shadow':  (0x18, 0x20, 0x16),

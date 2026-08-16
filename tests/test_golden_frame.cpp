@@ -144,6 +144,20 @@ uint32_t mountain_pattern(int x, int y) {
     return y < ridge ? 0x00000000u : 0xFF2B2438u;
 }
 
+// V19's ground plane tile. **Arted rather than left null, and the rule it is
+// obeying is written down in .claude/rules/simulation.md**: a null texture draws
+// nothing, so a checksum over a configuration with one covers that layer's
+// *absence* and says nothing about its position, its order or its strip
+// arithmetic. The pattern is a vertical ramp with sparse horizontal dashes -
+// the same two things the real tile carries, because both are what the strip
+// loop transforms. A flat fill would hash identically with every strip's source
+// rect wrong.
+uint32_t ground_pattern(int x, int y) {
+    const uint32_t ramp = static_cast<uint32_t>(0x18 + y / 12);
+    if ((x * 5 + y * 13) % 97 < 6) return 0xFF3C3452u;   // a mark
+    return 0xFF000000u | (ramp << 16) | ((ramp - 4) << 8) | (ramp + 26);
+}
+
 uint32_t prop_pattern(int x, int y) {
     return (x + y) % 5 == 0 ? 0x00000000u : 0xFF1C3320u;
 }
@@ -227,6 +241,13 @@ int main() {
     p.backdrop.mountains = pattern_texture(renderer, 700, 300, mountain_pattern);
     p.backdrop.mountain_w = 700;
     p.backdrop.mountain_h = 300;
+    // The plane's tile, at the size the generator actually writes. **Not scaled
+    // down to match the small fixture window**, because the tile size is what
+    // decides how many wrapping copies a window needs, and a tile shrunk to fit
+    // would exercise a copy count the game never issues.
+    p.backdrop.ground = pattern_texture(renderer, 256, 256, ground_pattern);
+    p.backdrop.ground_w = 256;
+    p.backdrop.ground_h = 256;
     p.cells = cells;
 
     SDL_Texture* prop_tex = pattern_texture(renderer, 24, 40, prop_pattern);
@@ -256,7 +277,7 @@ int main() {
     p.light_texture = light_tex;
 
     check("every fixture texture created",
-          p.backdrop.sky && p.backdrop.mountains && prop_tex && p.player_tex && light_tex,
+          p.backdrop.sky && p.backdrop.mountains && p.backdrop.ground && prop_tex && p.player_tex && light_tex,
           SDL_GetError());
 
     // **The layer table's shape, asserted here rather than only in the
@@ -349,7 +370,28 @@ int main() {
     // multiply. **That is the first commit in this project's history where the
     // composed frame changed on purpose**, and the whole point of running the
     // no-op half first is that the diff cannot hide a second cause inside it.
-    constexpr uint64_t GOLDEN = 0x9d9e92a81c4df07bull;
+    //
+    // **V19's ground plane moved it again on 2026-08-16, and the house
+    // procedure had to be *adapted* rather than applied, which is the part
+    // worth reading.** The rule is "ship the no-op half against the old
+    // checksum first, so the diff cannot hide a second cause". Every previous
+    // use had a no-op half available: the V11 restructure moved lines, and the
+    // grade mechanism existed at identity. **A new band that draws pixels has
+    // no such half** - a layer that composes to the old checksum is a layer
+    // that is not in the frame, and leaving its texture null to arrange that is
+    // the exact anti-pattern .claude/rules/simulation.md names.
+    //
+    // So the separation was bought with two numbers instead of one. The plane
+    // was built and run with its per-layer grade at identity, which gave
+    // **0xfd8e2f04b7037278**; only then did the grade go in, giving the number
+    // below. The first number is the geometry - the strip loop, the wrapping
+    // copies, the source mapping, the position in the table - and the step from
+    // it to the second is the grade and nothing else. Both are stated here
+    // because the intermediate is not recoverable from the file afterwards, and
+    // it is the one that says the two causes were never mixed.
+    //
+    // Fifth move. `git log -S` on this constant remains the instrument.
+    constexpr uint64_t GOLDEN = 0x24eb769681836a0eull;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),
@@ -447,6 +489,7 @@ int main() {
 
     SDL_DestroyTexture(p.player_tex);
     SDL_DestroyTexture(prop_tex);
+    SDL_DestroyTexture(p.backdrop.ground);
     SDL_DestroyTexture(p.backdrop.mountains);
     SDL_DestroyTexture(p.backdrop.sky);
     SDL_DestroyTexture(light_tex);

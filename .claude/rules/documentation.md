@@ -81,12 +81,24 @@ something needs to happen sooner, the move is to argue it into a different
 section **in writing** — never to build it while it is still filed under "do not
 start this yet."
 
-**README.md** — build, run, test, and the twelve-step Manual Tester Checklist. Each
-checklist step names the regression it exists to catch, most of which have
-actually happened once. When a new class of regression is found by hand, add the
-step; when a step's expectation is wrong, fix the wording — one step once told
-testers to expect a frame rate the engine cannot deliver, which would have had
-them file the known cost of the played world as a new defect.
+**README.md** — build, run, test, and `## General Testing`: a **public-facing**
+fundamentals checklist, one or two lines per item, for someone looking at the
+project who wants to see whether it works. Keep it that way — **no reasoning, no
+regression history, no roadmap IDs.** Anything that needs a paragraph belongs in
+MANUAL_TESTING.md.
+
+**MANUAL_TESTING.md** — the twelve-step Manual Tester Checklist in full (split out
+of README on 2026-08-16). Each checklist step names the regression it exists to
+catch, most of which have actually happened once. When a new class of regression
+is found by hand, add the step; when a step's expectation is wrong, fix the
+wording — one step once told testers to expect a frame rate the engine cannot
+deliver, which would have had them file the known cost of the played world as a
+new defect.
+- **It opens with "Owed to the tester" and that list is maintained, not
+  appended to.** Add a row the moment a session asks the human for something;
+  delete the row the moment it comes back. A list that only grows is one nobody
+  reads, and the whole point of putting it above the steps is that it is short
+  enough to act on.
 
 **`notes/`** — informal lore, brainstorming and reference observations, upstream
 of anything scheduled. Ideas land here for free. A note that names in advance

@@ -1,5 +1,6 @@
 ﻿#include "render/frame.h"
 #include "render/backdrop_layers.h"
+#include "render/backdrop_wrap.h"
 #include "render/player_sprite.h"
 
 namespace frame {
@@ -83,25 +84,121 @@ void draw_mountains(SDL_Renderer* renderer, const Params& p, const Grade& g) {
                         backdrop_layers::MOUNTAINS, g);
 }
 
-// **There is no mid-ground band here, and that is a measured answer rather than
-// an omission.** V11 built one - a slot at parallax 0.40 between the mountains
-// and the world - because notes/reference_observations.txt entry 4 found that
-// band doing most of the depth work in five of eight reference frames, and our
-// stack went from 0.15 straight to 1.00 with nothing in between.
+// **A mid-ground band was built here, deleted, and the deletion's own reopen
+// trigger then fired. Read all three parts before touching this area.**
 //
-// **Entry 4 also wrote down what would disprove it, and on 2026-08-16 that is
-// what happened.** Its disproof condition was that our world is 1080 cells tall
-// while the camera sees 270 of them, so a *simulated* world might fill that band
-// with terrain by itself where a hand-painted one cannot - "worth checking
-// against a played frame before building a band that terrain was already
-// occupying". Checked, on the played frame: the terrain already occupies it. The
-// row came back out.
+// V11 built one - a slot at parallax 0.40 between the mountains and the world -
+// because notes/reference_observations.txt entry 4 found that band doing most of
+// the depth work in five of eight reference frames, and our stack went from 0.15
+// straight to 1.00 with nothing in between. **Entry 4 also wrote down what would
+// disprove it**: our world is 1080 cells tall while the camera sees 270 of them,
+// so a *simulated* world might fill that band with terrain by itself where a
+// hand-painted one cannot. Checked against a played frame the same day, the
+// terrain already occupied it, and the row came back out. The reopen trigger
+// recorded then was **a location whose terrain does not fill that band.**
 //
-// It is recorded here rather than only in the roadmap because this is the line
-// somebody adding a mid-ground band would edit, and they should know it has been
-// tried. Reopen trigger: **a location whose terrain does not fill that band** - a
-// flatter scene with a lower horizon than F4's snowbank, or a zoomed-out camera
-// once Camera::SCALE is runtime. Neither exists today.
+// **On 2026-08-16 V19 fired that trigger by screenshot, which is what admits the
+// layer below.** resources/game_screenshots/visual_rework_1.png, measured in
+// Rec. 709 luminance: the mid band is 70% bare sky, and the region below the
+// terrain's skyline is a *flat fill* - luminance spread exactly 0.0 across 400
+// rows and 37% of the frame, sitting at 22.7 against the upper sky's 22.3. Four
+// tenths of a level out of 255 between the nearest surface in the frame and one
+// of the most distant. The deletion was right for the band it was about and the
+// trigger was right about what would change it; both stand.
+//
+// **What goes in is not what came out.** The deleted band was a silhouette at
+// one factor. The ground plane below is a *surface* at a range of factors, drawn
+// behind the world, and the near silhouette in front of it stays the simulated
+// terrain - deliberately, because a painted band in front of the world would
+// occlude the one verb the game has. The near ridge and the shore treeline,
+// which are the rows that genuinely land back in the deleted band, are the next
+// three commits and not this one.
+
+// --- V19's ground plane ----------------------------------------------------
+//
+// **The one piece of new rendering V19 costs, and the reason it is new is that
+// a receding plane has no single depth.** Drawn flat at one parallax factor it
+// reads as a wall standing behind the world; drawn as N strips between two
+// factors it reads as ground going away. The arithmetic - which strip is at
+// which depth, what it samples, and where the wrapping copies go - is in
+// render/backdrop_wrap.h, tested headless in tests/test_backdrop.cpp, and this
+// function does nothing but turn its answers into SDL_RenderCopy calls. That
+// split is the same one render/player_anim.cpp has with the sprite sheet.
+//
+// **Two constants live here rather than in the generated header, because they
+// are composition and not parallax.** The factors come from the header, which is
+// generated from the same table that sizes the tile; these two are where the
+// band sits in the frame and how finely it is cut, and both are TUNING.md rows.
+//
+// STRIPS is the cost knob and it is a real one: the plane issues STRIPS *
+// (copies per strip) draw calls every frame, against one for every other
+// backdrop layer. 24 was chosen as the point where the factor stepping between
+// adjacent strips stops being visible as banding at 1920x1080; it is not
+// measured against a frame budget, because grid_bench times the simulation and
+// cannot see a draw call at all. The honest instrument for it is the frame rate
+// in the running game, which is checklist work.
+constexpr int GROUND_STRIPS = 24;
+
+// Where the plane's far edge sits, as a fraction of the window's height. **A
+// fraction and not a pixel count, because the window is switchable at runtime**
+// (1920x1080, 2560x1440, 3440x1440) and a horizon authored in pixels would sit
+// at three different heights in the frame. 0.55 is where the played frame's
+// terrain skyline already sits, so the plane meets the world rather than
+// floating above it.
+constexpr float GROUND_HORIZON_FRACTION = 0.55f;
+
+void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
+    SDL_Texture* tex = p.backdrop.ground;
+    if (!tex || p.backdrop.ground_w <= 0 || p.backdrop.ground_h <= 0) return;
+    apply_grade(tex, g);
+
+    const Camera& camera = *p.camera;
+    const int window_w = p.padded_w * Camera::SCALE;
+    const int window_h = p.padded_h * Camera::SCALE;
+
+    // The horizon moves with the camera at the *far* factor, which is what stops
+    // the plane being glued to the window: walk down and the horizon rises, the
+    // way a horizon does. The band then runs from wherever that lands to the
+    // bottom of the window, so it always meets the near edge exactly.
+    const backdrop_wrap::Plane plane{
+        static_cast<float>(window_h) * GROUND_HORIZON_FRACTION +
+            camera.parallax_origin_y(backdrop_layers::GROUND.parallax_y),
+        static_cast<float>(window_h),
+        backdrop_layers::GROUND.parallax_x,
+        backdrop_layers::GROUND_NEAR_X,
+        p.backdrop.ground_h
+    };
+
+    for (int i = 0; i < GROUND_STRIPS; ++i) {
+        const backdrop_wrap::Strip s = backdrop_wrap::plane_strip(plane, i, GROUND_STRIPS);
+        if (s.dst_h <= 0.0f || s.src_h <= 0.0f) continue;
+        // Strips above the window happen whenever the camera is low enough to
+        // push the horizon off the top, which is most of the world's height.
+        // Skipping them is the difference between 24 draw calls and 24 draw
+        // calls plus their tiling, for rows nobody can see.
+        if (s.dst_y + s.dst_h <= 0.0f || s.dst_y >= static_cast<float>(window_h)) continue;
+
+        const backdrop_wrap::Tiling t = backdrop_wrap::wrap_axis(
+            camera.parallax_origin_x(s.factor), p.backdrop.ground_w, window_w);
+
+        // The source rect is integer, so it rounds; the destination stays float,
+        // the way every other layer's does. Rounding the destination is the A1
+        // defect coming back on a new layer - the plane would jerk in whole
+        // pixels while the world under it scrolls smoothly.
+        SDL_Rect src{0, static_cast<int>(s.src_y), p.backdrop.ground_w,
+                     static_cast<int>(s.src_h) + 1};
+        if (src.y + src.h > p.backdrop.ground_h) src.h = p.backdrop.ground_h - src.y;
+        if (src.h <= 0) continue;
+
+        for (int c = 0; c < t.count; ++c) {
+            const SDL_FRect dst{
+                t.first + static_cast<float>(c) * p.backdrop.ground_w,
+                s.dst_y, static_cast<float>(p.backdrop.ground_w), s.dst_h
+            };
+            SDL_RenderCopyF(renderer, tex, &src, &dst);
+        }
+    }
+}
 
 // V4's props. Drawn before the cell texture on purpose - see the
 // Prop comment in frame.h - so a trunk that overlaps authored
@@ -346,6 +443,7 @@ constexpr Layer TABLE[] = {
     {"clear",     Lighting::Lit,   PLAIN,           draw_clear},
     {"sky",       Lighting::Lit,   PLAIN,           draw_sky},
     {"mountains", Lighting::Lit,   {153, 153, 153}, draw_mountains},
+    {"ground",    Lighting::Lit,   {135, 135, 135}, draw_ground},
     {"props",     Lighting::Lit,   PLAIN,           draw_props},
     {"cells",     Lighting::Lit,   PLAIN,           draw_cells},
     {"objective", Lighting::Lit,   PLAIN,           draw_objective},

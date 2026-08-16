@@ -73,4 +73,106 @@ inline Tiling wrap_axis(float origin, int tile, int window) {
     return Tiling{first, count};
 }
 
+// --- V19's ground plane: one band drawn as N strips ------------------------
+//
+// **A receding plane has no single depth, so it has no single parallax
+// factor.** Drawn flat at one factor it reads as a wall standing behind the
+// world rather than as ground going away, which is the failure this whole
+// construction exists to avoid - and it is the one piece of new rendering V19
+// costs. The plane is cut into horizontal strips, each strip is a depth, and
+// each strip therefore scrolls at its own rate and samples its own rows of the
+// tile.
+//
+// **The relation, and it is one relation rather than two.** For a plane seen
+// edge-on, screen distance below the horizon goes as inverse world distance, so
+// the scroll factor is linear in that distance:
+//
+//     f(t) = f_far + (f_near - f_far) * t,   t = 0 at the horizon, 1 at the near edge
+//
+// and world distance is d(t) = 1/f(t). The texture is laid out *in world
+// distance* - its top row is the far edge and its bottom row the near one - so
+// the source row for a strip falls out of the same d(t) with no second curve to
+// author and nothing to keep in step:
+//
+//     v(t) = (d(t) - d_near) / (d_far - d_near),  src_y = (1 - v) * tile_h
+//
+// **This is the "texture gradient" mechanism and it comes out of the geometry
+// rather than out of the art.** Marks near the viewer are magnified and marks
+// near the horizon are compressed, because a far strip spans a huge range of
+// world distance in a handful of screen rows. A correction to ROADMAP.md's V19
+// entry belongs here rather than only there: that entry says "source row height
+// shrinking with distance", and the relation above does the opposite - `src_h`
+// *grows* with distance. The mechanism the entry names in the same sentence
+// (the reference's marks widening 1.3x-3.0x toward the viewer) is what is built,
+// and it is the sentence that was wrong, not the mechanism.
+//
+// **Only the vertical is scaled, and the horizontal tile width is constant
+// across every strip.** A true plane shrinks a mark in both axes, so this is a
+// stated cheapness rather than an oversight. Scaling the tile's width per strip
+// costs nothing arithmetically and looks worse: adjacent strips would then tile
+// at different widths, their phases would diverge, and the mark pattern would
+// stair-step at every strip boundary - twenty-four visible seams bought to fix a
+// foreshortening nobody can see on a night-dark texture. The vertical
+// compression alone carries the gradient.
+struct Plane {
+    float horizon_y;    // screen y of the far edge
+    float bottom_y;     // screen y of the near edge - normally the window's bottom
+    float far_factor;   // parallax at the horizon
+    float near_factor;  // parallax at the near edge
+    int tile_h;         // the tile's height in pixels; its rows are the plane's depth
+};
+
+// One strip: where it lands, what it samples, and how fast it scrolls.
+struct Strip {
+    float factor;         // this strip's parallax factor, for wrap_axis
+    float dst_y, dst_h;   // destination, in screen pixels
+    float src_y, src_h;   // source, in tile rows
+};
+
+// Strip `i` of `n`, counted from the horizon down.
+//
+// The factor is taken at the strip's *midpoint* rather than at its top edge: a
+// strip is one depth standing in for a range of them, and its middle is the
+// depth it is least wrong about at both of its own edges. Taking the top edge
+// biases every strip toward the horizon and leaves the near edge of the plane
+// scrolling slower than `near_factor` says it does.
+//
+// The source rows come from the strip's actual edges and not from its midpoint,
+// because those have to *meet*: strip i's bottom source row is strip i+1's top
+// source row, or the texture repeats or skips a row at every boundary.
+inline Strip plane_strip(const Plane& p, int i, int n) {
+    if (n <= 0 || p.tile_h <= 0 || p.far_factor <= 0.0f || p.near_factor <= 0.0f)
+        return Strip{0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+
+    const float t0 = static_cast<float>(i) / static_cast<float>(n);
+    const float t1 = static_cast<float>(i + 1) / static_cast<float>(n);
+    const float band = p.bottom_y - p.horizon_y;
+
+    const float f_mid = p.far_factor +
+                        (p.near_factor - p.far_factor) * 0.5f * (t0 + t1);
+
+    // v(t), written out. d_far and d_near are the reciprocals of the two
+    // factors; the subtraction below is (1/f - 1/f_near) / (1/f_far - 1/f_near),
+    // which is v with both reciprocals left in place rather than expanded -
+    // legible beats clever here, and this runs n times a frame, not per pixel.
+    const float d_far = 1.0f / p.far_factor;
+    const float d_near = 1.0f / p.near_factor;
+    const float span = d_far - d_near;
+    const float th = static_cast<float>(p.tile_h);
+
+    auto src_at = [&](float t) {
+        if (span <= 0.0f) return t * th;   // degenerate: far and near are one depth
+        const float d = 1.0f / (p.far_factor + (p.near_factor - p.far_factor) * t);
+        const float v = (d - d_near) / span;
+        return (1.0f - v) * th;
+    };
+
+    const float s0 = src_at(t0);
+    const float s1 = src_at(t1);
+
+    return Strip{f_mid,
+                 p.horizon_y + band * t0, band * (t1 - t0),
+                 s0, s1 - s0};
+}
+
 } // namespace backdrop_wrap
