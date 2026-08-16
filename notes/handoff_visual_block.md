@@ -37,11 +37,23 @@ order, and each step's reason for coming before the next is the point.
 | 1 | **V17** — extract composition to `render/frame.cpp` changing nothing, then checksum it | ✅ done 2026-08-16 |
 | 2 | **V11 core** — ordered layer table, parallax onto `Camera`, factors generated into a header | ✅ done 2026-08-16 |
 | 3 | **V11's tint bullet + V7-rest's darkening half** — the light pass gains a multiply | ✅ done 2026-08-16 |
-| 4 | **V18 — write the split view down, build none of it** | **next, not started** |
+| 4 | **V19 — the seven-band scene with a ground plane** | **next, not started** |
+| 5 | **V18 — write the split view down, build none of it** | queued behind V19 |
 
-**Nothing in this block is committed.** It all sits in the working tree —
-`git status` shows ~15 modified and 6 untracked files, including the three new
-ones (`src/render/frame.{h,cpp}`, `tests/test_golden_frame.cpp`).
+**Steps 0-3 are committed** as `5c53f06`, and the tree is clean. *(This section
+read "Nothing in this block is committed" until 2026-08-16; it was written
+before the commit that included this file. Corrected rather than deleted because
+the shape recurs — a handoff describing its own working tree goes stale the
+moment the handoff is committed.)*
+
+**V19 is new and was inserted ahead of V18 on 2026-08-16, by request.** Build a
+`CnC_parallax`-shaped scene — seven depth bands, simple generated art, and a
+ground plane doing what the reference's water does — before the underground-cave
+split-view path. The measurements it is built against are
+[reference_observations.txt](reference_observations.txt) entries 7 and 8, both
+new the same day; the item is at
+[ROADMAP.md](../ROADMAP.md#v--visual-identity) and its step row is in
+[ROADMAP_ITEMS.md](../ROADMAP_ITEMS.md#-next-up).
 
 ## What step 3 actually built
 
@@ -147,18 +159,23 @@ Read that against what each step was asking:
   (grade multiplies, then light adds) observed rather than asserted, and it is
   the one result the golden test's contribution check could only argue for.
 
-**This is not yet recorded anywhere.** It owes a `PLAYTEST_LOG.md` spot-check
-entry — **symptoms only, no fixes**, per the file-split table in `CLAUDE.md` —
-and step 3's note in `ROADMAP_ITEMS.md` should stop saying the number is
-unlooked-at, because that is now false and a false claim there is the exact
-failure mode this project keeps having.
+~~**This is not yet recorded anywhere.**~~ **Done, 2026-08-16.**
+`PLAYTEST_LOG.md` has the spot-check entry ("the grade pass is looked at"),
+symptoms only per the file-split table; `CLAUDE.md` step 12 and step 3's note in
+`ROADMAP_ITEMS.md` both now say the number *has* been looked at. Struck rather
+than deleted because the paragraph is a worked example of the failure it names —
+it went false the moment the write-up landed, and a handoff that keeps claiming
+its own outstanding work is outstanding is how a reader stops trusting the rest
+of the file.
 
 ## Blocking / owed
 
-- **`SlopPhysics.exe` has not been relinked since step 3.** The user had the game
-  running (PID 17812) and the link failed with `LNK1104`. Everything *compiles*,
-  `main.cpp` included, and all twelve suites run — only the final link was
-  blocked. Confirm the exe is current before trusting anything on screen.
+- ~~**`SlopPhysics.exe` has not been relinked since step 3.**~~ **Cleared** — the
+  link had failed with `LNK1104` because the game was running (PID 17812), and it
+  went through afterwards: the exe is newer than every source it links. The
+  standing half of the bullet is still worth knowing — *a link blocked by a
+  running game leaves everything compiling and all twelve suites passing, so the
+  only symptom is the screen being one build behind.*
 - Step 3's docs are done: `TUNING.md` (new "Depth grading" section, rows, and a
   dated History line), `ROADMAP.md`, `ROADMAP_ITEMS.md`,
   `notes/reference_observations.txt` entry 2 (marked `*** ACTED ON`),
@@ -167,7 +184,13 @@ failure mode this project keeps having.
 
 ## What is next
 
-**Step 4 — V18: write the split view down, build none of it.** An afternoon. The
+**Step 4 — V19: the seven-band scene.** A week. The first thing it does is not
+authoring — it is one screenshot answering whether the target scene's terrain
+fills the mid-ground band, because two of its five new layers land exactly where
+V11 built a band and deleted it. If the answer is the same as last time, the
+honest outcome is a five-layer scene.
+
+**Step 5 — V18: write the split view down, build none of it.** An afternoon. The
 deliverable is a written design, not code.
 
 After the block closes: **E10 (powders come to rest) resumes the head of the

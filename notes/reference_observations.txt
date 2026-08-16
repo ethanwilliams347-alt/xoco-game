@@ -177,6 +177,13 @@ exceptions — and is the half worth trusting. The night frame's non-monotonic
 ordering rests on five hand-picked regions in one image and could be an artefact
 of which rocks were sampled.
 
+*Re-measured at greater depth in ENTRY 7 on 2026-08-16*, in luminance and down a
+single column rather than over hand-picked regions. That pass finds **seven**
+bands in CnC_parallax_1 rather than five, puts a number on the step between them
+(about 0.78 per band), and disagrees with the table above on one figure — the
+foreground rock. Read entry 7 for the ladder; this entry is still the one that
+carries the day-versus-night ordering flip, which entry 7 does not touch.
+
 *(This is the "dated entry" and the "palette-sample note" that tools/pixel_art.py
 and generate_test_scene.py cite. Both cited the deleted version; what they
 describe — dark, narrow value range, cool sky over warm ground, and flat
@@ -351,6 +358,152 @@ tracks when a hundred things move, and that is precisely our case and not this
 reference's. **Until someone watches gameplay of a game whose background
 actually simulates — Noita is the obvious one — this question is open**, and the
 three bullets above should be treated as hypotheses about a still image.
+
+
+ENTRY 7 — the ground plane: what the water layer is actually doing, and the
+          four mechanisms that make the frame read "into the page".
+--------------------------------------------------------------------------
+Frames: CnC_parallax_1.jpg, _2.jpg, _3.jpg. Measured 2026-08-16, Rec. 709
+luminance, Pillow only, script kept out of the tree (throwaway).
+
+This entry exists because the frame family was asked about directly. **It does
+not admit anything** — the file's own bound says reference cannot admit a
+roadmap item, and V19 was admitted by a request, not by these numbers. What is
+below is what the request has to be built against.
+
+**The frame is 7 layers, not 3.** Walking a single column (x=2900, the
+unobstructed right side) and segmenting it into luminance plateaus gives five
+bands above the horizon, then the plane, then a near silhouette:
+
+    band              L      x band behind    x sky
+    sky            173.6         -            1.00
+    far range      129.2        0.74          0.74
+    mid range      110.2        0.85          0.63
+    near ridge      80.7        0.73          0.46
+    shore treeline  63.5        0.79          0.37
+    ground plane   77.5 -> 138.2  (see below)
+    foreground rock 51.6        0.81          0.30
+
+**Each band is about 0.78 of the band behind it** — geometric mean of the five
+steps, none of them outside 0.73-0.85. Six silhouette steps, sky to nearest, is
+a factor of 3.4. **Our mountains sit at 0.60 and the reference's same band
+compounds to 0.63**, which is corroboration rather than agreement: ours was
+picked from a luminance measurement against our own sky (entry 2), theirs falls
+out of a ladder nobody involved had seen. Two independent routes to within 5%.
+
+*This is a different measurement from entry 2's table and does not replace it.*
+Entry 2 sampled max-channel V over hand-picked regions and found five bands;
+this walks one column in luminance and finds seven. The two disagree on one
+figure and it is worth naming: **entry 2 puts the foreground rock at 103 and
+this puts it at 51.6.** Entry 2's region almost certainly included the plane
+around the rock, since a near-black silhouette cannot sit above the treeline it
+occludes. The monotonic descent both agree on is the finding; the rock's
+absolute value should be read off this entry.
+
+**The three frames share one value vocabulary.** The same fixed sample windows
+return the same numbers in all three: sky 170.5 / 170.4 / 170.2, mid 81.4 /
+80.7 / 80.5, near ridge 73.4 / 73.5 / 73.3 — inside 1%, worst band 3%. So the
+ladder is a property of the style and not of one painting, which is the only
+reason it is worth transferring at all.
+
+**The plane occupies 47% of the frame and inverts the ladder.** The waterline
+sits at y=766 of 1440 (median over columns 1500-2600). Below it the plane runs
+L 77.5 at its far edge (#4d4c56, near-neutral) to L 138.2 at its near edge
+(#768caa). So it climbs where every band above it descends.
+
+Four mechanisms, and they are separable — this matters, because only some of
+them survive the water being taken out:
+
+  1. **The value ladder above the horizon.** 0.78 per band, compounding.
+     *Transfers to land unchanged.*
+
+  2. **The horizon is the darkest line in the frame.** Row-mean luminance falls
+     monotonically from 156 at y=0 to a global minimum of 69 at y=768 — the
+     waterline — then climbs to 140 by y=1200. The eye is given a dark pinch at
+     the exact depth everything recedes toward, with both extremes bright.
+     *Transfers, and is the mechanism most easily lost by accident.*
+
+  3. **The plane's near edge carries the largest contrast in the frame.** Plane
+     near edge 138.2 against foreground rock 51.6 is 87 levels. Every join
+     further back is small: sky/far range 45, far/mid 19, mid/near 29,
+     near/treeline 17, and the horizon join itself only 14. **Contrast grows
+     with nearness and the frame spends most of it in the last two layers.**
+     *Transfers.*
+
+  4. **A texture gradient on the plane.** Mean horizontal distance between
+     luminance reversals along a row, sampled x=300..2940: 13.0 px at y=860
+     rising to 17.1 at y=1300 in frame 1, 12.6 -> 21.1 in frame 2, 10.6 -> 31.8
+     in frame 3. Direction is consistent in all three; magnitude is 1.3x to
+     3.0x. The plane's marks get wider toward the viewer. *Transfers, and is
+     the one cue that needs no light source, no reflection and no colour.*
+
+**What does NOT transfer is the reflection, and it is worth having measured
+anyway.** Fitting L_below(d) = a * L_above(d/k) + b down columns 1500-2600
+gives a best residual of 8.9 at k=0.6, a=0.442, b=+60.9, against residuals above
+19 for every k >= 1.0. So the reflection is vertically compressed to about 0.6,
+its contrast cut to 44%, and lifted +61 — and desaturated with it, S 0.24-0.30
+below against 0.28-0.39 above. **It is a value-flattened restatement of the
+stack, not a mirror copy.** Caveat the fit cannot resolve: a real water surface
+also becomes less mirror-like toward the viewer, and that produces the same
+numbers. For anything we would build the two are the same instruction anyway.
+
+**The native art cell is about 10 px** on these 3440x1440 files (phase peak /
+mean 1.393 at 10, next best 1.191 at 8), so the frames are roughly 344x144
+native. Our viewport is 480x270 cells — **finer than the reference, not
+coarser**, which means backdrop art authored at one art pixel per cell is
+already less chunky than what these frames get their read from.
+
+*Disproof, and one half of it is cheap.* The ladder rests on one column: sample
+three more and if the step ratios spread outside 0.7-0.85 then "0.78 per band"
+is an artifact of where the line was drawn. The plane mechanisms need video —
+**if the plane's rows all scroll at one rate, mechanism 4 is decoration and any
+per-row scrolling built for it is over-engineering.** That is the single
+observation here most likely to be wrong in the expensive direction.
+
+
+ENTRY 8 — the warm accent sits at a fixed value and crosses the depth ladder.
+--------------------------------------------------------------------------
+Frames: CnC_parallax_1.jpg, CnC_parallax_3.jpg. Measured 2026-08-16.
+
+Counting pixels with r > b per band, and taking the warm and cool populations'
+mean luminance separately:
+
+    band            warm%    warm L    cool L
+    sky              0.0%       -       173.6
+    far range        0.1%     103.5     129.0
+    mid range        3.2%      96.2     101.9
+    near ridge       6.1%      97.8      78.7
+    shore treeline  47.2%      96.2      72.9
+    plane, far      13.3%      98.6      84.7
+    plane, near      5.0%     119.2     135.1
+    foreground rock  9.3%      87.5      71.9
+
+Two things, and the second is the useful one.
+
+**The sky contains no warm pixels at all** — 0.0%, not 0.1%. The warm budget of
+the entire frame is spent below the horizon line and mostly in one band: the
+shore treeline is 47% warm and every other band is under 17%.
+
+**The warm population sits at a near-constant luminance regardless of depth** —
+96 to 104 in every band from the far range to the plane's far edge — while the
+cool population descends 174, 129, 102, 79, 73. So the accent hue does not obey
+the ladder; it **crosses** it. The same gold is brighter than its surroundings
+in the near bands and darker than them in the far ones, which is why it reads
+as one material lit by one light rather than as five different colours.
+
+This is entry 6's hue-isolation finding at band scale rather than object scale,
+and it is the part of it that does not need video to be trusted: entry 6 could
+only say the boat is the frame's one warm object, and this says the whole style
+allocates warmth as a fixed-value overlay across depths.
+
+CnC_parallax_3 reproduces it (treeline 37.2% warm, warm L 96.0).
+
+*Disproof:* CnC_lighthouse.jpg is the one frame in the set with a warm sky, so
+it should break the 0.0% clause outright. **Run it there before treating any of
+this as a rule rather than as a fact about the night frames.** A second, harder
+disproof: if the warm L drifts with band once more frames are sampled, then this
+is aerial perspective acting on gold like everything else and there is no
+crossing.
 
 
 -------------------------------------------------------------------------------
