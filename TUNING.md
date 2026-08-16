@@ -178,6 +178,29 @@ the numbers.
 | `ITERATIONS` | [light.h:58](src/render/light.h#L58) | 24 | Propagation passes. Must be raised with the reach or light stops short of where the falloff says it should get. |
 | `BLOCK` | [light.h:43](src/render/light.h#L43) | 4 | Cells per light sample. Doubling it is ~4x cheaper and **re-opens a defect a playtest found** — light bleeding through thin walls. Don't turn this one quietly. |
 
+## Depth grading
+
+[src/render/frame.cpp](src/render/frame.cpp) — the layer table
+
+**A layer's `Grade` is a multiply, and it is the only knob in this file that can
+make the screen darker.** Everything above adds: V7's light pass is one additive
+copy, so before 2026-08-16 no number anywhere could reduce a pixel below the
+value its art was authored at. These are per-layer, applied by
+`SDL_SetTextureColorMod`, and cost nothing — a graded layer is the same draw
+call.
+
+**Retuning one of these moves the golden frame checksum**, which is correct and
+expected. The new value goes in `tests/test_golden_frame.cpp` in the *same
+commit*, or `git log -S` on that constant stops listing every frame the renderer
+has produced. That is the one way to misuse the golden test.
+
+| Knob | Line | Now | What it does |
+|---|---|---|---|
+| `mountains` grade | [frame.cpp](src/render/frame.cpp) | 0.60 (153) | How dark the mountain band sits against the sky. **Measured, not eyeballed** — the only number in the backdrop that is. At 1.00 the sky averages luminance 26 and the mountains are flat 28, so the two most distant bands separate by two levels out of 255 and the far one is the *brighter*; at 0.60 the pair reads 26 against 16 and the mountains become a silhouette. Lower reads as a heavier, closer ridge; above about 0.85 the band stops separating at all. |
+| `sky` grade | [frame.cpp](src/render/frame.cpp) | 1.00 | Deliberately identity. The sky is the reference every other band's value is judged against, so grading it moves all of them at once and none of them relative to each other. |
+| `cells` grade | [frame.cpp](src/render/frame.cpp) | 1.00 | Deliberately identity. The world's own spread (Oil 38 to Sand 171) is already the widest in the frame; grading it compresses the one band that does not need help. |
+| `Params::world_grade` | [frame.h](src/render/frame.h) | identity | The world-*wide* multiply — night, underground, fog, per-biome. **Nothing sets it yet**; at identity the quad is not drawn at all. Set it and every world layer dims together while the fire does not, which is why the grade pass is ordered before the light pass and not after. |
+
 ## Debug camera
 
 [src/game/debug_view.h](src/game/debug_view.h)
@@ -201,6 +224,25 @@ at the result, not whether the number is a speed.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-16** — **one knob moved and it is the first retune in this file that
+  was measured rather than judged by eye** (V11's grade, step 3 of the visual
+  rework). The mountain backdrop went from 1.00 to **0.60**. What was being
+  fixed: `notes/reference_observations.txt` entry 2 said the depth bands do not
+  separate by value, and the measurement behind this row is worse than the
+  entry's channel ranges made it look — **the sky averages luminance 26 and the
+  mountains are flat 28**, p05 and p95 both 28, so the two most distant bands in
+  the frame are two levels apart out of 255 and the far one is the brighter of
+  the pair. There was no knob that could fix that before this commit, which is
+  the actual finding: the light pass only adds. **The direction is darker with
+  nearness, not lighter** — daylight aerial perspective washes distant things
+  toward the sky and that instinct is wrong at night, when the sky is the only
+  bright thing and everything in front of it is a cut-out. Three more rows
+  arrived unmoved (sky, cells, `world_grade`), and the reason each is identity is
+  written at its row rather than left to be guessed at. **The golden checksum
+  moved with it**, 0x3d729ad7fbcaa839 → 0x9d9e92a81c4df07b, in the same commit —
+  the first deliberate change to the composed frame in the project's history.
+  The whole grade mechanism was built and run at identity *first*, and held the
+  old checksum, so that this number could only have one cause.
 - **2026-08-14** — **two new knobs, both dev-facing, and no existing one moved**
   (T1). The free camera's pan speed and its fast multiplier. In History because
   the table gained a section, not because anything was retuned — **and the

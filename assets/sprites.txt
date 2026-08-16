@@ -33,8 +33,12 @@
 player_sheet            player_sheet.bmp            14 26
 
 # --- backdrop -------------------------------------------------------------
-# Two parallax layers, sized by tools/generate_backdrop.py to cover the
-# camera's pan range at their own factor. They are not sheets.
+# Parallax layers, sized by tools/generate_backdrop.py to cover the camera's
+# pan range at their own factor. They are not sheets.
+#
+# There were briefly three. V11 added a mid-ground band on 2026-08-16 and
+# removed it the same day - our terrain already fills that part of the frame.
+# See ASSETS.md's Backdrops section before adding one.
 backdrop_sky            backdrop_sky.bmp
 backdrop_mountains      backdrop_mountains.bmp
 

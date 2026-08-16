@@ -81,7 +81,7 @@ something needs to happen sooner, the move is to argue it into a different
 section **in writing** — never to build it while it is still filed under "do not
 start this yet."
 
-**README.md** — build, run, test, and the ten-step Manual Tester Checklist. Each
+**README.md** — build, run, test, and the twelve-step Manual Tester Checklist. Each
 checklist step names the regression it exists to catch, most of which have
 actually happened once. When a new class of regression is found by hand, add the
 step; when a step's expectation is wrong, fix the wording — one step once told

@@ -62,9 +62,25 @@ set(SCENE_PROP_SOURCES
     src/scene/bmp.cpp
 )
 
+# V17's frame composition. **A fifth variable rather than a line in
+# RENDER_SOURCES, and the difference is SDL.** Everything in RENDER_SOURCES is
+# SDL-free by rule - that is what lets nine headless suites link it - and
+# frame.cpp is nothing but SDL draw calls. Folding it in there would quietly
+# make every one of those suites link SDL2, and the day one of them wants to be
+# run somewhere without it, nobody would be able to say when that started.
+#
+# It is not ENGINE_SOURCES for the reason light.cpp is not: this is rendering,
+# and rendering must never become a simulation input. The guard the other four
+# variables enforce is exactly this one - keep it separate, and the day
+# something under src/physics/ reaches for the frame, the mistake has to be
+# written into this file to compile.
+set(FRAME_SOURCES
+    src/render/frame.cpp
+)
+
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
 # not ENGINE_SOURCES, which stays what the headless test suites link against.
-add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES})
+add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES} ${FRAME_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
@@ -156,6 +172,24 @@ if(BUILD_TESTING)
     add_executable(sprites_test tests/test_sprites.cpp ${SCENE_PROP_SOURCES})
     target_include_directories(sprites_test PRIVATE src tests)
     add_test(NAME sprites_test COMMAND sprites_test)
+
+    # V17's golden frame. **The first test target in the project that links
+    # SDL**, and that is worth saying out loud rather than leaving to be noticed
+    # from the link line: every suite above it is headless by construction, and
+    # this one is not - it composes a real frame with the real draw calls, into
+    # a software renderer over an SDL_Surface. It needs no display and no video
+    # subsystem (see the header comment), so it still runs on a build machine,
+    # but it is no longer true that "the test suites do not link SDL" and the
+    # next person to write that sentence should find this comment first.
+    #
+    # SDL2main is deliberately *not* linked. It exists to hand Windows' WinMain
+    # to a game; this has a plain main() and a console, and linking it would
+    # replace that entry point.
+    add_executable(golden_frame_test tests/test_golden_frame.cpp
+                   ${ENGINE_SOURCES} ${RENDER_SOURCES} ${FRAME_SOURCES})
+    target_include_directories(golden_frame_test PRIVATE src tests)
+    target_link_libraries(golden_frame_test PRIVATE SDL2-static)
+    add_test(NAME golden_frame_test COMMAND golden_frame_test)
 
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.

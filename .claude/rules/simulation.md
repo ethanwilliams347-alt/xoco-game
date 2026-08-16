@@ -49,18 +49,71 @@ contract is "reject everything", the tests have to say so.
 
 ## The source-set split is a guard, not bookkeeping
 
-`CMakeLists.txt` deliberately keeps four variables apart:
+`CMakeLists.txt` deliberately keeps five variables apart — **four until V17
+added the fifth on 2026-08-16**:
 
 - `ENGINE_SOURCES` — what the simulation *is*. SDL-free, headless, integer-only.
 - `RENDER_SOURCES` — `light.cpp`, `player_anim.cpp`. Headless and testable, but
   emphatically not simulation: **light must never become a simulation input.**
-- `SCENE_PROP_SOURCES` — `props.cpp`, `sprites.cpp`. Text in, records out. Nothing
-  in `src/physics/` may read these.
+- `SCENE_PROP_SOURCES` — `props.cpp`, `sprites.cpp`, `bmp.cpp`. Text or image in,
+  records out. Nothing in `src/physics/` may read these.
+- `FRAME_SOURCES` — `frame.cpp`, the world layers of one frame. **Kept out of
+  `RENDER_SOURCES` because it is the only rendering source that calls SDL**, and
+  folding it in would silently make nine headless suites link SDL2.
 - Everything else (`main.cpp`, `src/ui/`) is SDL-side and builds only into the game.
 
 The point is that the day something in the simulation reaches for light or a
 prop, **the mistake has to be written into the build file to compile.** Merging
 these variables removes the only thing enforcing the boundary.
+
+**The frame composition has a golden checksum** (`tests/test_golden_frame.cpp`,
+V17): a fixed scene composed through the real `frame::compose` into
+`SDL_CreateSoftwareRenderer`, hashed. Two rules for it. It drives the shipped
+draw calls and **must never grow a parallel compositor of its own** — that is a
+second implementation, and it passes happily while the real renderer is broken.
+And when the frame legitimately changes, **the new checksum goes in the same
+commit as the change**, so `git log -S` on that constant lists every frame the
+renderer has produced; moving it in a separate tidy-up commit is the one way to
+misuse the test. It checks the *software* rasterisation and cannot see a
+GPU-only defect — do not quote it as covering the shipped frame.
+
+**The checksum has moved four times and the file's history reads as one commit,
+which is the thing to know before quoting it.** V17 set it. V11 (2026-08-16)
+restructured the composition into an ordered layer table, moved the parallax
+arithmetic onto `Camera`, generated the factors into a header, and added a
+mid-ground band — the first three had to change no pixel, so **they were built
+and run first, against V17's number, which held**; the band then moved it; the
+band was then removed on a played-frame check and it moved back to exactly
+`0x3d729ad7fbcaa839`. **Step 3 then moved it for the first time on purpose**, to
+`0x9d9e92a81c4df07b`, when the mountains layer gained a 0.60 multiply — and the
+whole grade mechanism was again built at identity and run against the old number
+first, which held. Three rules out of that:
+
+- **When a change has a no-op half and a visible half, ship the no-op half
+  against the old checksum first.** Afterwards the two cannot be separated,
+  which is the limitation V17's own entry had to admit about the extraction that
+  created it. Used three times now; it is the house style, not a one-off.
+- **The current value is not evidence the frame has never changed.** `git log -S`
+  on the constant is the instrument, and it shows four commits where the file's
+  history reads as one.
+- **A checksum cannot answer a question about *how* a frame differs**, and the
+  suite grew a second instrument at step 3 rather than stretching this one:
+  mean and peak luminance, for claims like "the multiply darkens". Keep them
+  separate — the hash's blindness to the nature of a change is what makes it a
+  good regression guard, and a hash that started meaning something specific
+  would stop being one.
+
+**The layer table's `Lighting` field is held by `static_assert`, not by comment**
+(`src/render/frame.cpp`): exactly one `Lighting::Light` entry, every `Lit` layer
+before it and every `Unlit` layer after. `Lit` means *drawn before the light
+pass* and nothing more — the pass is one additive full-screen copy, so position
+is the whole of what the word can mean here. **Do not add a value meaning "behind
+the world but untinted"**: V16 wants one, it is not representable until the light
+pass gains a multiply, and an enum value the renderer cannot honour is a rule
+that was never true. And if a layer ever ships with a null texture again, **art
+it in the fixture**: a null texture draws nothing, so a checksum over the shipped
+configuration covers that layer's *absence* and says nothing about its position
+or its order.
 
 ## Determinism
 

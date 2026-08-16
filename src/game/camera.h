@@ -45,6 +45,29 @@ public:
     int screen_to_world_x(int screen_x) const { return floor_to_int(static_cast<float>(screen_x) / SCALE + view_fx_); }
     int screen_to_world_y(int screen_y) const { return floor_to_int(static_cast<float>(screen_y) / SCALE + view_fy_); }
 
+    // Where a parallax layer's top-left corner goes, in screen pixels, for a
+    // layer that moves at `factor` times the camera's speed (V11). A factor of
+    // 1.0 gives a layer locked to the world; 0.0 gives one pinned to the
+    // window.
+    //
+    // **Here rather than at the draw site because it is a camera question.**
+    // The offset is a function of the view position and nothing else, and it
+    // was previously computed inline in the composition from `view_x()`,
+    // `frac_x()` and `SCALE` - three of this class's outputs reassembled by a
+    // caller, which is the shape F3.2 already moved every other coordinate
+    // conversion in here to end.
+    //
+    // The continuous view is rebuilt as `view_x() + frac_x()` rather than read
+    // off `view_fx_` directly, and that is not redundancy: it is the exact
+    // expression the composition used before V11, kept so the restructure is a
+    // no-op the golden checksum can confirm rather than a claim.
+    float parallax_origin_x(float factor) const {
+        return -(static_cast<float>(view_x()) + frac_x()) * SCALE * factor;
+    }
+    float parallax_origin_y(float factor) const {
+        return -(static_cast<float>(view_y()) + frac_y()) * SCALE * factor;
+    }
+
     // A length, not a position, so it is never shifted by the viewport's
     // offset - only ever scaled. Also covers the on-screen size of one world
     // cell, as scale_length(1).

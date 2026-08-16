@@ -95,11 +95,57 @@ Learned building the prop list; all four generalise to the next format.
   table — not facts about the image. `load_sprite.py` refuses a sheet whose grid
   disagrees, because it would otherwise load and draw the wrong rectangles
   silently.
-- **Known unenforced duplication:** the parallax factors exist in both
-  `main.cpp` (`PARALLAX_SKY_X/Y`, `PARALLAX_MOUNTAIN_X/Y`) and
-  `tools/generate_backdrop.py`, with nothing checking they agree. The failure is a
-  seam at the pan limit. Generating the header, as V3.1 did for the player sheet,
-  is the precedent to copy.
+- **[src/render/backdrop_layers.h](../../src/render/backdrop_layers.h) is
+  generated**, by `python tools/generate_backdrop.py --header`. The factors and
+  each layer's image size come out of the same table in that script, so they
+  cannot disagree. **This bullet used to read "Known unenforced duplication" and
+  described the arrangement V11 replaced on 2026-08-16** — `PARALLAX_SKY_X/Y`
+  and `PARALLAX_MOUNTAIN_X/Y` in the C++, `PARALLAX_SKY`/`PARALLAX_MOUNTAIN` in
+  the Python, a comment in each asking a reader to grep the other, and a seam at
+  the pan limit as the failure. It is recorded rather than deleted because the
+  *shape* is worth recognising: two copies of a constant with a comment between
+  them is not enforcement, and the failure it permitted was invisible until
+  somebody walked to the edge of the map.
+- **The header carries each layer's generated size as well as its factors, and
+  `main.cpp` warns at startup when the loaded BMP is smaller.** That is the seam
+  becoming a printed line. A warning and not a fatal error — an undersized
+  backdrop is cosmetic at one extreme of the world.
+- **The nearer the band, the larger its file**, because a layer must cover the
+  window plus the full pan range at its own factor: sky 3678x1512 (16 MB),
+  mountains 4311x1642 (20 MB), and a mid-ground at 0.40 would be 5750x1965
+  (32 MB) — more than both together. `python tools/generate_backdrop.py --sizes`
+  prints the table; run it before committing to a layer. This is a real argument
+  for V16's wrapping layers, which need no size relationship to the pan range at
+  all.
+- **A mid-ground band was built and removed on 2026-08-16, and the reason is a
+  rule about using reference at all.** `notes/reference_observations.txt` entry 4
+  found that band doing most of the depth work in five of eight reference frames;
+  it also wrote its own disproof condition, which fired on the first played
+  frame: **our terrain already fills that space.** A painting has to author a
+  mid-ground because nothing else will occupy it; we simulate 800 cells of ground
+  into it. **Ask what in the reference is doing the work, not just what the work
+  is** — the result transfers only if the mechanism does. Reopen trigger: a
+  location whose terrain does not fill the band, or a zoomed-out camera once
+  `Camera::SCALE` is runtime.
+- **Depth is not bought by adding layers, it is bought by separating values** —
+  and as of V11 step 3 (2026-08-16) there is a knob for that. Each row of the
+  layer table in [src/render/frame.cpp](../../src/render/frame.cpp) carries a
+  `Grade`, a multiply applied with `SDL_SetTextureColorMod`, and the mountains
+  sit at 0.60. **This bullet used to end "that needs a multiply the light pass
+  does not have yet"**; it has one. What has not changed is the refusal attached
+  to it: **do not attempt band separation as a palette edit**, and do not attempt
+  it as a new band either.
+  - The measurement, because it is the thing that makes the knob worth having:
+    in luminance the sky averages 26 and the mountains were **flat 28** — two
+    levels of separation out of 255, with the far band the brighter. TUNING.md's
+    "Depth grading" section has the row and the retune history.
+  - **Retuning a grade moves the golden frame checksum**, and the new value goes
+    in the same commit. That is expected, not a breakage.
+  - **A grade is per-layer, and that is not incidental.** A frame-wide multiply
+    scales every band by the same factor and leaves the ratios between them
+    exactly where they were, so it cannot separate anything. The world-wide
+    `Params::world_grade` exists for night and weather and is a different
+    feature; it is identity today and draws nothing at identity.
 
 ## Swapping art
 
@@ -155,7 +201,15 @@ because they are not sprites: `assets/test_material.bmp` and `test_albedo.bmp`
   through the renderer as it stands** (`SDL_ComposeCustomBlendMode`,
   `SDL_RenderGeometry`, `SDL_TEXTUREACCESS_TARGET` — all in the pinned SDL 2.30.0,
   none called in `src/` yet). The fork should be bought by the first item with no
-  such route.
+  such route. **V11's grade pass is the first item to test that claim and it
+  came back cheaper than the claim allowed for** (2026-08-16): "the light pass
+  gains a multiply" looked like the item that would spend
+  `SDL_ComposeCustomBlendMode`, and it needed no custom mode at all —
+  `SDL_BLENDMODE_MOD` is stock, and `SDL_SetTextureColorMod` handles the
+  per-layer half with no extra draw call. All three named escape hatches are
+  still unspent. **The software backend supporting both is what made it usable**,
+  since the golden frame test rasterises in software and would have been blind to
+  a GPU-only path.
 - `SDL_RenderCopyEx` offers translate, uniform scale, rotate and flip and
   **nothing else** — that is the real limit worth knowing.
 - **Cell size is not how you get higher-resolution art.** Halving `Camera::SCALE`

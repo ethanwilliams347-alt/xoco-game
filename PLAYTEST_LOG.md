@@ -666,3 +666,88 @@ instead of a deadline, and "we will decide after the next thing" is how it gets
 another one. The difference this time is that the thing it was waiting for now
 exists and can be played again in five minutes, which is a much cheaper way to
 close it than any of the previous ones.
+
+---
+
+## Spot check — 2026-08-16 — the V11 checklist, and the horizon answers a question
+
+Not a session: four steps of README's Manual Tester Checklist, owed by step 2 of
+the V-track block. **Step 11 is new with V11** and was written with two halves —
+a mechanical parallax check and a question about whether a mid-ground band is
+needed. Both were answered.
+
+- **Suites at time of test:** 12/12 green
+- **World seed / `Scene:` line:** not captured. Recorded as missing rather than
+  left blank; there were no defects, so nothing is unreproducible by it.
+
+### Results
+
+- **Step 11 — parallax and depth.** Reported **good**. Backdrop drift ordering
+  reads correctly while walking, and no seam was reported at the pan limits.
+- **Step 1 — launch.** Reported good, and specifically **no new backdrop-size
+  warning**. That line is new with V11 and prints only when a loaded BMP is
+  smaller than the generated header says it should be, so its absence is the
+  check, not its content.
+- **Step 2 — movement and animation.** *"Not sure but no obvious problems."*
+- **Step 5 — reactions and heat.** *"Not sure but no obvious problems."*
+
+### The answer step 11 was written to get
+
+**Asked:** standing on the surface and looking at the horizon, is there a visible
+gap between the mountains and the ground you are on?
+
+**Answered: no — the terrain already fills it.**
+
+That is the whole finding. What it cost and what was done about it are in
+ROADMAP.md at V11 and beside entry 4 of `notes/reference_observations.txt`, which
+is where the reasoning lives; this file records only that the question was put to
+a played frame and what came back.
+
+### A note on how to read "not sure but no obvious problems"
+
+Steps 2 and 5 came back that way, and **it is worth being precise about what that
+is worth rather than filing it as a weak pass.** V11 changed *where* the
+composition lives and not *what* it draws, and the golden checksum says so
+arithmetically — the composed frame is byte-identical to the one the inline code
+produced. **So "exactly as before" was the predicted result of those two steps,
+and a tester who cannot tell anything changed is the prediction being confirmed,
+not a check that failed to happen.**
+
+The clause worth keeping outstanding: neither step was reported as *examined
+closely*, and the checksum covers a software rasterisation of one still frame.
+**A GPU-only or motion-only difference in those two steps would not have been
+caught by either instrument**, and nothing here claims otherwise. Same shape as
+step 9's "passed with a clause outstanding" on 2026-08-13.
+
+## Spot check — 2026-08-16 — the grade pass is looked at
+
+Run after step 3 of the V block, on the three steps the change could reach.
+Reported verbatim:
+
+```
+12 looks good on both
+11 looks good
+5 looks good
+```
+
+**Step 12 is the one that mattered, and "on both" is the whole of it.** The step
+asks two questions and the tester answered them separately. The mountains read as
+a silhouette, and — the half that was actually at risk — **they are not
+over-corrected**. 0.60 was picked from a luminance measurement, which is not the
+same as picked by looking at it, and until this run nobody had looked. The second
+half, that *only* the mountains moved, is the check that `Params::world_grade` has
+not quietly acquired a caller; a frame-wide darkening would have said it had.
+
+**Step 5 is worth more than its one line suggests.** A fire is not dimmed by the
+grade — which is the layer ordering (grade multiplies, then light adds) observed
+rather than asserted. `golden_frame_test` can only argue that ordering
+*indirectly*, by composing with and without the light pass and comparing the
+contribution, and it argues it that way because the direct instrument failed: the
+fixture's fire saturates at 255, so a correct ordering and a reversed one both
+squeeze against the clip. **This is the first time anyone has seen the thing the
+test stands in for.**
+
+Step 11 re-run because the layer table changed shape; no seam at the pan limit.
+
+Symptoms only, as ever. What the numbers are and why they are those numbers is in
+TUNING.md's "Depth grading" section and at step 3 in ROADMAP_ITEMS.md.

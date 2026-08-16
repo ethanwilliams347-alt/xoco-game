@@ -398,29 +398,58 @@ where each region exists to exercise one named system.
 
 ## Backdrops
 
-Two static parallax layers, `backdrop_sky.bmp` (opaque) and
-`backdrop_mountains.bmp` (colour-keyed), drawn behind everything.
+Two static parallax layers drawn behind everything: `backdrop_sky.bmp` (opaque)
+and `backdrop_mountains.bmp` (colour-keyed).
 
 These are the one asset type you should not hand-size. They are authored in
 **screen pixels**, and their dimensions are derived from `GRID_WIDTH/HEIGHT`,
 the display-mode table, `Camera::SCALE` and the parallax factors together — a
 layer that is too small runs out of image before the camera runs out of world,
-and a seam appears at the pan limit. The factors live in *two* languages with no
-build step able to enforce agreement:
+and a seam appears at the pan limit.
 
-- `PARALLAX_SKY_X/Y` and `PARALLAX_MOUNTAIN_X/Y` in [main.cpp](src/main.cpp)
-- `PARALLAX_SKY` / `PARALLAX_MOUNTAIN` in
-  [tools/generate_backdrop.py](tools/generate_backdrop.py)
-
-Change one side and you must change the other. To retheme a backdrop, edit the
-generator's colours and regenerate rather than repainting the BMP by hand:
+**There is one copy of the factors, as of V11 (2026-08-16).**
+[tools/generate_backdrop.py](tools/generate_backdrop.py) holds them and
+generates [src/render/backdrop_layers.h](src/render/backdrop_layers.h) from the
+same table that sizes the images:
 
 ```bash
-python tools/generate_backdrop.py
+python tools/generate_backdrop.py            # the shipped layers
+python tools/generate_backdrop.py --header   # regenerate the C++ header
+python tools/generate_backdrop.py --sizes    # what each layer costs
 ```
 
-If you do want to hand-paint one, generate first and match the output's exact
-dimensions.
+**Do not edit that header** — it is overwritten work, exactly like
+`player_sprite.h`. *This section used to say the factors lived in two languages
+with no build step able to enforce agreement, and that you must change one side
+whenever you change the other. That was true and it was not enforcement.* The
+header now also carries each layer's expected size, and `main.cpp` prints a
+`WARNING: backdrop ... needs at least WxH` line at startup when what it loaded
+is smaller — so the seam is a line on stderr rather than a pixel at the edge of
+the map.
+
+To retheme a backdrop, edit the generator's colours and regenerate rather than
+repainting the BMP by hand. If you do want to hand-paint one, generate first and
+match the output's exact dimensions.
+
+**There is no mid-ground band, and it is worth knowing that one was tried.** V11
+built a third layer between the mountains and the world on 2026-08-16 and removed
+it the same day: checklist step 11 asked whether there is a visible gap between
+the mountains and the ground you stand on, and the answer was that **our terrain
+already fills it**. A painted reference has to author that band because nothing
+else will occupy it; we simulate 800 cells of ground into the same space. The
+argument is at `notes/reference_observations.txt` entry 4 and at V11 in
+`ROADMAP.md`.
+
+Two things that survive the deletion and matter when adding *any* layer:
+
+- **A near band is the most expensive layer in the stack, not the cheapest.**
+  Image size grows with the parallax factor, so the mid-ground would have been
+  5750x1965 — **32 MB**, more than the sky and mountains together, in a repo
+  that tracks its assets. `--sizes` prints the table before you commit to one.
+- **Depth is not fixed by adding bands.** Our bands overlap almost completely in
+  value (sky 0x14–0x28, mountains 0x20–0x30, trees 0x18–0x59, terrain
+  0x1B–0x78), which is why a busy frame reads flat — a renderer problem needing
+  a multiply the light pass does not have yet, not a missing layer.
 
 ---
 
@@ -464,4 +493,4 @@ props. Per-cell data gets an image; a list gets a list.
 | Figure flashes between two designs | Only some slots of the sheet were redrawn |
 | Props all vanished | One malformed line in the prop list; the error names it |
 | One prop type missing | Its BMP didn't load; warned once by name on stderr |
-| Seam at the edge of the world | Backdrop size and the `PARALLAX_*` constants disagree |
+| Seam at the edge of the world | Backdrop BMP is smaller than the header says — warned by name on stderr at launch; rerun `generate_backdrop.py` |

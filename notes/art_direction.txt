@@ -1,0 +1,348 @@
+ART DIRECTION
+=============
+
+Status: rewritten from scratch 2026-08-16, against the Cast n Chill frames in
+resources/images/. This is the second version of this file. The first was
+written for V5 and deleted in commit e05609d without anything replacing it,
+while roughly fifteen places in the code, the tools and the roadmap went on
+citing it by name for a specific rule. Those citations are what this rewrite is
+answerable to: every section below that a caller names is marked with who names
+it, so the next person to delete a section can see what breaks.
+
+This document is the thing every V item is checked against. If a decision here
+and a decision in an asset disagree, this file is wrong or the asset is; one of
+them gets changed, and the losing one gets a dated line here saying so.
+
+**Superseding note, and it is a correction rather than a tidy-up.** ROADMAP.md's
+V5 entry closes with "the crossing stills are retired, the Noita-forest
+screenshot is adopted as the first quantum world's direction." The Noita
+screenshot no longer exists in resources/ and no observation of it survives, so
+that resolution is unverifiable from here. This pass adopts the Cast n Chill
+frames instead. The crossing stills stay retired — that half of the resolution
+is unchanged and was right. A dated correction is filed beside the V5 entry
+rather than over it, per .claude/rules/documentation.md.
+
+
+1. WHICH LOCATIONS EXIST, AND WHAT EACH ONE READS AS
+----------------------------------------------------
+
+The fiction (notes/story.txt) is a dystopian United States run by a chatbot,
+with "quantum magic" as the way through to other worlds. That gives two kinds of
+place, and the plan has always budgeted for the second one badly.
+
+  HOME BASE — the dystopian US. Not built, not authored, not scheduled. It is
+  the frame story and it is where the player returns. Named here so that the
+  first asset authored for it has to come back and add a section, rather than
+  quietly inheriting the palette below.
+
+  QUANTUM WORLDS — the places the player is dropped into and digs through. One
+  exists: the test fixture's world, which today reads as a warm near-black
+  earth section under a cool night sky. That is the location this whole
+  document's palette describes.
+
+  Locations are per-world from here on. A second biome gets its own section
+  when it exists; it does not inherit this one's palette by default. This was
+  V5's rule and it survives the rewrite unchanged.
+
+The first quantum world reads as: **night, underground-adjacent, warm ground
+under a cold sky.** Not snow, not a level crossing. The player is outdoors but
+the interesting half of the frame is the earth, because the earth is the part
+that simulates.
+
+
+2. THE PALETTE'S INTENT
+-----------------------
+
+Named by: tools/pixel_art.py (the PALETTE dict is grouped by this document's
+layer model), tools/export_palette_gpl.py.
+
+The rule, unchanged from V2 and now stated as a rule rather than as a property
+of one table:
+
+  - **The backdrop is cool and carries no warm colour at all.** Zero. This is
+    what keeps it reading as *behind* rather than as far-away-but-present.
+  - **The simulated world is warm and desaturated.** Warm near-black rather
+    than cool near-black, so unlit dirt reads as earth and not as void.
+  - **Saturation is reserved for Fire and Water.** They are the two materials
+    that must be identifiable at a glance in a frame where everything is
+    moving, and they get the only saturation budget in the set.
+  - **Water is the deliberate exception to "desaturated".** It keeps more
+    saturation than anything else in the terrain layer because it has to read
+    as water up close, not only in silhouette.
+  - **The warm-orange family belongs to Fire.** Anything else warm-orange is
+    borrowing, and has to say so at the point it borrows. `char_accent` is the
+    one current borrower and pixel_art.py carries the argument for it.
+
+**A finding from this pass that the palette does not currently satisfy, and it
+is the most useful thing the reference produced.** Measured off the CnC frames
+(method and numbers in notes/reference_observations.txt), depth is carried by
+*band value*, and it is carried differently by day and by night:
+
+  - By day, the bands descend monotonically in both value and saturation from
+    sky to foreground — aerial perspective. Far things are brighter and more
+    saturated because they are closer to the sky's colour.
+  - By night, that ordering breaks and is replaced by silhouette: the sky stays
+    the brightest thing in frame, the nearest shapes go to near-black and read
+    as outline only, and the readable detail lives in the middle band.
+
+Our palette does neither. Its bands overlap almost completely — sky spans
+roughly 0x14–0x28, mountains 0x20–0x30, trees 0x18–0x59, terrain 0x1B–0x78 —
+so **nothing separates one depth band from the next except the rim highlight.**
+That is a real defect and it is why a busy frame here reads as flat. Fixing it
+needs a per-band exposure the renderer cannot currently express, because the
+light pass can only add (V11); it is not a palette edit and must not be
+attempted as one. Recorded here rather than acted on.
+
+
+3. THE DITHERING RULE
+---------------------
+
+Named by: tools/pixel_art.py ("the dithering rule"), tools/snap_to_palette.py,
+and apply_rim_light's dithered hand-off band.
+
+  **A transition between two flat tones is stepped through an ordered dither.
+  Never a smooth interpolation, never a hard edge with nothing between.**
+
+The matrix is the classic 4x4 Bayer, in `pixel_art.bayer_threshold`. The pick
+between two tones is a per-pixel coin flip whose outcomes land in that grid —
+`dither_mix` — and it returns one of the two input colours, never a third. That
+last part is the point: a blend would produce a colour no editor's palette
+contains, and V6's validator would reject it.
+
+**Random per-cell jitter stays out of everything this pipeline authors.** V2
+found the negative case: jitter fights hand-placed dither instead of adding to
+it, which is exactly why `color_jitter` was cut. Do not reintroduce it as a
+"cheap texture" pass.
+
+**Dithering is authored, not computed.** snap_to_palette.py gets pixels
+on-palette and deliberately does not add dither; that hand-off is a manual pass
+in a sprite editor. The one place the pipeline dithers on its own is the rim's
+hand-off band, below, and that one is called out by name because it is the
+exception.
+
+The reference supports this at a specific scale: the CnC frames dither the sky
+gradient and the water heavily, and leave large filled masses almost untextured.
+Dither is for *transitions*, not for surfaces.
+
+
+4. WHAT THE PLAYER READS AS
+---------------------------
+
+Named by: tools/snap_to_palette.py (the char_* restriction), tools/build_player_
+sheet.py, tools/pixel_art.py's player group.
+
+The body is **8 wide by 20 tall, in cells** — Noita's proportions, and the
+authority is `Player::WIDTH` / `Player::HEIGHT` in src/physics/player.h, not
+this file. *(The first version of this document said 4x8 in several places and
+was stale for a long time after the rescale. Quoted constants go stale exactly
+the way line numbers do, and are harder to spot because they read as
+deliberate. If this pair and player.h ever disagree, player.h is right.)*
+
+A hooded figure in a robe, with a mask. Read at 8x20 that is: one silhouette,
+one hood shape, and about six pixels of anything else.
+
+**The separation problem, and the rule that solves it.** Every other group in
+the palette is either cool-and-dark (sky, mountains) or warm-and-dark (terrain),
+with the trees between them in green. A character painted in any of those
+families disappears into whichever one it happens to be standing against — and
+in this game the background is *simulated*, so it changes underneath the figure
+constantly and cannot be composed around.
+
+  **So the player is separated from its background by HUE, not by value.** The
+  robe is cool blue-grey: the one hue family the terrain layer never uses. It
+  reads against warm dirt and against green foliage without being brighter than
+  either, and its value range stays inside the locked set's — `char_light` tops
+  out at 0x5E, below `tree_lit`'s 0x59 top end by a hair.
+
+This is why `snap_to_palette.py` defaults to searching only the six `char_*`
+entries. A global nearest-colour search would happily paint a highlight onto the
+nearest tree tone and undo the one thing keeping the figure legible. Restricting
+the candidate set makes that structurally impossible rather than merely
+discouraged.
+
+*(V5 left this section unanswered and V3 was authored afterwards. This rewrite
+records what V3 actually shipped rather than what V5 planned; the sprite is the
+authority and this is the description.)*
+
+
+5. WHAT IS DRAWN VERSUS WHAT IS SIMULATED — THE FOUR-LAYER MODEL
+-----------------------------------------------------------------
+
+Named by: ASSETS.md ("the four-layer scenery model"), src/main.cpp in two
+places, tools/generate_backdrop.py ("layer 1 and 2"), tools/generate_props.py,
+tools/pixel_art.py (PALETTE is grouped by these layers), generate_test_scene.py.
+This is the most-cited section in the file.
+
+  **The test: if it exercises no system, it belongs in a drawn layer.**
+
+Not "if it is far away" and not "if it is decoration" — if the simulation would
+learn nothing from it, it is art, and putting it in the grid costs the hot loop
+for nothing.
+
+The four scenery layers, back to front:
+
+  1. SKY        — drawn. One BMP. Cool, deep, no warm colour.
+  2. MOUNTAINS  — drawn. One BMP, colour-keyed. Flat silhouette plus a faint
+                  peak rim.
+  3. PROPS      — drawn. Colour-keyed sprites anchored to world positions;
+                  trees today. Never dug, ignited or displaced.
+  4. TERRAIN    — **simulated.** The cell grid. This is the game.
+
+**The player and the light pass are not layers in this model.** They sit on top
+of it. The full render order — which ASSETS.md also states, and which is the
+thing to change if a band is added — is:
+
+    sky -> mountains -> props -> terrain -> player -> light -> reticle -> HUD
+
+**Props draw BEFORE terrain, and this is the ordering that surprises people.**
+The obvious arrangement is props-on-top, and it is wrong here. Drawing a trunk
+before the cell texture means authored ground *buries* the trunk's base for
+free, with no depth test and no per-prop mask. A planted tree gets its occlusion
+from the draw order alone. Anything that wants the same trick goes in the same
+slot.
+
+**Effects that expire — sparks, embers, dust, smoke wisps — are drawn, on the
+props layer.** They interact with nothing, so simulating them buys nothing.
+Do not confuse this with E5a: E5a is matter with a velocity that stays in the
+grid and conserves. A spark that has to conserve mass is a cell and belongs in
+layer 4.
+
+**Backdrop motion is drawn and interacts with nothing.** A moving thing a player
+could reasonably expect to touch has failed this test. Weather that lands on
+terrain is a simulation feature and is a different item.
+
+
+6. THE DEPTH-BAND MODEL
+-----------------------
+
+New in this rewrite. There was no written home for parallax factors, so
+main.cpp and tools/generate_backdrop.py each kept their own copy of the numbers
+with a comment asking a human to keep them in sync.
+
+*(Updated 2026-08-16, V11. The duplication is gone: tools/generate_backdrop.py
+is the one copy and generates src/render/backdrop_layers.h from it. This
+section is still where the numbers are *argued*; the header is where they are
+*stated*, and the two must not drift — if you retune, the row below moves in
+the same commit as the regenerated header.)*
+
+Bands, with the factors as they ship today:
+
+    band        factor x   factor y   contents
+    sky            0.04       0.02     layer 1
+    mountains      0.15       0.06     layer 2
+    props/world    1.00       1.00     layers 3 and 4, locked to the camera
+
+Two rules about these numbers:
+
+  - **Layers 3 and 4 are at exactly 1.0 and that is not a tuning choice.** A
+    prop is anchored to a world cell and the terrain *is* world cells; a factor
+    other than 1.0 would put a tree's roots somewhere the ground is not. Only
+    bands 1 and 2 have a factor to tune.
+
+  - **The factors were chosen by eye and have never been measured.** In
+    particular they were *not* derived from the CnC frames — that was attempted
+    on 2026-08-16 and the attempt failed for a reason worth knowing, written up
+    in notes/reference_observations.txt. Treat them as a starting point with no
+    evidence behind them, which is a different thing from a tuned value.
+
+**A mid-ground band was built on 2026-08-16 and removed the same day, and this
+is the paragraph that used to argue for one.** It said the stack jumps from
+mountains at 0.15 straight to the world at 1.00, that the reference frames all
+carry a distinct band in between doing most of the depth work, and that there was
+no slot for one because the layer order was hard-coded inline. V11 made the slot
+(it is an ordered table in src/render/frame.cpp now, so a band is one row), put a
+band in it at 0.40/0.16, and then ran the check that
+notes/reference_observations.txt entry 4 had written against itself.
+
+**The check said our terrain already fills that band**, and the entry is marked
+disproved with the full argument. The short version for this document, because it
+is a fact about our art direction and not just about that note: **the reference
+paints a mid-ground because a painting has nothing else to put there. We
+simulate one.** Our world is 1080 cells tall and the camera sees 270 of them, so
+the space between the player and the horizon is 800 cells of real ground. A band
+drawn into it would be a band behind terrain.
+
+Two further reasons it stays out, both of which would have applied even if the
+gap had been there, and the first is the one that matters to section 8's held-open
+questions:
+
+  - **A band authored today lands in exactly the overlap it exists to break.**
+    Entry 2 measured our bands at sky 0x14–0x28, mountains 0x20–0x30, trees
+    0x18–0x59, terrain 0x1B–0x78 — near-total overlap, which is why a busy frame
+    reads flat. Any mid-ground drawn from the existing palette groups sits in
+    the same range as the mountains behind it. Separating them is a multiply and
+    the light pass can only add, so it is the V block's step 3 and not a palette
+    edit. **Depth here is a renderer problem before it is a layer-count problem**,
+    and adding bands is the wrong lever for it — which is the real lesson, since
+    a band was very nearly the answer to a question it could not have answered.
+
+  - **It would be the most expensive layer in the stack, not the cheapest.**
+    Layer size grows with parallax factor, so at 0.40 the BMP is 5750x1965 —
+    32 MB, more than the sky and mountains together, in a repo that tracks its
+    assets. V16's wrapping layers retire the size relationship entirely.
+
+*Reopen trigger:* a location whose terrain does not fill the band — a flatter
+scene with a lower horizon than F4's snowbank, or a zoomed-out camera once
+`Camera::SCALE` is runtime.
+
+
+7. THE RIM
+----------
+
+Named by: ENGINEERING_NOTES.md (the cell-size entry, "measured in
+art_direction.txt's rim section"), tests/rim_probe.cpp, generate_test_scene.py
+(twice), tools/pixel_art.py's apply_rim_light.
+
+  **A filled region reads as shadowed mass with almost no internal texture, and
+  the one to two cells facing open air carry a bright, warm highlight.**
+
+That is the whole technique, and it is what carries shape in a palette this
+dark. It comes from the reference directly: the CnC frames leave large masses
+nearly flat and spend their contrast budget on edges.
+
+Three consequences, each of which has already cost something:
+
+  **The rim is a proportion of the body, not a pixel count.** Two cells against
+  a 20-cell player is the thin bright line the reference has. The same two cells
+  against the old 8-cell body was a quarter of its height. When the scale
+  changes, `rim_depth` changes with it — generate_test_scene.py passes `s(2)`,
+  scaled by the same factor as everything else in the fixture, for this reason.
+
+  **The hand-off inward is dithered, not hard.** The rim colour steps toward
+  whatever albedo was already there across the remaining `rim_depth - 1` cells,
+  through the Bayer matrix. This is the one case where the pipeline dithers on
+  its own, and section 3 calls it out as the exception.
+
+  **The rim is baked per cell, so a lit top edge travels with the cell.** This
+  is accepted, deliberately, and it is the price of authored per-cell colour —
+  which is the entire visual pillar, because it is what lets a hand-painted slab
+  keep its own pixels while it collapses. At this scale a travelled highlight
+  reads as material texture. It only breaks down under large-scale gradients,
+  which is why **none get painted into the simulated layer.**
+
+  That acceptance is not a guess: tests/rim_probe.cpp measures how much of the
+  rim survives settling, in two numbers — SMEAR (rim cells that no longer face
+  air) and GAPS (surface cells with no rim). It is not an `add_test`, because
+  what it reports is an input to a taste decision and a test pinning today's
+  taste would be a copy of the answer rather than a check on it. Wall and Wood
+  never move and are fine by construction; Sand and Water are the ones to read.
+
+Rim colour is per material, not global: water gets a cooler rim than ground,
+and a material that should stay unlit at its surface returns None and is
+skipped.
+
+
+8. WHAT THIS PASS DOES NOT ANSWER
+----------------------------------
+
+Held open on purpose, so that the next thing to need one of these knows it is
+choosing rather than following:
+
+  - **The home base has no direction.** Section 1 names it and stops.
+  - **Time of day is one setting: night.** The reference shows day, dusk and
+    night, and section 2's measurement says the depth cueing has to change
+    between them. Nothing here says what dusk looks like in our palette.
+  - **The band-value defect in section 2 is recorded, not fixed**, and cannot
+    be fixed by editing colours.
+  - **No second biome.** The moment one exists it gets its own section 1 entry
+    and its own palette group, and does not inherit this one's.

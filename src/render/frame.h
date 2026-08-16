@@ -1,0 +1,216 @@
+#pragma once
+#include <SDL.h>
+#include <vector>
+#include "game/camera.h"
+#include "render/light.h"
+
+// The world layers of one frame, in the order they are drawn - V17's half of
+// the V11 block, and at this commit it is *only* a move. Every line in
+// frame.cpp came out of main.cpp unchanged, comments included, and the golden
+// frame test exists to say so in a number rather than in this sentence.
+//
+// **UI is not here and does not become here.** The reticle, the HUD, the
+// hotbar, the run-over wash and the settings menu stay in main.cpp, and the
+// boundary is the one V7 already drew when it put the light pass before them:
+// everything in this file is *in the world* and gets lit, everything after it
+// is not and must not be. A reticle that goes orange near a flame is defect B1,
+// and moving UI in here is how it comes back.
+//
+// The layer list itself - naming the layers as data rather than as a run of
+// draw calls, and adding the mid-ground band the reference frames spend most of
+// their depth on - is V11 and the next commit. This one exists so that commit
+// has something to prove itself against.
+namespace frame {
+
+// A non-simulated sprite anchored to a world position - V4's props layer.
+// Exercises no system and is never dug, ignited or displaced; see notes/
+// art_direction.txt for why trees specifically are drawn *before* the cell
+// texture rather than after; it is that ordering, not anything in this
+// struct, that gives a planted trunk its occlusion for free.
+struct Prop {
+    SDL_Texture* texture;
+    int w, h;         // native size, in world cells (1 BMP pixel = 1 cell)
+    float anchor_x;   // world cell, bottom-centre of the sprite
+    float anchor_y;
+};
+
+// V8's two static parallax layers.
+//
+// **There were briefly three.** V11 added a mid-ground band between the
+// mountains and the world on 2026-08-16 and removed it the same day, when the
+// played-frame check that notes/reference_observations.txt entry 4 asked for
+// came back saying our own terrain already occupies that band. The argument and
+// the reopen trigger are at the layer table in frame.cpp, which is where someone
+// adding one would look.
+//
+// **The factors are no longer here.** They live in the generated
+// render/backdrop_layers.h, written by `python tools/generate_backdrop.py
+// --header` from the same table that sizes the images - which retires V11's
+// fourth bullet, the duplication between this side and the tool with nothing
+// enforcing agreement and a seam at the pan limit as the failure. The comment
+// this replaces described that duplication accurately and asked a reader to
+// grep before changing a number, which is documentation standing in for
+// enforcement; there is now one copy.
+//
+// **The factors themselves are still eyeballed and still unmeasured**, and
+// V11 shipped them byte for byte unchanged on purpose: the one source that
+// could have measured them cannot, because the CnC reference frames are three
+// separately generated scenes rather than one camera pan (notes/
+// reference_observations.txt entry 1). A retune during the restructure would
+// have left the golden checksum unable to say which of the two moved it.
+struct Backdrop {
+    SDL_Texture* sky = nullptr;
+    SDL_Texture* mountains = nullptr;
+    int sky_w = 0, sky_h = 0;
+    int mountain_w = 0, mountain_h = 0;
+};
+
+// A multiply. 255 is "unchanged", 128 is "half", 0 is "black" - V11's fourth
+// bullet, the half of it that the light pass could never do.
+//
+// **The light pass only ever adds, and that is the whole defect.** V7 lights hot
+// things by compositing one full-screen texture with SDL_BLENDMODE_ADD, so every
+// biome, every depth band and every time of day is at least as bright as the art
+// was authored, and nothing on screen can be made darker than the pixel that was
+// drawn. Night, underground, fog and aerial perspective are all the same missing
+// operation, and it is this one.
+//
+// A struct of three bytes rather than one exposure number because the useful
+// version is a *tint*: a distant band does not just dim, it drifts toward the
+// colour of the air between you and it. One number would have to be tuned three
+// times over as soon as anything wanted that.
+//
+// **Applied by SDL_SetTextureColorMod for a textured layer**, which is a
+// multiply the renderer already does for free - a graded layer costs no extra
+// draw call and no extra texture. The world-wide grade in `Params` is the one
+// that costs a quad, and it is skipped entirely when it is identity.
+struct Grade {
+    unsigned char r = 255, g = 255, b = 255;
+
+    constexpr bool identity() const { return r == 255 && g == 255 && b == 255; }
+};
+
+// Everything one composed frame reads, and nothing else.
+//
+// A struct rather than a nineteen-argument call, and every field is something
+// the caller already had - there is no state here, so a second caller (the
+// golden frame test) can build one without a window, a Run or a session.
+struct Params {
+    const Camera* camera = nullptr;
+
+    // The padded viewport, in cells. What the cell texture and the world rect
+    // are sized to; not the window, which is Camera::SCALE times this.
+    int padded_w = 0;
+    int padded_h = 0;
+
+    Backdrop backdrop;
+    const std::vector<Prop>* props = nullptr;
+
+    // The world's ARGB streaming texture, already uploaded for this frame.
+    SDL_Texture* cells = nullptr;
+
+    // S0's objective marker, in world cells.
+    bool has_objective = false;
+    int objective_x = 0;
+    int objective_y = 0;
+
+    // The body, at its *interpolated* draw position - the caller owns the
+    // interpolation and the teleport clamp, because both read simulation state
+    // this file has no business seeing.
+    SDL_Texture* player_tex = nullptr;
+    float player_x = 0.0f;
+    float player_y = 0.0f;
+    bool facing_left = false;
+    int sheet_col = 0;
+    int sheet_row = 0;
+    // The fallback rectangle's size, in cells, when player_tex is null.
+    int player_box_w = 0;
+    int player_box_h = 0;
+
+    // V7. The field is read for `any_light()` and its block extent; the texture
+    // is what gets drawn, and the caller has already uploaded it.
+    const LightField* light = nullptr;
+    SDL_Texture* light_texture = nullptr;
+
+    // The world-wide multiply - night, underground, fog, per-biome grading.
+    // Applied to everything in the world after the last world layer and
+    // **before** the additive light pass, so a fire keeps its brightness in a
+    // graded scene instead of being dimmed by it.
+    //
+    // **Identity by default, and identity means the quad is not drawn at all**,
+    // which is what lets step 3 ship the whole mechanism as a provable no-op:
+    // the golden checksum held at V17's value across the restructure, and it
+    // holds again here for every frame that does not ask for a grade. The one
+    // thing that does move the checksum at this step is the per-layer grade on
+    // the mountains, which is a single number in the table in frame.cpp.
+    //
+    // Nothing sets this yet. It is a knob with no caller, and that is a state
+    // this project distrusts - see the note at the layer table for why it ships
+    // anyway and what would make it a defect.
+    Grade world_grade;
+};
+
+
+// Where a layer sits in V7's light pass - V11's sixth bullet, and it is a field
+// rather than a comment because every item after V11 adds a layer that has to
+// declare where it belongs.
+//
+// **This says only what the composition can currently enforce, which is an
+// ordering**, and the static_asserts in frame.cpp hold the table to it, so a
+// layer whose declared position disagrees with where it actually sits fails the
+// build rather than shipping a comment that has gone false.
+//
+// **`Grade` is new at step 3 and it is what makes `Lit` mean more than
+// "earlier".** The grade quad multiplies everything drawn so far and the light
+// pass then adds on top of the result, which is the whole reason they are two
+// entries and in that order: a fire at night must not be dimmed by the night.
+// Reverse them and the only light source in the frame gets graded down with the
+// rock it is sitting on.
+//
+// **What it still does not claim.** V11's text wants V16's animated bands to sit
+// *behind* the world and not pick up firelight from in front of it. The grade
+// does not buy that - it is a multiply over everything already drawn, not a
+// per-layer exemption from the additive pass - and expressing it needs a render
+// target. The per-layer `Grade` on a `Layer` is the piece that *is* per-layer,
+// and it is a separate field for exactly that reason: one of these two is a
+// property of a layer and the other is a property of the frame, and collapsing
+// them is how a value that means two things gets tuned for one of them.
+enum class Lighting : unsigned char {
+    Lit,    // in the world, drawn before the grade and the light pass
+    Grade,  // the world-wide multiply - at most one, and it may be absent
+    Light,  // the additive light pass - the boundary, and there is exactly one
+    Unlit,  // drawn after it and deliberately untouched by it
+};
+
+// One entry in the ordered list. `name` exists for the static_assert messages
+// and for anything that later wants to say which layer it is talking about; it
+// is not drawn.
+//
+// `grade` is this layer's own multiply, applied by whatever primitive the layer
+// draws with. **A layer that ignores it is a lie the compiler cannot catch**, so
+// every draw function below takes it as an argument rather than reading it from
+// the table - a new layer cannot be written without the parameter being in front
+// of the person writing it.
+struct Layer {
+    const char* name;
+    Lighting lighting;
+    Grade grade;
+    void (*draw)(SDL_Renderer*, const Params&, const Grade&);
+};
+
+// Clears and draws the world layers, in order. Presents nothing and leaves the
+// draw colour and blend mode as it found them, since the UI drawn after this
+// sets both for itself.
+//
+// V11: this is now a loop over an ordered table rather than a run of draw
+// calls, which is the whole of V11's first bullet - adding a band is an entry
+// in that table instead of surgery between two comments. The table is in
+// frame.cpp, where the draw functions it names have internal linkage.
+void compose(SDL_Renderer* renderer, const Params& p);
+
+// The table, exposed for tests and for anything that wants to enumerate the
+// composition without drawing it. `LAYER_COUNT` is its length.
+extern const Layer* const LAYERS;
+extern const int LAYER_COUNT;
+
+} // namespace frame

@@ -37,7 +37,11 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\SlopPhysics.exe
 ```
 
-**The full suite is 11 headless suites and runs in about a second.** There is no
+**The full suite is 12 suites and runs in about a second.** Eleven are headless
+and link no SDL; **`golden_frame_test` is the twelfth and links SDL2-static**
+(V17, 2026-08-16). It still needs no display — it composes into a software
+renderer over an `SDL_Surface` — but "the tests do not link SDL" stopped being
+true that day, and this line is where it says so. There is no
 reason to run a subset — always run all of it.
 
 Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
@@ -57,8 +61,12 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
   `assets/` by hand changes nothing until you rebuild or run
   `python tools/load_sprite.py --stage`. This is the first thing to check when a
   change "didn't show up".
-- **`src/render/player_sprite.h` is generated** by `python tools/player_sheet.py
-  --header`. Editing it directly is overwritten work.
+- **Two headers are generated and editing either is overwritten work.**
+  `src/render/player_sprite.h` by `python tools/player_sheet.py --header`, and
+  **`src/render/backdrop_layers.h` by `python tools/generate_backdrop.py
+  --header`** (V11, 2026-08-16 — the parallax factors used to exist in both C++
+  and Python with a comment asking a human to keep them in step, and the failure
+  that arrangement produces is a seam at the far edge of the world).
 - **`main.cpp` is the project's one nondeterministic line.** It prints
   `World seed: N` and `Scene: WxH, N cells placed` at startup; **those printed
   counts are the launch check, not eyeballing the window.** A scene count of zero
@@ -158,10 +166,17 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
 3. **`ctest` proves mechanics in isolation; it cannot prove they compose.** After
    any change to `src/physics/`, `src/game/` or `main.cpp` that the suites do not
    fully exercise, the Manual Tester Checklist in [README.md](README.md) is the
-   other half. Each of its ten steps names a regression that has actually
-   happened — **except step 10, which is new with S0 and is the one step whose
-   result is a design decision rather than a pass or a fail.** **I cannot run
-   it** — flag when it is owed and say which steps matter.
+   other half. Each of its twelve steps names a regression that has actually
+   happened — **except step 10, which is the one whose result is a design
+   decision rather than a pass or a fail.** Step 11 (V11's parallax check) had a
+   second such half for one day: it asked whether a mid-ground band was needed,
+   answered no, and **the band was deleted rather than kept** — what remains
+   there is a reopen trigger. **Step 12 is the newest**: the mountains' 0.60
+   grade was chosen from a luminance measurement rather than by eye, and the
+   failure it watches for is over-correction. It was the only step judging a
+   number nobody had looked at until **2026-08-16, when it was looked at and
+   passed** — it is a regression check now. **I cannot run any of it** —
+   flag when it is owed and say which steps matter.
 4. **Performance claims need bracketed measurement.** Same sitting, back to back,
    with a control scenario that the change cannot affect. Timings on one machine
    have differed by more than 2x on identical code. See

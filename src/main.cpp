@@ -10,6 +10,8 @@
 #include "game/display.h"
 #include "game/input_log.h"
 #include "game/run.h"
+#include "render/backdrop_layers.h"
+#include "render/frame.h"
 #include "render/light.h"
 #include "render/player_anim.h"
 #include "scene/bmp.h"
@@ -129,17 +131,11 @@ SDL_Texture* load_art_texture(SDL_Renderer* renderer, const char* path, bool col
     return tex;
 }
 
-// A non-simulated sprite anchored to a world position - V4's props layer.
-// Exercises no system and is never dug, ignited or displaced; see notes/
-// art_direction.txt for why trees specifically are drawn *before* the cell
-// texture rather than after; it is that ordering, not anything in this
-// struct, that gives a planted trunk its occlusion for free.
-struct Prop {
-    SDL_Texture* texture;
-    int w, h;         // native size, in world cells (1 BMP pixel = 1 cell)
-    float anchor_x;   // world cell, bottom-centre of the sprite
-    float anchor_y;
-};
+// V4's props layer, defined in render/frame.h with the layer ordering it is
+// part of. Aliased rather than qualified everywhere below: the planting scan
+// further down is scene setup, not rendering, and reads no better for being
+// told twice which namespace a tree is in.
+using frame::Prop;
 
 // Everything whose size is a function of the display mode, and nothing else.
 //
@@ -359,15 +355,54 @@ int main(int argc, char* argv[]) {
         std::fprintf(stderr, "         every sprite falls back to its shipped file.\n");
     }
 
-    SDL_Texture* backdrop_sky = load_art_texture(
+    // The parallax factors are in the generated render/backdrop_layers.h as of
+    // V11, written by `python tools/generate_backdrop.py --header` from the same
+    // table that sizes these images. What is left here is the loading, which is
+    // startup rather than composition.
+    frame::Backdrop backdrop;
+    backdrop.sky = load_art_texture(
         renderer, sprites.path_for("backdrop_sky", "backdrop_sky.bmp").c_str(), false);
-    SDL_Texture* backdrop_mountains = load_art_texture(
+    backdrop.mountains = load_art_texture(
         renderer, sprites.path_for("backdrop_mountains", "backdrop_mountains.bmp").c_str(), true);
-    constexpr float PARALLAX_SKY_X = 0.04f, PARALLAX_SKY_Y = 0.02f;
-    constexpr float PARALLAX_MOUNTAIN_X = 0.15f, PARALLAX_MOUNTAIN_Y = 0.06f;
-    int sky_w = 0, sky_h = 0, mountain_w = 0, mountain_h = 0;
-    if (backdrop_sky) SDL_QueryTexture(backdrop_sky, nullptr, nullptr, &sky_w, &sky_h);
-    if (backdrop_mountains) SDL_QueryTexture(backdrop_mountains, nullptr, nullptr, &mountain_w, &mountain_h);
+
+    if (backdrop.sky)
+        SDL_QueryTexture(backdrop.sky, nullptr, nullptr, &backdrop.sky_w, &backdrop.sky_h);
+    if (backdrop.mountains)
+        SDL_QueryTexture(backdrop.mountains, nullptr, nullptr,
+                         &backdrop.mountain_w, &backdrop.mountain_h);
+
+    // **The seam at the pan limit, turned into a printed line.** A backdrop
+    // layer has to be large enough to cover the window plus the camera's whole
+    // pan range at that layer's factor; if it is not, the layer runs out of
+    // image before the world runs out of ground and an edge of raw clear colour
+    // appears - at the far edge of the map, which is the last place anybody
+    // looks. That was previously guarded by a comment in two files asking a
+    // human to keep four numbers in step (ASSETS.md's "Change one side and you
+    // must change the other"). The header now carries the size the generator
+    // would produce, so the disagreement is checkable, and this says so at
+    // startup rather than at the map's edge.
+    //
+    // A warning and not a failure: an undersized backdrop is a cosmetic defect
+    // at one extreme of the world, and refusing to launch over it would be
+    // worse than the seam. It joins the seed and scene counts as a launch
+    // check - a line here means the art and the header disagree, which is
+    // either a stale BMP (rerun the generator) or a hand-edited header.
+    auto check_layer_size = [](const char* name, SDL_Texture* tex, int w, int h,
+                               const backdrop_layers::Layer& expected) {
+        if (!tex) return;
+        if (w < expected.width || h < expected.height) {
+            std::fprintf(stderr,
+                         "WARNING: backdrop %s is %dx%d but parallax %.2f/%.2f needs at "
+                         "least %dx%d - expect a seam at the pan limit.\n"
+                         "         rerun: python tools/generate_backdrop.py\n",
+                         name, w, h, expected.parallax_x, expected.parallax_y,
+                         expected.width, expected.height);
+        }
+    };
+    check_layer_size("sky", backdrop.sky, backdrop.sky_w, backdrop.sky_h,
+                     backdrop_layers::SKY);
+    check_layer_size("mountains", backdrop.mountains, backdrop.mountain_w,
+                     backdrop.mountain_h, backdrop_layers::MOUNTAINS);
 
     // V4's props: sprites from tools/generate_props.py, positioned by
     // assets/test_props.txt rather than by a list in this file. **That
@@ -1216,183 +1251,35 @@ int main(int argc, char* argv[]) {
                               targets.light.cols() * sizeof(uint32_t));
         }
 
-        // The backdrop layer (V8, replacing V1's gradient placeholder now
-        // that there is authored art to show). Two static textures, each
-        // shifted by the camera's continuous view position - view_x()/
-        // view_y() plus the sub-cell frac_x()/frac_y() the world texture
-        // below already uses for its own smooth scroll - scaled by SCALE and
-        // the layer's own parallax factor. Full-texture draws with a
-        // negative destination offset rather than a cropped source rect: the
-        // art is static, so there is nothing to re-upload per frame, only
-        // where it is drawn needs to move.
-        const float cont_view_x = static_cast<float>(camera.view_x()) + camera.frac_x();
-        const float cont_view_y = static_cast<float>(camera.view_y()) + camera.frac_y();
-
-        // **The clear is load-bearing now in a way it was not before.** V1's
-        // 64-band gradient filled the whole window every frame, so it doubled
-        // as a clear and nothing here ever needed one. The authored sky that
-        // replaced it is drawn behind an `if` - a missing or unreadable BMP
-        // leaves the framebuffer holding whatever was in it, which on a
-        // double-buffered renderer is two-frames-ago garbage rather than a
-        // plain background. Clearing to the palette's darkest sky tone means
-        // the failure mode is "the backdrop is flat" instead of "the window
-        // is full of noise".
-        SDL_SetRenderDrawColor(renderer, 0x14, 0x10, 0x22, 255); // sky_deep, tools/pixel_art.py
-        SDL_RenderClear(renderer);
-
-        if (backdrop_sky) {
-            const SDL_FRect dst{
-                -cont_view_x * Camera::SCALE * PARALLAX_SKY_X,
-                -cont_view_y * Camera::SCALE * PARALLAX_SKY_Y,
-                static_cast<float>(sky_w), static_cast<float>(sky_h)
-            };
-            SDL_RenderCopyF(renderer, backdrop_sky, nullptr, &dst);
-        }
-        if (backdrop_mountains) {
-            const SDL_FRect dst{
-                -cont_view_x * Camera::SCALE * PARALLAX_MOUNTAIN_X,
-                -cont_view_y * Camera::SCALE * PARALLAX_MOUNTAIN_Y,
-                static_cast<float>(mountain_w), static_cast<float>(mountain_h)
-            };
-            SDL_RenderCopyF(renderer, backdrop_mountains, nullptr, &dst);
-        }
-
-        // V4's props. Drawn before the cell texture on purpose - see the
-        // Prop comment above main() - so a trunk that overlaps authored
-        // terrain gets buried by it with no depth test and no new code path,
-        // exactly the way the cell texture already occludes the backdrop
-        // wherever a cell is not Empty.
-        for (const Prop& prop : props) {
-            if (!prop.texture) continue;
-            const SDL_FRect dst{
-                camera.world_to_screen_x(prop.anchor_x - prop.w / 2.0f),
-                camera.world_to_screen_y(prop.anchor_y - static_cast<float>(prop.h)),
-                static_cast<float>(camera.scale_length(prop.w)),
-                static_cast<float>(camera.scale_length(prop.h))
-            };
-            SDL_RenderCopyF(renderer, prop.texture, nullptr, &dst);
-        }
-
-        // Drawn shifted by the camera's sub-cell remainder, which is the half of
-        // A1 that smoothing the player alone would not have fixed: the view is
-        // unclamped wherever the player usually is, so the player sits near
-        // screen centre and it is the *world* that scrolls. In whole cells that
-        // is a 4-pixel jerk of everything on screen at once.
-        const SDL_FRect world_dst{
-            -camera.frac_x() * Camera::SCALE,
-            -camera.frac_y() * Camera::SCALE,
-            static_cast<float>(mode.padded_w() * Camera::SCALE),
-            static_cast<float>(mode.padded_h() * Camera::SCALE)
-        };
-        SDL_RenderCopyF(renderer, targets.cells, nullptr, &world_dst);
-
-        // --- S0's objective marker ---
+        // --- the world layers (V17) ---
         //
-        // **Drawn in world cells, not screen pixels**, which is the opposite
-        // choice from the reticle above and for the opposite reason: the reticle
-        // is a cursor and has to keep its legibility at any scale, while this is
-        // a thing that is *somewhere* and has to sit still in the world as the
-        // camera moves over it. A screen-space marker would slide against the
-        // terrain it is standing on.
-        //
-        // Drawn after the world and before the player, so the body passes in
-        // front of it - reaching an objective you are standing on top of should
-        // not leave you hidden behind it - and before the light pass, which is
-        // additive and therefore leaves an unlit marker at exactly the colour
-        // written here rather than dimming it into the terrain.
-        //
-        // Three concentric squares rather than a sprite: no new asset, no
-        // manifest entry, and the dark ring is what stops it disappearing
-        // against sand for the same reason the reticle has an outline.
-        if (run.has_objective()) {
-            const float gx = static_cast<float>(run.objective_x());
-            const float gy = static_cast<float>(run.objective_y());
-            struct Ring { int cells; uint8_t r, g, b; };
-            const Ring rings[3] = {
-                { 12, 0x14, 0x10, 0x22 },  // sky_deep, the same dark the frame clears to
-                { 10, 0xF0, 0xC0, 0x40 },
-                {  4, 0xFF, 0xFF, 0xFF },
-            };
-            for (const Ring& ring : rings) {
-                SDL_SetRenderDrawColor(renderer, ring.r, ring.g, ring.b, 255);
-                const SDL_FRect box{
-                    camera.world_to_screen_x(gx - ring.cells / 2.0f),
-                    camera.world_to_screen_y(gy - ring.cells / 2.0f),
-                    static_cast<float>(camera.scale_length(ring.cells)),
-                    static_cast<float>(camera.scale_length(ring.cells))
-                };
-                SDL_RenderFillRectF(renderer, &box);
-            }
-        }
-
-        // The player is not a cell, so it is not in the pixel buffer either -
-        // it is drawn on top of the world as its own sprite. Float rect and
-        // float position: rounding either one here is the defect coming back.
-        //
-        // Positioned by subtracting the offsets from the *box's* corner, which
-        // is what "anchored to the box's bottom-centre" works out to - the
-        // sprite's baseline lands on the box's baseline and its extra width is
-        // split evenly either side.
-        const SDL_FRect body{
-            camera.world_to_screen_x(draw_player_x - player_sprite::OFFSET_X),
-            camera.world_to_screen_y(draw_player_y - player_sprite::OFFSET_Y),
-            static_cast<float>(camera.scale_length(player_sprite::FRAME_W)),
-            static_cast<float>(camera.scale_length(player_sprite::FRAME_H))
-        };
-        if (player_tex) {
-            const SDL_RendererFlip flip =
-                facing_left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-
-            // The source rect is the whole of "this is a sheet rather than a
-            // sprite" on this side of the boundary. Which cell it names is
-            // decided in render/player_anim.cpp, which is SDL-free and tested.
-            const SDL_Rect src{
-                anim_state.sheet_col() * player_sprite::FRAME_W,
-                anim_state.sheet_row() * player_sprite::FRAME_H,
-                player_sprite::FRAME_W, player_sprite::FRAME_H
-            };
-            SDL_RenderCopyExF(renderer, player_tex, &src, &body, 0.0, nullptr, flip);
-        } else {
-            // The pre-V3 rectangle, kept as the fallback rather than deleted.
-            // A missing asset should degrade to a visible player, not to an
-            // invisible one - load_art_texture already printed why it failed,
-            // and a game you can still move around in is a better diagnostic
-            // than a world with nothing in it.
-            SDL_SetRenderDrawColor(renderer, 235, 235, 245, 255);
-            const SDL_FRect box{
-                camera.world_to_screen_x(draw_player_x),
-                camera.world_to_screen_y(draw_player_y),
-                static_cast<float>(camera.scale_length(Player::WIDTH)),
-                static_cast<float>(camera.scale_length(Player::HEIGHT))
-            };
-            SDL_RenderFillRectF(renderer, &box);
-        }
-
-        // V7's one extra RenderCopy - the whole cost of the feature on the GPU
-        // side, which is what the architecture note budgeted.
-        //
-        // **Drawn after the world and after the player, and before the reticle
-        // and HUD.** Everything in the world is a surface that light lands on,
-        // including the player, who otherwise stays flatly, evenly lit while
-        // standing inside a fire. Everything after it is UI, which is not in the
-        // world and must not be tinted by it - a reticle that goes orange near a
-        // flame is the exact defect B1 was about.
-        //
-        // The destination is the *block* extent, not the padded cell extent, and
-        // that is what aligns the stretch. `cols()*BLOCK` is the padded width
-        // rounded up to a whole block, so each texel's centre lands on the centre
-        // of the four-by-four cells it was computed from. Sized to the padded
-        // extent instead, every texel would sit up to half a block off and the
-        // glow would trail behind the flame that cast it.
-        if (targets.light.any_light()) {
-            const SDL_FRect light_dst{
-                -camera.frac_x() * Camera::SCALE,
-                -camera.frac_y() * Camera::SCALE,
-                static_cast<float>(targets.light.cols() * LightField::BLOCK * Camera::SCALE),
-                static_cast<float>(targets.light.rows() * LightField::BLOCK * Camera::SCALE)
-            };
-            SDL_RenderCopyF(renderer, targets.light_texture, nullptr, &light_dst);
-        }
+        // Everything from the clear to V7's light pass now lives in
+        // render/frame.cpp, moved there verbatim, and `golden_frame_test`
+        // checksums the result so the move can be shown to have changed
+        // nothing. **What stays below this call is UI**, and that split is not
+        // filing: the light pass is the last thing in the world, and anything
+        // drawn after it is deliberately not lit.
+        frame::Params fp;
+        fp.camera = &camera;
+        fp.padded_w = mode.padded_w();
+        fp.padded_h = mode.padded_h();
+        fp.backdrop = backdrop;
+        fp.props = &props;
+        fp.cells = targets.cells;
+        fp.has_objective = run.has_objective();
+        fp.objective_x = run.objective_x();
+        fp.objective_y = run.objective_y();
+        fp.player_tex = player_tex;
+        fp.player_x = draw_player_x;
+        fp.player_y = draw_player_y;
+        fp.facing_left = facing_left;
+        fp.sheet_col = anim_state.sheet_col();
+        fp.sheet_row = anim_state.sheet_row();
+        fp.player_box_w = Player::WIDTH;
+        fp.player_box_h = Player::HEIGHT;
+        fp.light = &targets.light;
+        fp.light_texture = targets.light_texture;
+        frame::compose(renderer, fp);
 
         // The reticle (V10/B1). Three things it has to do, and the old one-cell
         // filled square did none of them well enough to survive a playtest.
@@ -1692,8 +1579,8 @@ int main(int argc, char* argv[]) {
     // and `props` holding several borrowed copies of each is not a double free.
     for (auto& entry : prop_textures)
         if (entry.second) SDL_DestroyTexture(entry.second);
-    if (backdrop_mountains) SDL_DestroyTexture(backdrop_mountains);
-    if (backdrop_sky) SDL_DestroyTexture(backdrop_sky);
+    if (backdrop.mountains) SDL_DestroyTexture(backdrop.mountains);
+    if (backdrop.sky) SDL_DestroyTexture(backdrop.sky);
     SDL_DestroyTexture(targets.light_texture);
     SDL_DestroyTexture(targets.cells);
     SDL_DestroyRenderer(renderer);

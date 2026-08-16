@@ -1,0 +1,370 @@
+REFERENCE OBSERVATIONS
+======================
+
+Status: rewritten from scratch 2026-08-16. The first version was written for V5
+and deleted in commit e05609d; several places in the tools and the roadmap kept
+citing it for specific conclusions, and those conclusions are re-derived here
+against the frames actually present rather than reconstructed from the
+citations. Where a citation's claim could not be reproduced, that is said.
+
+**The frames are gitignored and the written observation is the artifact.**
+resources/ is ignored wholesale (.gitignore has the argument), so nothing below
+can be checked by opening the image on another machine, and nothing in the asset
+pipeline ever reads a pixel out of one. That is deliberate and it is what keeps
+"our direction informed by theirs" from sliding into "their palette lifted."
+
+**What this file is for, and the bound on it.** Reference answers "what is
+possible" and never "what is wrong here". It cannot admit a roadmap item. The
+legitimate uses are exactly three, and they are the three V5 named:
+
+    - contrast and readability against a busy simulated background
+    - how much of a frame is not simulated at all
+    - what the eye is drawn to when everything is moving
+
+An observation that does not serve one of those is breadth spending wearing
+engine clothes. If reading this file makes you want to build something, that
+want is not evidence.
+
+ENTRY FORMAT: source, date observed, what was measured or seen, and — the part
+that makes it useful later — what it would take to disprove it. An observation
+with no disproof condition is an impression.
+
+
+-------------------------------------------------------------------------------
+SOURCE: Cast n Chill — eight frames, resources/images/CnC_*.jpg
+Observed 2026-08-16.
+-------------------------------------------------------------------------------
+
+A fishing game. Painted pixel-art lakes, a boat, a dog, a rod. Chosen as
+reference for three things it does that we want and one thing it does that we
+had assumed wrongly.
+
+**How much of the frame is simulated: essentially none of it.** This is the
+first and most important thing about using it as reference. The lake is a
+painting. The only things that move are the boat, the fish, the water shimmer
+and the weather. Every depth cue below is therefore *authored per frame* by a
+human who knew where everything would be — and we cannot do that, because our
+background is the game. Anything taken from these frames has to survive being
+composed by a simulation instead of by an artist. That constraint is not
+visible in the frames and has to be carried in from here every time.
+
+
+ENTRY 1 — the three "parallax" frames are not one scene panning, and the
+          attempt to measure parallax factors from them failed.
+--------------------------------------------------------------------------
+Frames: CnC_parallax_1.jpg, _2.jpg, _3.jpg (3440x1440 each).
+
+These were taken to be the same lake at three camera offsets, which would have
+made them a free measurement of per-layer parallax factors — exactly the number
+our own bands (art_direction.txt section 6) have never had.
+
+Measured: per-region best horizontal shift by sum-of-absolute-differences over
+candidate offsets, on hand-picked regions each belonging to one depth layer
+(band-wise measurement is useless here — a horizontal band across this scene
+holds the far range on one side and the near shore on the other, and the best
+single shift for that mixture means nothing). Frames 1 -> 3, confidence measured
+as how far the best candidate beats the median candidate:
+
+    far snow range, right         +200 px    95%
+    flat-top red cliff, centre     +56 px    84%
+    near dark mountain, left       +96 px    88%
+    conifer, right shore          -260 px    62%
+
+**Two of these are impossible for a single camera pan.** The far range shifts
+*more* than the near mountain, which inverts parallax; and the left and right
+edges shift in opposite directions, which no translation produces. A 2D search
+was run in case vertical camera motion was contaminating an x-only match against
+sloped silhouettes — dy came back 0 in every region, so that is not it.
+
+**Conclusion: these are three separately generated lakes sharing an art
+vocabulary, not one scene panning.** The same flat-top cliff sprite appears in
+all three at different x, which is what made them look like a pan. Frame 3 has a
+large deciduous tree at the right edge with no counterpart at any offset in the
+others.
+
+**So: no parallax factors can be taken from this reference.** Our 0.04/0.15
+were chosen by eye and remain unmeasured. Writing a "measured" factor into the
+tuning table off these frames would have been fabrication, and it was within one
+step of happening.
+
+*Disproof:* find a genuine pan — two frames with a shared, unambiguous near
+feature — and the region shifts should then be monotonic in depth and agree in
+sign. Video capture would settle it in seconds; stills cannot.
+
+
+ENTRY 2 — depth is carried by band VALUE, and the ordering flips between day
+          and night. This is the palette-sample note.
+--------------------------------------------------------------------------
+Frames: CnC_parallax_1.jpg (day), CnC_night.jpg, CnC_fishing.jpg (night).
+
+Measured: mean of max(r,g,b), mean HLS saturation, and median hue over
+hand-picked regions, one per depth band.
+
+  CnC_parallax_1 (day):
+    band                V mean    S mean   hue
+    sky                  207       0.37    211
+    far range            185       0.26    220
+    mid mountains        130       0.23    218
+    treeline             105       0.20    200
+    foreground rock      103       0.16    232
+
+  CnC_night (night):
+    sky                  163       0.42    217
+    far range             58       0.51    219
+    mid forest           123       0.23    208
+    foreground rock      141       0.34    210
+    near conifer          36       0.57    160
+
+**By day the bands descend monotonically in both value and saturation from sky
+to foreground.** That is aerial perspective: far things sit closer to the sky's
+colour, near things are darker and greyer. Hue barely moves — 200 to 232 across
+the whole frame, all of it blue. The separation is done entirely by value and
+saturation with a near-constant hue.
+
+**By night that ordering breaks and is replaced by silhouette.** The sky stays
+the brightest thing in frame; the nearest shapes drop to near-black (the conifer
+at V 36) and read as outline only; and the readable detail moves into the middle
+band, which is the *brightest* band after the sky. The far range goes dark
+rather than pale — the opposite of the day frame.
+
+**The thing this is worth to us.** Our palette does neither, and its bands
+overlap almost completely: sky roughly 0x14–0x28, mountains 0x20–0x30, trees
+0x18–0x59, terrain 0x1B–0x78. Nothing separates one band from the next except
+the rim highlight, which is why a busy frame here reads as flat. This is the
+"contrast against a busy simulated background" question, answered, and the
+answer is that we are not currently answering it.
+
+It is also a *renderer* finding rather than a palette one. Pushing a band's
+value range down globally is a multiply, and the light pass can only add. So
+this cannot be fixed by editing colours, and must not be attempted as a palette
+change.
+
+*** ACTED ON 2026-08-16 (V11 step 3), AND THE MEASUREMENT WAS WORSE THAN THIS
+*** ENTRY MADE IT LOOK.
+The channel ranges above understate it, because a range is not a separation.
+Re-measured in Rec. 709 luminance over the actual shipped BMPs: sky mean 26
+(p05 18, p95 35), mountains **flat 28** — p05 and p95 both 28, no internal
+variation whatsoever — trees mean 42, terrain 38 to 171. So the two most distant
+bands in the frame are separated by two levels out of 255, and the mountains are
+the *brighter* of the pair, which is the wrong sign for a night scene as well as
+the wrong magnitude.
+
+The renderer half of the claim held exactly as written, and it is the reason the
+fix took a week rather than an afternoon: there was no number anywhere in the
+project that could darken a pixel. `render/frame.cpp`'s layer table now carries a
+per-layer `Grade`, and the mountains sit at 0.60 — the pair reads 26 against 16
+and the band is a silhouette. TUNING.md carries the row.
+
+**One correction to the reasoning above, not to the finding.** This entry says
+"pushing a band's value range down *globally*", and global is what the fix is
+not. A single frame-wide multiply cannot separate two bands: it scales both and
+leaves the ratio between them where it was. Separation is necessarily per-layer.
+The world-wide grade got built too, and it is a different feature — night and
+weather — which is worth keeping distinct, because reading this entry as an
+argument for the global knob would be reading it as an argument for the one knob
+that could not have answered it.
+
+*Still open:* trees at 42 sit inside the terrain's 38-171 and are not separated
+from it by anything. The rim highlight is what carries that boundary today (entry
+3), which is a narrower instrument than a value step. Not touched at step 3
+because trees are drawn *behind* the cell texture and are occluded by it, so
+what is actually visible of a tree is the part standing against the sky — where
+it does separate. Worth re-measuring on a frame with a tree against open ground.
+
+*Disproof:* sample more regions per band, or regions chosen by someone else. The
+day frame's monotonic descent is robust — five bands, one direction, no
+exceptions — and is the half worth trusting. The night frame's non-monotonic
+ordering rests on five hand-picked regions in one image and could be an artefact
+of which rocks were sampled.
+
+*(This is the "dated entry" and the "palette-sample note" that tools/pixel_art.py
+and generate_test_scene.py cite. Both cited the deleted version; what they
+describe — dark, narrow value range, cool sky over warm ground, and flat
+interiors being the point — is consistent with what is measured above, so those
+comments are left as they stand.)*
+
+
+ENTRY 3 — the rim technique: flat masses, contrast spent on edges.
+--------------------------------------------------------------------------
+Frames: all eight, most clearly CnC_night.jpg and CnC_parallax_1.jpg.
+
+Seen rather than measured. Large filled regions — rock, forest mass, mountain
+flank — carry almost no internal texture. They are close to a single tone. What
+carries the shape is the boundary: one to two pixels along the edge facing the
+light or facing open air, held bright and warm against the flat mass behind it.
+
+The value range *within* a mass is small; the jump *across* an edge is large.
+That is where the whole contrast budget goes.
+
+**This is the technique tools/pixel_art.py's `apply_rim_light` implements**, and
+it is the one that made a dark palette legible at all. It is written up as a
+rule, with its three consequences, in art_direction.txt's rim section — which is
+where it belongs, because it is now our rule rather than an observation.
+
+*Disproof:* a frame where a large mass carries real internal texture and still
+reads. The lighthouse frame's clouds come closest — they are heavily modelled
+internally — but clouds are the exception the frames themselves make, and they
+are sky, not mass.
+
+
+ENTRY 4 — a mid-ground band is doing most of the depth work, and we have no
+          slot for one.
+--------------------------------------------------------------------------
+Frames: CnC_parallax_1/2/3, CnC_night.jpg, CnC_fishing.jpg.
+
+Every one of these frames carries a distinct band between "distant mountains"
+and "the ground the character is on": a treeline, a near ridge, a bank of rocks.
+It is the band with the most silhouette detail and it is the one that sells the
+distance, because the mountains are too far to move and the foreground is too
+close to read as anything but where you are.
+
+Our stack goes mountains at 0.15 straight to the world at 1.00. That is a very
+large gap with nothing in it, and there is no place to put a band because the
+layer order is hard-coded inline in main.cpp.
+
+*(This is the conclusion ROADMAP.md's V11 and ROADMAP_ITEMS.md both cite this
+file for, and it is re-derived here rather than inherited: the deleted version's
+wording is gone, but the frames still say it, in five of eight.)*
+
+*Disproof:* it is a composition observation from a game that composes by hand.
+A simulated world might fill that band with terrain by itself — our world is
+1080 cells tall and the camera sees 270 of them, so there is real ground
+between the player and the horizon. Worth checking against a played frame
+before building a band that terrain was already occupying.
+
+*** DISPROVED 2026-08-16, by the check named above, on the same day the entry
+*** was written.
+
+V11 built the band — a slot at parallax 0.40 between the mountains and the
+world — and then the played-frame check went out as manual-checklist step 11:
+standing on the surface, looking at the horizon, is there a visible gap between
+the mountains and the ground you are on? The answer came back **no: the terrain
+already fills it.** The layer was removed the same day, and the golden checksum
+returned to exactly the value it had before V11 touched anything.
+
+**The observation above is correct about the reference and wrong about us**, and
+those are different claims that this file exists to keep apart. Five of eight
+CnC frames really do carry that band and it really is doing most of their depth
+work. What does not transfer is the reason: they compose by hand and *have* to
+author that band, because nothing else will put anything there. We simulate it.
+The gap the reference fills with a painted treeline, we fill with 800 cells of
+actual ground.
+
+**This is the file's opening constraint firing, and it is worth naming as such.**
+The header of this document says every depth cue in these frames is authored per
+frame by a human who knew where everything would be, that we cannot do that
+because our background is the game, and that "anything taken from these frames
+has to survive being composed by a simulation instead of by an artist." Entry 4
+is the first observation to fail exactly that test — not by being a bad
+observation, but by being one whose *mechanism* was hand-composition. The
+constraint was written down in advance, at the top of this file, and it still
+took building the band to notice it applied here.
+
+**The generalisable form, for the next entry that looks like this one: ask what
+in the reference is doing the work, not just what the work is.** "A mid-ground
+band carries the depth" is a description of a result. "A human paints one there
+because nothing else would be" is the mechanism, and the mechanism is the half
+that tells you whether it transfers.
+
+*Reopen trigger, so this is a closed loop and not a dead end:* a location whose
+terrain does **not** fill that band. F4's fixture scene has a snowbank and a high
+horizon; a flatter scene with a low horizon would restore the gap, and so would
+a zoomed-out camera once `Camera::SCALE` becomes a runtime value (V11's remaining
+bullet). Either of those and the band is worth building again — the layer table
+in src/render/frame.cpp makes it one row, which is the thing V11 actually bought.
+
+
+ENTRY 5 — the split view: what it actually is, and what it is not.
+--------------------------------------------------------------------------
+Frames: CnC_fishing.jpg, CnC_underwater_1.jpg, CnC_underwater_2.jpg.
+
+This is the frame family that prompted the split-view work, so it is worth being
+precise about, and the precise answer is smaller than the impression.
+
+**What is there:** a hard, bright, near-white horizontal line across the full
+width of the frame, with a regular dashed or ticked pattern along it. Above it,
+the lake and its shore; below it, the water column with fish.
+
+**What it is not: two cameras.** Measured above and below the divider in
+CnC_fishing —
+
+    above-water shore     V 87    S 0.41
+    below-water column    V 98    S 0.46
+
+The underwater half is *not* darker and *not* desaturated. It is very slightly
+brighter. Whatever separates the two halves, it is not a tint, an exposure
+change or a second colour treatment.
+
+**And the divider is not the waterline.** In CnC_underwater_2 the boat floats
+roughly 75 px *below* the white line, which a boat on a surface cannot do. The
+same dashed line, at the same weight and the same tick pattern, appears in all
+three frames at different heights relative to the water. Read as a **UI overlay
+— a casting-depth or distance gauge — drawn over both halves**, not as the
+boundary between them. The actual boundary between above and below water is the
+ordinary painted water surface, and the view across it is continuous.
+
+**So the "split screen" in this reference is one continuous camera looking at a
+world that happens to have water in it, plus a gauge drawn on top.** There is no
+second viewport, no second camera and no per-pane treatment.
+
+**What that is worth to us, stated carefully because it cuts both ways.** It
+removes the assumption that a surface/underground split needs two cameras and
+two render passes — the reference achieves its effect without either. But our
+case is genuinely different in a way the reference cannot speak to: an
+underground cave is *dark* and a lake is not, so our lower pane does need a
+treatment the reference's lower half does not have. The reference has settled
+the geometry question and has said nothing about the lighting one.
+
+*Disproof:* the strongest counter-evidence would be a frame where content
+visible above the line is inconsistent with content below it at the same x —
+that would prove two views. Nothing in these three shows it; the far shore's
+silhouette and the reflections run continuously across the boundary in
+underwater_1. Video would settle it: if the two halves ever scroll at different
+rates, it is two cameras and this entry is wrong.
+
+
+ENTRY 6 — what the eye goes to when everything is moving.
+--------------------------------------------------------------------------
+Frames: all eight.
+
+The frames are nearly still, so this is the question the reference answers
+worst, and the honest report is a partial one.
+
+What can be said: in every frame the character and boat occupy a very small
+fraction of the image — a few hundred pixels out of three million — and are
+found immediately anyway. Three things do it, and none of them is size:
+
+  - **Hue isolation.** The boat and figure are warm brown and cream in a frame
+    that is otherwise entirely blue. They are the only warm object present.
+  - **Value isolation.** In CnC_night the figure sits against the frame's
+    brightest region (the moonlit water), not against the dark shore.
+  - **The only hard edges in the frame.** Everything painted is soft-edged and
+    dithered; the boat has a crisp outline.
+
+The first of those is the one we have already adopted and the reason the player
+is cool blue-grey against a warm world — the same trick, inverted, because our
+world's temperature is the opposite of this one's. The third is free to us: our
+player is a sprite against a cell grid.
+
+*Disproof:* this needs footage, not stills. A still cannot show what the eye
+tracks when a hundred things move, and that is precisely our case and not this
+reference's. **Until someone watches gameplay of a game whose background
+actually simulates — Noita is the obvious one — this question is open**, and the
+three bullets above should be treated as hypotheses about a still image.
+
+
+-------------------------------------------------------------------------------
+OTHER FRAMES PRESENT, NOT YET OBSERVED
+-------------------------------------------------------------------------------
+
+resources/images/ also holds OWL_GOED.jpg, decaying_monster.png and
+the_garden_of_earthly_delights.jpg. They are not Cast n Chill and are not part
+of this pass. Listed so that a later reader knows they were seen and skipped
+rather than missed.
+
+CnC_lighthouse.jpg is the one CnC frame not cited above: a dusk seascape,
+almost entirely cloud, and the only frame in the set with a warm sky. It is the
+best available evidence of what a non-night palette would look like — the whole
+frame's hue budget inverts, warm above and cool below — and it is filed here
+unused because time of day is a held-open question in art_direction.txt section
+8 rather than a scheduled one.
