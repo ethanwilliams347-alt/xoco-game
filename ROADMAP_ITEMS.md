@@ -1,23 +1,38 @@
 # Roadmap Items — the working plan
 
-This file is **the plan**: what is next, how big it is, and what is blocking. [ROADMAP.md](ROADMAP.md) is the archive of *reasoning* — every item's full argument, the things that were tried and failed, and the measurements. When the two disagree about **order**, this file wins; when they disagree about **why**, that one does.
+This file is **the plan**: what is next, how big it is, and what is blocking.
+[ROADMAP.md](ROADMAP.md) is the archive of *reasoning* — every item's full
+argument, the things that were tried and failed, and the measurements. When the
+two disagree about **order**, this file wins; when they disagree about **why**,
+that one does.
 
 **A few terms used throughout:**
 
-- **Cell / grid** — the world is a giant spreadsheet of tiny squares; each square ("cell") holds one material like sand or water.
-- **Chunk** — a 64x64 block of cells. Blocks where nothing is moving get skipped to save time.
-- **Fixed timestep** — the simulation always advances in equal 60-per-second ticks, no matter how fast the screen refreshes, so the physics behaves the same on every computer.
-- **Deterministic** — same starting number (the "seed") plus same button presses always produces the exact same world. Makes bugs reproducible.
-- **Headless test** — an automated check that runs the simulation with no window open, so it can't see anything visual.
-- **Field** — a second, much coarser grid laid over the world (one entry per 4x4 block of cells) holding a number per block. The lighting already works this way. Two more items below use the same shape.
+- **Cell / grid** — the world is a giant spreadsheet of tiny squares; each
+  square ("cell") holds one material like sand or water.
+- **Chunk** — a 64x64 block of cells. Blocks where nothing is moving get skipped
+  to save time.
+- **Fixed timestep** — the simulation always advances in equal 60-per-second
+  ticks, no matter how fast the screen refreshes, so the physics behaves the
+  same on every computer.
+- **Deterministic** — same starting number (the "seed") plus same button presses
+  always produces the exact same world. Makes bugs reproducible.
+- **Headless test** — an automated check that runs the simulation with no window
+  open, so it can't see anything visual.
+- **Field** — a second, much coarser grid laid over the world (one entry per 4x4
+  block of cells) holding a number per block. The lighting already works this
+  way. Two more items below use the same shape.
 
-**Sizes** are stated on every open item and mean roughly: *afternoon* (<1 day), *days* (2–4), *week*, *weeks* (2–4), *large* (a month or more). An item with no size has not been thought about enough to schedule.
+**Sizes** are stated on every open item and mean roughly: *afternoon* (<1 day),
+*days* (2–4), *week*, *weeks* (2–4), *large* (a month or more). An item with no
+size has not been thought about enough to schedule.
 
 ---
 
 ## ▶️ Next up
 
-*Reviewed 2026-08-11 after an external review of this plan. This block is the only part of the file that has to be re-read to know what to do.*
+*Reviewed 2026-08-11 after an external review of this plan. This block is the
+only part of the file that has to be re-read to know what to do.*
 
 | # | Item | Size | Blocked on |
 |---|---|---|---|
@@ -31,7 +46,10 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 | 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a, 4b and V23 done; step 7 (V22) is gated on the owed V23 feel report** and cannot start until it comes back — see below |
 | 9 | **W-track: the workbench** | ~3 days | — *(**now next**, 2026-08-17, and it is six items run in order — see below)* |
 
-**Item 8 in detail, because it is a block rather than an item.** Started 2026-08-16 on a request for a split-view and parallax backdrop system. Run strictly in this order; each step's reason for coming before the next is the point.
+**Item 8 in detail, because it is a block rather than an item.** Started
+2026-08-16 on a request for a split-view and parallax backdrop system. Run
+strictly in this order; each step's reason for coming before the next is the
+point.
 
 | step | what | size | state |
 |---|---|---|---|
@@ -44,9 +62,22 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 | 6 | **V23 — the camera's vertical anchor, and the dig framing that moves it** | afternoon | ✅ **done 2026-08-17**, and it was **not on this list yesterday** — see the note below |
 | 7 | **V22 — the plane the player is in** | week | **next**, and unblocked by step 6. Still owed the fixture-scene rewrite, which is the step that costs both `.rec` recordings |
 
-> **Step 6 was not planned and that is the thing to notice about it.** It exists because V22's scene work started with a measurement instead of a redraw, and the measurement said the scene was the wrong instrument: `Camera::follow` centred strictly, so the receding plane's visible band capped at ~50% **by construction** and measured 20.2% at the spawn, against a reference reading of two thirds. **An afternoon of scene authoring would have moved that to about 22% and invalidated both recorded sessions to do it.** The general form is worth keeping — *when the plan is to author against a target, compute the target's reachability first* — because the cost of not doing it here would have been paid entirely in a human's afternoon, not in a build step.
+> **Step 6 was not planned and that is the thing to notice about it.** It exists
+> because V22's scene work started with a measurement instead of a redraw, and
+> the measurement said the scene was the wrong instrument: `Camera::follow`
+> centred strictly, so the receding plane's visible band capped at ~50% **by
+> construction** and measured 20.2% at the spawn, against a reference reading of
+> two thirds. **An afternoon of scene authoring would have moved that to about
+> 22% and invalidated both recorded sessions to do it.** The general form is
+> worth keeping — *when the plan is to author against a target, compute the
+> target's reachability first* — because the cost of not doing it here would
+> have been paid entirely in a human's afternoon, not in a build step.
 
-**V19 in detail, because it is four commits and not one.** The gate it had to fire first is answered — [gate screenshot](PLAYTEST_LOG.md#gate-screenshot--2026-08-16--does-terrain-fill-the-mid-ground-band), the mid band is 70% bare sky, so the near ridge and the treeline have somewhere to go. **Do not re-ask it.**
+**V19 in detail, because it is four commits and not one.** The gate it had to
+fire first is answered — [gate
+screenshot](PLAYTEST_LOG.md#gate-screenshot--2026-08-16--does-terrain-fill-the-mid-ground-band),
+the mid band is 70% bare sky, so the near ridge and the treeline have somewhere
+to go. **Do not re-ask it.**
 
 | step | what | state |
 |---|---|---|
@@ -55,72 +86,307 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 | 4c | **The far range, the near ridge and the treeline** — three rows reusing 4b's draw path, one colour and a shade each. **The treeline is the one band authored warm**; everything else stays on the cool ramp. **No longer a *shore* treeline** — the decision came back land, so it stands on ground rather than across water | **unblocked 2026-08-16; queued behind V22** |
 | 4d | **The value ladder tuned against entry 7**, once all seven bands exist and can be judged together | queued |
 
-> **4c was blocked for part of one day and the block paid for itself** *(blocked and released 2026-08-16, playtest session 7)*. The decision was **"is the receding plane land, or water the player is on?"**, and it came back **land, with the player in the plane** — closed in [Decisions owed](#-decisions-owed). Two of 4c's three bands survived either answer; the third was written here as the *shore* treeline, and **there is no shore, so it is a treeline standing on land** — one band re-aimed before a pixel of it was authored, which is the whole return on holding the step. *(The original reasoning is kept because it is the reusable part.)* Authoring first would have been authoring against a scene that was about to change. V20 and V21 spent two rounds retuning the ladder these bands hang from, which is the same mistake one level down — **settle what the plane is before adding bands beside it.**
+> **4c was blocked for part of one day and the block paid for itself** *(blocked
+> and released 2026-08-16, playtest session 7)*. The decision was **"is the
+> receding plane land, or water the player is on?"**, and it came back **land,
+> with the player in the plane** — closed in [Decisions owed](#-decisions-owed).
+> Two of 4c's three bands survived either answer; the third was written here as
+> the *shore* treeline, and **there is no shore, so it is a treeline standing on
+> land** — one band re-aimed before a pixel of it was authored, which is the
+> whole return on holding the step. *(The original reasoning is kept because it
+> is the reusable part.)* Authoring first would have been authoring against a
+> scene that was about to change. V20 and V21 spent two rounds retuning the
+> ladder these bands hang from, which is the same mistake one level down —
+> **settle what the plane is before adding bands beside it.**
 >
-> **4c now queues behind V22 rather than behind nothing, and the order is not arbitrary.** V22 changes what the plane's *near* end reads as; 4c authors three bands at its *far* end. Doing 4c first would tune three new bands against a junction that is about to move, and 4d exists to tune the whole ladder once anyway — so the cheap order is V22, then 4c, then 4d. **This is the third time in this block that the fix was ordering rather than work.**
+> **4c now queues behind V22 rather than behind nothing, and the order is not
+> arbitrary.** V22 changes what the plane's *near* end reads as; 4c authors
+> three bands at its *far* end. Doing 4c first would tune three new bands
+> against a junction that is about to move, and 4d exists to tune the whole
+> ladder once anyway — so the cheap order is V22, then 4c, then 4d. **This is
+> the third time in this block that the fix was ordering rather than work.**
 
-> **What 4b left open on purpose, and it is not an oversight to close inside 4c.** In the reference the plane is *brighter* than what stands on it; ours runs the other way, with the world row at grade 1.00. Grading the world down is coherent — grade multiplies and light adds, so fire lights it back up — but it changes how the play area reads while digging. **That is a `TUNING.md` row and a playtest, not an implementation detail**, and it must not be settled inside a commit that is about something else.
+> **What 4b left open on purpose, and it is not an oversight to close inside
+> 4c.** In the reference the plane is *brighter* than what stands on it; ours
+> runs the other way, with the world row at grade 1.00. Grading the world down
+> is coherent — grade multiplies and light adds, so fire lights it back up — but
+> it changes how the play area reads while digging. **That is a `TUNING.md` row
+> and a playtest, not an implementation detail**, and it must not be settled
+> inside a commit that is about something else.
 >
-> **Checklist steps 11 and 12 are owed on 4b and have not been run.** 11 matters most: the layer table changed shape *and* a wrapping layer is a new way to produce a seam, plus 24 strips is a new way to produce a stair-step. 12 is the grade, watching for over-correction. `golden_frame_test` does not cover either — it hashes a software rasterisation and is blind to a GPU-only defect.
+> **Checklist steps 11 and 12 are owed on 4b and have not been run.** 11 matters
+> most: the layer table changed shape *and* a wrapping layer is a new way to
+> produce a seam, plus 24 strips is a new way to produce a stair-step. 12 is the
+> grade, watching for over-correction. `golden_frame_test` does not cover either
+> — it hashes a software rasterisation and is blind to a GPU-only defect.
 
 
-> **Why this displaced E10, stated so the re-order is a decision and not a drift.** E10 is a good item and was correctly next. What moved it is that **the V track's first four items all turned out to be the same item**: V11 says there is no renderer, V17 says nothing checks the composed frame, V7-rest says the light pass cannot darken, and V8's remainder wants a third depth band — and every one of those is blocked on the ~350 lines of frame composition sitting inline in `main.cpp`. Doing them one at a time means extracting that code three times. This is the sitting where they get done together, and after it the V track is one item deep instead of four.
+> **Why this displaced E10, stated so the re-order is a decision and not a
+> drift.** E10 is a good item and was correctly next. What moved it is that
+> **the V track's first four items all turned out to be the same item**: V11
+> says there is no renderer, V17 says nothing checks the composed frame, V7-rest
+> says the light pass cannot darken, and V8's remainder wants a third depth band
+> — and every one of those is blocked on the ~350 lines of frame composition
+> sitting inline in `main.cpp`. Doing them one at a time means extracting that
+> code three times. This is the sitting where they get done together, and after
+> it the V track is one item deep instead of four.
 >
-> **Step 0 was scheduled as documentation and returned two engine findings**, which is the argument for having run it first rather than last. The **band-value defect** — our four depth bands overlap so completely that nothing but the rim highlight separates them — is measured, is why a busy frame reads flat, and **is exactly what step 3 exists to make fixable**, since correcting a band's value range is a multiply and the light pass can only add. And the **parallax factors were never measured**: an attempt to derive them from the reference failed because the three "parallax" frames are three generated lakes rather than one pan, so step 2 must ship the *existing* eyeballed factors and retune separately, with the golden frame proving the refactor was a no-op. Both are written up in [notes/reference_observations.txt](notes/reference_observations.txt); the correction to V5 is filed beside its entry in ROADMAP.md.
+> **Step 0 was scheduled as documentation and returned two engine findings**,
+> which is the argument for having run it first rather than last. The
+> **band-value defect** — our four depth bands overlap so completely that
+> nothing but the rim highlight separates them — is measured, is why a busy
+> frame reads flat, and **is exactly what step 3 exists to make fixable**, since
+> correcting a band's value range is a multiply and the light pass can only add.
+> And the **parallax factors were never measured**: an attempt to derive them
+> from the reference failed because the three "parallax" frames are three
+> generated lakes rather than one pan, so step 2 must ship the *existing*
+> eyeballed factors and retune separately, with the golden frame proving the
+> refactor was a no-op. Both are written up in
+> [notes/reference_observations.txt](notes/reference_observations.txt); the
+> correction to V5 is filed beside its entry in ROADMAP.md.
 >
-> **Step 1 landed 2026-08-16, and one number in this table was wrong.** The composition was **~175 lines, not ~350** — the larger figure counted the reticle, the HUD, the hotbar, the run-over wash and the settings menu along with it, and those are UI. They stayed in `main.cpp`, and the boundary is not filing: V7's light pass is the last thing drawn in the world, and everything after it is deliberately not lit. Recorded rather than corrected in place because the ~350 estimate is quoted in V11's and V17's entries in ROADMAP.md too, and it is the *composition* half that mattered to both.
+> **Step 1 landed 2026-08-16, and one number in this table was wrong.** The
+> composition was **~175 lines, not ~350** — the larger figure counted the
+> reticle, the HUD, the hotbar, the run-over wash and the settings menu along
+> with it, and those are UI. They stayed in `main.cpp`, and the boundary is not
+> filing: V7's light pass is the last thing drawn in the world, and everything
+> after it is deliberately not lit. Recorded rather than corrected in place
+> because the ~350 estimate is quoted in V11's and V17's entries in ROADMAP.md
+> too, and it is the *composition* half that mattered to both.
 >
-> Two things the step produced that were not in the plan. `FRAME_SOURCES` is a **fifth** source-set variable, kept out of `RENDER_SOURCES` because `frame.cpp` is the only rendering source that calls SDL and folding it in would make nine headless suites link SDL2. And `golden_frame_test` is the **first test target in the project that links SDL** — `SlopPhysics` was the only one before it. It still needs no display.
+> Two things the step produced that were not in the plan. `FRAME_SOURCES` is a
+> **fifth** source-set variable, kept out of `RENDER_SOURCES` because
+> `frame.cpp` is the only rendering source that calls SDL and folding it in
+> would make nine headless suites link SDL2. And `golden_frame_test` is the
+> **first test target in the project that links SDL** — `SlopPhysics` was the
+> only one before it. It still needs no display.
 >
-> **What the checksum does and does not prove.** It was verified sensitive before being trusted: swapping the sky and mountain draws moves it, and so does one cell of camera travel. It cannot retroactively prove the extraction was a no-op — there was no checksum before the move, so that claim rests on the diff being verbatim — but from here it is what makes step 2's restructure checkable. It hashes the *software* rasterisation and is blind to a GPU-only defect; do not quote it as covering the shipped frame.
+> **What the checksum does and does not prove.** It was verified sensitive
+> before being trusted: swapping the sky and mountain draws moves it, and so
+> does one cell of camera travel. It cannot retroactively prove the extraction
+> was a no-op — there was no checksum before the move, so that claim rests on
+> the diff being verbatim — but from here it is what makes step 2's restructure
+> checkable. It hashes the *software* rasterisation and is blind to a GPU-only
+> defect; do not quote it as covering the shipped frame.
 >
-> **Step 2 landed 2026-08-16, an afternoon rather than days, and the sequence it was verified in is worth more than the code.** Four bullets: the composition is an ordered `Layer` table in `frame.cpp`, the parallax offset is `Camera::parallax_origin_x/y(factor)`, the factors generate into `src/render/backdrop_layers.h`, and a mid-ground band sits between the mountains and the world. **Three of those four must change no pixel, and they were built and run first, against V17's checksum, which held unchanged at `0x3d729ad7fbcaa839`.** Only then was the band added and the number moved to `0x06f6412da7af6607`. So the restructure is a *measured* no-op rather than an asserted one — which is exactly what V17's entry said it could not do for the extraction itself, there being no checksum before that move. **The golden frame paid for itself one commit after it was built**, and the transferable form is that the order to do it in is: build the no-op half, prove it, then build the half that changes something.
+> **Step 2 landed 2026-08-16, an afternoon rather than days, and the sequence it
+> was verified in is worth more than the code.** Four bullets: the composition
+> is an ordered `Layer` table in `frame.cpp`, the parallax offset is
+> `Camera::parallax_origin_x/y(factor)`, the factors generate into
+> `src/render/backdrop_layers.h`, and a mid-ground band sits between the
+> mountains and the world. **Three of those four must change no pixel, and they
+> were built and run first, against V17's checksum, which held unchanged at
+> `0x3d729ad7fbcaa839`.** Only then was the band added and the number moved to
+> `0x06f6412da7af6607`. So the restructure is a *measured* no-op rather than an
+> asserted one — which is exactly what V17's entry said it could not do for the
+> extraction itself, there being no checksum before that move. **The golden
+> frame paid for itself one commit after it was built**, and the transferable
+> form is that the order to do it in is: build the no-op half, prove it, then
+> build the half that changes something.
 >
-> **The mid-ground band was built and then removed the same day, and that is the step's most valuable result.** It went in as a slot at 0.40/0.16 and went out on checklist step 11, which was written to ask the one question [reference_observations.txt](notes/reference_observations.txt) entry 4 had raised against itself: our world is 1080 cells tall and the camera sees 270, so the band the reference fills by hand may be one our *terrain* already fills. **Played and looked at 2026-08-16: no gap, the terrain fills it.** The entry is marked disproved beside its original text rather than rewritten. **The half worth carrying is why it did not transfer** — the observation is correct about the reference and its *mechanism* is hand-composition: a painting must author that band because nothing else will occupy it, and we simulate 800 cells of ground into the same space. `reference_observations.txt`'s header names that constraint in advance and entry 4 is the first observation to fail it. Two secondary findings survive the deletion: **depth here is a renderer problem before it is a layer-count problem** (entry 2's overlap is what makes a busy frame read flat, and no number of bands fixes it — step 3's multiply does), and **a near band is the most expensive layer in the stack**, 32 MB at 0.40, which is a much better argument for V16 than the duplication ever was.
+> **The mid-ground band was built and then removed the same day, and that is the
+> step's most valuable result.** It went in as a slot at 0.40/0.16 and went out
+> on checklist step 11, which was written to ask the one question
+> [reference_observations.txt](notes/reference_observations.txt) entry 4 had
+> raised against itself: our world is 1080 cells tall and the camera sees 270,
+> so the band the reference fills by hand may be one our *terrain* already
+> fills. **Played and looked at 2026-08-16: no gap, the terrain fills it.** The
+> entry is marked disproved beside its original text rather than rewritten.
+> **The half worth carrying is why it did not transfer** — the observation is
+> correct about the reference and its *mechanism* is hand-composition: a
+> painting must author that band because nothing else will occupy it, and we
+> simulate 800 cells of ground into the same space.
+> `reference_observations.txt`'s header names that constraint in advance and
+> entry 4 is the first observation to fail it. Two secondary findings survive
+> the deletion: **depth here is a renderer problem before it is a layer-count
+> problem** (entry 2's overlap is what makes a busy frame read flat, and no
+> number of bands fixes it — step 3's multiply does), and **a near band is the
+> most expensive layer in the stack**, 32 MB at 0.40, which is a much better
+> argument for V16 than the duplication ever was.
 >
-> **The checksum returned to V17's exact value, `0x3d729ad7fbcaa839`, and that is a second independent proof.** The first proof was procedural — restructure first, run it against the old number, then add the band. The second is arithmetic: with the band removed, the whole of V11 composes the byte-identical frame the inline code composed at V8. **`git log -S` on that constant will show three commits where the file's history reads as one**, which is a thing to know before quoting it.
+> **The checksum returned to V17's exact value, `0x3d729ad7fbcaa839`, and that
+> is a second independent proof.** The first proof was procedural — restructure
+> first, run it against the old number, then add the band. The second is
+> arithmetic: with the band removed, the whole of V11 composes the
+> byte-identical frame the inline code composed at V8. **`git log -S` on that
+> constant will show three commits where the file's history reads as one**,
+> which is a thing to know before quoting it.
 >
-> **And it is the strongest evidence V11 has for its own admission argument.** The item was admitted on "adding a band is one entry rather than surgery between two comments". What actually got measured was the *removal* — one table row, one draw function, one factor, one fixture texture, in and out inside a day. Changing your mind was always the expensive direction, and that is the direction that got priced.
+> **And it is the strongest evidence V11 has for its own admission argument.**
+> The item was admitted on "adding a band is one entry rather than surgery
+> between two comments". What actually got measured was the *removal* — one
+> table row, one draw function, one factor, one fixture texture, in and out
+> inside a day. Changing your mind was always the expensive direction, and that
+> is the direction that got priced.
 >
-> Checklist step 11 stays, minus the band question: it is the parallax-ordering and pan-limit-seam check, and it keeps the reopen trigger — a location whose terrain does not fill the band, or a zoomed-out camera once `Camera::SCALE` is runtime.
+> Checklist step 11 stays, minus the band question: it is the parallax-ordering
+> and pan-limit-seam check, and it keeps the reopen trigger — a location whose
+> terrain does not fill the band, or a zoomed-out camera once `Camera::SCALE` is
+> runtime.
 >
-> **Two smaller things the step produced that were not in the plan.** The `Lighting` field V11's sixth bullet asked for is **three values and not four, deliberately**: V11's own text wants V16's animated bands behind the world *and* untinted by the light pass, and that is not representable while the light pass is one additive full-screen copy — position is the whole of what "lit" can mean today. It is enforced by `static_assert` over the table rather than described in a comment, and the assert was verified by reordering the table and watching the build fail with the right message. And **the seam at the pan limit is now a printed line**: the generated header carries each layer's expected size, so `main.cpp` warns at startup when the loaded BMP is smaller, instead of the defect waiting at the far edge of the map for somebody to walk to it.
+> **Two smaller things the step produced that were not in the plan.** The
+> `Lighting` field V11's sixth bullet asked for is **three values and not four,
+> deliberately**: V11's own text wants V16's animated bands behind the world
+> *and* untinted by the light pass, and that is not representable while the
+> light pass is one additive full-screen copy — position is the whole of what
+> "lit" can mean today. It is enforced by `static_assert` over the table rather
+> than described in a comment, and the assert was verified by reordering the
+> table and watching the build fail with the right message. And **the seam at
+> the pan limit is now a printed line**: the generated header carries each
+> layer's expected size, so `main.cpp` warns at startup when the loaded BMP is
+> smaller, instead of the defect waiting at the far edge of the map for somebody
+> to walk to it.
 >
-> **Step 3 landed 2026-08-16 and it is the first commit in this project's history where the composed frame changed on purpose.** The mechanism is two things that are one idea at two scopes: a `Grade` — a plain RGB multiply — on every row of the layer table, applied with `SDL_SetTextureColorMod`; and a `Lighting::Grade` row holding a full-screen `SDL_BLENDMODE_MOD` quad driven by `Params::world_grade`. Step 2's procedure was reused exactly and it is now the house style: **the entire mechanism was built with every grade at identity and run against `0x3d729ad7fbcaa839` first, which held.** Only then did the one real value go in. So the checksum's move to `0x9d9e92a81c4df07b` has exactly one cause and the diff cannot be hiding a second.
+> **Step 3 landed 2026-08-16 and it is the first commit in this project's
+> history where the composed frame changed on purpose.** The mechanism is two
+> things that are one idea at two scopes: a `Grade` — a plain RGB multiply — on
+> every row of the layer table, applied with `SDL_SetTextureColorMod`; and a
+> `Lighting::Grade` row holding a full-screen `SDL_BLENDMODE_MOD` quad driven by
+> `Params::world_grade`. Step 2's procedure was reused exactly and it is now the
+> house style: **the entire mechanism was built with every grade at identity and
+> run against `0x3d729ad7fbcaa839` first, which held.** Only then did the one
+> real value go in. So the checksum's move to `0x9d9e92a81c4df07b` has exactly
+> one cause and the diff cannot be hiding a second.
 >
-> **The item was estimated at a week and took an afternoon, and the estimate was wrong for a specific reason worth keeping.** "The light pass gains a multiply" was priced as the item that would finally spend `SDL_ComposeCustomBlendMode` — the escape hatch the renderer-vs-shader refusal has been holding in reserve through two examinations. It needed no custom blend mode at all: `SDL_BLENDMODE_MOD` is stock SDL and `SDL_SetTextureColorMod` does the per-layer half for free, with no extra draw call. **All three named escape hatches are still unspent, and the first item that looked like it would spend one did not.** That is evidence for the refusal, not merely an absence of evidence against it.
+> **The item was estimated at a week and took an afternoon, and the estimate was
+> wrong for a specific reason worth keeping.** "The light pass gains a multiply"
+> was priced as the item that would finally spend `SDL_ComposeCustomBlendMode` —
+> the escape hatch the renderer-vs-shader refusal has been holding in reserve
+> through two examinations. It needed no custom blend mode at all:
+> `SDL_BLENDMODE_MOD` is stock SDL and `SDL_SetTextureColorMod` does the
+> per-layer half for free, with no extra draw call. **All three named escape
+> hatches are still unspent, and the first item that looked like it would spend
+> one did not.** That is evidence for the refusal, not merely an absence of
+> evidence against it.
 >
-> **The one measured change, and it is the first retune in TUNING.md that was measured rather than judged by eye.** Entry 2 of [notes/reference_observations.txt](notes/reference_observations.txt) said the depth bands do not separate by value. Re-measured in luminance against the shipped BMPs, **the entry understated its own finding**: the sky averages 26 and the mountains are *flat 28* — p05 and p95 both 28, no internal variation at all — so the two most distant bands in the frame sit two levels apart out of 255, and the far one is the **brighter** of the pair. The mountains now carry a 0.60 grade; the pair reads 26 against 16 and the band is a silhouette. **The direction is darker-with-nearness, and the instinct that says otherwise is a daylight instinct** — aerial perspective washes distant things *toward* the sky, which is right at noon and backwards at night, when the sky is the only bright thing in the frame.
+> **The one measured change, and it is the first retune in TUNING.md that was
+> measured rather than judged by eye.** Entry 2 of
+> [notes/reference_observations.txt](notes/reference_observations.txt) said the
+> depth bands do not separate by value. Re-measured in luminance against the
+> shipped BMPs, **the entry understated its own finding**: the sky averages 26
+> and the mountains are *flat 28* — p05 and p95 both 28, no internal variation
+> at all — so the two most distant bands in the frame sit two levels apart out
+> of 255, and the far one is the **brighter** of the pair. The mountains now
+> carry a 0.60 grade; the pair reads 26 against 16 and the band is a silhouette.
+> **The direction is darker-with-nearness, and the instinct that says otherwise
+> is a daylight instinct** — aerial perspective washes distant things *toward*
+> the sky, which is right at noon and backwards at night, when the sky is the
+> only bright thing in the frame.
 >
-> **A correction to entry 2's reasoning, which is not a correction to its finding.** The entry says the repair is "pushing a band's value range down *globally*", and global is precisely what it cannot be: a frame-wide multiply scales every band by the same factor and leaves every ratio between them exactly where it was. Separation is necessarily per-layer. Both knobs got built, and keeping them distinct is the point — reading entry 2 as an argument for the world-wide grade would be reading it as an argument for the one knob that could not have answered it.
+> **A correction to entry 2's reasoning, which is not a correction to its
+> finding.** The entry says the repair is "pushing a band's value range down
+> *globally*", and global is precisely what it cannot be: a frame-wide multiply
+> scales every band by the same factor and leaves every ratio between them
+> exactly where it was. Separation is necessarily per-layer. Both knobs got
+> built, and keeping them distinct is the point — reading entry 2 as an argument
+> for the world-wide grade would be reading it as an argument for the one knob
+> that could not have answered it.
 >
-> **`Lighting` went from three values to four and the invariant went from a boundary to a rank**, which is the shape V11's layer table was supposed to have. The order is Lit → Grade → Light → Unlit and it is load-bearing, not a convention: **the grade multiplies and the light pass adds, so grade-then-light is the difference between a fire that survives nightfall and one that gets dimmed by it.** Three `static_assert`s hold it — exactly one light pass, *at most* one grade (zero is a coherent build, two compose into a third grade nothing declares), and the grade row's own per-layer grade must be identity or it multiplies twice with neither number saying so. All three were verified against the code they catch, then the file confirmed byte-identical to its backup.
+> **`Lighting` went from three values to four and the invariant went from a
+> boundary to a rank**, which is the shape V11's layer table was supposed to
+> have. The order is Lit → Grade → Light → Unlit and it is load-bearing, not a
+> convention: **the grade multiplies and the light pass adds, so
+> grade-then-light is the difference between a fire that survives nightfall and
+> one that gets dimmed by it.** Three `static_assert`s hold it — exactly one
+> light pass, *at most* one grade (zero is a coherent build, two compose into a
+> third grade nothing declares), and the grade row's own per-layer grade must be
+> identity or it multiplies twice with neither number saying so. All three were
+> verified against the code they catch, then the file confirmed byte-identical
+> to its backup.
 >
-> **The golden test grew a second instrument, and the first attempt at it was a bad one that is recorded rather than deleted.** A checksum says "not the frame I expected" and is deliberately blind to *how* — useless for a claim like "the multiply darkens" — so the suite now measures mean and peak luminance. The ordering check was first written as "the brightest pixel stays bright", which is a true statement about the design and a bad instrument for it: the fixture's fire already saturates at 255, so a correct ordering and a reversed one both squeeze against the clip and land 12% apart. Measuring the light pass's *contribution* — compose with and without it, subtract — separates them cleanly at 1.0 versus 0.5. **The lesson is that a check can be aimed at the right claim and still not be able to see it**, and saturation is where that happens.
+> **The golden test grew a second instrument, and the first attempt at it was a
+> bad one that is recorded rather than deleted.** A checksum says "not the frame
+> I expected" and is deliberately blind to *how* — useless for a claim like "the
+> multiply darkens" — so the suite now measures mean and peak luminance. The
+> ordering check was first written as "the brightest pixel stays bright", which
+> is a true statement about the design and a bad instrument for it: the
+> fixture's fire already saturates at 255, so a correct ordering and a reversed
+> one both squeeze against the clip and land 12% apart. Measuring the light
+> pass's *contribution* — compose with and without it, subtract — separates them
+> cleanly at 1.0 versus 0.5. **The lesson is that a check can be aimed at the
+> right claim and still not be able to see it**, and saturation is where that
+> happens.
 >
-> **One thing shipped without a caller, on stated terms.** Nothing sets `Params::world_grade`; at identity the quad is not drawn at all, so the grade pass currently returns before its first draw call on every frame the game composes. It ships because the per-layer half of the same mechanism is live and proves the multiply works, and because the ordering argument is the expensive part to add later. **It becomes a defect the day it is still unset and the ordering claim has stopped being checked by anything.** Trigger for spending it: V8's time-of-day, or a second biome. If neither arrives, the row gets deleted rather than left as decoration.
+> **One thing shipped without a caller, on stated terms.** Nothing sets
+> `Params::world_grade`; at identity the quad is not drawn at all, so the grade
+> pass currently returns before its first draw call on every frame the game
+> composes. It ships because the per-layer half of the same mechanism is live
+> and proves the multiply works, and because the ordering argument is the
+> expensive part to add later. **It becomes a defect the day it is still unset
+> and the ordering claim has stopped being checked by anything.** Trigger for
+> spending it: V8's time-of-day, or a second biome. If neither arrives, the row
+> gets deleted rather than left as decoration.
 >
-> **V7-rest is not closed by this and the step table's title oversold it.** The multiply — the darkening half — is done and is what the block needed. **Non-fire light sources are untouched**, and that is all V7-rest has ever been apart from the multiply. It stays open at its own entry, one item smaller.
+> **V7-rest is not closed by this and the step table's title oversold it.** The
+> multiply — the darkening half — is done and is what the block needed.
+> **Non-fire light sources are untouched**, and that is all V7-rest has ever
+> been apart from the multiply. It stays open at its own entry, one item
+> smaller.
 >
-> **V19 was inserted ahead of V18 on 2026-08-16, by request, and the ordering is the request's rather than an inference.** The ask was to build a scene composed the way `CnC_parallax_*` is composed *before* going down the underground-cave split-view path, which is what V18 writes up. Nothing about V18 changed and it is not blocked; it is one item further down. **V19 is admitted by the request and not by the reference** — `notes/reference_observations.txt` says at its head that reference answers "what is possible" and never "what is wrong here", so entries 7 and 8 are what the item is built *against*, not what admitted it. Full entry in [ROADMAP.md](ROADMAP.md#v--visual-identity).
+> **V19 was inserted ahead of V18 on 2026-08-16, by request, and the ordering is
+> the request's rather than an inference.** The ask was to build a scene
+> composed the way `CnC_parallax_*` is composed *before* going down the
+> underground-cave split-view path, which is what V18 writes up. Nothing about
+> V18 changed and it is not blocked; it is one item further down. **V19 is
+> admitted by the request and not by the reference** —
+> `notes/reference_observations.txt` says at its head that reference answers
+> "what is possible" and never "what is wrong here", so entries 7 and 8 are what
+> the item is built *against*, not what admitted it. Full entry in
+> [ROADMAP.md](ROADMAP.md#v--visual-identity).
 >
-> **The measurement that shaped it, and the one number in it that is corroboration rather than a finding.** Entry 7 walked a single column of `CnC_parallax_1` and segmented it into luminance plateaus: **seven layers, not the three we ship**, descending at about 0.78 per band and compounding to a factor of 3.4 from sky to nearest. The reference's mid-mountain band compounds to 0.63 and **ours has sat at 0.60 since step 3**, chosen from a luminance measurement against our own sky with nobody having seen this ladder. Two independent routes to within 5% is the reason the ladder is worth transferring at all.
+> **The measurement that shaped it, and the one number in it that is
+> corroboration rather than a finding.** Entry 7 walked a single column of
+> `CnC_parallax_1` and segmented it into luminance plateaus: **seven layers, not
+> the three we ship**, descending at about 0.78 per band and compounding to a
+> factor of 3.4 from sky to nearest. The reference's mid-mountain band compounds
+> to 0.63 and **ours has sat at 0.60 since step 3**, chosen from a luminance
+> measurement against our own sky with nobody having seen this ladder. Two
+> independent routes to within 5% is the reason the ladder is worth transferring
+> at all.
 >
-> **The water layer is the interesting half and three of its four mechanisms survive being turned into land.** The value ladder, the horizon being the darkest line in the frame (row-mean luminance bottoms out at the waterline: 69 against 156 at the top and 140 at the bottom), and contrast growing with nearness — 87 of the frame's levels are spent between the plane's near edge and the silhouette standing on it, against 14 to 45 at every join further back. The fourth, the reflection, is the one that does not transfer, and it was measured anyway so a later reader can see what we chose to drop. **What replaces it is a mechanism and not an appearance:** the reference's water is bright near the camera because it mirrors the sky, and land cannot — but a horizontal surface faces the sky where a vertical silhouette does not, which gets the same brightening at night for a different reason. That distinction is the rule entry 4's deleted mid-ground band was bought with, applied before the fact this time.
+> **The water layer is the interesting half and three of its four mechanisms
+> survive being turned into land.** The value ladder, the horizon being the
+> darkest line in the frame (row-mean luminance bottoms out at the waterline: 69
+> against 156 at the top and 140 at the bottom), and contrast growing with
+> nearness — 87 of the frame's levels are spent between the plane's near edge
+> and the silhouette standing on it, against 14 to 45 at every join further
+> back. The fourth, the reflection, is the one that does not transfer, and it
+> was measured anyway so a later reader can see what we chose to drop. **What
+> replaces it is a mechanism and not an appearance:** the reference's water is
+> bright near the camera because it mirrors the sky, and land cannot — but a
+> horizontal surface faces the sky where a vertical silhouette does not, which
+> gets the same brightening at night for a different reason. That distinction is
+> the rule entry 4's deleted mid-ground band was bought with, applied before the
+> fact this time.
 >
-> **Two traps are already known and one of them can waste the item.** The near ridge and the treeline land in exactly the mid-ground band V11 built and deleted the same day, because **our terrain already fills that space**; the reopen trigger recorded then is a location whose terrain does not, and **this item has to fire that trigger by screenshot before authoring anything into the band** — if it comes back the same way, the honest outcome is a five-layer scene and the deletion stands twice. And the cost is real: a layer covers the window plus the pan range at its own factor, so `--sizes` prices the new bands at 17-32 MB each and **five of them roughly triples `assets/`**. A ground plane is the nearest band, the worst case, and exactly the kind of texture that tiles — so **V16 may have to be pulled into V19 rather than following it**, which is a sequencing question to settle before authoring rather than after.
+> **Two traps are already known and one of them can waste the item.** The near
+> ridge and the treeline land in exactly the mid-ground band V11 built and
+> deleted the same day, because **our terrain already fills that space**; the
+> reopen trigger recorded then is a location whose terrain does not, and **this
+> item has to fire that trigger by screenshot before authoring anything into the
+> band** — if it comes back the same way, the honest outcome is a five-layer
+> scene and the deletion stands twice. And the cost is real: a layer covers the
+> window plus the pan range at its own factor, so `--sizes` prices the new bands
+> at 17-32 MB each and **five of them roughly triples `assets/`**. A ground
+> plane is the nearest band, the worst case, and exactly the kind of texture
+> that tiles — so **V16 may have to be pulled into V19 rather than following
+> it**, which is a sequencing question to settle before authoring rather than
+> after.
 >
-> **Everything else is held, not cancelled.** E10 keeps its place at the head of the queue when this block closes.
+> **Everything else is held, not cancelled.** E10 keeps its place at the head of
+> the queue when this block closes.
 
 **Item 9 in detail, because it is also a block rather than an item.** Opened
 2026-08-17 out of an external review of the repo, and it is **the thing to start
 on next**. The full reasoning, the measurements and the two things the review
-checked and found *healthy* are in [ROADMAP.md](ROADMAP.md#️-w--the-workbench-how-this-project-is-worked-on)
-— this table is the order and the sizes only.
+checked and found *healthy* are in
+[ROADMAP.md](ROADMAP.md#️-w--the-workbench-how-this-project-is-worked-on) — this
+table is the order and the sizes only. **`W1` shipped 2026-08-17; `W2` is next,
+and it is next by the original order rather than by a fresh decision.**
 
 | # | what | size | state |
 |---|---|---|---|
-| W1 | **Reflow `ROADMAP.md`, `ROADMAP_ITEMS.md`, `ENGINEERING_NOTES.md`, `PERFORMANCE.md` to 80 columns.** Pure formatting; no wording, no decision, no number changes | afternoon | **first** |
+| W1 | **Reflow `ROADMAP.md`, `ROADMAP_ITEMS.md`, `ENGINEERING_NOTES.md`, `PERFORMANCE.md` to 80 columns.** Pure formatting; no wording, no decision, no number changes | afternoon | **shipped 2026-08-17** |
 | W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | queued |
 | W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | queued, **deliberately after W1 and W4** |
 | W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | queued; **the archive boundary is the user's call** |
@@ -137,12 +403,12 @@ checked and found *healthy* are in [ROADMAP.md](ROADMAP.md#️-w--the-workbench-
 > can ship — and **W1 and W4 are proportional to the size of the corpus, so they
 > are cheapest now and never cheaper again.**
 >
-> **The three numbers that admitted the track.** Docs are 1.09 MB against 1.20 MB
-> of `src/` + `tests/` + `tools/`. A measured `grep -C2` into `ROADMAP.md`
-> returned **9,930 bytes for 20 lines**, because the file averages 394 characters
-> to the line and a grep hit is atomic at the line. And **all 48 roadmap item IDs
-> appear in both roadmap files** — a perfect overlap across 582 KB, mandated by
-> the routing table rather than produced by carelessness.
+> **The three numbers that admitted the track.** Docs are 1.09 MB against 1.20
+> MB of `src/` + `tests/` + `tools/`. A measured `grep -C2` into `ROADMAP.md`
+> returned **9,930 bytes for 20 lines**, because the file averages 394
+> characters to the line and a grep hit is atomic at the line. And **all 48
+> roadmap item IDs appear in both roadmap files** — a perfect overlap across 582
+> KB, mandated by the routing table rather than produced by carelessness.
 >
 > **What this track is not.** The volume of writing is not the defect and
 > reducing it is not the goal; the review's own finding was that the
@@ -158,74 +424,254 @@ checked and found *healthy* are in [ROADMAP.md](ROADMAP.md#️-w--the-workbench-
 
 Everything after these nine is in [Running order](#-running-order) below.
 
-> **S0 was estimated at a week and took two days, and the reason is worth recording against the estimate rather than celebrated.** The week was priced on the item's *scope* — health, two damage sources, an objective, win and loss, a readout — and every one of those was as small as it looked. What the estimate did not contain, and what actually cost the time, was **two interactions with things already built**: `Run` spawns the body in mid-air, so the first thing every run contained was a terminal-velocity fall priced at 80 of 100 health; and `Run::reset` mid-session would have silently invalidated P4's session log. Neither is in this item's description and both are in its build. **The transferable form: a spike's estimate covers what it builds, and what it costs is what it touches.** Both findings are written up at the item.
+> **S0 was estimated at a week and took two days, and the reason is worth
+> recording against the estimate rather than celebrated.** The week was priced
+> on the item's *scope* — health, two damage sources, an objective, win and
+> loss, a readout — and every one of those was as small as it looked. What the
+> estimate did not contain, and what actually cost the time, was **two
+> interactions with things already built**: `Run` spawns the body in mid-air, so
+> the first thing every run contained was a terminal-velocity fall priced at 80
+> of 100 health; and `Run::reset` mid-session would have silently invalidated
+> P4's session log. Neither is in this item's description and both are in its
+> build. **The transferable form: a spike's estimate covers what it builds, and
+> what it costs is what it touches.** Both findings are written up at the item.
 >
-> **It is also the first item in this plan whose output is a question rather than a feature.** The combat decision is due now and cannot be answered from the desk — see [Decisions owed](#-decisions-owed).
+> **It is also the first item in this plan whose output is a question rather
+> than a feature.** The combat decision is due now and cannot be answered from
+> the desk — see [Decisions owed](#-decisions-owed).
 
-**~~F5 left one thing behind…~~ ✅ Closed 2026-08-13 as `F6`.** `DigTool::march` is integer-only: the range test is squared, the step count is an `isqrt` of an integer quotient, and the two `lround`s are a rounded integer division that keeps `lround`'s halves-away-from-zero so the ray stays symmetric about the origin. **No float under `src/physics/` reaches the grid any more.** *(Stated that way on purpose. The older wording here — "the only float left under `src/physics/`" — was never quite true: `DigTool::swing_progress()` is a float and stays one, because only the animation reads it, the same boundary `Player::visual_x()`/`visual_y()` sit on.)* Two things worth carrying:
+**~~F5 left one thing behind…~~ ✅ Closed 2026-08-13 as `F6`.** `DigTool::march`
+is integer-only: the range test is squared, the step count is an `isqrt` of an
+integer quotient, and the two `lround`s are a rounded integer division that
+keeps `lround`'s halves-away-from-zero so the ray stays symmetric about the
+origin. **No float under `src/physics/` reaches the grid any more.** *(Stated
+that way on purpose. The older wording here — "the only float left under
+`src/physics/`" — was never quite true: `DigTool::swing_progress()` is a float
+and stays one, because only the animation reads it, the same boundary
+`Player::visual_x()`/`visual_y()` sit on.)* Two things worth carrying:
 
-- **It was an afternoon, as estimated, and it found a live bug that had nothing to do with determinism.** `dx*dx + dy*dy` was computed in `int` and overflows at a distant aim, which silently removed the range limit. The test that catches it fails against the unfixed code. Not reachable from the mouse — the cursor is bounded by the window — but the arithmetic is 64-bit now regardless.
-- **It closed a disagreement nobody had noticed, and that is the argument for the wording of checklist step 3.** The crosshair's dim-past-range indicator in `main.cpp` **already** compared `dx*dx + dy*dy` against `RANGE*RANGE` in integers, while `march` compared a `float` length — two answers to one question, computed two ways, in two files, and able to differ by a cell at the boundary. Exactly the shape D1's two clocks had. They are now the same arithmetic. ✅ **Checklist step 3 passed 2026-08-13** ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-13--the-two-owed-steps-run-together)) — the range boundary was not reported off by a cell in either direction, and no diagonal was reported reaching further than a straight shot. **F6 owes nothing further.**
-- **"Determinism is portable" is now *unblocked*, not *established*.** The known reason a second machine would answer "no" is gone; nothing has still ever been built on one. That is the gate prerequisite's job and it is unchanged. Reasoning in [ROADMAP.md](ROADMAP.md#f6--digtoolmarch-is-integer-only-shipped-2026-08-13) and [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md) under the F5 entry.
+- **It was an afternoon, as estimated, and it found a live bug that had nothing
+  to do with determinism.** `dx*dx + dy*dy` was computed in `int` and overflows
+  at a distant aim, which silently removed the range limit. The test that
+  catches it fails against the unfixed code. Not reachable from the mouse — the
+  cursor is bounded by the window — but the arithmetic is 64-bit now regardless.
+- **It closed a disagreement nobody had noticed, and that is the argument for
+  the wording of checklist step 3.** The crosshair's dim-past-range indicator in
+  `main.cpp` **already** compared `dx*dx + dy*dy` against `RANGE*RANGE` in
+  integers, while `march` compared a `float` length — two answers to one
+  question, computed two ways, in two files, and able to differ by a cell at the
+  boundary. Exactly the shape D1's two clocks had. They are now the same
+  arithmetic. ✅ **Checklist step 3 passed 2026-08-13** ([spot
+  check](PLAYTEST_LOG.md#spot-check--2026-08-13--the-two-owed-steps-run-together))
+  — the range boundary was not reported off by a cell in either direction, and
+  no diagonal was reported reaching further than a straight shot. **F6 owes
+  nothing further.**
+- **"Determinism is portable" is now *unblocked*, not *established*.** The known
+  reason a second machine would answer "no" is gone; nothing has still ever been
+  built on one. That is the gate prerequisite's job and it is unchanged.
+  Reasoning in
+  [ROADMAP.md](ROADMAP.md#f6--digtoolmarch-is-integer-only-shipped-2026-08-13)
+  and [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md) under the F5 entry.
 
-**This block was rewritten on 2026-08-11 by a review of the plan rather than by a playtest, and that is a first.** The review's twelve findings are answered across this file; nine were corrections to what was written here and three added work. What actually changed about *what to do next*: the fluid spike is no longer a lone item but the largest of four questions one set of instruments answers together (item 4); **F5 and T1 are new and both are prerequisites of things already in this block** — S0 reads a velocity that is currently a float, and E10 and E5a are both judged by eye with no free camera and no way to read a cell's state; and Wave 4 gained **D3**, which was the only session-5 defect with no owner anywhere in this file.
+**This block was rewritten on 2026-08-11 by a review of the plan rather than by
+a playtest, and that is a first.** The review's twelve findings are answered
+across this file; nine were corrections to what was written here and three added
+work. What actually changed about *what to do next*: the fluid spike is no
+longer a lone item but the largest of four questions one set of instruments
+answers together (item 4); **F5 and T1 are new and both are prerequisites of
+things already in this block** — S0 reads a velocity that is currently a float,
+and E10 and E5a are both judged by eye with no free camera and no way to read a
+cell's state; and Wave 4 gained **D3**, which was the only session-5 defect with
+no owner anywhere in this file.
 
-**Two of the review's findings were unresolved by design and carried as [decisions owed](#-decisions-owed)**: what `Element::ticks` can actually represent (E10 and E5a both spend it, and E5a's spend does not fit), and whether the frame-budget rule is aimed at a real frame. Item 4 is what answers both.
+**Two of the review's findings were unresolved by design and carried as
+[decisions owed](#-decisions-owed)**: what `Element::ticks` can actually
+represent (E10 and E5a both spend it, and E5a's spend does not fit), and whether
+the frame-budget rule is aimed at a real frame. Item 4 is what answers both.
 
-> **The first of those closed on 2026-08-13**, ahead of the rest of the sitting, because E10 could not start until it did. **The answer was not on the list of candidate answers, and the reason is worth carrying: the entry was a well-argued question about how to divide one byte, and the byte was never the constraint.** `Element` has three unused bytes in the alignment hole between `type` and `color` — it always has — and `element.h`'s claim that E3 spent "the last free byte" was counting the *tail* hole and treating the front one as arithmetic rather than as space. Two items had been sequenced around a scarcity that was not there. **The generalisable form: when a plan is arguing about how to divide a scarce resource, measure the resource before dividing it.** `velocity_probe` prints `sizeof` and `offsetof`; the whole question took one run to answer, and this struct's size had already been got wrong once by counting fields (`ENGINEERING_NOTES.md` records that).
+> **The first of those closed on 2026-08-13**, ahead of the rest of the sitting,
+> because E10 could not start until it did. **The answer was not on the list of
+> candidate answers, and the reason is worth carrying: the entry was a
+> well-argued question about how to divide one byte, and the byte was never the
+> constraint.** `Element` has three unused bytes in the alignment hole between
+> `type` and `color` — it always has — and `element.h`'s claim that E3 spent
+> "the last free byte" was counting the *tail* hole and treating the front one
+> as arithmetic rather than as space. Two items had been sequenced around a
+> scarcity that was not there. **The generalisable form: when a plan is arguing
+> about how to divide a scarce resource, measure the resource before dividing
+> it.** `velocity_probe` prints `sizeof` and `offsetof`; the whole question took
+> one run to answer, and this struct's size had already been got wrong once by
+> counting fields (`ENGINEERING_NOTES.md` records that).
 
-**Seven items were added on 2026-08-11 and none of them is in this block, deliberately.** `V12`–`V16`, `E12` and `S1` are the plan for a stated visual goal — mixed pixel resolutions and sprite sizes, procedural animation, animated backgrounds, and enemy bodies that granulate where they are hit. **They change nothing about what to do next.** The block above stands; the new work sits where the V track already sat, `E12` after `E10`, and `S1` behind the combat decision. See [Running order](#-running-order).
+**Seven items were added on 2026-08-11 and none of them is in this block,
+deliberately.** `V12`–`V16`, `E12` and `S1` are the plan for a stated visual
+goal — mixed pixel resolutions and sprite sizes, procedural animation, animated
+backgrounds, and enemy bodies that granulate where they are hit. **They change
+nothing about what to do next.** The block above stands; the new work sits where
+the V track already sat, `E12` after `E10`, and `S1` behind the combat decision.
+See [Running order](#-running-order).
 
-> **Correction, same day.** The sentence above was written twice in this file as "none of them moved anything", and that is not true — **`V16` was inserted ahead of `V9`, which puts `E7`, `E11` and `V9` all later than they were.** The accurate claim, which is still the strong one, is that **nothing in the Next up block moved**; the V track's internal order and the position of the late E items did. This is corrected rather than quietly reworded because this file's usefulness rests on it being exactly right about its own history, and a reader checking the previous order against this one would have found the discrepancy and trusted the rest of the paragraph less for it.
+> **Correction, same day.** The sentence above was written twice in this file as
+> "none of them moved anything", and that is not true — **`V16` was inserted
+> ahead of `V9`, which puts `E7`, `E11` and `V9` all later than they were.** The
+> accurate claim, which is still the strong one, is that **nothing in the Next
+> up block moved**; the V track's internal order and the position of the late E
+> items did. This is corrected rather than quietly reworded because this file's
+> usefulness rests on it being exactly right about its own history, and a reader
+> checking the previous order against this one would have found the discrepancy
+> and trusted the rest of the paragraph less for it.
 
-**Session 5 ran on 2026-08-10 and is what reordered this block.** It closed wave 3, answered E4 "no", and returned six defects and five observations — [results](PLAYTEST_LOG.md#session-5-results--wave-3-closes-and-the-water-underneath-it-does-not). Both of the items it retired were items 1 and 2 here.
+**Session 5 ran on 2026-08-10 and is what reordered this block.** It closed wave
+3, answered E4 "no", and returned six defects and five observations —
+[results](PLAYTEST_LOG.md#session-5-results--wave-3-closes-and-the-water-underneath-it-does-not).
+Both of the items it retired were items 1 and 2 here.
 
-**E10 is now 7 — it was 4, then 5 on session 5, and the 2026-08-11 review put `F5`, the instrumentation sitting and `T1` in front of it. It also lost its playtest evidence, which matters more than the position.** The session's sand note read "could have more movement", which looked like a case for E10 until it was disambiguated: it means *falling sand looks stepped and jerky*, which is the **second report of A7c** and which [wave 1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) already established is a property of drawing whole 4x4 cells and is **not reachable from `step_powder` at all**. E10 does the opposite — it makes sand come to *rest*. **The item stands on its own merits and none of them are this note**: piles that hold a slope, tunnels that partly cave, and gravel/sand/snow/ash as four table rows instead of four code paths. Filing D8 against it would put a rendering complaint on a simulation item and buy a third round of the A7/A7b/A7c rule fight.
+**E10 is now 7 — it was 4, then 5 on session 5, and the 2026-08-11 review put
+`F5`, the instrumentation sitting and `T1` in front of it. It also lost its
+playtest evidence, which matters more than the position.** The session's sand
+note read "could have more movement", which looked like a case for E10 until it
+was disambiguated: it means *falling sand looks stepped and jerky*, which is the
+**second report of A7c** and which [wave
+1](ROADMAP.md#wave-1--the-rendering-brush-and-powder-defects) already
+established is a property of drawing whole 4x4 cells and is **not reachable from
+`step_powder` at all**. E10 does the opposite — it makes sand come to *rest*.
+**The item stands on its own merits and none of them are this note**: piles that
+hold a slope, tunnels that partly cave, and gravel/sand/snow/ash as four table
+rows instead of four code paths. Filing D8 against it would put a rendering
+complaint on a simulation item and buy a third round of the A7/A7b/A7c rule
+fight.
 
-**Three things the session found are deliberately *not* in this block.** D4 (fluids do not flow) is the loudest finding on the record and its real fix is plausibly E5b, which is *large* and stays after the slice — item 3 is a bounded spike that prices it, not a licence to start it. D5 is here because it has now been asked for three times in four sessions in near-identical words, which is the strongest signal this log produces. D9 (toppling, the second report of B4) does **not** move E8: a second report is an argument about priority and E8's deferral is about price, and its price has not changed.
+**Three things the session found are deliberately *not* in this block.** D4
+(fluids do not flow) is the loudest finding on the record and its real fix is
+plausibly E5b, which is *large* and stays after the slice — item 3 is a bounded
+spike that prices it, not a licence to start it. D5 is here because it has now
+been asked for three times in four sessions in near-identical words, which is
+the strongest signal this log produces. D9 (toppling, the second report of B4)
+does **not** move E8: a second report is an argument about priority and E8's
+deferral is about price, and its price has not changed.
 
-**P2 shipped 2026-08-10** and is out of this block. Every measurement from here on is quoted against 1920x1080, the size the game actually runs — the table is in [PERFORMANCE.md](PERFORMANCE.md). The result worth carrying forward into the items below: **the engine pays for awake cells, not for cells.** `sparse`, which stands in for an ordinary gameplay frame, costs the same at 1920x1080 as at 960x540 — 1.00x for four times the cells — so an item that adds per-cell work to *awake* cells is the kind to price carefully, and one that adds world size is not. It also left one decision open, in the table below.
+**P2 shipped 2026-08-10** and is out of this block. Every measurement from here
+on is quoted against 1920x1080, the size the game actually runs — the table is
+in [PERFORMANCE.md](PERFORMANCE.md). The result worth carrying forward into the
+items below: **the engine pays for awake cells, not for cells.** `sparse`, which
+stands in for an ordinary gameplay frame, costs the same at 1920x1080 as at
+960x540 — 1.00x for four times the cells — so an item that adds per-cell work to
+*awake* cells is the kind to price carefully, and one that adds world size is
+not. It also left one decision open, in the table below.
 
-**Why S0 is near the front and this is the biggest change to the plan** *(it was fourth; it is fifth since `F5` went in front of it, because S0 reads a velocity that is currently a float)*. Everything shipped so far is engine or visual foundation, and the whole of the game sits behind the whole of the engine track. `VISION.md` already names that risk in writing — "under-building looks exactly like discipline right up until the playtest gate" — and then the running order used to do it anyway. S0 is the thin version of two Medium Term items pulled forward so the game becomes **losable** before another two months of engine work. It is also the only thing in the plan that can answer the two open [Decisions](#-decisions-owed) below by playing rather than by argument.
+**Why S0 is near the front and this is the biggest change to the plan** *(it was
+fourth; it is fifth since `F5` went in front of it, because S0 reads a velocity
+that is currently a float)*. Everything shipped so far is engine or visual
+foundation, and the whole of the game sits behind the whole of the engine track.
+`VISION.md` already names that risk in writing — "under-building looks exactly
+like discipline right up until the playtest gate" — and then the running order
+used to do it anyway. S0 is the thin version of two Medium Term items pulled
+forward so the game becomes **losable** before another two months of engine
+work. It is also the only thing in the plan that can answer the two open
+[Decisions](#-decisions-owed) below by playing rather than by argument.
 
 ---
 
 ## 🧭 Running order
 
-**~~Wave 4~~ → ~~E9-steam~~ → ~~F5~~ → ~~instrumentation sitting~~ → ~~S0~~ → ~~T1~~ → E10 → E12 → E5a → P1 → E6 → V17 → (V11 + V12 + V13) → V16 → (E7 + E11 + V9) → V14 → rest of the slice → gate prerequisites → playtest gate → V15 + S1 (if combat) → E5b, P3, E8.** P2 shipped 2026-08-10; the session 5 playtest ran the same day and E4 closed with it, answered "no".
+**~~Wave 4~~ → ~~E9-steam~~ → ~~F5~~ → ~~instrumentation sitting~~ → ~~S0~~ →
+~~T1~~ → E10 → E12 → E5a → P1 → E6 → V17 → (V11 + V12 + V13) → V16 → (E7 + E11 +
+V9) → V14 → rest of the slice → gate prerequisites → playtest gate → V15 + S1
+(if combat) → E5b, P3, E8.** P2 shipped 2026-08-10; the session 5 playtest ran
+the same day and E4 closed with it, answered "no".
 
 **Two blocks sit in front of that line and neither is in it, which is why it has
-not been rewritten.** The V-track block (item 8) preempted `E10`, and the W-track
-block (item 9) is **the immediate next work as of 2026-08-17**, running ahead of
-the V block's last step because that step is gated on a human. Both are
+not been rewritten.** The V-track block (item 8) preempted `E10`, and the
+W-track block (item 9) is **the immediate next work as of 2026-08-17**, running
+ahead of the V block's last step because that step is gated on a human. Both are
 sub-plans with their own internal order, both are in [Next up](#️-next-up), and
 **`E10` still keeps the head of this queue when they close** — it was
 out-prioritised, not changed.
 
-The two structural changes from the order before 2026-08-11 (`E4 → E5 → E6 → E7 → E8`, then V, then P, then the whole game):
+The two structural changes from the order before 2026-08-11 (`E4 → E5 → E6 → E7
+→ E8`, then V, then P, then the whole game):
 
-- **A gameplay spike (S0) moves ahead of most of the engine track.** Argued above.
-- **E5 splits in two.** E5a is per-cell velocity — the enabler that E6, E4's shove and V9's debris all actually need. E5b is the air/pressure field, which is the larger and more speculative half, and it goes after the slice. They used to be one item, which made the enabler look as expensive as the research project attached to it.
+- **A gameplay spike (S0) moves ahead of most of the engine track.** Argued
+  above.
+- **E5 splits in two.** E5a is per-cell velocity — the enabler that E6, E4's
+  shove and V9's debris all actually need. E5b is the air/pressure field, which
+  is the larger and more speculative half, and it goes after the slice. They
+  used to be one item, which made the enabler look as expensive as the research
+  project attached to it.
 
-**Five changes came out of the 2026-08-11 plan review, and each is a case of something already written in this file not being acted on.**
+**Five changes came out of the 2026-08-11 plan review, and each is a case of
+something already written in this file not being acted on.**
 
-- **`T1` — the debug tooling batch — moves in front of `E10`.** This file already said the free camera is *"close to load-bearing for E10 and E5a"* and that the cell inspector *"grows a job with E10 and E5a"*, and then scheduled both behind the slice. E10's verify condition is "a poured pile holds a measurable angle" and E5a's is "a cell fired at a wall lands against it" — neither is checkable at 60 fps with a camera bolted to the player and no way to read a cell. Two days, and it is the same argument that moved F1–F4 out of Presentation & Tooling.
-- **`P1` moves to directly after `E5a`, which is where the P track always said it went.** The master order used to put it after the playtest gate while the P section said "sequenced after E5a so the layout is settled against the final field set". Those are not the same instruction and the P section is the one with the reason attached. ~~It matters more now: E5a may not fit in `Element`'s existing 12 bytes at all (see the [decision](#-decisions-owed)), and P1 is the item that makes a thirteenth byte a different question.~~ *(That second reason is retired — the [decision](#-decisions-owed) closed on 2026-08-13 and E5a fits in three bytes the struct already had. **The first reason is the one that always had the argument attached and it still stands**, and it got sharper: E5a's three bytes are hot, so it moves the hot/cold ratio P1 is trying to improve rather than leaving it alone.)
-- **`V17` — a golden-frame check — goes in front of the render rewrite.** V11, V12 and V13 rewrite frame composition, the asset path and every destination rectangle, and nothing today tests a composed frame. `preview_light` exists precisely because *"existing tests all passed the broken frame because none of them ever combined layers"*, and V2 shipped a blank world for a whole commit. An afternoon.
-- **`V15` and `S1` move behind the gate, together.** Argued at V15 — the two admit each other in a circle, and the circle only closes if combat is answered yes.
-- **The gate acquires named prerequisites.** Argued at the [playtest gate](#-the-slice--the-actual-game). It cannot presently be run at all.
+- **`T1` — the debug tooling batch — moves in front of `E10`.** This file
+  already said the free camera is *"close to load-bearing for E10 and E5a"* and
+  that the cell inspector *"grows a job with E10 and E5a"*, and then scheduled
+  both behind the slice. E10's verify condition is "a poured pile holds a
+  measurable angle" and E5a's is "a cell fired at a wall lands against it" —
+  neither is checkable at 60 fps with a camera bolted to the player and no way
+  to read a cell. Two days, and it is the same argument that moved F1–F4 out of
+  Presentation & Tooling.
+- **`P1` moves to directly after `E5a`, which is where the P track always said
+  it went.** The master order used to put it after the playtest gate while the P
+  section said "sequenced after E5a so the layout is settled against the final
+  field set". Those are not the same instruction and the P section is the one
+  with the reason attached. ~~It matters more now: E5a may not fit in
+  `Element`'s existing 12 bytes at all (see the [decision](#-decisions-owed)),
+  and P1 is the item that makes a thirteenth byte a different question.~~ *(That
+  second reason is retired — the [decision](#-decisions-owed) closed on
+  2026-08-13 and E5a fits in three bytes the struct already had. **The first
+  reason is the one that always had the argument attached and it still stands**,
+  and it got sharper: E5a's three bytes are hot, so it moves the hot/cold ratio
+  P1 is trying to improve rather than leaving it alone.)
+- **`V17` — a golden-frame check — goes in front of the render rewrite.** V11,
+  V12 and V13 rewrite frame composition, the asset path and every destination
+  rectangle, and nothing today tests a composed frame. `preview_light` exists
+  precisely because *"existing tests all passed the broken frame because none of
+  them ever combined layers"*, and V2 shipped a blank world for a whole commit.
+  An afternoon.
+- **`V15` and `S1` move behind the gate, together.** Argued at V15 — the two
+  admit each other in a circle, and the circle only closes if combat is answered
+  yes.
+- **The gate acquires named prerequisites.** Argued at the [playtest
+  gate](#-the-slice--the-actual-game). It cannot presently be run at all.
 
-**Seven items were added on 2026-08-11 and none of them moved the Next up block** — the original wording was "none of them moved anything", which was wrong and is corrected above: `V16` went in ahead of `V9`, so `E7`, `E11` and `V9` are all later than they were. `V12`–`V16`, `E12` and `S1` are the plan for a stated visual goal — mixed pixel resolutions and sprite sizes, procedural animation, animated backgrounds, and enemy bodies that granulate where they are damaged. The block `V11 + V12 + V13` is taken together because all three edit the same two destination rectangles in `main.cpp` and V11's runtime scale and V13's per-asset scale are the two factors of one multiplication. `E12` sits after `E10` because a crumbling material that cannot hold a slope reads as a liquid. `S1` is in the slice section and **blocked on the combat decision**, which it does not get to pre-empt. Full arguments in [ROADMAP.md](ROADMAP.md#the-visual-system-this-track-is-now-building-toward).
+**Seven items were added on 2026-08-11 and none of them moved the Next up
+block** — the original wording was "none of them moved anything", which was
+wrong and is corrected above: `V16` went in ahead of `V9`, so `E7`, `E11` and
+`V9` are all later than they were. `V12`–`V16`, `E12` and `S1` are the plan for
+a stated visual goal — mixed pixel resolutions and sprite sizes, procedural
+animation, animated backgrounds, and enemy bodies that granulate where they are
+damaged. The block `V11 + V12 + V13` is taken together because all three edit
+the same two destination rectangles in `main.cpp` and V11's runtime scale and
+V13's per-asset scale are the two factors of one multiplication. `E12` sits
+after `E10` because a crumbling material that cannot hold a slope reads as a
+liquid. `S1` is in the slice section and **blocked on the combat decision**,
+which it does not get to pre-empt. Full arguments in
+[ROADMAP.md](ROADMAP.md#the-visual-system-this-track-is-now-building-toward).
 
-**Item IDs are stable and are not renumbered when the order changes** — four other documents cite them by name. E10, E11, E5a/E5b, S0, P3 and V11 are new here, as are E12, S1 and V12–V16; **F5, T1, P4 and V17 are new on 2026-08-11 from the plan review**. Nothing existing was renumbered. `T` is a new track letter and it holds exactly one item on purpose: the debug tooling that is a prerequisite for other work, as distinct from the tooling in Presentation & Tooling that is a convenience.
+**Item IDs are stable and are not renumbered when the order changes** — four
+other documents cite them by name. E10, E11, E5a/E5b, S0, P3 and V11 are new
+here, as are E12, S1 and V12–V16; **F5, T1, P4 and V17 are new on 2026-08-11
+from the plan review**. Nothing existing was renumbered. `T` is a new track
+letter and it holds exactly one item on purpose: the debug tooling that is a
+prerequisite for other work, as distinct from the tooling in Presentation &
+Tooling that is a convenience.
 
 ---
 
 ## ❓ Decisions owed
 
-*Open loops that are decisions rather than work. A decision with no deadline never closes, so each has one. Each may be answered with "no" — that is a closed loop, not a failure.*
+*Open loops that are decisions rather than work. A decision with no deadline
+never closes, so each has one. Each may be answered with "no" — that is a closed
+loop, not a failure.*
 
-**A distinction this table was not making, added 2026-08-11.** Three of the rows carried a recommended answer, a due date, and nobody who could overrule the recommendation, which is a **decided thing wearing a decision's clothes** and it costs a re-read every cycle. Those are now written as **decided, with a named reopen trigger** — which is strictly more useful, because "no, unless X" tells a reader what to watch for and "recommendation: no" only tells them what someone thought. The rows that remain genuinely open are the ones where the answer is not known and the evidence that would settle it does not exist yet.
+**A distinction this table was not making, added 2026-08-11.** Three of the rows
+carried a recommended answer, a due date, and nobody who could overrule the
+recommendation, which is a **decided thing wearing a decision's clothes** and it
+costs a re-read every cycle. Those are now written as **decided, with a named
+reopen trigger** — which is strictly more useful, because "no, unless X" tells a
+reader what to watch for and "recommendation: no" only tells them what someone
+thought. The rows that remain genuinely open are the ones where the answer is
+not known and the evidence that would settle it does not exist yet.
 
 | Decision | Due | How it gets settled |
 |---|---|---|
@@ -249,58 +695,316 @@ The two structural changes from the order before 2026-08-11 (`E4 → E5 → E6 �
 
 ## 🔧 Prerequisites — things other items are already standing on
 
-*New section, 2026-08-11. Three entries, all found by the plan review, all with the same shape: **something already scheduled depends on this, and the dependency was written down in this file and then not acted on.** That is a different admission test from either of the two sections below, and it is the same one F1–F4 answered — "does a scheduled item need this, and does it get more expensive the longer it waits". `P4` and `V17` pass the same test and are filed in their own tracks because they belong to those tracks' running orders.*
+*New section, 2026-08-11. Three entries, all found by the plan review, all with
+the same shape: **something already scheduled depends on this, and the
+dependency was written down in this file and then not acted on.** That is a
+different admission test from either of the two sections below, and it is the
+same one F1–F4 answered — "does a scheduled item need this, and does it get more
+expensive the longer it waits". `P4` and `V17` pass the same test and are filed
+in their own tracks because they belong to those tracks' running orders.*
 
-- **~~F5 — Fixed-point player kinematics.~~** ✅ **Shipped 2026-08-12.** `rem_x`, `rem_y`, `vel_x` and `vel_y` are `fx` signed 16.16 ([src/physics/fixed.h](src/physics/fixed.h)), the constants are exact rationals, and `Player::update()` takes no `dt`. Three things the entry below did not predict:
-    - **The verify condition "traces identical to the float version to the cell" was not achievable in principle**, and finding out why is the useful part: **1/60 is not representable in binary**, so a step's worth of gravity is 8.333328 cells/s in fixed point and 8.333334 in float and neither is right. Measured: **7 of 1381 recorded steps differ, each by one cell, each re-converging immediately**; walk and jump traces are byte-identical, and every landing, rest position and peak matches. The condition should have been "no persistent divergence", which is what was actually wanted.
-    - **The `dt` parameter was worth deleting for a second reason.** Every caller already passed the same compile-time constant, so a parameter that looked like it varied did not — and the first caller to pass a real frame time would have re-created the defect F1 spent an item closing. `Run::FIXED_DT` is now *derived* from `fx::STEPS_PER_SECOND` rather than written beside it.
-    - **It found the remaining float**, `DigTool::march` — F5 removed the larger half of the exposure and did not remove all of it. *(Closed 2026-08-13 as `F6`; see the note under [Next up](#️-next-up).)*
-- **~~F6 — `DigTool::march` is integer-only.~~** ✅ **Shipped 2026-08-13**, an afternoon, unscheduled when it started. Squared range test, `isqrt` for the truncated step count, `div_round` for the two `lround`s. **The lesson is about the replacement, not the removal:** the obvious integer form of `lround`, `(a + b/2) / b`, rounds the wrong way for negatives because C++ truncates toward zero, so digs would have landed one cell off in two quadrants of four — a mirror-symmetry test is what stands between that and shipping. It also turned up a 32-bit overflow in the old expression that had removed the range limit at a distant aim.
-- *The original entry, kept for the cost curve it argues:* [player.h](src/physics/player.h) held `rem_x`, `rem_y`, `vel_x` and `vel_y` as `float`, integrated against a `float dt` with float constants. **The determinism guarantee is therefore machine-local, and three things in this plan spend it as portable.**
-    - **What is actually true today:** [test_run.cpp](tests/test_run.cpp) proves a recorded input sequence replays byte-identically — for **one binary on one machine**. Float results are not reproducible across compilers, optimisation levels, x87 versus SSE, or FMA contraction. Nothing has been wrong yet because nothing has run anywhere else.
-    - **What spends it anyway:** *crash diagnosis*, whose whole idea is that "a crash report could be a file that reproduces the crash" — a repro that does not reproduce on the developer's machine is worse than none, because it costs a session to find out; *save and persistence*, which stores a run; and *build on macOS and Linux at least once*, which is the item that would discover this and has no reason to be looking for it.
-    - **The fix, and it is small because the hard half is already done:** `pos_x` is already an integer and the fraction is already separate — the design [player.h](src/physics/player.h) chose specifically to avoid "the class of float-edge bugs where a box is 0.0001 into a wall". Make `rem_x`/`rem_y` `int32_t` with 16 fractional bits, make the constants integers, and **drop `dt` from `Player::update` entirely**: the timestep is fixed, so it is a compile-time rational rather than a parameter.
-    - **Why now rather than later, stated as a cost curve.** Every step from here widens the float surface: **S0 reads `vel_y` for fall damage**, V14 and V15 add solvers, and V15's entry already warns that "a spring's stiffness quietly means something different at each frame rate". Converting four fields is days; converting four fields plus a damage model plus a rig is not.
-    - **After Wave 4, not before** — Wave 4's D2, D6 and D7 all edit the same file, and doing this first means resolving the same lines twice.
-    - *Verify:* the existing replay test still passes; the walk, jump and fall traces are identical to the float version to the cell; and the constants in [TUNING.md](TUNING.md) still mean what they say.
+- **~~F5 — Fixed-point player kinematics.~~** ✅ **Shipped 2026-08-12.** `rem_x`,
+  `rem_y`, `vel_x` and `vel_y` are `fx` signed 16.16
+  ([src/physics/fixed.h](src/physics/fixed.h)), the constants are exact
+  rationals, and `Player::update()` takes no `dt`. Three things the entry below
+  did not predict:
+    - **The verify condition "traces identical to the float version to the cell"
+      was not achievable in principle**, and finding out why is the useful part:
+      **1/60 is not representable in binary**, so a step's worth of gravity is
+      8.333328 cells/s in fixed point and 8.333334 in float and neither is
+      right. Measured: **7 of 1381 recorded steps differ, each by one cell, each
+      re-converging immediately**; walk and jump traces are byte-identical, and
+      every landing, rest position and peak matches. The condition should have
+      been "no persistent divergence", which is what was actually wanted.
+    - **The `dt` parameter was worth deleting for a second reason.** Every
+      caller already passed the same compile-time constant, so a parameter that
+      looked like it varied did not — and the first caller to pass a real frame
+      time would have re-created the defect F1 spent an item closing.
+      `Run::FIXED_DT` is now *derived* from `fx::STEPS_PER_SECOND` rather than
+      written beside it.
+    - **It found the remaining float**, `DigTool::march` — F5 removed the larger
+      half of the exposure and did not remove all of it. *(Closed 2026-08-13 as
+      `F6`; see the note under [Next up](#️-next-up).)*
+- **~~F6 — `DigTool::march` is integer-only.~~** ✅ **Shipped 2026-08-13**, an
+  afternoon, unscheduled when it started. Squared range test, `isqrt` for the
+  truncated step count, `div_round` for the two `lround`s. **The lesson is about
+  the replacement, not the removal:** the obvious integer form of `lround`, `(a
+  + b/2) / b`, rounds the wrong way for negatives because C++ truncates toward
+  zero, so digs would have landed one cell off in two quadrants of four — a
+  mirror-symmetry test is what stands between that and shipping. It also turned
+  up a 32-bit overflow in the old expression that had removed the range limit at
+  a distant aim.
+- *The original entry, kept for the cost curve it argues:*
+  [player.h](src/physics/player.h) held `rem_x`, `rem_y`, `vel_x` and `vel_y` as
+  `float`, integrated against a `float dt` with float constants. **The
+  determinism guarantee is therefore machine-local, and three things in this
+  plan spend it as portable.**
+    - **What is actually true today:** [test_run.cpp](tests/test_run.cpp) proves
+      a recorded input sequence replays byte-identically — for **one binary on
+      one machine**. Float results are not reproducible across compilers,
+      optimisation levels, x87 versus SSE, or FMA contraction. Nothing has been
+      wrong yet because nothing has run anywhere else.
+    - **What spends it anyway:** *crash diagnosis*, whose whole idea is that "a
+      crash report could be a file that reproduces the crash" — a repro that
+      does not reproduce on the developer's machine is worse than none, because
+      it costs a session to find out; *save and persistence*, which stores a
+      run; and *build on macOS and Linux at least once*, which is the item that
+      would discover this and has no reason to be looking for it.
+    - **The fix, and it is small because the hard half is already done:**
+      `pos_x` is already an integer and the fraction is already separate — the
+      design [player.h](src/physics/player.h) chose specifically to avoid "the
+      class of float-edge bugs where a box is 0.0001 into a wall". Make
+      `rem_x`/`rem_y` `int32_t` with 16 fractional bits, make the constants
+      integers, and **drop `dt` from `Player::update` entirely**: the timestep
+      is fixed, so it is a compile-time rational rather than a parameter.
+    - **Why now rather than later, stated as a cost curve.** Every step from
+      here widens the float surface: **S0 reads `vel_y` for fall damage**, V14
+      and V15 add solvers, and V15's entry already warns that "a spring's
+      stiffness quietly means something different at each frame rate".
+      Converting four fields is days; converting four fields plus a damage model
+      plus a rig is not.
+    - **After Wave 4, not before** — Wave 4's D2, D6 and D7 all edit the same
+      file, and doing this first means resolving the same lines twice.
+    - *Verify:* the existing replay test still passes; the walk, jump and fall
+      traces are identical to the float version to the cell; and the constants
+      in [TUNING.md](TUNING.md) still mean what they say.
 
-- **T1 — The debug tooling batch.** *(2 days — new, and it is item 6)* Four items lifted out of Presentation & Tooling: **world reset hotkey, pause and single-step, a free camera, and the cell inspector.** They are moved rather than promoted on enthusiasm, and the argument is that this file already made it twice and then filed them behind the slice anyway: the free camera is *"close to load-bearing for E10 and E5a"* and the cell inspector *"grows a job with E10 and E5a — speed is per-cell state with no other way to see it"*.
-    - **The concrete problem:** E10's verify condition is "a poured pile holds a measurable angle instead of flattening" and E5a's is "a cell fired at a wall lands *against* it". **Neither is checkable at 60 frames a second through a camera bolted to the player, with no way to pause and no way to read a cell's state.** Building both against eyeballs is how you get a third round of the A7/A7b/A7c rule fight — that entire episode is three attempts to fix something nobody could look at closely.
-    - **It also closes an open decision for free:** pause and single-step carries the brush-while-paused question, which has been open since F2.4 and costs a sentence.
-    - **F2.4 already checked the price** and concluded these are now genuinely small, which is why this is two days rather than a week.
-    - **This is the third time the argument has been written down, and [ROADMAP.md](ROADMAP.md) makes it hardest of all.** Its V-track note records that **V2 could not be verified in the running window at all** — the startup camera sits below the F4 scene, synthetic input never reached the SDL window, and the palette was signed off on a swatch sheet instead — and then says **"every remaining V item has the same problem"**, that the fix "is a prerequisite for verifying the V track rather than a nicety", and that it "should be pulled forward the first time a V item cannot be checked". **That has already happened, at V2, and V2 shipped a blank world for a commit.** Three separate entries reached this conclusion independently and none of them moved the item. That is the pattern this batch exists to break, and it is worth noting the failure mode: an argument that keeps getting *made* but never gets *filed against a position in the order* is indistinguishable from one nobody made.
-    - **What stays in Presentation & Tooling:** continuous brush strokes and the brush outline preview. Both are conveniences, neither is load-bearing for a scheduled item, and moving them too would make this a section rather than a batch.
+- **T1 — The debug tooling batch.** *(2 days — new, and it is item 6)* Four
+  items lifted out of Presentation & Tooling: **world reset hotkey, pause and
+  single-step, a free camera, and the cell inspector.** They are moved rather
+  than promoted on enthusiasm, and the argument is that this file already made
+  it twice and then filed them behind the slice anyway: the free camera is
+  *"close to load-bearing for E10 and E5a"* and the cell inspector *"grows a job
+  with E10 and E5a — speed is per-cell state with no other way to see it"*.
+    - **The concrete problem:** E10's verify condition is "a poured pile holds a
+      measurable angle instead of flattening" and E5a's is "a cell fired at a
+      wall lands *against* it". **Neither is checkable at 60 frames a second
+      through a camera bolted to the player, with no way to pause and no way to
+      read a cell's state.** Building both against eyeballs is how you get a
+      third round of the A7/A7b/A7c rule fight — that entire episode is three
+      attempts to fix something nobody could look at closely.
+    - **It also closes an open decision for free:** pause and single-step
+      carries the brush-while-paused question, which has been open since F2.4
+      and costs a sentence.
+    - **F2.4 already checked the price** and concluded these are now genuinely
+      small, which is why this is two days rather than a week.
+    - **This is the third time the argument has been written down, and
+      [ROADMAP.md](ROADMAP.md) makes it hardest of all.** Its V-track note
+      records that **V2 could not be verified in the running window at all** —
+      the startup camera sits below the F4 scene, synthetic input never reached
+      the SDL window, and the palette was signed off on a swatch sheet instead —
+      and then says **"every remaining V item has the same problem"**, that the
+      fix "is a prerequisite for verifying the V track rather than a nicety",
+      and that it "should be pulled forward the first time a V item cannot be
+      checked". **That has already happened, at V2, and V2 shipped a blank world
+      for a commit.** Three separate entries reached this conclusion
+      independently and none of them moved the item. That is the pattern this
+      batch exists to break, and it is worth noting the failure mode: an
+      argument that keeps getting *made* but never gets *filed against a
+      position in the order* is indistinguishable from one nobody made.
+    - **What stays in Presentation & Tooling:** continuous brush strokes and the
+      brush outline preview. Both are conveniences, neither is load-bearing for
+      a scheduled item, and moving them too would make this a section rather
+      than a batch.
 
-- **The instrumentation sitting.** *(~2 days — item 4, and it is a batch rather than an item)* Four open questions in this file are all "build an instrument, then decide", and three of them were already scheduled separately. Taken together because they share the instruments and because their answers interact.
-    1. ~~**The fluid spike**~~ ✅ **Closed 2026-08-13, and the price kills the performance argument for E5b.** The three rules E5b retires together — `vent_fluid`, `find_lower_surface` and `make_room_above` — are switchable at runtime, and `grid_bench` ablates them one at a time in one process. **All three removed is worth 8.3% of the played mean and 4.6% of played p99**, on a row already at 0 of 20,415 steps over budget. **8% of 1.2% of a frame is not a reason to build a second grid over the world.** E5b stands on the six capabilities its own entry lists, and on D3/D4, which are quality defects no timing can close. *(The original item text, kept: D4 is the loudest finding on the record and its plausible fix is E5b, which is large; **the output is a price, not a fix** — which is exactly what it produced, and the price came back small.)*
-        - **`churning` and the played session disagree about which rule is expensive, and that is the transferable finding.** On `churning` at 1920x1080, venting is **47.1%** of the row and `seek_level` is **0.3%**; in play, venting is **0.1%** and `seek_level` is **7.3%**. Both make sense — `churning` is powder sinking into fluid everywhere, which is all venting and leaves no settled surface to seek from, while a played world has large quiet pools with long surfaces. **A synthetic worst case is not merely unrepresentative in degree; here it points at a different rule.** Session 2 taught the degree half of this lesson; this is the kind half.
-        - **The table has a null control built into it and it worked.** `make_room_above` cannot fire on `churning`, which never paints, so that row prices the instrument rather than the rule: it reads **+0.2%**, which is what makes `seek_level`'s 0.3% readable as "at the floor" instead of "small". **A `find_lower_surface` that the E-track table describes as "up to 512 cells per awake surface cell per tick" costs `churning` nothing measurable.**
-        - *(The bullet below was the state of this item before it closed, and it called the shape right: the envelope came first, the breakdown second, and the breakdown is what turned the envelope into a decision.)* **Session 2 does not answer it, but it does supply the budget the price gets judged against**, which was missing before. D3 and D4 are quality defects and no timing can close them. What was unknown is what a fix is *allowed* to cost: a session containing real fluid work now reads **worst step 4.83 ms of a 16.67 ms frame**, so there is roughly **11.8 ms of headroom at the busiest single moment** of played fluid activity. That is the envelope E5b's price gets held against, and it is large enough that this item is now a question about correctness and looks rather than about affordability. **It is still owed a measurement of where fluid time actually goes** — the replayed row is a whole `Run::step` and does not break down by subsystem.
-    2. ~~**`P4`** — the replayed-session benchmark row.~~ ✅ **Closed 2026-08-13.** Instrument, census, budget rule and **both sessions** done. Session 2 — 20,415 steps with 479 dig steps, sand into the water channel, fire under a ceiling and steam — read **0 of 20,415 steps over budget, p99 7.1%, worst single step 29.0%**, and replayed byte-exact. *(The line below is kept as written: it was the blocker, and what unblocked it is a person playing for six minutes, not any code.)* **Still owed: a second session.** The census added the same afternoon showed the first one never dug, never moved sand or water, and peaked at 16 of 510 chunks awake — so it cannot answer the `churning` question, and the two items below cannot be judged against it either. **This is the batch's remaining blocker and it is two minutes of play**, listing the cases to cover in [README](README.md#the-replayed-row-and-recording-one-p4).
-        - **`churning` is settled and the answer is no** — it is not representative of played work. Session 2 deliberately drove sand into water and its **worst single step of 20,415 was 4.83 ms**, against `churning`'s 37.25 ms/step *sustained* at 360 of 510 chunks awake. **The load-bearing statistic is `worst`, not the sampled awake peak**, because timing is measured every step and the census samples every sixtieth — reasoning in [PERFORMANCE.md](PERFORMANCE.md). `churning` keeps its row and its job; what it loses is any claim to be a realistic frame.
-    3. ~~**The `VENT_RADIUS` runtime toggle**~~ ✅ **Closed 2026-08-13.** `Grid::set_vent_radius` exists, `grid_bench` sweeps r=0/2/3/4 in one process, and the shipped radius still replays both recorded sessions byte for byte. **Three answers came out of it and two of them were not the question asked.**
-        - **The knee is not there.** In one binary `churning` costs **3.46 / 4.97 / 6.55 / 8.35 ms/step at r=0/2/3/4** — linear in the area of the scanned box to within 5%, at both world sizes. The recorded sweep's r=3 point sat 9-16% below its own neighbours per scanned cell, and **that dip is the whole of the argument for 3**. It does not survive one compile. **3 stays**, on quality alone: r=4 buys 50 steps of a transient D3 showed clears itself, for 27% more scan. Numbers in [PERFORMANCE.md](PERFORMANCE.md).
-        - **The toggle costs `churning` 32% and the played session nothing** — +31.9% at 960x540 and +31.6% at 1920x1080, with every control row inside 2% except `burning`'s 7.7%, against +0.3% mean and +1.2% p99 on the replay, which is inside the noise of repeating the identical run. **`churning` is the only bench scenario containing water**, so the other six rows are controls the change cannot reach, which is what makes a cross-build reading admissible here. Shipped on that split, with the 32% written down against E10 and E5a, both of which make the powder/fluid interface busier.
-        - **The two halves of the frame-budget rule disagreed for the first time, and the disagreement was the finding.** Synthetic: this costs a third. Played: this costs nothing. Both true, and neither alone would have said *where* the cost is. That is the clearest vindication the two-part rule has had since it was written.
-        - **It also corrected a claim from earlier the same day**, which is filed beside the original rather than tidied away: `worst` was named as the statistic that settled `churning`, and four identical replays in one process spread it by **72%** while mean and p99 held to 0.3% and 1.2%. The conclusion is unchanged; the statistic should have been p99 plus steps-over-budget.
-        - *(Kept as written, because it called the shape right and the size wrong — the build was an afternoon, and what came out of it was three findings rather than the one number it promised.)* **Session 2 makes this buildable, and it is now the batch's most tractable remaining item.** The blocker was never the toggle itself — it was that a toggle needs a *load containing sand sinking into water* to be measured against, and until 2026-08-13 the only such load was `churning`, which this batch has just established is not representative. Session 2 is: 479 dig steps, `Sand` peaking 1,827 cells above its start, `Water` 1,755 above its own. **The shape is: make `VENT_RADIUS` a runtime value, then replay `session_2_digging_fluids_steam.rec` twice in one process at two radii.** One binary, one sitting, same input stream — which is exactly what dodges the E1 trap of the compiler re-laying-out the hot loop between builds.
-        - **Expect the end-state check to report a mismatch on the second run, and do not read that as a broken replay.** Changing the venting radius changes the simulation, so the worlds legitimately diverge; the bench already *reports* rather than enforces end state for precisely this reason. **What is being compared is the cost of two engine configurations under one input stream, not determinism** — and that distinction has to be written into whatever records the result, because "replayed to a different end state" reads as a failure to anyone who has not been told.
-    4. ~~**The `Element::ticks` representation prototype**~~ ✅ **Answered 2026-08-13, and run first rather than last.** It was the one question with a consumer waiting — E10 must not write to the byte until it is settled, and E10 is item 7. Instrument: [tests/velocity_probe.cpp](tests/velocity_probe.cpp), kept. **The answer is that the packed speed cannot carry a gravity term** — the probe's thrown grain never comes back down — **and that it does not need to, because `Element` has three unused bytes nobody had counted.** Full answer in the [decisions table](#-decisions-owed); the numbers behind the memory half are in [PERFORMANCE.md](PERFORMANCE.md).
-    - **The output is four written answers and no shipped feature**, which is the point and is the same shape as E4. An instrument that gets built and then not decided against is worse than no instrument, so none of these closes by being measured — each closes by a sentence written into this file.
-    - **One and a half are answered, and the half is the instructive part.** The `ticks` question closed outright. `P4` built its instrument, took a session, decided the budget rule — and then its own census showed the session was a painting session with the terrain untouched, which reopens `churning` and leaves the fluid spike and `VENT_RADIUS` without a row to be judged against. **The instrument is finished and the batch is not**, which is a distinction this entry's own rule already made: *"an instrument that gets built and then not decided against is worse than no instrument"* — and the corollary it did not state is that an instrument fed one unrepresentative input produces a decision that looks made. **Remaining size is about a day plus two minutes of someone's play.**
-    - ✅ **Closed 2026-08-13: four of four.** `ticks`, `P4`, `VENT_RADIUS` and the fluid spike are all answered, and `churning` was demoted along the way. **The batch's own rule held throughout — none of these closed by being measured, each closed by a sentence written into this file** — and the estimate is worth recording against the outcome: it said "about two days", the work took one, and the critical path was neither an instrument nor a decision but **six minutes of someone playing in a way that touched the terrain.** The four answers, shortest form: the packed speed cannot carry gravity and does not need to; a played row is realistic by construction and representative only by evidence; the `VENT_RADIUS` knee was an artifact of measuring one build per point; and E5b is worth 8% of a played step, so it is not an optimisation. **Two of the four contradicted something already written down**, which is the argument for the batch having existed.
-    - **Updated 2026-08-13, after `VENT_RADIUS`: three and a half of four.** Only the fluid spike's subsystem breakdown is left, and it is the one item in the batch that still needs an instrument built rather than run — the replayed row times a whole `Run::step` and cannot say where inside it the time goes. Everything else is answered. **The batch's own rule held all the way through: none of these closed by being measured, each closed by a sentence written into this file.**
-    - **Updated 2026-08-13, after session 2: two and a half of four.** `ticks` and `P4` are closed outright, and `P4` took `churning` with it. The fluid spike has its **budget envelope** but not its subsystem breakdown; `VENT_RADIUS` is untouched but is no longer blocked on anything except being built. **The blocker that actually held this batch for a day was an input, not an instrument** — every tool needed had been finished since the morning, and what was missing was six minutes of someone playing in a way that touched the terrain. That is worth keeping in view the next time a batch is sized: the estimate said "about a day" and was right about the work and wrong about the critical path. **Remaining size is under a day, and none of it is blocked on the user.**
+- **The instrumentation sitting.** *(~2 days — item 4, and it is a batch rather
+  than an item)* Four open questions in this file are all "build an instrument,
+  then decide", and three of them were already scheduled separately. Taken
+  together because they share the instruments and because their answers
+  interact.
+    1. ~~**The fluid spike**~~ ✅ **Closed 2026-08-13, and the price kills the
+       performance argument for E5b.** The three rules E5b retires together —
+       `vent_fluid`, `find_lower_surface` and `make_room_above` — are switchable
+       at runtime, and `grid_bench` ablates them one at a time in one process.
+       **All three removed is worth 8.3% of the played mean and 4.6% of played
+       p99**, on a row already at 0 of 20,415 steps over budget. **8% of 1.2% of
+       a frame is not a reason to build a second grid over the world.** E5b
+       stands on the six capabilities its own entry lists, and on D3/D4, which
+       are quality defects no timing can close. *(The original item text, kept:
+       D4 is the loudest finding on the record and its plausible fix is E5b,
+       which is large; **the output is a price, not a fix** — which is exactly
+       what it produced, and the price came back small.)*
+        - **`churning` and the played session disagree about which rule is
+          expensive, and that is the transferable finding.** On `churning` at
+          1920x1080, venting is **47.1%** of the row and `seek_level` is
+          **0.3%**; in play, venting is **0.1%** and `seek_level` is **7.3%**.
+          Both make sense — `churning` is powder sinking into fluid everywhere,
+          which is all venting and leaves no settled surface to seek from, while
+          a played world has large quiet pools with long surfaces. **A synthetic
+          worst case is not merely unrepresentative in degree; here it points at
+          a different rule.** Session 2 taught the degree half of this lesson;
+          this is the kind half.
+        - **The table has a null control built into it and it worked.**
+          `make_room_above` cannot fire on `churning`, which never paints, so
+          that row prices the instrument rather than the rule: it reads
+          **+0.2%**, which is what makes `seek_level`'s 0.3% readable as "at the
+          floor" instead of "small". **A `find_lower_surface` that the E-track
+          table describes as "up to 512 cells per awake surface cell per tick"
+          costs `churning` nothing measurable.**
+        - *(The bullet below was the state of this item before it closed, and it
+          called the shape right: the envelope came first, the breakdown second,
+          and the breakdown is what turned the envelope into a decision.)*
+          **Session 2 does not answer it, but it does supply the budget the
+          price gets judged against**, which was missing before. D3 and D4 are
+          quality defects and no timing can close them. What was unknown is what
+          a fix is *allowed* to cost: a session containing real fluid work now
+          reads **worst step 4.83 ms of a 16.67 ms frame**, so there is roughly
+          **11.8 ms of headroom at the busiest single moment** of played fluid
+          activity. That is the envelope E5b's price gets held against, and it
+          is large enough that this item is now a question about correctness and
+          looks rather than about affordability. **It is still owed a
+          measurement of where fluid time actually goes** — the replayed row is
+          a whole `Run::step` and does not break down by subsystem.
+    2. ~~**`P4`** — the replayed-session benchmark row.~~ ✅ **Closed
+       2026-08-13.** Instrument, census, budget rule and **both sessions** done.
+       Session 2 — 20,415 steps with 479 dig steps, sand into the water channel,
+       fire under a ceiling and steam — read **0 of 20,415 steps over budget,
+       p99 7.1%, worst single step 29.0%**, and replayed byte-exact. *(The line
+       below is kept as written: it was the blocker, and what unblocked it is a
+       person playing for six minutes, not any code.)* **Still owed: a second
+       session.** The census added the same afternoon showed the first one never
+       dug, never moved sand or water, and peaked at 16 of 510 chunks awake — so
+       it cannot answer the `churning` question, and the two items below cannot
+       be judged against it either. **This is the batch's remaining blocker and
+       it is two minutes of play**, listing the cases to cover in
+       [README](README.md#the-replayed-row-and-recording-one-p4).
+        - **`churning` is settled and the answer is no** — it is not
+          representative of played work. Session 2 deliberately drove sand into
+          water and its **worst single step of 20,415 was 4.83 ms**, against
+          `churning`'s 37.25 ms/step *sustained* at 360 of 510 chunks awake.
+          **The load-bearing statistic is `worst`, not the sampled awake peak**,
+          because timing is measured every step and the census samples every
+          sixtieth — reasoning in [PERFORMANCE.md](PERFORMANCE.md). `churning`
+          keeps its row and its job; what it loses is any claim to be a
+          realistic frame.
+    3. ~~**The `VENT_RADIUS` runtime toggle**~~ ✅ **Closed 2026-08-13.**
+       `Grid::set_vent_radius` exists, `grid_bench` sweeps r=0/2/3/4 in one
+       process, and the shipped radius still replays both recorded sessions byte
+       for byte. **Three answers came out of it and two of them were not the
+       question asked.**
+        - **The knee is not there.** In one binary `churning` costs **3.46 /
+          4.97 / 6.55 / 8.35 ms/step at r=0/2/3/4** — linear in the area of the
+          scanned box to within 5%, at both world sizes. The recorded sweep's
+          r=3 point sat 9-16% below its own neighbours per scanned cell, and
+          **that dip is the whole of the argument for 3**. It does not survive
+          one compile. **3 stays**, on quality alone: r=4 buys 50 steps of a
+          transient D3 showed clears itself, for 27% more scan. Numbers in
+          [PERFORMANCE.md](PERFORMANCE.md).
+        - **The toggle costs `churning` 32% and the played session nothing** —
+          +31.9% at 960x540 and +31.6% at 1920x1080, with every control row
+          inside 2% except `burning`'s 7.7%, against +0.3% mean and +1.2% p99 on
+          the replay, which is inside the noise of repeating the identical run.
+          **`churning` is the only bench scenario containing water**, so the
+          other six rows are controls the change cannot reach, which is what
+          makes a cross-build reading admissible here. Shipped on that split,
+          with the 32% written down against E10 and E5a, both of which make the
+          powder/fluid interface busier.
+        - **The two halves of the frame-budget rule disagreed for the first
+          time, and the disagreement was the finding.** Synthetic: this costs a
+          third. Played: this costs nothing. Both true, and neither alone would
+          have said *where* the cost is. That is the clearest vindication the
+          two-part rule has had since it was written.
+        - **It also corrected a claim from earlier the same day**, which is
+          filed beside the original rather than tidied away: `worst` was named
+          as the statistic that settled `churning`, and four identical replays
+          in one process spread it by **72%** while mean and p99 held to 0.3%
+          and 1.2%. The conclusion is unchanged; the statistic should have been
+          p99 plus steps-over-budget.
+        - *(Kept as written, because it called the shape right and the size
+          wrong — the build was an afternoon, and what came out of it was three
+          findings rather than the one number it promised.)* **Session 2 makes
+          this buildable, and it is now the batch's most tractable remaining
+          item.** The blocker was never the toggle itself — it was that a toggle
+          needs a *load containing sand sinking into water* to be measured
+          against, and until 2026-08-13 the only such load was `churning`, which
+          this batch has just established is not representative. Session 2 is:
+          479 dig steps, `Sand` peaking 1,827 cells above its start, `Water`
+          1,755 above its own. **The shape is: make `VENT_RADIUS` a runtime
+          value, then replay `session_2_digging_fluids_steam.rec` twice in one
+          process at two radii.** One binary, one sitting, same input stream —
+          which is exactly what dodges the E1 trap of the compiler re-laying-out
+          the hot loop between builds.
+        - **Expect the end-state check to report a mismatch on the second run,
+          and do not read that as a broken replay.** Changing the venting radius
+          changes the simulation, so the worlds legitimately diverge; the bench
+          already *reports* rather than enforces end state for precisely this
+          reason. **What is being compared is the cost of two engine
+          configurations under one input stream, not determinism** — and that
+          distinction has to be written into whatever records the result,
+          because "replayed to a different end state" reads as a failure to
+          anyone who has not been told.
+    4. ~~**The `Element::ticks` representation prototype**~~ ✅ **Answered
+       2026-08-13, and run first rather than last.** It was the one question
+       with a consumer waiting — E10 must not write to the byte until it is
+       settled, and E10 is item 7. Instrument:
+       [tests/velocity_probe.cpp](tests/velocity_probe.cpp), kept. **The answer
+       is that the packed speed cannot carry a gravity term** — the probe's
+       thrown grain never comes back down — **and that it does not need to,
+       because `Element` has three unused bytes nobody had counted.** Full
+       answer in the [decisions table](#-decisions-owed); the numbers behind the
+       memory half are in [PERFORMANCE.md](PERFORMANCE.md).
+    - **The output is four written answers and no shipped feature**, which is
+      the point and is the same shape as E4. An instrument that gets built and
+      then not decided against is worse than no instrument, so none of these
+      closes by being measured — each closes by a sentence written into this
+      file.
+    - **One and a half are answered, and the half is the instructive part.** The
+      `ticks` question closed outright. `P4` built its instrument, took a
+      session, decided the budget rule — and then its own census showed the
+      session was a painting session with the terrain untouched, which reopens
+      `churning` and leaves the fluid spike and `VENT_RADIUS` without a row to
+      be judged against. **The instrument is finished and the batch is not**,
+      which is a distinction this entry's own rule already made: *"an instrument
+      that gets built and then not decided against is worse than no instrument"*
+      — and the corollary it did not state is that an instrument fed one
+      unrepresentative input produces a decision that looks made. **Remaining
+      size is about a day plus two minutes of someone's play.**
+    - ✅ **Closed 2026-08-13: four of four.** `ticks`, `P4`, `VENT_RADIUS` and
+      the fluid spike are all answered, and `churning` was demoted along the
+      way. **The batch's own rule held throughout — none of these closed by
+      being measured, each closed by a sentence written into this file** — and
+      the estimate is worth recording against the outcome: it said "about two
+      days", the work took one, and the critical path was neither an instrument
+      nor a decision but **six minutes of someone playing in a way that touched
+      the terrain.** The four answers, shortest form: the packed speed cannot
+      carry gravity and does not need to; a played row is realistic by
+      construction and representative only by evidence; the `VENT_RADIUS` knee
+      was an artifact of measuring one build per point; and E5b is worth 8% of a
+      played step, so it is not an optimisation. **Two of the four contradicted
+      something already written down**, which is the argument for the batch
+      having existed.
+    - **Updated 2026-08-13, after `VENT_RADIUS`: three and a half of four.**
+      Only the fluid spike's subsystem breakdown is left, and it is the one item
+      in the batch that still needs an instrument built rather than run — the
+      replayed row times a whole `Run::step` and cannot say where inside it the
+      time goes. Everything else is answered. **The batch's own rule held all
+      the way through: none of these closed by being measured, each closed by a
+      sentence written into this file.**
+    - **Updated 2026-08-13, after session 2: two and a half of four.** `ticks`
+      and `P4` are closed outright, and `P4` took `churning` with it. The fluid
+      spike has its **budget envelope** but not its subsystem breakdown;
+      `VENT_RADIUS` is untouched but is no longer blocked on anything except
+      being built. **The blocker that actually held this batch for a day was an
+      input, not an instrument** — every tool needed had been finished since the
+      morning, and what was missing was six minutes of someone playing in a way
+      that touched the terrain. That is worth keeping in view the next time a
+      batch is sized: the estimate said "about a day" and was right about the
+      work and wrong about the critical path. **Remaining size is under a day,
+      and none of it is blocked on the user.**
 
 ---
 
 ## 🟤 Engine & Visual Depth — the selling point
 
-Three tracks: **E** deepens the simulation, **V** gives it a visual identity, **P** pays for both in performance. An item only gets in here if it can name (1) something in the built game that's actually wrong, and (2) what it unlocks later.
+Three tracks: **E** deepens the simulation, **V** gives it a visual identity,
+**P** pays for both in performance. An item only gets in here if it can name (1)
+something in the built game that's actually wrong, and (2) what it unlocks
+later.
 
 ### The finding that reorganised this track
 
-Four rules in `grid.cpp` were each added to fix a real, visible artifact. Each is correct. Each has the same shape:
+Four rules in `grid.cpp` were each added to fix a real, visible artifact. Each
+is correct. Each has the same shape:
 
 | Rule | What it costs *in principle* | `churning` | played session |
 |---|---|---|---|
@@ -310,237 +1014,1019 @@ Four rules in `grid.cpp` were each added to fix a real, visible artifact. Each i
 | `fall_if_unsupported` | a flood fill of up to `MAX_SUPPORT_CELLS`, up to 8 times per tick | not ablatable | not ablatable |
 | **all three ablatable together** | **the whole of what E5b retires** | **47.5%** | **8.3%** |
 
-**The last two columns were added 2026-08-13 and they change what this table says.** Written from the code, every row here looks alarming — and measured by ablation, **the scariest-looking row costs `churning` nothing, and the two scenarios do not agree on which rule is expensive.** `find_lower_surface`'s "up to 512 cells per awake surface cell per tick" is 0.3% of `churning`, which is the noise floor of that table; venting is 47% there and 0.1% in play. **A cost written from reading the code is a worst case per invocation, and says nothing about how often the invocation happens** — which is the whole distance between this table's old form and its new one. The line numbers this table used to carry (`grid.cpp:1020` and three others) were removed at the same time: they had gone stale, which is the failure `.claude/rules/documentation.md` forbids line-number references to prevent.
+**The last two columns were added 2026-08-13 and they change what this table
+says.** Written from the code, every row here looks alarming — and measured by
+ablation, **the scariest-looking row costs `churning` nothing, and the two
+scenarios do not agree on which rule is expensive.** `find_lower_surface`'s "up
+to 512 cells per awake surface cell per tick" is 0.3% of `churning`, which is
+the noise floor of that table; venting is 47% there and 0.1% in play. **A cost
+written from reading the code is a worst case per invocation, and says nothing
+about how often the invocation happens** — which is the whole distance between
+this table's old form and its new one. The line numbers this table used to carry
+(`grid.cpp:1020` and three others) were removed at the same time: they had gone
+stale, which is the failure `.claude/rules/documentation.md` forbids line-number
+references to prevent.
 
-Each has a magic radius that was picked by sweeping values and measuring. **One of those sweeps has since been shown to be an artifact** — `VENT_RADIUS`'s knee was a property of measuring one build per data point, and the real cost curve is flat (PERFORMANCE.md). Treat the others as unverified by the same standard until they are re-run in one binary. **The engine answers "where should this go?" by looking around, instead of by carrying state that already knows.** That is the difference between this engine and the ones it is measured against: Noita, The Powder Toy and Sandspiel each carry two things this one does not — **a speed on every cell** and **a coarse air/pressure field** — and nearly every entry in that table is a symptom of one of them being missing. E10, E5a and E5b are those two things, and between them they retire three of the four rows.
+Each has a magic radius that was picked by sweeping values and measuring. **One
+of those sweeps has since been shown to be an artifact** — `VENT_RADIUS`'s knee
+was a property of measuring one build per data point, and the real cost curve is
+flat (PERFORMANCE.md). Treat the others as unverified by the same standard until
+they are re-run in one binary. **The engine answers "where should this go?" by
+looking around, instead of by carrying state that already knows.** That is the
+difference between this engine and the ones it is measured against: Noita, The
+Powder Toy and Sandspiel each carry two things this one does not — **a speed on
+every cell** and **a coarse air/pressure field** — and nearly every entry in
+that table is a symptom of one of them being missing. E10, E5a and E5b are those
+two things, and between them they retire three of the four rows.
 
 ### E — Simulation depth
 
-Running order: **~~E4~~ → ~~E9-steam~~ → E10 → E12 → E5a → P1 → E6 → E7 + E11 → E5b → E8.** E4 closed "no" on 2026-08-10. `P1` is inside this list rather than after it as of 2026-08-11 — see the P track. **E12 is a dependency of E6, not merely earlier than it**, for the reason written in both entries: an explosion cannot hand an impulse to a structural cell, so granulating is the only route by which a solid becomes flying matter.
+Running order: **~~E4~~ → ~~E9-steam~~ → E10 → E12 → E5a → P1 → E6 → E7 + E11 →
+E5b → E8.** E4 closed "no" on 2026-08-10. `P1` is inside this list rather than
+after it as of 2026-08-11 — see the P track. **E12 is a dependency of E6, not
+merely earlier than it**, for the reason written in both entries: an explosion
+cannot hand an impulse to a structural cell, so granulating is the only route by
+which a solid becomes flying matter.
 
-- **E1 — Liquids find their level.** ✅ Done. Water in connected containers evens out instead of sitting at different heights.
-- **E2 — Heat, the seventh axis.** ✅ Done. Every cell has a temperature, and things ignite, melt or boil by crossing a threshold rather than by a random dice roll.
-- **E3 — Collapses break instead of dropping rigid.** ✅ Done. An unsupported structure cracks apart along the stress line instead of descending in one perfect block like an elevator.
+- **E1 — Liquids find their level.** ✅ Done. Water in connected containers evens
+  out instead of sitting at different heights.
+- **E2 — Heat, the seventh axis.** ✅ Done. Every cell has a temperature, and
+  things ignite, melt or boil by crossing a threshold rather than by a random
+  dice roll.
+- **E3 — Collapses break instead of dropping rigid.** ✅ Done. An unsupported
+  structure cracks apart along the stress line instead of descending in one
+  perfect block like an elevator.
 
-- **E4 — The player displaces material, or deliberately does not.** *(afternoon — a decision, possibly no code)* The grid doesn't know the player exists, so sand falls straight through the body. This item's output is a *decision*: try it in play, and if it isn't obviously better, write down "no" and stop thinking about it. If the answer is yes, the implementation waits for E5a, which is what gives shoved material somewhere to go.
+- **E4 — The player displaces material, or deliberately does not.** *(afternoon
+  — a decision, possibly no code)* The grid doesn't know the player exists, so
+  sand falls straight through the body. This item's output is a *decision*: try
+  it in play, and if it isn't obviously better, write down "no" and stop
+  thinking about it. If the answer is yes, the implementation waits for E5a,
+  which is what gives shoved material somewhere to go.
 
-- **E10 — Powders come to rest.** *(days — new, and the biggest single improvement to how the game feels per hour spent)* Sand currently has no friction at all: a grain rolls off any edge it can and then takes a second fall in the same tick, so piles can't hold a slope, sand behaves like very thin water, and a tunnel dug through a dune flattens completely instead of partly caving in. This is also why the three failed rules recorded at A7/A7b/A7c fought each other — "a rule aimed at motion kept catching rest, and a rule that spared rest stopped catching the defect" is an exact description of a system with no *rest state* to aim at.
-    - **The fix is one number per material, called inertial resistance in the game this is measured against.** A settled grain is asleep and stays asleep until something disturbs it — a neighbour moved, plus a per-material dice roll. Once it's free it keeps sliding until it comes to rest again. That gives cones that hold their shape, avalanches that trigger and then *stop*, and gravel / sand / snow / ash as four table rows instead of four code paths.
-    - **It costs no memory** — *and the claim below is narrower than it was when it was written; corrected 2026-08-12.* It said the byte is one "that only structural cells and Fire ever touch". **`Steam` touches it now too**, as of E9's steam half, so the free byte is free on powders and liquids rather than on everything that is not structural. That does not change E10's case — powders are exactly what E10 is about, and `element.h` still says in writing that powders and fluids have no use for a clock — but it does change the *count* of things that would have to agree, which is the number this bullet was really making an argument about. The `static_assert` it cites has also been replaced by a role lookup asserted over every row; see `tick_role()`.
-    - **It claims that byte for good, and E5a is why the meaning is decided now rather than twice.** For a non-structural, non-Fire cell the byte becomes a **packed speed**: 4 bits of sideways, 4 bits of up-down, both signed, so −8 to +7 cells per tick each way. E10 only ever writes zero or "falling" and only ever reads "is this zero" — but the representation is E5a's, so E5a is not a rewrite of it. The −8..+7 range is not arbitrary: 8 cells per tick is already `MAX_FALL_SPEED` for structures, so the two speed limits in the engine agree by construction.
-    - **That paragraph is now conditional, and E10 is blocked on it.** The 2026-08-11 review found the packed-speed representation does not carry what E5a needs — no sub-cell fraction means gravity cannot be integrated onto a moving cell — and that the byte's *third* role excludes structural and Fire cells with nothing saying so. Carried as a [decision owed](#-decisions-owed), answered at the instrumentation sitting. **E10 does not write to the byte until it is answered**, which costs E10 nothing: it is two days behind T1 anyway, and the entire argument for deciding the meaning now is that it should not be decided twice. If the answer turns out to be a second byte, E10's "it costs no memory" claim goes with it and should be struck rather than defended.
-    - **The role split needs a compiler behind it, the way the other two do.** [element.h](src/physics/element.h) asserts that Fire is not structural because the byte means two things. A third meaning wants the same treatment — a `constexpr` role lookup per `ElementType` and a `static_assert` that every material claims exactly one — and E12's `Crust` (structural) turning into `Grit` (powder) is precisely the transition that makes it worth having rather than trusting. This is the hazard the correctness pass named: the danger lives in the relationships between rows and no compiler sees it unless one is written.
-    - *Verify:* a poured pile holds a measurable angle instead of flattening; a tunnel roof partly collapses instead of fully; the benchmark's `cascading` and `churning` numbers do not regress, because a resting grain now does *less* work than it did.
+- **E10 — Powders come to rest.** *(days — new, and the biggest single
+  improvement to how the game feels per hour spent)* Sand currently has no
+  friction at all: a grain rolls off any edge it can and then takes a second
+  fall in the same tick, so piles can't hold a slope, sand behaves like very
+  thin water, and a tunnel dug through a dune flattens completely instead of
+  partly caving in. This is also why the three failed rules recorded at
+  A7/A7b/A7c fought each other — "a rule aimed at motion kept catching rest, and
+  a rule that spared rest stopped catching the defect" is an exact description
+  of a system with no *rest state* to aim at.
+    - **The fix is one number per material, called inertial resistance in the
+      game this is measured against.** A settled grain is asleep and stays
+      asleep until something disturbs it — a neighbour moved, plus a
+      per-material dice roll. Once it's free it keeps sliding until it comes to
+      rest again. That gives cones that hold their shape, avalanches that
+      trigger and then *stop*, and gravel / sand / snow / ash as four table rows
+      instead of four code paths.
+    - **It costs no memory** — *and the claim below is narrower than it was when
+      it was written; corrected 2026-08-12.* It said the byte is one "that only
+      structural cells and Fire ever touch". **`Steam` touches it now too**, as
+      of E9's steam half, so the free byte is free on powders and liquids rather
+      than on everything that is not structural. That does not change E10's case
+      — powders are exactly what E10 is about, and `element.h` still says in
+      writing that powders and fluids have no use for a clock — but it does
+      change the *count* of things that would have to agree, which is the number
+      this bullet was really making an argument about. The `static_assert` it
+      cites has also been replaced by a role lookup asserted over every row; see
+      `tick_role()`.
+    - **It claims that byte for good, and E5a is why the meaning is decided now
+      rather than twice.** For a non-structural, non-Fire cell the byte becomes
+      a **packed speed**: 4 bits of sideways, 4 bits of up-down, both signed, so
+      −8 to +7 cells per tick each way. E10 only ever writes zero or "falling"
+      and only ever reads "is this zero" — but the representation is E5a's, so
+      E5a is not a rewrite of it. The −8..+7 range is not arbitrary: 8 cells per
+      tick is already `MAX_FALL_SPEED` for structures, so the two speed limits
+      in the engine agree by construction.
+    - **That paragraph is now conditional, and E10 is blocked on it.** The
+      2026-08-11 review found the packed-speed representation does not carry
+      what E5a needs — no sub-cell fraction means gravity cannot be integrated
+      onto a moving cell — and that the byte's *third* role excludes structural
+      and Fire cells with nothing saying so. Carried as a [decision
+      owed](#-decisions-owed), answered at the instrumentation sitting. **E10
+      does not write to the byte until it is answered**, which costs E10
+      nothing: it is two days behind T1 anyway, and the entire argument for
+      deciding the meaning now is that it should not be decided twice. If the
+      answer turns out to be a second byte, E10's "it costs no memory" claim
+      goes with it and should be struck rather than defended.
+    - **The role split needs a compiler behind it, the way the other two do.**
+      [element.h](src/physics/element.h) asserts that Fire is not structural
+      because the byte means two things. A third meaning wants the same
+      treatment — a `constexpr` role lookup per `ElementType` and a
+      `static_assert` that every material claims exactly one — and E12's `Crust`
+      (structural) turning into `Grit` (powder) is precisely the transition that
+      makes it worth having rather than trusting. This is the hazard the
+      correctness pass named: the danger lives in the relationships between rows
+      and no compiler sees it unless one is written.
+    - *Verify:* a poured pile holds a measurable angle instead of flattening; a
+      tunnel roof partly collapses instead of fully; the benchmark's `cascading`
+      and `churning` numbers do not regress, because a resting grain now does
+      *less* work than it did.
 
-- **E5a — Velocity means something.** *(weeks — the first half of the old E5)* Nothing in the world has a speed. A grain dug out from under a pile falls at exactly the rate of a grain blasted out of it, because movement is a rule applied once per tick rather than a speed being integrated. Nothing can be thrown, splashed, sprayed or knocked. Three later items stand on this.
-    - **It lives on the cell, in the grid — not in a separate list of in-flight particles**, and that is a reversal of how this item used to be written. A separate list means every rule in the engine needs a second implementation or an explicit "no": does a grain in flight conduct heat? react? get lit? cast a shadow? The games this is measured against all keep the moving cell *in* the grid and have it walk a straight line through the cells it crosses each tick, testing each one. One entity, one set of rules, no boundary to maintain. A genuinely separate particle list is still the right answer for things that must move smoothly between cells and interact with nothing at all — which is exactly V9's effects layer, already scoped that way.
-    - **The note at grid.cpp:743 argues against the wrong thing, and it should be edited rather than deleted.** It records that powder acceleration was tried and removed for three measured reasons: motion got choppier, a continuous stream stratified into sheets, and `cascading` went 13.1 → 19.7 ms. All three are consequences of applying free-fall acceleration to *every falling grain*, and all three go away when speed is only non-zero because something *put* it there. Gravity accumulates on cells that are already moving, not on every grain in a stream — and since `place()` builds a fresh cell, a brush-stamped grain starts at zero like its neighbours, which is the whole of the stratification bug. A resting grain stays a one-cell-per-tick mover, so the common case is unchanged and the frame-time regression does not recur. Choppiness was always a *drawing* property of whole-cell movement and cannot be fixed in the simulation at all, which the note itself says.
-    - ~~**"No new memory" is now a claim under test rather than a property**~~ ✅ **Priced 2026-08-13 and it is a property again — but not by the route this bullet was watching.** The bullet read: *it is E10's byte, and whether that byte can hold a usable velocity is the open decision above … whether that fits in the byte E10 claims, or costs a thirteenth byte and pulls `P1` in front of this item, is unpriced.* **The byte cannot hold it, and no byte is spent anyway.** Velocity is three fields in `Element`'s alignment hole — signed 4.4 per axis, plus a nibble of sub-cell remainder per axis — `sizeof(Element)` stays 12, and `grid_bench` with them present is inside its noise band on every row. **The way this bullet was written is why it worked**: it named the two ways the claim could go wrong instead of asserting the cheap answer, which is exactly what made the question answerable in one sitting instead of being found mid-implementation. It was also wrong about the shape of the answer, and that is fine — a bullet that lists the failure modes does not have to have guessed the outcome.
-    - **Four traps, each a known failure of something this engine already does.** *Conservation:* a moving cell is still in the grid, so the existing conservation test keeps working — which is a real advantage of this design over the old one and should be stated in the test. *The wake rule:* a cell arriving in a sleeping chunk must wake it, same as every other write. *One definition of solid:* what stops a moving cell is `is_solid`, the same function the player and the dig ray use. *A ceiling:* the 4-bit range is the ceiling, and it makes tunnelling impossible by construction rather than by being fast enough.
-    - *Verify:* same seed and same input gives byte-identical results (F1's invariant extended to the new axis, not assumed to survive it); a cell fired at a wall at full speed lands *against* it; a world that has been disturbed and then settles goes fully back to sleep.
+- **E5a — Velocity means something.** *(weeks — the first half of the old E5)*
+  Nothing in the world has a speed. A grain dug out from under a pile falls at
+  exactly the rate of a grain blasted out of it, because movement is a rule
+  applied once per tick rather than a speed being integrated. Nothing can be
+  thrown, splashed, sprayed or knocked. Three later items stand on this.
+    - **It lives on the cell, in the grid — not in a separate list of in-flight
+      particles**, and that is a reversal of how this item used to be written. A
+      separate list means every rule in the engine needs a second implementation
+      or an explicit "no": does a grain in flight conduct heat? react? get lit?
+      cast a shadow? The games this is measured against all keep the moving cell
+      *in* the grid and have it walk a straight line through the cells it
+      crosses each tick, testing each one. One entity, one set of rules, no
+      boundary to maintain. A genuinely separate particle list is still the
+      right answer for things that must move smoothly between cells and interact
+      with nothing at all — which is exactly V9's effects layer, already scoped
+      that way.
+    - **The note at grid.cpp:743 argues against the wrong thing, and it should
+      be edited rather than deleted.** It records that powder acceleration was
+      tried and removed for three measured reasons: motion got choppier, a
+      continuous stream stratified into sheets, and `cascading` went 13.1 → 19.7
+      ms. All three are consequences of applying free-fall acceleration to
+      *every falling grain*, and all three go away when speed is only non-zero
+      because something *put* it there. Gravity accumulates on cells that are
+      already moving, not on every grain in a stream — and since `place()`
+      builds a fresh cell, a brush-stamped grain starts at zero like its
+      neighbours, which is the whole of the stratification bug. A resting grain
+      stays a one-cell-per-tick mover, so the common case is unchanged and the
+      frame-time regression does not recur. Choppiness was always a *drawing*
+      property of whole-cell movement and cannot be fixed in the simulation at
+      all, which the note itself says.
+    - ~~**"No new memory" is now a claim under test rather than a property**~~ ✅
+      **Priced 2026-08-13 and it is a property again — but not by the route this
+      bullet was watching.** The bullet read: *it is E10's byte, and whether
+      that byte can hold a usable velocity is the open decision above … whether
+      that fits in the byte E10 claims, or costs a thirteenth byte and pulls
+      `P1` in front of this item, is unpriced.* **The byte cannot hold it, and
+      no byte is spent anyway.** Velocity is three fields in `Element`'s
+      alignment hole — signed 4.4 per axis, plus a nibble of sub-cell remainder
+      per axis — `sizeof(Element)` stays 12, and `grid_bench` with them present
+      is inside its noise band on every row. **The way this bullet was written
+      is why it worked**: it named the two ways the claim could go wrong instead
+      of asserting the cheap answer, which is exactly what made the question
+      answerable in one sitting instead of being found mid-implementation. It
+      was also wrong about the shape of the answer, and that is fine — a bullet
+      that lists the failure modes does not have to have guessed the outcome.
+    - **Four traps, each a known failure of something this engine already
+      does.** *Conservation:* a moving cell is still in the grid, so the
+      existing conservation test keeps working — which is a real advantage of
+      this design over the old one and should be stated in the test. *The wake
+      rule:* a cell arriving in a sleeping chunk must wake it, same as every
+      other write. *One definition of solid:* what stops a moving cell is
+      `is_solid`, the same function the player and the dig ray use. *A ceiling:*
+      the 4-bit range is the ceiling, and it makes tunnelling impossible by
+      construction rather than by being fast enough.
+    - *Verify:* same seed and same input gives byte-identical results (F1's
+      invariant extended to the new axis, not assumed to survive it); a cell
+      fired at a wall at full speed lands *against* it; a world that has been
+      disturbed and then settles goes fully back to sleep.
 
-- **E6 — Explosions.** *(week — nearly free once E5a lands)* Right now the only way to change the world is a dig that deletes a fixed sphere on a cooldown. There is no force in the engine at all. An explosion is a radius, a falloff, a heat deposit, a conversion pass and an impulse handed to E5a — five stages, four of which are axes that already exist. It is the single most impressive thing this engine can put on a screen, and it is one of the two things that make the hook question answerable by playing.
-    - **It must not become a second destruction system.** The dig tool is a degenerate explosion — a radius with no impulse, heat or falloff. Two implementations will drift, and the drift will show up as a bug in fracture.
-    - **First cost in the engine whose worst case a player chooses.** Cost goes as radius squared; it needs a ceiling, and the measurement has to be taken *at* the ceiling.
-    - **The impulse stage reaches powders, liquids and gases and nothing else, and `E12` is how structural material joins in.** E5a's velocity lives in a byte that structural and Fire cells already spend on other things, so **an explosion cannot hand an impulse to a wall cell or a flame** — wall debris goes through E3's fracture-and-fall path, which produces tumbling pieces rather than flying grains. That is a real limit on the most impressive thing this engine can put on a screen, and it was unstated until the 2026-08-11 review. **`E12`'s `granulate()` is the mechanism that gets round it** — a solid that turns to powder at the moment it is disturbed is a solid that can then be thrown — which promotes E12 from *sequenced before E6* to a **dependency of E6**. Anyone building E6 against structural material without E12 will find this out by watching an explosion produce a shrug.
+- **E6 — Explosions.** *(week — nearly free once E5a lands)* Right now the only
+  way to change the world is a dig that deletes a fixed sphere on a cooldown.
+  There is no force in the engine at all. An explosion is a radius, a falloff, a
+  heat deposit, a conversion pass and an impulse handed to E5a — five stages,
+  four of which are axes that already exist. It is the single most impressive
+  thing this engine can put on a screen, and it is one of the two things that
+  make the hook question answerable by playing.
+    - **It must not become a second destruction system.** The dig tool is a
+      degenerate explosion — a radius with no impulse, heat or falloff. Two
+      implementations will drift, and the drift will show up as a bug in
+      fracture.
+    - **First cost in the engine whose worst case a player chooses.** Cost goes
+      as radius squared; it needs a ceiling, and the measurement has to be taken
+      *at* the ceiling.
+    - **The impulse stage reaches powders, liquids and gases and nothing else,
+      and `E12` is how structural material joins in.** E5a's velocity lives in a
+      byte that structural and Fire cells already spend on other things, so **an
+      explosion cannot hand an impulse to a wall cell or a flame** — wall debris
+      goes through E3's fracture-and-fall path, which produces tumbling pieces
+      rather than flying grains. That is a real limit on the most impressive
+      thing this engine can put on a screen, and it was unstated until the
+      2026-08-11 review. **`E12`'s `granulate()` is the mechanism that gets
+      round it** — a solid that turns to powder at the moment it is disturbed is
+      a solid that can then be thrown — which promotes E12 from *sequenced
+      before E6* to a **dependency of E6**. Anyone building E6 against
+      structural material without E12 will find this out by watching an
+      explosion produce a shrug.
 
-- **E7 — Breadth: more rows, not more code.** *(days per material, ongoing)* There are only eight materials and six interactions, so "what happens if I put X on Y" almost never has an answer. Ice, snow, acid, gunpowder, molten stone and smoke are mostly new table rows rather than new code, thanks to E2. Sequenced after E6 so rows aren't authored against half an engine. **The bound:** a row earns its place by making an interaction something a player can discover and be right about.
+- **E7 — Breadth: more rows, not more code.** *(days per material, ongoing)*
+  There are only eight materials and six interactions, so "what happens if I put
+  X on Y" almost never has an answer. Ice, snow, acid, gunpowder, molten stone
+  and smoke are mostly new table rows rather than new code, thanks to E2.
+  Sequenced after E6 so rows aren't authored against half an engine. **The
+  bound:** a row earns its place by making an interaction something a player can
+  discover and be right about.
 
-- **E11 — The cheap columns heat and fluids are missing.** *(days — new)* Four small gaps found reading the tables, grouped because they are all one column or one short rule and none of them justifies its own item.
-    - **Specific heat.** `conductivity` is currently doing two jobs — how fast heat moves *through* a material and how much heat it takes to warm it. One extra column separates them, and then water is a genuine heat sink and metal is a fast conductor that stays hot. No engine work.
-    - **Radiant heat.** Fire only heats what it physically touches, so standing next to a bonfire costs nothing. Fine until S0 makes fire able to hurt you, at which point it is the difference between a hazard and a trap.
-    - **Viscosity.** `spread` (5 for water, 3 for oil) is the only fluid knob there is, so honey, tar and lava all have to be the same substance with a different number.
-    - **Lateral flow is a jump, not a flow** — `step_fluid`'s lateral run swaps a cell straight to the far end without touching the cells in between. **"No action is proposed" is withdrawn, on session 5.** It was recorded as a harmless known property of the genre; the playtest returned it as the largest visual complaint on the record, twice in one sitting, the second time under a row written in advance to tell it apart from venting. The property is unchanged — the *classification* was wrong. Still not a column, and still not worth pulling E5b forward for: what replaces the entry is a bounded spike, in [ROADMAP.md](ROADMAP.md#e--simulation-depth).
+- **E11 — The cheap columns heat and fluids are missing.** *(days — new)* Four
+  small gaps found reading the tables, grouped because they are all one column
+  or one short rule and none of them justifies its own item.
+    - **Specific heat.** `conductivity` is currently doing two jobs — how fast
+      heat moves *through* a material and how much heat it takes to warm it. One
+      extra column separates them, and then water is a genuine heat sink and
+      metal is a fast conductor that stays hot. No engine work.
+    - **Radiant heat.** Fire only heats what it physically touches, so standing
+      next to a bonfire costs nothing. Fine until S0 makes fire able to hurt
+      you, at which point it is the difference between a hazard and a trap.
+    - **Viscosity.** `spread` (5 for water, 3 for oil) is the only fluid knob
+      there is, so honey, tar and lava all have to be the same substance with a
+      different number.
+    - **Lateral flow is a jump, not a flow** — `step_fluid`'s lateral run swaps
+      a cell straight to the far end without touching the cells in between.
+      **"No action is proposed" is withdrawn, on session 5.** It was recorded as
+      a harmless known property of the genre; the playtest returned it as the
+      largest visual complaint on the record, twice in one sitting, the second
+      time under a row written in advance to tell it apart from venting. The
+      property is unchanged — the *classification* was wrong. Still not a
+      column, and still not worth pulling E5b forward for: what replaces the
+      entry is a bounded spike, in [ROADMAP.md](ROADMAP.md#e--simulation-depth).
 
-- **E12 — `Crust` and `Grit`: a material that granulates when damaged.** *(days — new 2026-08-11)* A solid that holds its shape until it is disturbed, at which point the damaged part turns to sand and pours away. **Two table rows, not one row with a mode flag** — exactly the `Wood` → `Charred` precedent, so the solid gets player collision and rigid collapse and the powder gets piling, with no new branch in the update loop. The trigger is one small `granulate()` called from three places that already exist: the dig tool's impact, an overhang losing its support, and a piece landing hard. A **dice roll per disturbed cell** rather than a certainty, so some cells hold and some go and the crumble edge is ragged for free.
-    - **It is admitted by a commitment, not by an observation, and that is stated rather than dressed up.** Nothing in play is wrong for want of it — [notes/granulating_enemies.md](notes/granulating_enemies.md) says so itself, and also says it *"rides along with whatever admits combat"*. What admits it is the commitment to `S1`.
-    - **Sequenced after E10 for a specific reason:** a crumbling material that cannot hold a slope reads as a liquid, so built before powders have a rest state its entire output is a puddle.
-    - **It is also a dependency of `E6`, which upgrades it from nice-to-have.** Explosions can only hand an impulse to cells that can hold a velocity, and structural cells cannot — so `granulate()` is the only route by which a solid participates in an explosion as flying matter rather than as a falling slab. Argued at E6. **This also weakens the "admitted by a commitment, not an observation" caveat below**: E12 now has a scheduled consumer that is not `S1` and is not behind the combat decision.
-    - **Independently valuable before any enemy exists** — a crust ceiling that comes down is a hazard with zero actor code, and it is the cheapest way to find out whether the feel is worth what `S1` costs.
-    - **The accumulated-damage version is a different item and is after P1.** Per-cell hit points buy visible wear and "three hits and it goes", and they cost the 500 KB byte `element.h` says is the next one spent. P1 is what makes that affordable; building it first buys the same feature at its worst price.
+- **E12 — `Crust` and `Grit`: a material that granulates when damaged.** *(days
+  — new 2026-08-11)* A solid that holds its shape until it is disturbed, at
+  which point the damaged part turns to sand and pours away. **Two table rows,
+  not one row with a mode flag** — exactly the `Wood` → `Charred` precedent, so
+  the solid gets player collision and rigid collapse and the powder gets piling,
+  with no new branch in the update loop. The trigger is one small `granulate()`
+  called from three places that already exist: the dig tool's impact, an
+  overhang losing its support, and a piece landing hard. A **dice roll per
+  disturbed cell** rather than a certainty, so some cells hold and some go and
+  the crumble edge is ragged for free.
+    - **It is admitted by a commitment, not by an observation, and that is
+      stated rather than dressed up.** Nothing in play is wrong for want of it —
+      [notes/granulating_enemies.md](notes/granulating_enemies.md) says so
+      itself, and also says it *"rides along with whatever admits combat"*. What
+      admits it is the commitment to `S1`.
+    - **Sequenced after E10 for a specific reason:** a crumbling material that
+      cannot hold a slope reads as a liquid, so built before powders have a rest
+      state its entire output is a puddle.
+    - **It is also a dependency of `E6`, which upgrades it from nice-to-have.**
+      Explosions can only hand an impulse to cells that can hold a velocity, and
+      structural cells cannot — so `granulate()` is the only route by which a
+      solid participates in an explosion as flying matter rather than as a
+      falling slab. Argued at E6. **This also weakens the "admitted by a
+      commitment, not an observation" caveat below**: E12 now has a scheduled
+      consumer that is not `S1` and is not behind the combat decision.
+    - **Independently valuable before any enemy exists** — a crust ceiling that
+      comes down is a hazard with zero actor code, and it is the cheapest way to
+      find out whether the feel is worth what `S1` costs.
+    - **The accumulated-damage version is a different item and is after P1.**
+      Per-cell hit points buy visible wear and "three hits and it goes", and
+      they cost the 500 KB byte `element.h` says is the next one spent. P1 is
+      what makes that affordable; building it first buys the same feature at its
+      worst price.
 
-- **E5b — The air field.** *(large — the second half of the old E5, and it absorbs the item that used to be called "gas pressure")* A second coarse grid over the world, one entry per 4x4 block, holding pressure and a velocity. **The pattern is already built and shipped:** the lighting is exactly this — a low-resolution, whole-number, reproducible grid stretched over the scene with one draw call. One system delivers six things that are currently separate gaps:
+- **E5b — The air field.** *(large — the second half of the old E5, and it
+  absorbs the item that used to be called "gas pressure")* A second coarse grid
+  over the world, one entry per 4x4 block, holding pressure and a velocity.
+  **The pattern is already built and shipped:** the lighting is exactly this — a
+  low-resolution, whole-number, reproducible grid stretched over the scene with
+  one draw call. One system delivers six things that are currently separate
+  gaps:
     - gas pressure (steam in a sealed room does nothing today);
     - explosions that *push* rather than delete-and-throw;
-    - steam and smoke that drift and curl instead of rising in columns — the single thing that most makes a sandbox look alive;
-    - wind, which V9's sparks and embers need in order not to look like a screensaver;
+    - steam and smoke that drift and curl instead of rising in columns — the
+      single thing that most makes a sandbox look alive;
+    - wind, which V9's sparks and embers need in order not to look like a
+      screensaver;
     - fire suffocating in a sealed space, which E9 currently cannot express;
-    - and the pressure term that **retires `find_lower_surface`, `vent_fluid` and `make_room_above` together** — three of the four rows in the table above.
-    - ⚠️ **Priced 2026-08-13, and the performance argument for this item is gone.** Those three rules were ablated one at a time in one binary: **all three removed is worth 8.3% of the played mean and 4.6% of played p99**, on a row already at 0 of 20,415 steps over budget. **8% of 1.2% of a frame does not pay for a second grid over the world.** On `churning` it is 47%, but session 2 established `churning` is not representative — and the breakdown sharpened that: **`churning` and the played session do not even agree on which of the three rules is expensive** (venting 47% vs 0.1%; `seek_level` 0.3% vs 7.3%). **So this item stands on the six capabilities above and on D3/D4, and must not be argued for as an optimisation.** That is a real narrowing: "it also makes fluids cheaper" was doing work in this entry's case and it cannot any more. Tables in [PERFORMANCE.md](PERFORMANCE.md).
-    - **Two honest costs, both of which are why this is after the slice.** The reference implementation uses decimals, and this engine forbids them in the simulation for reproducibility, so it needs a whole-number port — doable, and non-negotiable. And it is a *fixed* cost proportional to the awake area rather than one that scales with how much is moving, which is a different shape from everything else in this engine and needs its own PERFORMANCE.md entry rather than a bracketed measurement.
-    - **It also buys something the current design has permanently ruled out.** `find_lower_surface` levels water by teleporting a cell across the body, which is instant and non-local, so waves, sloshing and surges are impossible *by construction* — not missing, impossible. Pressure propagates over several ticks, so they fall out for free.
+    - and the pressure term that **retires `find_lower_surface`, `vent_fluid`
+      and `make_room_above` together** — three of the four rows in the table
+      above.
+    - ⚠️ **Priced 2026-08-13, and the performance argument for this item is
+      gone.** Those three rules were ablated one at a time in one binary: **all
+      three removed is worth 8.3% of the played mean and 4.6% of played p99**,
+      on a row already at 0 of 20,415 steps over budget. **8% of 1.2% of a frame
+      does not pay for a second grid over the world.** On `churning` it is 47%,
+      but session 2 established `churning` is not representative — and the
+      breakdown sharpened that: **`churning` and the played session do not even
+      agree on which of the three rules is expensive** (venting 47% vs 0.1%;
+      `seek_level` 0.3% vs 7.3%). **So this item stands on the six capabilities
+      above and on D3/D4, and must not be argued for as an optimisation.** That
+      is a real narrowing: "it also makes fluids cheaper" was doing work in this
+      entry's case and it cannot any more. Tables in
+      [PERFORMANCE.md](PERFORMANCE.md).
+    - **Two honest costs, both of which are why this is after the slice.** The
+      reference implementation uses decimals, and this engine forbids them in
+      the simulation for reproducibility, so it needs a whole-number port —
+      doable, and non-negotiable. And it is a *fixed* cost proportional to the
+      awake area rather than one that scales with how much is moving, which is a
+      different shape from everything else in this engine and needs its own
+      PERFORMANCE.md entry rather than a bracketed measurement.
+    - **It also buys something the current design has permanently ruled out.**
+      `find_lower_surface` levels water by teleporting a cell across the body,
+      which is instant and non-local, so waves, sloshing and surges are
+      impossible *by construction* — not missing, impossible. Pressure
+      propagates over several ticks, so they fall out for free.
 
-- **E8 — Toppling, and rigid bodies properly.** *(large — deferred past v0.1, and the reason it is deferred has changed)* Structures currently drop or break but never tip over, which reads as lifeless. **This used to be written as "may close as not possible without wrecking the pixel art", and that sentence is withdrawn** — it closes a door the reference engines walk through, and someone reading this in a year would believe it. The objection was that rotating a piece resamples it and destroys the authored pixels. The reference answer: trace the outline of the connected piece, simplify it to a polygon, hand *that* to a rigid-body solver, take the piece's cells out of the grid entirely, and stamp them back in each frame from the body's own private copy of its pixels. The pixels are never resampled — they live with the body and are only *drawn* rotated. Rotation becomes a drawing problem, which is a solved one.
-    - **The real objection, recorded as the real one:** it is bigger than everything else in the E track combined, it wants a physics library (a dependency, against the no-bloat rule) or a hand-rolled solver, and nothing in the slice needs it. It also *retires* the eight-flood-fills-per-tick cost in `resolve_support` and makes fracture and explosions act on bodies properly, so it gets better with age rather than worse. Not for v0.1.
+- **E8 — Toppling, and rigid bodies properly.** *(large — deferred past v0.1,
+  and the reason it is deferred has changed)* Structures currently drop or break
+  but never tip over, which reads as lifeless. **This used to be written as "may
+  close as not possible without wrecking the pixel art", and that sentence is
+  withdrawn** — it closes a door the reference engines walk through, and someone
+  reading this in a year would believe it. The objection was that rotating a
+  piece resamples it and destroys the authored pixels. The reference answer:
+  trace the outline of the connected piece, simplify it to a polygon, hand
+  *that* to a rigid-body solver, take the piece's cells out of the grid
+  entirely, and stamp them back in each frame from the body's own private copy
+  of its pixels. The pixels are never resampled — they live with the body and
+  are only *drawn* rotated. Rotation becomes a drawing problem, which is a
+  solved one.
+    - **The real objection, recorded as the real one:** it is bigger than
+      everything else in the E track combined, it wants a physics library (a
+      dependency, against the no-bloat rule) or a hand-rolled solver, and
+      nothing in the slice needs it. It also *retires* the
+      eight-flood-fills-per-tick cost in `resolve_support` and makes fracture
+      and explosions act on bodies properly, so it gets better with age rather
+      than worse. Not for v0.1.
 
-- **E9 — Fuel, and a clock for steam.** ✅ **Done — the fire half in waves 2b/2c, the steam half on 2026-08-12.** Steam has its own condensation clock on `Element::ticks`, so a puff lasts without having to be dangerously hot; it collects against ceilings and drips. **The rule that works is narrower than the one this entry predicted**: only a steam cell *in contact with something solid* ages at all, so a pocket's interior waits its turn and drains from the top down. A plain countdown was built first and drained a four-deep pocket in about a second — it measured as drips and read as a puff. Sealed-pocket drain time went from **3 steps to 291**. Full record at [E9 in ROADMAP.md](ROADMAP.md#e--simulation-depth); the constants are in [TUNING.md](TUNING.md).
-    - **Owed a playtest and it is the only thing outstanding.** Checklist step 5 (reactions and heat) is the step all three original reports — A5, B3 and D5 — came out of.
-    - **E5b would still give it suffocation**, which is unchanged and is the one part of this item's original scope that no longer belongs to it.
-    - **It answered part of the `ticks` decision early, in the useful direction.** See the decision row below.
+- **E9 — Fuel, and a clock for steam.** ✅ **Done — the fire half in waves 2b/2c,
+  the steam half on 2026-08-12.** Steam has its own condensation clock on
+  `Element::ticks`, so a puff lasts without having to be dangerously hot; it
+  collects against ceilings and drips. **The rule that works is narrower than
+  the one this entry predicted**: only a steam cell *in contact with something
+  solid* ages at all, so a pocket's interior waits its turn and drains from the
+  top down. A plain countdown was built first and drained a four-deep pocket in
+  about a second — it measured as drips and read as a puff. Sealed-pocket drain
+  time went from **3 steps to 291**. Full record at [E9 in
+  ROADMAP.md](ROADMAP.md#e--simulation-depth); the constants are in
+  [TUNING.md](TUNING.md).
+    - **Owed a playtest and it is the only thing outstanding.** Checklist step 5
+      (reactions and heat) is the step all three original reports — A5, B3 and
+      D5 — came out of.
+    - **E5b would still give it suffocation**, which is unchanged and is the one
+      part of this item's original scope that no longer belongs to it.
+    - **It answered part of the `ticks` decision early, in the useful
+      direction.** See the decision row below.
 
 ### V — Visual identity
 
-Running order: **V17 → (V11 + V12 + V13) → V19 → V16 → V9 → V14 → V8 → V7-rest**, with **V10.1** alongside E6. **V15 moved behind the playtest gate on 2026-08-11** and is gated on the combat decision, for the reason written in its entry. **V19 is new on 2026-08-16 and sits where it does by request**, not by inference; **V16 may end up inside it rather than after it**, because five new pan-sized layers is the cost that makes a wrapping layer worth having, and that is the first thing V19 has to decide.
+Running order: **V17 → (V11 + V12 + V13) → V19 → V16 → V9 → V14 → V8 →
+V7-rest**, with **V10.1** alongside E6. **V15 moved behind the playtest gate on
+2026-08-11** and is gated on the combat decision, for the reason written in its
+entry. **V19 is new on 2026-08-16 and sits where it does by request**, not by
+inference; **V16 may end up inside it rather than after it**, because five new
+pan-sized layers is the cost that makes a wrapping layer worth having, and that
+is the first thing V19 has to decide.
 
-**V12–V16 are new on 2026-08-11 and they are one plan.** The goal they serve, stated once: **mixed pixel resolutions and sprite sizes in one scene, procedural animation, backgrounds that are animated rather than static, and enemy bodies that granulate where they are hit.** Four of the five name something in the built game that is wrong on their own; **V15 is admitted by a condition [notes/procedural_animation.md](notes/procedural_animation.md) wrote down in advance** — "a second character type is committed to" — which is a better form of admission than an observation, because it was specified before the thing that satisfied it existed. The full arguments are in [ROADMAP.md](ROADMAP.md#the-visual-system-this-track-is-now-building-toward).
+**V12–V16 are new on 2026-08-11 and they are one plan.** The goal they serve,
+stated once: **mixed pixel resolutions and sprite sizes in one scene, procedural
+animation, backgrounds that are animated rather than static, and enemy bodies
+that granulate where they are hit.** Four of the five name something in the
+built game that is wrong on their own; **V15 is admitted by a condition
+[notes/procedural_animation.md](notes/procedural_animation.md) wrote down in
+advance** — "a second character type is committed to" — which is a better form
+of admission than an observation, because it was specified before the thing that
+satisfied it existed. The full arguments are in
+[ROADMAP.md](ROADMAP.md#the-visual-system-this-track-is-now-building-toward).
 
-- **V1 / V2 / V5 / V6 / V3 / V3.1 / V7-emissive / V10** — ✅ Done. Transparent empty space and a backdrop; a palette tuned against it; the art direction written down; one locked palette shared by code and art with a validator; the player sprite decoupled from its hitbox and then animated; fire casting light; the reticle and material hotbar.
+- **V1 / V2 / V5 / V6 / V3 / V3.1 / V7-emissive / V10** — ✅ Done. Transparent
+  empty space and a backdrop; a palette tuned against it; the art direction
+  written down; one locked palette shared by code and art with a validator; the
+  player sprite decoupled from its hitbox and then animated; fire casting light;
+  the reticle and material hotbar.
 
-- **V17 — A golden-frame check, before the render path is rewritten.** *(afternoon — new 2026-08-11, and it is a harness rather than a visual item)* V11 extracts ~350 lines of frame composition out of `main.cpp`, V12 replaces the colour-key path with a real alpha channel, and V13 changes every destination rectangle on screen. **Nothing today tests a composed frame.** That is not a guess: `preview_light` exists because *"existing tests all passed the broken frame because none of them ever combined layers"*, and V2 shipped a blank world for an entire commit.
-    - **Built as** a generalisation of `preview_light` — compose a fixed scene through the real layer stack, write a PNG, checksum it — covering all the layers rather than only lighting. The scene and the checksum go in the repo; a deliberate visual change updates the checksum in the same commit, which is what makes the diff reviewable.
-    - **It is the only thing that will catch V13's silent traps.** V13's own entry says the player sheet's two compile-time size checks would, at 2x, **"pass while meaning nothing"**. A `static_assert` cannot catch a `static_assert` that has stopped meaning anything. A rendered frame can.
-    - **The bound:** this checks that the frame did not change by accident. It is not an art-direction test and it cannot say a frame looks good.
+- **V17 — A golden-frame check, before the render path is rewritten.**
+  *(afternoon — new 2026-08-11, and it is a harness rather than a visual item)*
+  V11 extracts ~350 lines of frame composition out of `main.cpp`, V12 replaces
+  the colour-key path with a real alpha channel, and V13 changes every
+  destination rectangle on screen. **Nothing today tests a composed frame.**
+  That is not a guess: `preview_light` exists because *"existing tests all
+  passed the broken frame because none of them ever combined layers"*, and V2
+  shipped a blank world for an entire commit.
+    - **Built as** a generalisation of `preview_light` — compose a fixed scene
+      through the real layer stack, write a PNG, checksum it — covering all the
+      layers rather than only lighting. The scene and the checksum go in the
+      repo; a deliberate visual change updates the checksum in the same commit,
+      which is what makes the diff reviewable.
+    - **It is the only thing that will catch V13's silent traps.** V13's own
+      entry says the player sheet's two compile-time size checks would, at 2x,
+      **"pass while meaning nothing"**. A `static_assert` cannot catch a
+      `static_assert` that has stopped meaning anything. A rendered frame can.
+    - **The bound:** this checks that the frame did not change by accident. It
+      is not an art-direction test and it cannot say a frame looks good.
 
-- **V11 — Make the visual system adaptable.** *(week — new, and it is the item that makes changing direction cheap instead of expensive)* The stated expectation is that the art direction will change several times. Right now a direction change is expensive in five specific, findable places, and none of them is hard to fix *today*.
-    - **There is no renderer.** About 350 lines of frame composition sit inline in `main.cpp`, with the layer order hard-coded: clear → sky → mountains → props → world → player → light → reticle → HUD → hotbar → menu. `notes/reference_observations.txt` has *already* concluded that a mid-ground layer is needed that this stack has no slot for. Extract `render/frame.cpp` holding an explicit ordered list of layers. Afternoon; afterwards, adding a depth band is one list entry instead of surgery between two comments.
-    - **Material colours are compile-time constants.** Changing direction means editing `MATERIALS`, recompiling, and re-checking the level file's colour codes. Give each row a *palette slot* and put slot → colour in a loadable theme file. The correctness pass already learned this exact lesson once, when it separated level colour codes from the render palette; this is one more step of the same move. Then a second biome is a file, and time-of-day is two files and a blend. **The cost is bounded and worth stating:** the pixel buffer holds baked colours, so switching theme needs one pass over the world — a one-off at swap time, not a per-frame cost, and the hot loop is untouched.
-    - **`Camera::SCALE` is a compile-time constant** and it is baked into the reticle size, the sprite offsets and the prop rectangles. A zoomed-out biome, a different cell size, and the already-planned resolution options all collide with it. Making it a runtime value is far cheaper now than after three more systems read it.
-    - ✅ **The light layer can only add light**, so every biome will be the same brightness. Generalise it from add-only to multiply-and-add — an exposure and tint term as well as a glow term — and night, underground, fog and per-biome colour grading all arrive without touching a single material colour. Given that the reference finding was that the read comes from *silhouette layering, not detail*, this is the highest-value visual knob available and the one that most makes direction changes cheap. **Shipped 2026-08-16 as step 3, in an afternoon against a week, and it came out as *two* knobs rather than the one this bullet describes.** A per-layer `Grade` on each row of the layer table, and a world-wide one as its own pass ordered before the additive light. The split is not tidiness: **a frame-wide multiply cannot separate two depth bands**, because it scales both and leaves the ratio between them untouched — so the "per-biome colour grading" this bullet asks for and the band separation the reference asked for are different operations and needed different knobs. The bullet's prediction that this is the highest-value knob available survived: the mountains at 0.60 are the whole of the depth fix, and they are one number.
-    - **The parallax numbers are duplicated** between `main.cpp` and `tools/generate_backdrop.py` with nothing checking they agree; the failure is a seam at the pan limit. Generate the header from the tool, exactly as V3.1 did for the player sheet.
+- **V11 — Make the visual system adaptable.** *(week — new, and it is the item
+  that makes changing direction cheap instead of expensive)* The stated
+  expectation is that the art direction will change several times. Right now a
+  direction change is expensive in five specific, findable places, and none of
+  them is hard to fix *today*.
+    - **There is no renderer.** About 350 lines of frame composition sit inline
+      in `main.cpp`, with the layer order hard-coded: clear → sky → mountains →
+      props → world → player → light → reticle → HUD → hotbar → menu.
+      `notes/reference_observations.txt` has *already* concluded that a
+      mid-ground layer is needed that this stack has no slot for. Extract
+      `render/frame.cpp` holding an explicit ordered list of layers. Afternoon;
+      afterwards, adding a depth band is one list entry instead of surgery
+      between two comments.
+    - **Material colours are compile-time constants.** Changing direction means
+      editing `MATERIALS`, recompiling, and re-checking the level file's colour
+      codes. Give each row a *palette slot* and put slot → colour in a loadable
+      theme file. The correctness pass already learned this exact lesson once,
+      when it separated level colour codes from the render palette; this is one
+      more step of the same move. Then a second biome is a file, and time-of-day
+      is two files and a blend. **The cost is bounded and worth stating:** the
+      pixel buffer holds baked colours, so switching theme needs one pass over
+      the world — a one-off at swap time, not a per-frame cost, and the hot loop
+      is untouched.
+    - **`Camera::SCALE` is a compile-time constant** and it is baked into the
+      reticle size, the sprite offsets and the prop rectangles. A zoomed-out
+      biome, a different cell size, and the already-planned resolution options
+      all collide with it. Making it a runtime value is far cheaper now than
+      after three more systems read it.
+    - ✅ **The light layer can only add light**, so every biome will be the same
+      brightness. Generalise it from add-only to multiply-and-add — an exposure
+      and tint term as well as a glow term — and night, underground, fog and
+      per-biome colour grading all arrive without touching a single material
+      colour. Given that the reference finding was that the read comes from
+      *silhouette layering, not detail*, this is the highest-value visual knob
+      available and the one that most makes direction changes cheap. **Shipped
+      2026-08-16 as step 3, in an afternoon against a week, and it came out as
+      *two* knobs rather than the one this bullet describes.** A per-layer
+      `Grade` on each row of the layer table, and a world-wide one as its own
+      pass ordered before the additive light. The split is not tidiness: **a
+      frame-wide multiply cannot separate two depth bands**, because it scales
+      both and leaves the ratio between them untouched — so the "per-biome
+      colour grading" this bullet asks for and the band separation the reference
+      asked for are different operations and needed different knobs. The
+      bullet's prediction that this is the highest-value knob available
+      survived: the mountains at 0.60 are the whole of the depth fix, and they
+      are one number.
+    - **The parallax numbers are duplicated** between `main.cpp` and
+      `tools/generate_backdrop.py` with nothing checking they agree; the failure
+      is a seam at the pan limit. Generate the header from the tool, exactly as
+      V3.1 did for the player sheet.
 
-- **V12 — The asset layer: alpha, and more than one format.** *(days — new, take with V11)* Transparency today is one exact shade of magenta, swapped for "invisible" when the image loads. **So nothing in the game can have a soft edge, a semi-transparent pixel, or fade in and out** — and any drawing that happens to use that shade gets holes in it. There is also only one loader, called four times, with four matching cleanup lines at shutdown that are invisible to forget.
-    - **Why it comes before the animation work rather than after:** a colour key is all-or-nothing, so a rotated part is a staircase of hard-edged blocks. Checking "do rotated limbs look acceptable at this size" against colour-keyed art answers a different question, in the wrong direction.
-    - **It adds a dependency and that is a deliberate crossing.** `stb_image.h` is a single file dropped into the source tree with no build-system entry — the cheapest possible form. The standing rule is zero new dependencies until a specific need can't be met without one; **the need is alpha and BMP genuinely cannot carry it**, which is a different situation from the test fixture that made PNG lose to BMP the first time. The crossing gets written down where that decision lives.
-    - **The trap that would quietly undo V6:** the locked-palette validator only understands BMP. Allow the new format everywhere and half the art silently stops being checked — which is exactly the state V6 exists to end, and it would surface a year later as "the palette drifted" with nothing able to say when. **The boundary is a rule:** BMP stays the format for everything inside the locked palette, the new format is only for assets deliberately outside it, and each of those is listed by name.
-    - Also folds the four hand-managed textures into one small cache that owns loading and cleanup.
+- **V12 — The asset layer: alpha, and more than one format.** *(days — new, take
+  with V11)* Transparency today is one exact shade of magenta, swapped for
+  "invisible" when the image loads. **So nothing in the game can have a soft
+  edge, a semi-transparent pixel, or fade in and out** — and any drawing that
+  happens to use that shade gets holes in it. There is also only one loader,
+  called four times, with four matching cleanup lines at shutdown that are
+  invisible to forget.
+    - **Why it comes before the animation work rather than after:** a colour key
+      is all-or-nothing, so a rotated part is a staircase of hard-edged blocks.
+      Checking "do rotated limbs look acceptable at this size" against
+      colour-keyed art answers a different question, in the wrong direction.
+    - **It adds a dependency and that is a deliberate crossing.** `stb_image.h`
+      is a single file dropped into the source tree with no build-system entry —
+      the cheapest possible form. The standing rule is zero new dependencies
+      until a specific need can't be met without one; **the need is alpha and
+      BMP genuinely cannot carry it**, which is a different situation from the
+      test fixture that made PNG lose to BMP the first time. The crossing gets
+      written down where that decision lives.
+    - **The trap that would quietly undo V6:** the locked-palette validator only
+      understands BMP. Allow the new format everywhere and half the art silently
+      stops being checked — which is exactly the state V6 exists to end, and it
+      would surface a year later as "the palette drifted" with nothing able to
+      say when. **The boundary is a rule:** BMP stays the format for everything
+      inside the locked palette, the new format is only for assets deliberately
+      outside it, and each of those is listed by name.
+    - Also folds the four hand-managed textures into one small cache that owns
+      loading and cleanup.
 
-- **V13 — Sprites carry their own resolution.** *(days — new, take with V11)* "One pixel in the file is one square in the world" is assumed everywhere and enforced nowhere: both the props and the player compute their on-screen size straight from the image's size. **So the only way to draw a more detailed sprite is to make it a bigger object** — a character drawn at twice the detail is a character twice as tall. This is the item that buys mixed pixel resolutions and sprite sizes, which is the first of the four goals.
-    - **Built as** one extra optional number on each line of `assets/sprites.txt` — how many image pixels make up one world square — plus which filtering that asset wants. The file already carries an optional frame size, so the format's shape doesn't change, and it belongs there rather than in code because it is a fact about the *file*, which is the thing that gets swapped.
-    - **Four traps, three of them silent.** Prop planting scans the terrain under the sprite's width, which is a count of world squares and would be double at 2x. The player sheet's two compile-time size checks compare image pixels against world squares and at 2x would **pass while meaning nothing**, which is worse than failing. The sheet-building tool's "exactly 14 wide" becomes a statement about squares that the tool measures in pixels. And the loud one: **terrain cannot participate** — its resolution *is* the simulation's, one colour per square — so mixed density has a floor and the floor is the world.
-    - **Taken with V11 for arithmetic, not tidiness.** V11 makes the global zoom a runtime value and this makes the per-asset factor it multiplies; done apart, the same rectangles get rewritten twice and the middle version is wrong by exactly the factor nobody is tracking.
+- **V13 — Sprites carry their own resolution.** *(days — new, take with V11)*
+  "One pixel in the file is one square in the world" is assumed everywhere and
+  enforced nowhere: both the props and the player compute their on-screen size
+  straight from the image's size. **So the only way to draw a more detailed
+  sprite is to make it a bigger object** — a character drawn at twice the detail
+  is a character twice as tall. This is the item that buys mixed pixel
+  resolutions and sprite sizes, which is the first of the four goals.
+    - **Built as** one extra optional number on each line of
+      `assets/sprites.txt` — how many image pixels make up one world square —
+      plus which filtering that asset wants. The file already carries an
+      optional frame size, so the format's shape doesn't change, and it belongs
+      there rather than in code because it is a fact about the *file*, which is
+      the thing that gets swapped.
+    - **Four traps, three of them silent.** Prop planting scans the terrain
+      under the sprite's width, which is a count of world squares and would be
+      double at 2x. The player sheet's two compile-time size checks compare
+      image pixels against world squares and at 2x would **pass while meaning
+      nothing**, which is worse than failing. The sheet-building tool's "exactly
+      14 wide" becomes a statement about squares that the tool measures in
+      pixels. And the loud one: **terrain cannot participate** — its resolution
+      *is* the simulation's, one colour per square — so mixed density has a
+      floor and the floor is the world.
+    - **Taken with V11 for arithmetic, not tidiness.** V11 makes the global zoom
+      a runtime value and this makes the per-asset factor it multiplies; done
+      apart, the same rectangles get rewritten twice and the middle version is
+      wrong by exactly the factor nobody is tracking.
 
-- **V14 — A part rig: rotation, and attachment from a table.** *(week — new)* The figure's only articulation today is *which* of nineteen drawn frames is showing. Pull 2–4 parts out of the sheet — an aiming arm, the head, later a cape — and drive them with rotations computed per tick. **This is the decomposition V3.1 already argued for and already built once**, and the reason it was pulled is the reason this version is different: the arm attached at a marker pixel in a second image, so every frame drawn afterwards had to carry one or the validator refused it. **Here the attachment point is a number in a table** in the file that already generates numbers. The tax that killed it is a tax the sheet imposes and a table does not.
-    - **The one trap, already paid for once:** flipping a sprite mirrors the image and *then* rotates it, so the aim angle doesn't mirror with it. The obvious correction is right for a target level with the shoulder and inverts everywhere else — and both of the cases anyone checks by eye are the two it gets right.
-    - **It is also the cheap experiment that prices V15**, because nobody has yet looked at whether a rotated 3-square limb reads acceptably at this scale. That answer is an input to the next item and should come out of this one in writing, with a screenshot.
-    - The existing sheet checks all survive, because the body is still a sheet. **That is what makes this the cheap step.**
+- **V14 — A part rig: rotation, and attachment from a table.** *(week — new)*
+  The figure's only articulation today is *which* of nineteen drawn frames is
+  showing. Pull 2–4 parts out of the sheet — an aiming arm, the head, later a
+  cape — and drive them with rotations computed per tick. **This is the
+  decomposition V3.1 already argued for and already built once**, and the reason
+  it was pulled is the reason this version is different: the arm attached at a
+  marker pixel in a second image, so every frame drawn afterwards had to carry
+  one or the validator refused it. **Here the attachment point is a number in a
+  table** in the file that already generates numbers. The tax that killed it is
+  a tax the sheet imposes and a table does not.
+    - **The one trap, already paid for once:** flipping a sprite mirrors the
+      image and *then* rotates it, so the aim angle doesn't mirror with it. The
+      obvious correction is right for a target level with the shoulder and
+      inverts everywhere else — and both of the cases anyone checks by eye are
+      the two it gets right.
+    - **It is also the cheap experiment that prices V15**, because nobody has
+      yet looked at whether a rotated 3-square limb reads acceptably at this
+      scale. That answer is an input to the next item and should come out of
+      this one in writing, with a screenshot.
+    - The existing sheet checks all survive, because the body is still a sheet.
+      **That is what makes this the cheap step.**
 
-- **V15 — A skeletal rig, and feet that find the ground.** *(weeks — new, and **moved behind the playtest gate on 2026-08-11**)* A drawn walk cycle assumes a flat floor, and **nothing in this game is a flat floor for long** — the terrain is per-square and the one verb the game has is destroying it. This is feet that land on the terrain that is actually there, and a second character for the price of a re-pose instead of a second hand-drawn sheet.
-    - **Its admission was circular and that is why it moved.** The trigger written down in advance is "a second character type is committed to", and the entry cashed that as "one has been (`S1`)". But `S1` says three lines into its own entry that it is **blocked on the combat decision, which it does not get to pre-empt** — so it is precisely *not* committed to — and `S1` in turn lists `V15` as a dependency. **V15 was admitted by S1, S1 was blocked on a decision, and S1 needed V15.** If combat comes back "no", the trigger evaporates and three weeks of rig work stays scheduled ahead of the gate with nothing asking for it.
-    - **So V15 is now gated exactly as `S1` is: on the combat decision, due at the end of S0.** Nothing is lost by waiting, because the thing that makes this item cheap to judge is `V14` — whose stated output is a screenshot answering whether a rotated 3-square limb reads at this scale. **The decision and the evidence therefore arrive together**, which is a better position than the one this item was in.
-    - The slope-aware-feet argument is still unproven by any playtest, so it shapes this item rather than admitting it — **and it is the one argument that could re-admit V15 independently of combat**, if a session says feet on broken terrain read badly. That is a legitimate second route in and it is named here so it can be used.
-    - **It must replace the three sheet checks and nothing currently does.** Under a rig there are no frames, so "bottom row empty", "gap inside the collision box" and "declared frame is blank" become unexpressible — **and every one of them exists because it catches a bug that reads as a physics problem rather than an art one.** The rig versions are writable and are part of this item, not a follow-up.
-    - **Anything with a solver in it inherits the fixed-tick clock and makes it stricter.** A spring's stiffness quietly means something different at each frame rate — worse than the walk cycle that caught this before, because a wrong-speed cycle is visible and a wrong-stiffness limb just looks slightly bad.
-    - **Physics-driven limbs (the Rain World model) are still not scheduled.** Highest cost on the page, nothing observed asking for it, and no longer blocked by anything — held on price, which is a deferral rather than a refusal.
+- **V15 — A skeletal rig, and feet that find the ground.** *(weeks — new, and
+  **moved behind the playtest gate on 2026-08-11**)* A drawn walk cycle assumes
+  a flat floor, and **nothing in this game is a flat floor for long** — the
+  terrain is per-square and the one verb the game has is destroying it. This is
+  feet that land on the terrain that is actually there, and a second character
+  for the price of a re-pose instead of a second hand-drawn sheet.
+    - **Its admission was circular and that is why it moved.** The trigger
+      written down in advance is "a second character type is committed to", and
+      the entry cashed that as "one has been (`S1`)". But `S1` says three lines
+      into its own entry that it is **blocked on the combat decision, which it
+      does not get to pre-empt** — so it is precisely *not* committed to — and
+      `S1` in turn lists `V15` as a dependency. **V15 was admitted by S1, S1 was
+      blocked on a decision, and S1 needed V15.** If combat comes back "no", the
+      trigger evaporates and three weeks of rig work stays scheduled ahead of
+      the gate with nothing asking for it.
+    - **So V15 is now gated exactly as `S1` is: on the combat decision, due at
+      the end of S0.** Nothing is lost by waiting, because the thing that makes
+      this item cheap to judge is `V14` — whose stated output is a screenshot
+      answering whether a rotated 3-square limb reads at this scale. **The
+      decision and the evidence therefore arrive together**, which is a better
+      position than the one this item was in.
+    - The slope-aware-feet argument is still unproven by any playtest, so it
+      shapes this item rather than admitting it — **and it is the one argument
+      that could re-admit V15 independently of combat**, if a session says feet
+      on broken terrain read badly. That is a legitimate second route in and it
+      is named here so it can be used.
+    - **It must replace the three sheet checks and nothing currently does.**
+      Under a rig there are no frames, so "bottom row empty", "gap inside the
+      collision box" and "declared frame is blank" become unexpressible — **and
+      every one of them exists because it catches a bug that reads as a physics
+      problem rather than an art one.** The rig versions are writable and are
+      part of this item, not a follow-up.
+    - **Anything with a solver in it inherits the fixed-tick clock and makes it
+      stricter.** A spring's stiffness quietly means something different at each
+      frame rate — worse than the walk cycle that caught this before, because a
+      wrong-speed cycle is visible and a wrong-stiffness limb just looks
+      slightly bad.
+    - **Physics-driven limbs (the Rain World model) are still not scheduled.**
+      Highest cost on the page, nothing observed asking for it, and no longer
+      blocked by anything — held on price, which is a deferral rather than a
+      refusal.
 
-- **V19 — The seven-band scene, and a ground plane where the reference has water.** *(week — new 2026-08-16, admitted by request, and it is item 8's step 4)* Build a scene composed the way `CnC_parallax_*` is composed, before the split-view path rather than after it. **The reference frame is seven layers and we ship two**; measured in [notes/reference_observations.txt](notes/reference_observations.txt) entry 7.
-    - **Five new bands, not seven**, because two of the seven rows are already filled: sky and the mid range are `backdrop_sky` and `backdrop_mountains`, and the near silhouette is the simulated world. **A painted band in front of the world is refused** — the reference's foreground rock is a painting the boat passes behind and ours is diggable terrain.
-    - **Art is one colour and one or two shades per band, generated by `tools/generate_backdrop.py`**, which is a scope decision rather than a placeholder: generated layers conform to `PALETTE` by construction, so nothing here needs a drawn asset and nothing here waits on V12.
-    - **The land plane is the item's centre of gravity and it needs per-row parallax.** A receding plane has no single depth so it has no single factor; drawn flat it reads as a wall. Scroll factor is linear in distance below the horizon, built as N strips of one `SDL_RenderCopy` each, with the source row height shrinking so the texture gradient falls out of the same relation. **No custom blend mode and no render target** — the second item in a row to have looked like it would spend an escape hatch and not spend one.
-    - **Two traps, both able to waste the item, both written up in ROADMAP.md**: the near ridge and treeline land in the band V11 deleted because our terrain fills it — fire that reopen trigger by screenshot first — and five pan-sized layers roughly triples `assets/`, which may pull V16 forward into this item.
-    - **One decision it must not make quietly:** the reference's plane is brighter than what stands on it, and our world row is at grade 1.0. Grading the world down is coherent and is a change to how the play area reads while digging.
+- **V19 — The seven-band scene, and a ground plane where the reference has
+  water.** *(week — new 2026-08-16, admitted by request, and it is item 8's step
+  4)* Build a scene composed the way `CnC_parallax_*` is composed, before the
+  split-view path rather than after it. **The reference frame is seven layers
+  and we ship two**; measured in
+  [notes/reference_observations.txt](notes/reference_observations.txt) entry 7.
+    - **Five new bands, not seven**, because two of the seven rows are already
+      filled: sky and the mid range are `backdrop_sky` and `backdrop_mountains`,
+      and the near silhouette is the simulated world. **A painted band in front
+      of the world is refused** — the reference's foreground rock is a painting
+      the boat passes behind and ours is diggable terrain.
+    - **Art is one colour and one or two shades per band, generated by
+      `tools/generate_backdrop.py`**, which is a scope decision rather than a
+      placeholder: generated layers conform to `PALETTE` by construction, so
+      nothing here needs a drawn asset and nothing here waits on V12.
+    - **The land plane is the item's centre of gravity and it needs per-row
+      parallax.** A receding plane has no single depth so it has no single
+      factor; drawn flat it reads as a wall. Scroll factor is linear in distance
+      below the horizon, built as N strips of one `SDL_RenderCopy` each, with
+      the source row height shrinking so the texture gradient falls out of the
+      same relation. **No custom blend mode and no render target** — the second
+      item in a row to have looked like it would spend an escape hatch and not
+      spend one.
+    - **Two traps, both able to waste the item, both written up in ROADMAP.md**:
+      the near ridge and treeline land in the band V11 deleted because our
+      terrain fills it — fire that reopen trigger by screenshot first — and five
+      pan-sized layers roughly triples `assets/`, which may pull V16 forward
+      into this item.
+    - **One decision it must not make quietly:** the reference's plane is
+      brighter than what stands on it, and our world row is at grade 1.0.
+      Grading the world down is coherent and is a change to how the play area
+      reads while digging.
 
-- **V16 — The backdrop moves.** *(week — new)* The two backdrop layers are static images whose only motion is the parallax shift, so **the backdrop's sole depth cue stops the moment the player stands still.** A wooded hillside at night is motionless: nothing drifts, nothing sways, no star varies. That is something in the built game that reads badly *today*, which is the question V8's remainder cannot answer — which is why this is a separate item from it rather than part of it.
-    - **Built on V11's layer list**, which is why that comes first: a layer gains an optional motion driven by the tick count, and stays one draw call (two if it wraps). No new coordinate system.
-    - **Driven by the simulation tick, not the display refresh** — the third item in this document to need that sentence, and it presents as an art problem every time.
-    - **A wrapping layer retires the parallax-seam problem instead of documenting it.** The seam exists because each layer must be sized to the camera's pan range at its own factor, from constants duplicated in two files. A layer that tiles has no size relationship to the pan range at all. V11's generated header is the fix available today; this is the version where the failure can't occur.
-    - **The bound:** backdrop motion is drawn, interacts with nothing, and is not V9. Weather that lands on terrain is a simulation feature and is not this item.
+- **V16 — The backdrop moves.** *(week — new)* The two backdrop layers are
+  static images whose only motion is the parallax shift, so **the backdrop's
+  sole depth cue stops the moment the player stands still.** A wooded hillside
+  at night is motionless: nothing drifts, nothing sways, no star varies. That is
+  something in the built game that reads badly *today*, which is the question
+  V8's remainder cannot answer — which is why this is a separate item from it
+  rather than part of it.
+    - **Built on V11's layer list**, which is why that comes first: a layer
+      gains an optional motion driven by the tick count, and stays one draw call
+      (two if it wraps). No new coordinate system.
+    - **Driven by the simulation tick, not the display refresh** — the third
+      item in this document to need that sentence, and it presents as an art
+      problem every time.
+    - **A wrapping layer retires the parallax-seam problem instead of
+      documenting it.** The seam exists because each layer must be sized to the
+      camera's pan range at its own factor, from constants duplicated in two
+      files. A layer that tiles has no size relationship to the pan range at
+      all. V11's generated header is the fix available today; this is the
+      version where the failure can't occur.
+    - **The bound:** backdrop motion is drawn, interacts with nothing, and is
+      not V9. Weather that lands on terrain is a simulation feature and is not
+      this item.
 
-- **V9 — A non-simulated effects layer, and impact feel.** *(week)* Sparks, embers, dust and smoke wisps drawn on top, interacting with nothing, from a fixed-size pool so a big event can't tank the frame rate. Sequenced after E6 because explosions are what it exists to dress.
+- **V9 — A non-simulated effects layer, and impact feel.** *(week)* Sparks,
+  embers, dust and smoke wisps drawn on top, interacting with nothing, from a
+  fixed-size pool so a big event can't tank the frame rate. Sequenced after E6
+  because explosions are what it exists to dress.
 
-- **V10.1 — Screen shake and hit-stop.** *(days — alongside E6)* Camera shake and a brief freeze on impact make explosions read as force. The trap: driven by the fixed simulation clock, not the display refresh, or their speed changes with frame rate.
+- **V10.1 — Screen shake and hit-stop.** *(days — alongside E6)* Camera shake
+  and a brief freeze on impact make explosions read as force. The trap: driven
+  by the fixed simulation clock, not the display refresh, or their speed changes
+  with frame rate.
 
-- **V4 — Props at more than one depth, and `Snow`.** *(days)* The prop format shipped. `Snow` is now an E7 row rather than a V item, since heat makes it melt by table.
+- **V4 — Props at more than one depth, and `Snow`.** *(days)* The prop format
+  shipped. `Snow` is now an E7 row rather than a V item, since heat makes it
+  melt by table.
 
-- **V8 — The backdrop: a second biome, time-of-day, a third depth layer.** *(weeks)* **Held deliberately.** Sky, mountains and parallax ship. The rest cannot currently name anything in the built game that reads badly, so it would be reference-driven breadth wearing engine clothes. V11 is the piece of this that *is* real, and it is scheduled above. Revisit when a second biome actually needs to exist.
+- **V8 — The backdrop: a second biome, time-of-day, a third depth layer.**
+  *(weeks)* **Held deliberately.** Sky, mountains and parallax ship. The rest
+  cannot currently name anything in the built game that reads badly, so it would
+  be reference-driven breadth wearing engine clothes. V11 is the piece of this
+  that *is* real, and it is scheduled above. Revisit when a second biome
+  actually needs to exist.
 
-- **V7-rest — Lighting that darkens.** *(days — smaller than it was)* Today it only lights *hot* things and only ever adds. The darkening half is folded into V11's tint layer; what stays here is non-fire light sources.
-    - **The darkening half shipped 2026-08-16** with V11's grade (block step 3), so **this item's name is now wrong and is left as the item ID rather than renamed** — four documents cite `V7-rest` and IDs here are stable. What is left is exactly the second sentence: light sources that are not fire. The estimate drops from a week to days because the multiply was the expensive half and it is done.
-    - **The step-3 note in the block above records a trap this item inherits:** the grade pass is ordered *before* the additive light on purpose, so anything added here adds on top of the grade and is not dimmed by it. That is the correct behaviour for a lamp in a dark cave, and it is the thing to check first if a new source ever looks like it is "ignoring the lighting".
+- **V7-rest — Lighting that darkens.** *(days — smaller than it was)* Today it
+  only lights *hot* things and only ever adds. The darkening half is folded into
+  V11's tint layer; what stays here is non-fire light sources.
+    - **The darkening half shipped 2026-08-16** with V11's grade (block step 3),
+      so **this item's name is now wrong and is left as the item ID rather than
+      renamed** — four documents cite `V7-rest` and IDs here are stable. What is
+      left is exactly the second sentence: light sources that are not fire. The
+      estimate drops from a week to days because the multiply was the expensive
+      half and it is done.
+    - **The step-3 note in the block above records a trap this item inherits:**
+      the grade pass is ordered *before* the additive light on purpose, so
+      anything added here adds on top of the grade and is not dimmed by it. That
+      is the correct behaviour for a lamp in a dark cave, and it is the thing to
+      check first if a new source ever looks like it is "ignoring the lighting".
 
 ### P — Performance
 
-Running order: **~~P2~~ → P4 → P1 → P3.** P4 comes first because it is an instrument and the other two are judged with it. P1 sits **directly after E5a**, which is where this section always said it went — the master running order used to contradict this and was corrected on 2026-08-11.
+Running order: **~~P2~~ → P4 → P1 → P3.** P4 comes first because it is an
+instrument and the other two are judged with it. P1 sits **directly after E5a**,
+which is where this section always said it went — the master running order used
+to contradict this and was corrected on 2026-08-11.
 
-**The frame-budget rule now has teeth, and this is the change the review pressed hardest on.** The rule was "if one item alone breaks the frame budget, P1 gets pulled forward", and P2 broke it in a way the rule could not see: two rows were already over at the played size with nothing having got slower. Meanwhile **six scheduled items — E10, E12, E5a, E6, E7, E11 — each add per-awake-cell work or increase how many cells are awake**, in an engine P2 proved pays for awake cells and nothing else, and both performance items sat behind the playtest gate. That is a plan to add every cost first and measure last, and its failure mode is arriving at the gate at twenty frames a second with six candidate causes.
+**The frame-budget rule now has teeth, and this is the change the review pressed
+hardest on.** The rule was "if one item alone breaks the frame budget, P1 gets
+pulled forward", and P2 broke it in a way the rule could not see: two rows were
+already over at the played size with nothing having got slower. Meanwhile **six
+scheduled items — E10, E12, E5a, E6, E7, E11 — each add per-awake-cell work or
+increase how many cells are awake**, in an engine P2 proved pays for awake cells
+and nothing else, and both performance items sat behind the playtest gate. That
+is a plan to add every cost first and measure last, and its failure mode is
+arriving at the gate at twenty frames a second with six candidate causes.
 
-**The replacement rule, as restated 2026-08-13 once `P4`'s row had a number in it. Every E-track item takes a benchmark reading at merge, and the reading has two halves that answer two different questions:**
+**The replacement rule, as restated 2026-08-13 once `P4`'s row had a number in
+it. Every E-track item takes a benchmark reading at merge, and the reading has
+two halves that answer two different questions:**
 
-- **Is the budget broken?** Read `P4`'s replayed row, and read **p99 and steps-over-budget** — never the mean. A session that sleeps through 95% of its steps and stutters through the rest has an excellent mean. **A single step over 16.67 ms that was not over before does not merge**, whatever the percentages say.
-- **Does the change cost anything at all?** Read the synthetic rows at 1920x1080, bracketed on/off/on in one binary as always. A regression does not merge until it is under 10% or the cost is written into `PERFORMANCE.md` with an argument for why it is worth paying.
+- **Is the budget broken?** Read `P4`'s replayed row, and read **p99 and
+  steps-over-budget** — never the mean. A session that sleeps through 95% of its
+  steps and stutters through the rest has an excellent mean. **A single step
+  over 16.67 ms that was not over before does not merge**, whatever the
+  percentages say.
+- **Does the change cost anything at all?** Read the synthetic rows at
+  1920x1080, bracketed on/off/on in one binary as always. A regression does not
+  merge until it is under 10% or the cost is written into `PERFORMANCE.md` with
+  an argument for why it is worth paying.
 
-**Both halves are required, and the second one is here because the first cannot see small costs.** The rule originally read "under 10%, against `P4`'s row", on the reasoning that a budget is only as honest as the world it is measured in — which is right, and is why the first half is stated against that row. What it did not anticipate is that a played session costs **0.12 ms a step**, so 10% of it is twelve microseconds: under the noise floor, on a row with three times the budget spare. The played row proves the game is inside its budget; it is far too quiet to price a per-awake-cell change. That correction is recorded in the [decisions table](#-decisions-owed) and in `PERFORMANCE.md` rather than replacing the original wording.
+**Both halves are required, and the second one is here because the first cannot
+see small costs.** The rule originally read "under 10%, against `P4`'s row", on
+the reasoning that a budget is only as honest as the world it is measured in —
+which is right, and is why the first half is stated against that row. What it
+did not anticipate is that a played session costs **0.12 ms a step**, so 10% of
+it is twelve microseconds: under the noise floor, on a row with three times the
+budget spare. The played row proves the game is inside its budget; it is far too
+quiet to price a per-awake-cell change. That correction is recorded in the
+[decisions table](#-decisions-owed) and in `PERFORMANCE.md` rather than
+replacing the original wording.
 
-- ✅ **P2 — Re-baseline the benchmark at the size the game actually runs.** *(done 2026-08-10)* The benchmark measured 960x540 and the game runs 1920x1080, so every budget on record was quoted against a world a quarter the real size. Both sizes now run, with 960x540 kept as the historical series and as a control on the refactor. **Headline: `sparse` is 1.00x at four times the cells** — the engine pays for awake cells, not for cells. `churning` (211%) and `cascading` (241%) are over budget at the played size and always were; nothing got slower. Full entry in [ROADMAP.md](ROADMAP.md#p--performance), table in [PERFORMANCE.md](PERFORMANCE.md).
-- ✅ **P4 — A benchmark scenario that is a real frame.** *(a day — new 2026-08-11, **done 2026-08-13**)* **Instrument shipped and first session recorded and measured the same day: 24,437 steps, 407 s of play, mean 0.1212 ms/step, p99 1.4745 ms, worst step 4.8193 ms, 0 steps over budget, replayed to the recorded end state exactly.** It closed the frame-budget decision — and corrected half of what this section expected that decision to be, since a row this quiet cannot price a per-cell change; see the [decisions table](#-decisions-owed) and [PERFORMANCE.md](PERFORMANCE.md). **The row now also prints a `contents` census** — inputs counted exactly, world materials sampled once a second in a second untimed pass — built immediately afterwards because the timing alone could not be interpreted. It reported that the first session contained **no digging, no moving sand, no moving water and no steam**, at a peak of 16 of 510 chunks awake. **So the item's instrument is complete and its evidence is one unrepresentative session**; a second one is owed. Every one of the seven benchmark scenarios is hand-built, and the plan has now twice had to argue about which of them counts as realistic — most recently over whether `churning` at 211% of a frame is a problem or an artifact. **That argument is unwinnable by construction and it does not have to be had**, because F2.3 already made a run *a seed plus a replayable list of inputs*, and [test_run.cpp](tests/test_run.cpp) already proves a recorded sequence replays byte-identically.
-    - **Built as** a recorded input log from a real playtest session, replayed by the benchmark as an eighth scenario. It is a played frame by construction, not by assertion, and it is the row the frame-budget rule above is aimed at. **Recording is always on and `F9` writes what has been played so far** — see [README](README.md#the-replayed-row-and-recording-one-p4). A recording that *started* on a keypress was the obvious design and does not work: a log has to begin at a world the replay can rebuild, and the only such world is the fixture scene before the first step.
-    - **What it owed and who owed it: a played session — delivered 2026-08-13.** ~~It settles two open questions on its own~~ — it settled nothing until someone played and pressed `F9`, and **the instrument could not be run by whoever built it**, the same way the manual checklist cannot. That held for exactly as long as it took to hand it to someone at the keyboard, and it is worth keeping as the shape of the thing: the item read "shipped" for a day while the only output it existed to produce did not exist. **Both questions are now answered** — see the [decisions table](#-decisions-owed) — and the answer to the second one ("is `churning` representative?") came back as *representative of what*, which is not one of the two answers this entry expected.
-    - **The trap was real and is closed by construction rather than by a note.** The log has to be re-recorded whenever the fixture scene or the format changes, or it replays into a world that no longer matches and silently measures nothing. The log carries the scene's cell count and a fingerprint of the whole world before the first step, and the bench **refuses to run** on a mismatch instead of producing a plausible number. A changed *simulation* also moves the end state and is not a failure — that one is reported and left to the reader, because the bench genuinely cannot tell it from a stale log. `scene_test` pins the fixture's cell count so the staleness shows up in `ctest`, on the commit that caused it, rather than in a benchmark nobody runs that day.
-    - **It cost one thing that was not in the estimate, and the cost is an improvement:** the scene loader was 90 lines of `SDL_LoadBMP` inside `main.cpp`, so nothing headless could stamp the world the game plays in. It is now `src/scene/bmp.cpp`, and `main.cpp` calls it — **one reader, not a headless one beside the SDL one**, which is the D1/F6 lesson (one question, two implementations, drift) applied before the drift rather than after. Verified by the count `README`'s launch check already pinned: 334,901 cells, unchanged, and independently reproduced by `tools/pixel_art.py`'s reader.
+- ✅ **P2 — Re-baseline the benchmark at the size the game actually runs.**
+  *(done 2026-08-10)* The benchmark measured 960x540 and the game runs
+  1920x1080, so every budget on record was quoted against a world a quarter the
+  real size. Both sizes now run, with 960x540 kept as the historical series and
+  as a control on the refactor. **Headline: `sparse` is 1.00x at four times the
+  cells** — the engine pays for awake cells, not for cells. `churning` (211%)
+  and `cascading` (241%) are over budget at the played size and always were;
+  nothing got slower. Full entry in [ROADMAP.md](ROADMAP.md#p--performance),
+  table in [PERFORMANCE.md](PERFORMANCE.md).
+- ✅ **P4 — A benchmark scenario that is a real frame.** *(a day — new
+  2026-08-11, **done 2026-08-13**)* **Instrument shipped and first session
+  recorded and measured the same day: 24,437 steps, 407 s of play, mean 0.1212
+  ms/step, p99 1.4745 ms, worst step 4.8193 ms, 0 steps over budget, replayed to
+  the recorded end state exactly.** It closed the frame-budget decision — and
+  corrected half of what this section expected that decision to be, since a row
+  this quiet cannot price a per-cell change; see the [decisions
+  table](#-decisions-owed) and [PERFORMANCE.md](PERFORMANCE.md). **The row now
+  also prints a `contents` census** — inputs counted exactly, world materials
+  sampled once a second in a second untimed pass — built immediately afterwards
+  because the timing alone could not be interpreted. It reported that the first
+  session contained **no digging, no moving sand, no moving water and no
+  steam**, at a peak of 16 of 510 chunks awake. **So the item's instrument is
+  complete and its evidence is one unrepresentative session**; a second one is
+  owed. Every one of the seven benchmark scenarios is hand-built, and the plan
+  has now twice had to argue about which of them counts as realistic — most
+  recently over whether `churning` at 211% of a frame is a problem or an
+  artifact. **That argument is unwinnable by construction and it does not have
+  to be had**, because F2.3 already made a run *a seed plus a replayable list of
+  inputs*, and [test_run.cpp](tests/test_run.cpp) already proves a recorded
+  sequence replays byte-identically.
+    - **Built as** a recorded input log from a real playtest session, replayed
+      by the benchmark as an eighth scenario. It is a played frame by
+      construction, not by assertion, and it is the row the frame-budget rule
+      above is aimed at. **Recording is always on and `F9` writes what has been
+      played so far** — see
+      [README](README.md#the-replayed-row-and-recording-one-p4). A recording
+      that *started* on a keypress was the obvious design and does not work: a
+      log has to begin at a world the replay can rebuild, and the only such
+      world is the fixture scene before the first step.
+    - **What it owed and who owed it: a played session — delivered 2026-08-13.**
+      ~~It settles two open questions on its own~~ — it settled nothing until
+      someone played and pressed `F9`, and **the instrument could not be run by
+      whoever built it**, the same way the manual checklist cannot. That held
+      for exactly as long as it took to hand it to someone at the keyboard, and
+      it is worth keeping as the shape of the thing: the item read "shipped" for
+      a day while the only output it existed to produce did not exist. **Both
+      questions are now answered** — see the [decisions table](#-decisions-owed)
+      — and the answer to the second one ("is `churning` representative?") came
+      back as *representative of what*, which is not one of the two answers this
+      entry expected.
+    - **The trap was real and is closed by construction rather than by a note.**
+      The log has to be re-recorded whenever the fixture scene or the format
+      changes, or it replays into a world that no longer matches and silently
+      measures nothing. The log carries the scene's cell count and a fingerprint
+      of the whole world before the first step, and the bench **refuses to run**
+      on a mismatch instead of producing a plausible number. A changed
+      *simulation* also moves the end state and is not a failure — that one is
+      reported and left to the reader, because the bench genuinely cannot tell
+      it from a stale log. `scene_test` pins the fixture's cell count so the
+      staleness shows up in `ctest`, on the commit that caused it, rather than
+      in a benchmark nobody runs that day.
+    - **It cost one thing that was not in the estimate, and the cost is an
+      improvement:** the scene loader was 90 lines of `SDL_LoadBMP` inside
+      `main.cpp`, so nothing headless could stamp the world the game plays in.
+      It is now `src/scene/bmp.cpp`, and `main.cpp` calls it — **one reader, not
+      a headless one beside the SDL one**, which is the D1/F6 lesson (one
+      question, two implementations, drift) applied before the drift rather than
+      after. Verified by the count `README`'s launch check already pinned:
+      334,901 cells, unchanged, and independently reproduced by
+      `tools/pixel_art.py`'s reader.
 
-- **P1 — Split the cell array hot from cold.** *(week)* The simulation is limited by how fast data can be pulled from RAM. Most of each cell's data is read every tick; the colour is only read when the cell is drawn. Separating them means the hot loop reads less. **Sequenced directly after E5a** so the layout is settled against the final field set. ~~*and possibly before it, if the `ticks` decision comes back needing a thirteenth byte*~~ — **that trigger is retired: the decision closed on 2026-08-13 needing no new byte at all, so P1 stays where it is.**
-    - **One finding from that sitting lands on this item and it is not a comfortable one.** Pricing the rejected alternative meant benchmarking a deliberately widened `Element`, and the 16-byte struct came out **10.5% faster** on `cascading` than the 12-byte one, against a 0.7% noise band — bracketed, with a return to baseline 0.03% off the first reading. A struct carrying 33% more memory made the memory-bound scenario faster. **This item's premise is that the hot loop is bandwidth-bound, and the one measurement on record that speaks to stride width points the other way.** It does not refute P1 — reading *less* per cell and reading it at a *worse* stride are different things, and the likeliest explanation is that a 12-byte stride straddles cache lines where 16 divides them evenly, which is a fact about alignment rather than about volume. But P1 is now an item with an unexplained measurement standing next to its central claim, and **the first hour of it should be spent reproducing that number rather than writing a split.** Numbers and method in [PERFORMANCE.md](PERFORMANCE.md). *(Also worth carrying: "a thirteenth byte" was never an available option — alignment rounds 13 to 16, so appending to this struct costs four bytes per cell, not one.)*
-- **P3 — Run the chunks in parallel.** *(weeks — new)* The whole simulation is single-threaded. The reference engine updates chunks in four alternating passes arranged so that two chunks being updated at the same time are never neighbours, which makes edge writes safe and keeps the result reproducible because the pass order is fixed. **The 64x64 chunks and dirty rectangles here are already most of the prerequisite.** Worth naming next to P1 for scale: P1 buys tens of percent, this buys a multiple.
+- **P1 — Split the cell array hot from cold.** *(week)* The simulation is
+  limited by how fast data can be pulled from RAM. Most of each cell's data is
+  read every tick; the colour is only read when the cell is drawn. Separating
+  them means the hot loop reads less. **Sequenced directly after E5a** so the
+  layout is settled against the final field set. ~~*and possibly before it, if
+  the `ticks` decision comes back needing a thirteenth byte*~~ — **that trigger
+  is retired: the decision closed on 2026-08-13 needing no new byte at all, so
+  P1 stays where it is.**
+    - **One finding from that sitting lands on this item and it is not a
+      comfortable one.** Pricing the rejected alternative meant benchmarking a
+      deliberately widened `Element`, and the 16-byte struct came out **10.5%
+      faster** on `cascading` than the 12-byte one, against a 0.7% noise band —
+      bracketed, with a return to baseline 0.03% off the first reading. A struct
+      carrying 33% more memory made the memory-bound scenario faster. **This
+      item's premise is that the hot loop is bandwidth-bound, and the one
+      measurement on record that speaks to stride width points the other way.**
+      It does not refute P1 — reading *less* per cell and reading it at a
+      *worse* stride are different things, and the likeliest explanation is that
+      a 12-byte stride straddles cache lines where 16 divides them evenly, which
+      is a fact about alignment rather than about volume. But P1 is now an item
+      with an unexplained measurement standing next to its central claim, and
+      **the first hour of it should be spent reproducing that number rather than
+      writing a split.** Numbers and method in [PERFORMANCE.md](PERFORMANCE.md).
+      *(Also worth carrying: "a thirteenth byte" was never an available option —
+      alignment rounds 13 to 16, so appending to this struct costs four bytes
+      per cell, not one.)*
+- **P3 — Run the chunks in parallel.** *(weeks — new)* The whole simulation is
+  single-threaded. The reference engine updates chunks in four alternating
+  passes arranged so that two chunks being updated at the same time are never
+  neighbours, which makes edge writes safe and keeps the result reproducible
+  because the pass order is fixed. **The 64x64 chunks and dirty rectangles here
+  are already most of the prerequisite.** Worth naming next to P1 for scale: P1
+  buys tens of percent, this buys a multiple.
 
 ---
 
 ## 🟡 The slice — the actual game
 
-**S0 is pulled forward out of this section; everything else stays behind Engine & Visual Depth.**
+**S0 is pulled forward out of this section; everything else stays behind Engine
+& Visual Depth.**
 
-- **S0 — The run can be lost.** *(week — new, and it is item 4 in the plan)* Today fire is fully simulated and cannot hurt you, there is no way to fail, and there is nothing to do. This is the thin version of two items below, built now rather than in two months.
-    - **What it is:** player health; damage from fire (the engine already supplies the temperature) and from landing too fast (it already supplies the speed); one hard-coded objective somewhere in the test scene; reaching it ends the run as a win, dying ends it as a loss. Death reuses `Run::reset(seed)` — it must not be a second code path.
-    - **What it is not:** no generator, no save file, no pet agent, no economy, no UI beyond a health readout on the existing HUD. Those stay in the full items below.
-    - **Why now:** it converts the sandbox into something that can be won and lost, which is the smallest possible thing that produces a *direction*. It also answers two of the open [Decisions](#-decisions-owed) — combat, and the hook — by playing rather than by argument, and both are currently blocking this whole section. Since 2026-08-11 the combat row also carries **what to do if the answer is yes**, which it did not, and that was the difference between a decision and a deferral with a date on it.
-    - **~~Blocked on `F5`, added 2026-08-11.~~ Unblocked 2026-08-12.** Damage from landing too fast reads `Player::velocity_y()`, which was a `float` and is now `fx` cells per second. Write the threshold against `fx::from_int(n)` or against `MAX_FALL_SPEED`, never against a bare number — a raw `400` is 400/65536 of a cell per second and would fire on the first step of every fall.
-    - **Keep the direction of the dependency**, which is the rule `tool.cpp` established: the grid does not know about bodies, bodies read the grid. Damage is the player *asking* what it is standing in, the same way collision does. Not a health field on `Grid`, not a damage column on `Element`.
+- **S0 — The run can be lost.** *(week — new, and it is item 4 in the plan)*
+  Today fire is fully simulated and cannot hurt you, there is no way to fail,
+  and there is nothing to do. This is the thin version of two items below, built
+  now rather than in two months.
+    - **What it is:** player health; damage from fire (the engine already
+      supplies the temperature) and from landing too fast (it already supplies
+      the speed); one hard-coded objective somewhere in the test scene; reaching
+      it ends the run as a win, dying ends it as a loss. Death reuses
+      `Run::reset(seed)` — it must not be a second code path.
+    - **What it is not:** no generator, no save file, no pet agent, no economy,
+      no UI beyond a health readout on the existing HUD. Those stay in the full
+      items below.
+    - **Why now:** it converts the sandbox into something that can be won and
+      lost, which is the smallest possible thing that produces a *direction*. It
+      also answers two of the open [Decisions](#-decisions-owed) — combat, and
+      the hook — by playing rather than by argument, and both are currently
+      blocking this whole section. Since 2026-08-11 the combat row also carries
+      **what to do if the answer is yes**, which it did not, and that was the
+      difference between a decision and a deferral with a date on it.
+    - **~~Blocked on `F5`, added 2026-08-11.~~ Unblocked 2026-08-12.** Damage
+      from landing too fast reads `Player::velocity_y()`, which was a `float`
+      and is now `fx` cells per second. Write the threshold against
+      `fx::from_int(n)` or against `MAX_FALL_SPEED`, never against a bare number
+      — a raw `400` is 400/65536 of a cell per second and would fire on the
+      first step of every fall.
+    - **Keep the direction of the dependency**, which is the rule `tool.cpp`
+      established: the grid does not know about bodies, bodies read the grid.
+      Damage is the player *asking* what it is standing in, the same way
+      collision does. Not a health field on `Grid`, not a damage column on
+      `Element`.
 
-- **S1 — The enemy that granulates.** *(weeks — new 2026-08-11)* **Blocked on the combat decision, which is due at the end of S0**, and it does not get to pre-empt it. An enemy whose body is a solid material that holds its shape until it is damaged, at which point the damaged part turns to sand and pours away — shoot its leg and its leg runs out onto the floor.
-    - **Built as** a body like the player's, plus a small **per-enemy** grid of bytes saying which parts of it are still there — about 364 bytes for a player-sized enemy, so it costs nothing per world square. Alive, the sprite is drawn through that grid and damage both clears bits and **spawns real simulated sand** at those world positions, which piles, gets wet and burns like any other sand. Dead, the body writes whatever is left of itself into the world as real solid cells — **and from that instant it is terrain, so the existing collapse system drops and shatters the corpse for free.**
-    - **This item reopens E4, and that is the most important line here.** E4 — "does a body push material out of the way" — was closed **no** on 2026-08-10, on evidence from a session where **nothing in the game depended on the answer**. An enemy that sheds sand out of itself is exactly the case the design note predicted would fail: *the sand falls straight through the enemy producing it*, so the effect breaks precisely at the moment it exists to be looked at. Carried as a [decision owed](#-decisions-owed) with a due date rather than buried here.
-    - **Depends on:** E12 (the material), V12 (a real alpha channel to punch holes in), V15 (a rig, which is what makes a second character cheap — build it against a second hand-drawn sheet and V15's whole argument is forfeited), and E5a (so shed sand is *thrown* rather than merely appearing).
-    - **The V15 dependency was circular and is now broken in one direction, 2026-08-11.** V15's admission trigger was "a second character type is committed to", cashed as `S1` — while `S1` says here that it is blocked and does not get to pre-empt the combat decision. **A blocked item cannot be the commitment that admits its own dependency.** Both are now behind the same gate: the combat decision at the end of S0, and if that is yes, the first enemy is a two-day ugly one rather than this. `S1` is the payoff and stays where it is.
-    - **Its one new rendering requirement is a render-to-texture pass**, which SDL already supports and this project has never used. No shader needed.
-    - **What it is not: a general actor framework.** The standing refusal of an entity/component system is on the grounds that "there is one body, and there will be perhaps four things" — **a second concrete body type is inside that budget; a system for arbitrary body types is the thing being refused.**
+- **S1 — The enemy that granulates.** *(weeks — new 2026-08-11)* **Blocked on
+  the combat decision, which is due at the end of S0**, and it does not get to
+  pre-empt it. An enemy whose body is a solid material that holds its shape
+  until it is damaged, at which point the damaged part turns to sand and pours
+  away — shoot its leg and its leg runs out onto the floor.
+    - **Built as** a body like the player's, plus a small **per-enemy** grid of
+      bytes saying which parts of it are still there — about 364 bytes for a
+      player-sized enemy, so it costs nothing per world square. Alive, the
+      sprite is drawn through that grid and damage both clears bits and **spawns
+      real simulated sand** at those world positions, which piles, gets wet and
+      burns like any other sand. Dead, the body writes whatever is left of
+      itself into the world as real solid cells — **and from that instant it is
+      terrain, so the existing collapse system drops and shatters the corpse for
+      free.**
+    - **This item reopens E4, and that is the most important line here.** E4 —
+      "does a body push material out of the way" — was closed **no** on
+      2026-08-10, on evidence from a session where **nothing in the game
+      depended on the answer**. An enemy that sheds sand out of itself is
+      exactly the case the design note predicted would fail: *the sand falls
+      straight through the enemy producing it*, so the effect breaks precisely
+      at the moment it exists to be looked at. Carried as a [decision
+      owed](#-decisions-owed) with a due date rather than buried here.
+    - **Depends on:** E12 (the material), V12 (a real alpha channel to punch
+      holes in), V15 (a rig, which is what makes a second character cheap —
+      build it against a second hand-drawn sheet and V15's whole argument is
+      forfeited), and E5a (so shed sand is *thrown* rather than merely
+      appearing).
+    - **The V15 dependency was circular and is now broken in one direction,
+      2026-08-11.** V15's admission trigger was "a second character type is
+      committed to", cashed as `S1` — while `S1` says here that it is blocked
+      and does not get to pre-empt the combat decision. **A blocked item cannot
+      be the commitment that admits its own dependency.** Both are now behind
+      the same gate: the combat decision at the end of S0, and if that is yes,
+      the first enemy is a two-day ugly one rather than this. `S1` is the payoff
+      and stays where it is.
+    - **Its one new rendering requirement is a render-to-texture pass**, which
+      SDL already supports and this project has never used. No shader needed.
+    - **What it is not: a general actor framework.** The standing refusal of an
+      entity/component system is on the grounds that "there is one body, and
+      there will be perhaps four things" — **a second concrete body type is
+      inside that budget; a system for arbitrary body types is the thing being
+      refused.**
 
-- **Quantum Worlds.** *(weeks)* A portal / level-generation system so the player can enter a single "trial". One world, one generator; variety comes later. Generation must draw only from the world-gen random streams F1.5 reserved, or adding one cave silently changes how sand falls elsewhere.
-- **Player health and death — the full version.** *(days on top of S0)* Everything S0 stubbed: a proper damage model, more than two sources, and a real death presentation.
-- **Objective + Extraction — the full version.** *(week)* A real objective type placed by the generator rather than hard-coded, and an extraction that is a place rather than a flag.
-- **Save and persistence.** *(week)* Nothing writes a file yet, but "earns coins idly" requires progress to survive quitting. Needs a format, a location, and a deliberate answer for loading saves from older builds. **Check E5a before assuming F1's arithmetic still holds** — cells now carry speed, which is state a save has to include.
-- **The Pet ML Agent.** *(weeks)* The companion that "watches" the player and improves from completed runs. Deterministic scripted progression, not actual machine learning.
-- **Proof-of-Work Economy.** *(weeks)* The idle loop — the agent performs tasks between runs and earns coins.
-- **Playtest gate.** Put the slice in front of people who didn't build it. Explicitly: do not proceed past this line on your own opinion. The two decisions above should have been *asked* before getting here, not answered by getting here.
-    - **As written before 2026-08-11 this gate could not be run at all, and the deadlock was in the rules rather than in anyone's judgement.** The gate needs a build someone else can execute. **Packaging and a release build** lives in Presentation & Tooling, and [VISION.md](VISION.md) says nothing in that section starts until the slice is complete *and playtested as fun*. So the gate required packaging, packaging required the gate, and the loop closed silently because neither document mentions the other.
-    - **Three items are therefore promoted out of Presentation & Tooling and named as gate prerequisites**, with the reason written where they land — the same move this project has now made three times, for F4, for Engine & Visual Depth, and for `T1`:
-        - **Packaging, a named artifact and a version string.** There is currently no answer to "how does someone who isn't you run this".
-        - **One verified build on a machine that is not the dev machine.** Cross-platform has been *claimed* for several revisions on the strength of using no platform-specific code. It is an expectation, not a fact, and `F5` gives it a second job: it is also the only thing that can verify determinism is portable.
-        - **A minimal log and an assertion handler.** Nothing logs anything and there is one unexplained crash from a prior session never reproduced. An external session that crashes and produces nothing is a wasted session, and there are only so many first impressions.
-    - **About a week for all three, and it can sit late** — it has to precede the gate and nothing else depends on it. What it must not do is remain invisible until the week the gate is supposed to happen.
+- **Quantum Worlds.** *(weeks)* A portal / level-generation system so the player
+  can enter a single "trial". One world, one generator; variety comes later.
+  Generation must draw only from the world-gen random streams F1.5 reserved, or
+  adding one cave silently changes how sand falls elsewhere.
+- **Player health and death — the full version.** *(days on top of S0)*
+  Everything S0 stubbed: a proper damage model, more than two sources, and a
+  real death presentation.
+- **Objective + Extraction — the full version.** *(week)* A real objective type
+  placed by the generator rather than hard-coded, and an extraction that is a
+  place rather than a flag.
+- **Save and persistence.** *(week)* Nothing writes a file yet, but "earns coins
+  idly" requires progress to survive quitting. Needs a format, a location, and a
+  deliberate answer for loading saves from older builds. **Check E5a before
+  assuming F1's arithmetic still holds** — cells now carry speed, which is state
+  a save has to include.
+- **The Pet ML Agent.** *(weeks)* The companion that "watches" the player and
+  improves from completed runs. Deterministic scripted progression, not actual
+  machine learning.
+- **Proof-of-Work Economy.** *(weeks)* The idle loop — the agent performs tasks
+  between runs and earns coins.
+- **Playtest gate.** Put the slice in front of people who didn't build it.
+  Explicitly: do not proceed past this line on your own opinion. The two
+  decisions above should have been *asked* before getting here, not answered by
+  getting here.
+    - **As written before 2026-08-11 this gate could not be run at all, and the
+      deadlock was in the rules rather than in anyone's judgement.** The gate
+      needs a build someone else can execute. **Packaging and a release build**
+      lives in Presentation & Tooling, and [VISION.md](VISION.md) says nothing
+      in that section starts until the slice is complete *and playtested as
+      fun*. So the gate required packaging, packaging required the gate, and the
+      loop closed silently because neither document mentions the other.
+    - **Three items are therefore promoted out of Presentation & Tooling and
+      named as gate prerequisites**, with the reason written where they land —
+      the same move this project has now made three times, for F4, for Engine &
+      Visual Depth, and for `T1`:
+        - **Packaging, a named artifact and a version string.** There is
+          currently no answer to "how does someone who isn't you run this".
+        - **One verified build on a machine that is not the dev machine.**
+          Cross-platform has been *claimed* for several revisions on the
+          strength of using no platform-specific code. It is an expectation, not
+          a fact, and `F5` gives it a second job: it is also the only thing that
+          can verify determinism is portable.
+        - **A minimal log and an assertion handler.** Nothing logs anything and
+          there is one unexplained crash from a prior session never reproduced.
+          An external session that crashes and produces nothing is a wasted
+          session, and there are only so many first impressions.
+    - **About a week for all three, and it can sit late** — it has to precede
+      the gate and nothing else depends on it. What it must not do is remain
+      invisible until the week the gate is supposed to happen.
 
 ---
 
 ## 🔵 Presentation & Tooling (after the slice, before polish)
 
-Not blocking the slice. None of this makes the game fun; it makes it shippable and easier to work on.
+Not blocking the slice. None of this makes the game fun; it makes it shippable
+and easier to work on.
 
 ### Sandbox / debug tooling
 
-**Four of these moved out on 2026-08-11 and are now [`T1`](#-prerequisites--things-other-items-are-already-standing-on), scheduled in front of E10.** The world reset hotkey, pause and single-step, the free camera and the cell inspector are prerequisites for items already on the plan, not conveniences — this section said so about two of them and then kept all four behind the slice. Two remain here, and they remain because they genuinely are conveniences:
+**Four of these moved out on 2026-08-11 and are now
+[`T1`](#-prerequisites--things-other-items-are-already-standing-on), scheduled
+in front of E10.** The world reset hotkey, pause and single-step, the free
+camera and the cell inspector are prerequisites for items already on the plan,
+not conveniences — this section said so about two of them and then kept all four
+behind the slice. Two remain here, and they remain because they genuinely are
+conveniences:
 
-- **Continuous brush strokes.** The brush stamps once per tick at the cursor, so a fast drag leaves a dotted line. Stamp along the line between the last position and the current one.
-- **Brush outline preview.** A hollow ring at the brush's size under the cursor, so the footprint is visible before committing paint.
+- **Continuous brush strokes.** The brush stamps once per tick at the cursor, so
+  a fast drag leaves a dotted line. Stamp along the line between the last
+  position and the current one.
+- **Brush outline preview.** A hollow ring at the brush's size under the cursor,
+  so the footprint is visible before committing paint.
 
 ### Window and display
 
-- **Display modes: fullscreen, borderless, windowed.** Exclusive vs. borderless as distinct options, alt-tab that doesn't break the window, the choice remembered between launches, and changing mode mid-game.
-- **Resolution options (1920x1080, 2560x1440, 3440x1440).** The hard part is solved. What's left is the mode list, saving the choice, and one fairness question: an ultrawide sees more of the world, which is a gameplay decision rather than a display setting. **Overlaps V11's runtime scale** — take them together.
+- **Display modes: fullscreen, borderless, windowed.** Exclusive vs. borderless
+  as distinct options, alt-tab that doesn't break the window, the choice
+  remembered between launches, and changing mode mid-game.
+- **Resolution options (1920x1080, 2560x1440, 3440x1440).** The hard part is
+  solved. What's left is the mode list, saving the choice, and one fairness
+  question: an ultrawide sees more of the world, which is a gameplay decision
+  rather than a display setting. **Overlaps V11's runtime scale** — take them
+  together.
 
 ### Art
 
-- **Custom pixel art and animation generator.** An in-project tool for authoring sprites. Flagged as a risk — a second application with its own UI and file format — and only earns its keep once hand-authoring is measurably the bottleneck.
+- **Custom pixel art and animation generator.** An in-project tool for authoring
+  sprites. Flagged as a risk — a second application with its own UI and file
+  format — and only earns its keep once hand-authoring is measurably the
+  bottleneck.
 
 ### Shipping
 
-- **Packaging and a release build.** ⬆️ **Promoted 2026-08-11 to a [playtest gate](#-the-slice--the-actual-game) prerequisite.** There's no answer today to "how does someone who isn't you run this". Needs a named artifact, a version string, and a definition of what a release contains.
-- **Build on macOS and Linux at least once.** ⬆️ **Promoted 2026-08-11 to a gate prerequisite.** Cross-platform has been claimed for several revisions on the strength of using no platform-specific code — a reasonable expectation, not a verified fact. **After `F5` it has a second job:** it is the only thing that can verify determinism survives a different machine, which is the whole reason F5 exists. *(F5 shipped 2026-08-12; `F6` closed `DigTool::march`'s floats on 2026-08-13, so **the precondition this entry carried is met and the item is ready to run**. `src/physics/` contains no float, so a "no" from this item would now be new information rather than a known one. That is the whole of what F6 bought: this item is still the only thing that can turn a reasonable expectation into a verified fact.)*
-- **Crash diagnosis: assertions and a log.** ⬆️ **Promoted 2026-08-11 to a gate prerequisite** — an external session that crashes and produces nothing is a wasted session. Nothing logs anything, and there's one unexplained crash from a prior session never reproduced. Since a run is a seed plus an input log, a crash report could be a file that reproduces the crash rather than a description of it — **and that is only true after `F5`**, because a float replay does not reproduce on someone else's machine. *(F5 shipped 2026-08-12 and `F6` followed on 2026-08-13, so a replay that includes digging is now integer arithmetic end to end — reproducible in principle on another machine, and unverified on one until the entry above runs.)*
-- **Audio.** No sound of any kind. Correctly deferred — but an explosion is the one thing that's actively worse silent than absent, so revisit at E6.
-- **Settle on one project name.** The README, the window title and the repo folder all say different things. Trivial now, not trivial once something is published.
+- **Packaging and a release build.** ⬆️ **Promoted 2026-08-11 to a [playtest
+  gate](#-the-slice--the-actual-game) prerequisite.** There's no answer today to
+  "how does someone who isn't you run this". Needs a named artifact, a version
+  string, and a definition of what a release contains.
+- **Build on macOS and Linux at least once.** ⬆️ **Promoted 2026-08-11 to a gate
+  prerequisite.** Cross-platform has been claimed for several revisions on the
+  strength of using no platform-specific code — a reasonable expectation, not a
+  verified fact. **After `F5` it has a second job:** it is the only thing that
+  can verify determinism survives a different machine, which is the whole reason
+  F5 exists. *(F5 shipped 2026-08-12; `F6` closed `DigTool::march`'s floats on
+  2026-08-13, so **the precondition this entry carried is met and the item is
+  ready to run**. `src/physics/` contains no float, so a "no" from this item
+  would now be new information rather than a known one. That is the whole of
+  what F6 bought: this item is still the only thing that can turn a reasonable
+  expectation into a verified fact.)*
+- **Crash diagnosis: assertions and a log.** ⬆️ **Promoted 2026-08-11 to a gate
+  prerequisite** — an external session that crashes and produces nothing is a
+  wasted session. Nothing logs anything, and there's one unexplained crash from
+  a prior session never reproduced. Since a run is a seed plus an input log, a
+  crash report could be a file that reproduces the crash rather than a
+  description of it — **and that is only true after `F5`**, because a float
+  replay does not reproduce on someone else's machine. *(F5 shipped 2026-08-12
+  and `F6` followed on 2026-08-13, so a replay that includes digging is now
+  integer arithmetic end to end — reproducible in principle on another machine,
+  and unverified on one until the entry above runs.)*
+- **Audio.** No sound of any kind. Correctly deferred — but an explosion is the
+  one thing that's actively worse silent than absent, so revisit at E6.
+- **Settle on one project name.** The README, the window title and the repo
+  folder all say different things. Trivial now, not trivial once something is
+  published.
 
 ---
 
 ## 🌊 Waves — sub-plans that jump the queue
 
-A **wave** is a batch of urgent fixes (usually from a playtest) that gets worked to completion before normal roadmap work resumes. Each one must state up front what counts as "finished".
+A **wave** is a batch of urgent fixes (usually from a playtest) that gets worked
+to completion before normal roadmap work resumes. Each one must state up front
+what counts as "finished".
 
 | Wave | What it covers | State |
 |---|---|---|
@@ -553,62 +2039,245 @@ A **wave** is a batch of urgent fixes (usually from a playtest) that gets worked
 
 ### Wave 1 — rendering, brush and powder defects
 
-- **A1 — The player rectangle jittered and ghosted.** The character stuttered while moving. Three separate causes: position was rounded to whole squares, the display refreshed faster than the physics updated, and the camera could only sit on whole squares so the whole *world* jerked instead.
-- **A1b — Fixing the display revealed a hidden physics bug.** Landing on the ground reset the player's speed but not the leftover fraction of movement still queued, so the body slowly sank and snapped back. Invisible before because tests only checked whole squares.
-- **A2 — The on-screen readout lagged material switches by up to a second.** The text was only rebuilt once per second, so it showed stale information. Fixed first because a wrong readout makes every other measurement untrustworthy.
-- **A7 — Falling liquid threw out horizontal sticks.** Water was spending its "how far can I spread sideways" budget crossing open air instead of flowing along a surface.
-- **A7b — The real complaint was sand, not water.** Sand cascades diagonally within a single update, so a whole row lands one step ahead of the row beneath it, leaving a shelf sticking out of the pile. Screenshots are what identified this.
-- **A7c — Shelves and vertical columns are two failures of one rule.** Fixes that removed the shelves made piles grow straight up, and vice versa. Solved by letting a rolling grain finish its fall in the same step, so a shelf never exists even for a moment. **E10 is the proper fix and supersedes this** — all three of these fought the absence of a rest state.
-- **Powder acceleration — added then removed.** Making grains speed up as they fall was meant to look smoother; because grains move in whole squares it just made each jump twice as big, which looked *more* choppy, and it cost a lot of performance. **See E5a** — the measurement was good and the conclusion drawn from it was too broad.
-- **A8 — Moving material painted black trails.** Empty space had two conflicting colour definitions, so anything that moved left opaque black behind it, erasing the artwork underneath.
-- **B1 — The dig marker was hard to see.** It was a filled orange square, the same colour family as fire — so it disappeared against the thing you most want to aim at. Shipped as part of V10.
+- **A1 — The player rectangle jittered and ghosted.** The character stuttered
+  while moving. Three separate causes: position was rounded to whole squares,
+  the display refreshed faster than the physics updated, and the camera could
+  only sit on whole squares so the whole *world* jerked instead.
+- **A1b — Fixing the display revealed a hidden physics bug.** Landing on the
+  ground reset the player's speed but not the leftover fraction of movement
+  still queued, so the body slowly sank and snapped back. Invisible before
+  because tests only checked whole squares.
+- **A2 — The on-screen readout lagged material switches by up to a second.** The
+  text was only rebuilt once per second, so it showed stale information. Fixed
+  first because a wrong readout makes every other measurement untrustworthy.
+- **A7 — Falling liquid threw out horizontal sticks.** Water was spending its
+  "how far can I spread sideways" budget crossing open air instead of flowing
+  along a surface.
+- **A7b — The real complaint was sand, not water.** Sand cascades diagonally
+  within a single update, so a whole row lands one step ahead of the row beneath
+  it, leaving a shelf sticking out of the pile. Screenshots are what identified
+  this.
+- **A7c — Shelves and vertical columns are two failures of one rule.** Fixes
+  that removed the shelves made piles grow straight up, and vice versa. Solved
+  by letting a rolling grain finish its fall in the same step, so a shelf never
+  exists even for a moment. **E10 is the proper fix and supersedes this** — all
+  three of these fought the absence of a rest state.
+- **Powder acceleration — added then removed.** Making grains speed up as they
+  fall was meant to look smoother; because grains move in whole squares it just
+  made each jump twice as big, which looked *more* choppy, and it cost a lot of
+  performance. **See E5a** — the measurement was good and the conclusion drawn
+  from it was too broad.
+- **A8 — Moving material painted black trails.** Empty space had two conflicting
+  colour definitions, so anything that moved left opaque black behind it,
+  erasing the artwork underneath.
+- **B1 — The dig marker was hard to see.** It was a filled orange square, the
+  same colour family as fire — so it disappeared against the thing you most want
+  to aim at. Shipped as part of V10.
 
 ### Waves 2 and 2b — fire rebuilt
 
-- **C1 — Wood burned too fast.** Turned out to be about how quickly fire *spreads*, not how long it burns. Fixed by tuning wood's ignition temperature and how well it conducts heat.
-- **C2 — Flames rose too fast.** Fire moved exactly one square per tick; the fix was to occasionally skip a tick, since a square is the smallest move possible.
-- **C3 — Burnt wood was jet black.** Near-black over a dark blue background reads as a hole in the world rather than as charred material.
-- **C4 — Burnt wood needed to last slightly longer.** The setting wasn't fine-grained enough to express the wanted value, so its precision was increased. Lesson: a tuning dial's precision is set by the smallest change anyone will want, not the largest value it holds.
-- **C5 / C6 — Flames all died at exactly the same height.** Every flame lived the same number of ticks and rose at the same rate, producing a perfectly flat line across the top of a fire. Fixed by randomising each flame's lifespan.
-- **C7 — Flame colours lacked intensity.** The colour blend from white-hot to dull red passed through greys, so the most visible part of a flame's life was its least colourful. Fixed by bending the blend through a saturated orange.
-- **C8 — The lighting was blown out (too bright).** Several causes: light faded far too slowly over distance, one stray flame lit as brightly as a wall of fire, there was no brightness ceiling handling, and the glow spread in a diamond shape instead of a circle.
-- **`preview_light` — a new visual test tool.** Builds a burning scene, combines all the layers exactly like the real game does, and saves the image plus brightness statistics. Existing tests all passed the broken frame because none of them ever combined layers.
+- **C1 — Wood burned too fast.** Turned out to be about how quickly fire
+  *spreads*, not how long it burns. Fixed by tuning wood's ignition temperature
+  and how well it conducts heat.
+- **C2 — Flames rose too fast.** Fire moved exactly one square per tick; the fix
+  was to occasionally skip a tick, since a square is the smallest move possible.
+- **C3 — Burnt wood was jet black.** Near-black over a dark blue background
+  reads as a hole in the world rather than as charred material.
+- **C4 — Burnt wood needed to last slightly longer.** The setting wasn't
+  fine-grained enough to express the wanted value, so its precision was
+  increased. Lesson: a tuning dial's precision is set by the smallest change
+  anyone will want, not the largest value it holds.
+- **C5 / C6 — Flames all died at exactly the same height.** Every flame lived
+  the same number of ticks and rose at the same rate, producing a perfectly flat
+  line across the top of a fire. Fixed by randomising each flame's lifespan.
+- **C7 — Flame colours lacked intensity.** The colour blend from white-hot to
+  dull red passed through greys, so the most visible part of a flame's life was
+  its least colourful. Fixed by bending the blend through a saturated orange.
+- **C8 — The lighting was blown out (too bright).** Several causes: light faded
+  far too slowly over distance, one stray flame lit as brightly as a wall of
+  fire, there was no brightness ceiling handling, and the glow spread in a
+  diamond shape instead of a circle.
+- **`preview_light` — a new visual test tool.** Builds a burning scene, combines
+  all the layers exactly like the real game does, and saves the image plus
+  brightness statistics. Existing tests all passed the broken frame because none
+  of them ever combined layers.
 
 ### Wave 2c — the glow's shape, and the fire's timing
 
-- **B9a — Hard light rays and shafts.** The glow bulged along the up/down/left/right axes because diagonal distance was calculated slightly wrong and the error compounded. Fixed with exact diagonal maths, extra "knight's move" light steps, and a smoothing pass that can't leak light through walls.
-- **B9b — Light reached too far.** Small reduction to how much light survives each square of open air.
-- **B9c — A single stray flame lit as brightly as a bonfire.** Halved the minimum brightness a mostly-empty area emits, so an ember and a blaze are clearly different.
-- **B9d — Thin walls let light through.** Two stacked modelling mistakes: light blocking was being averaged when it should be multiplied, and wall opacity was measured per 4-cell block rather than per cell. A one-cell wall now blocks light properly.
-- **A9a–A9d — Fire timing and shape, tuned as one change.** Fire spreads slower, wood takes longer to be consumed, char lasts longer, and the burn front is more ragged. Achieved by lowering wood's heat conduction and randomising each cell's ignition temperature slightly downward only (randomising both ways could make a fire refuse to cross a stick).
+- **B9a — Hard light rays and shafts.** The glow bulged along the
+  up/down/left/right axes because diagonal distance was calculated slightly
+  wrong and the error compounded. Fixed with exact diagonal maths, extra
+  "knight's move" light steps, and a smoothing pass that can't leak light
+  through walls.
+- **B9b — Light reached too far.** Small reduction to how much light survives
+  each square of open air.
+- **B9c — A single stray flame lit as brightly as a bonfire.** Halved the
+  minimum brightness a mostly-empty area emits, so an ember and a blaze are
+  clearly different.
+- **B9d — Thin walls let light through.** Two stacked modelling mistakes: light
+  blocking was being averaged when it should be multiplied, and wall opacity was
+  measured per 4-cell block rather than per cell. A one-cell wall now blocks
+  light properly.
+- **A9a–A9d — Fire timing and shape, tuned as one change.** Fire spreads slower,
+  wood takes longer to be consumed, char lasts longer, and the burn front is
+  more ragged. Achieved by lowering wood's heat conduction and randomising each
+  cell's ignition temperature slightly downward only (randomising both ways
+  could make a fire refuse to cross a stick).
 
 ### Wave 3 — the brush destroyed water
 
-- **A6 — Spawning material into water deleted the water.** The brush overwrote whatever was there, so dragging sand through a pool destroyed hundreds of cells of water, then "burst" when released. Fixed with a dedicated brush write path that pushes the occupant upward instead of erasing it.
-- **A6b — The water elevator.** Falling sand kept swapping places with the water beneath it, and each swap lifts water one square — under a continuous stream this hands water all the way up the column. Fixed by sending displaced water sideways to its own surface instead of straight up.
-- **`VENT_RADIUS`** — how far displaced water searches for somewhere to go. Measured at several values; ~~3 gave the best quality-for-cost~~ **3 gives the best quality; the cost curve it was picked on turned out to be flat.** **E5b retires this rule entirely.**
-    - ✅ **Re-swept in one binary 2026-08-13 and the sub-item below is answered, though not in its own terms.** It asked what venting's share of the played size is: **at 1920x1080 `churning` costs 26.06 ms/step with venting off and 49.41 with it at r=3**, so venting is **23.35 ms of that row**, not the ~1.8 ms the 960x540 sweep implied. The same span re-measured at 960x540 is **+3.09 ms**, so even the small world's own figure was understated by 72% — the old number was wrong before world size entered into it. *(Do not read 3.09 against 23.35 as a scaling factor: `churning` settles inside its window at 960x540 and does not at 1920x1080, so part of that ratio is how much of each window was spent asleep. The bench says so at `run`.)* **On the recorded session the whole r=0-to-r=4 span is worth about 1% of the mean.** The two readings are not in conflict; they are the two halves of the frame-budget rule, and which one governs depends on how much powder-into-fluid work a real world does. Full table in [PERFORMANCE.md](PERFORMANCE.md).
-    - **The sweep behind that choice is quoted at 960x540 and P2 has made it unverified rather than wrong.** `churning` was 3.13 ms/step without venting and 4.93 with, so venting cost +1.80 ms against a 16.67 ms budget and "affordable" followed. At the played 1920x1080 `churning` is 35.25 ms/step, and whether venting's share is still ~1.8 ms or has scaled with the rest is not known. **It cannot be closed by a playtest** — session 5's W-7 says so in as many words — **and it must not be closed by rebuilding with the constant changed**, which is the cross-build method `PERFORMANCE.md`'s E1 entry records as having produced a confident 28% that was entirely code layout. It needs a runtime toggle, the way E1 and E2 had one. Small, and worth doing before E5b is scoped, since E5b's case rests partly on retiring a rule whose cost at the played size nobody has measured.
+- **A6 — Spawning material into water deleted the water.** The brush overwrote
+  whatever was there, so dragging sand through a pool destroyed hundreds of
+  cells of water, then "burst" when released. Fixed with a dedicated brush write
+  path that pushes the occupant upward instead of erasing it.
+- **A6b — The water elevator.** Falling sand kept swapping places with the water
+  beneath it, and each swap lifts water one square — under a continuous stream
+  this hands water all the way up the column. Fixed by sending displaced water
+  sideways to its own surface instead of straight up.
+- **`VENT_RADIUS`** — how far displaced water searches for somewhere to go.
+  Measured at several values; ~~3 gave the best quality-for-cost~~ **3 gives the
+  best quality; the cost curve it was picked on turned out to be flat.** **E5b
+  retires this rule entirely.**
+    - ✅ **Re-swept in one binary 2026-08-13 and the sub-item below is answered,
+      though not in its own terms.** It asked what venting's share of the played
+      size is: **at 1920x1080 `churning` costs 26.06 ms/step with venting off
+      and 49.41 with it at r=3**, so venting is **23.35 ms of that row**, not
+      the ~1.8 ms the 960x540 sweep implied. The same span re-measured at
+      960x540 is **+3.09 ms**, so even the small world's own figure was
+      understated by 72% — the old number was wrong before world size entered
+      into it. *(Do not read 3.09 against 23.35 as a scaling factor: `churning`
+      settles inside its window at 960x540 and does not at 1920x1080, so part of
+      that ratio is how much of each window was spent asleep. The bench says so
+      at `run`.)* **On the recorded session the whole r=0-to-r=4 span is worth
+      about 1% of the mean.** The two readings are not in conflict; they are the
+      two halves of the frame-budget rule, and which one governs depends on how
+      much powder-into-fluid work a real world does. Full table in
+      [PERFORMANCE.md](PERFORMANCE.md).
+    - **The sweep behind that choice is quoted at 960x540 and P2 has made it
+      unverified rather than wrong.** `churning` was 3.13 ms/step without
+      venting and 4.93 with, so venting cost +1.80 ms against a 16.67 ms budget
+      and "affordable" followed. At the played 1920x1080 `churning` is 35.25
+      ms/step, and whether venting's share is still ~1.8 ms or has scaled with
+      the rest is not known. **It cannot be closed by a playtest** — session 5's
+      W-7 says so in as many words — **and it must not be closed by rebuilding
+      with the constant changed**, which is the cross-build method
+      `PERFORMANCE.md`'s E1 entry records as having produced a confident 28%
+      that was entirely code layout. It needs a runtime toggle, the way E1 and
+      E2 had one. Small, and worth doing before E5b is scoped, since E5b's case
+      rests partly on retiring a rule whose cost at the played size nobody has
+      measured.
 
 ### Wave 4 — the defects session 5 found on the way past
 
-**Finished when:** the player cannot be pushed through a wall, the dig swing repeats while the button is held, `water_probe` asserts D3's invariant, and someone at a keyboard says the walk speed and step height are right. Not when the tests are green.
+**Finished when:** the player cannot be pushed through a wall, the dig swing
+repeats while the button is held, `water_probe` asserts D3's invariant, and
+someone at a keyboard says the walk speed and step height are right. Not when
+the tests are green.
 
-**Four of the five came from README's nine-step checklist** — the pass the session was *not* booked to run. It was booked to close wave 3 and answer E4, and the routine checklist produced four of the session's six defects. That is the argument for never skipping it.
+**Four of the five came from README's nine-step checklist** — the pass the
+session was *not* booked to run. It was booked to close wave 3 and answer E4,
+and the routine checklist produced four of the session's six defects. That is
+the argument for never skipping it.
 
-**D3 was added on 2026-08-11 and the way it was missed is worth more than the defect.** Every other defect this session produced is cited somewhere in this file — D1, D2, D4, D5, D6, D7, D8 and D9 all appear, and D8 appears specifically to record that it has *no* owner and why. **D3 appeared nowhere at all.** It is not that it was judged and deferred; it fell out between the log and the plan, and it fell out despite being the most actionable finding of the six — [PLAYTEST_LOG.md](PLAYTEST_LOG.md) had already stated its invariant in assertable form and already named the tool that measures it. **The process fix, which is the actual output here:** every defect ID in the log must resolve to an item, a wave, or an explicit "no owner, and why" line, and that is checkable mechanically by grep.
+**D3 was added on 2026-08-11 and the way it was missed is worth more than the
+defect.** Every other defect this session produced is cited somewhere in this
+file — D1, D2, D4, D5, D6, D7, D8 and D9 all appear, and D8 appears specifically
+to record that it has *no* owner and why. **D3 appeared nowhere at all.** It is
+not that it was judged and deferred; it fell out between the log and the plan,
+and it fell out despite being the most actionable finding of the six —
+[PLAYTEST_LOG.md](PLAYTEST_LOG.md) had already stated its invariant in
+assertable form and already named the tool that measures it. **The process fix,
+which is the actual output here:** every defect ID in the log must resolve to an
+item, a wave, or an explicit "no owner, and why" line, and that is checkable
+mechanically by grep.
 
-- ✅ **D2 — sand landing on the player can push the player through solid walls.** *(major — **fixed 2026-08-11**; the reasoning and the fix's shape are in [ROADMAP.md](ROADMAP.md#wave-4--the-defects-session-5-found-on-the-way-past). It was carried here as "do this first" until 2026-08-12, three commits after it shipped.)* The simulation doesn't know the player is there, so material falls into the cells the body occupies. That's a normal state — being buried by a collapse — and the game escapes it by searching outward for the nearest spot the body fits and moving there. **It checks that the destination is clear and never checks whether anything solid is in the way**, so a body being poured on next to a wall can be relocated to the far side of it. The escape mechanism is the right idea; it just needs to refuse a destination it can't actually reach. It also fires every step under a continuous pour, which is why it reads as a glitchy shove and why you lose control while it's happening.
-- ✅ **D1 — the dig animation freezes instead of repeating while the button is held.** *(**Fixed 2026-08-11.**)* The tool fires every 6 ticks; the swing takes 24. Every shot restarts the swing from its first frame, so it never gets to the second one. Fixed as a swing that loops while the button is held, with the tool firing at one point inside each swing — **built in the simulation, not the renderer**, because animation frames are never allowed to drive gameplay (that would break the guarantee that the same seed and inputs always produce the same run).
-    - **The fire rate is split out of this defect, 2026-08-11, and that is a correction rather than a refinement.** The entry used to end "**this slows digging from about 10 per second to under 2**, which is a deliberate trade for the look" — **a 5x change to the only verb in the game, shipped inside a bug fix.** The defect is that the swing never advances past its first frame; the fire rate is a *design* number that happens to be adjacent to it, and nothing about fixing the former requires picking the latter.
-    - **So the fix is the loop, and the rate is a number in [TUNING.md](TUNING.md).** Start at a 12-tick swing (~5 per second) rather than 24, which keeps the animation readable and does not gut the interaction. **Revisit it at S0**, which is the first moment there is a fail state to balance a dig rate *against* — deciding it now means deciding it with no information, and deciding it permanently means deciding it with no information twice.
-        - > **What actually shipped, recorded 2026-08-12 as a correction rather than a rewrite.** The paragraph above is what was *planned*; `DigTool::SWING_STEPS = 36` is what was *built*, three times the 12 recommended here, and it was chosen for a reason this file did not have — "slower than the walk cycle" was the request, and 30 steps is the walk cycle, which is the only unit both sides share. The recommendation was not overruled silently; it was made against an estimate and the build had a constraint. **The half of this bullet that survived is the important half**: the rate is a number and not part of the defect, and **the revisit at S0 still stands** at 36 exactly as it would have at 12. Left in place because a wrong prediction next to its correction is worth more than a clean paragraph — the shape of the miss was reasoning about a rate in isolation from the clock it has to beat.
-- ✅ **D6 — the walk cycle is about 10% too fast.** The animation timer only holds whole ticks, and the next value along is 20% slower. Trying that first; if it reads sluggish, *that* is what earns a finer timer. *(Changed to wait 6 on 2026-08-12 and **accepted the same day** — 36 steps does not read sluggish, so the 20% overshoot cost nothing and the animation clock keeps its whole-step resolution. See [ROADMAP.md](ROADMAP.md) D6.)*
-- ✅ **D3 — water comes to rest above its own free surface.** *(added to this wave 2026-08-11 — it had no owner anywhere in this file; **fixed 2026-08-12**. It was not `vent_fluid`, which is what this entry and its ROADMAP.md counterpart both predicted — the correction, and why the wrong guess is worth keeping, are at the [D3 entry in ROADMAP.md](ROADMAP.md#wave-4--the-defects-session-5-found-on-the-way-past). The half that survives is a during-pour transient that now clears on release, and it is a looks judgement rather than an open defect.)* Wave 3 stopped water riding to the top of a falling sand column, and a residual climb survived it. **This is a residual to eliminate and not a rate to tune**, which [PLAYTEST_LOG.md](PLAYTEST_LOG.md) already settled: displacing sand into a pool must raise the pool's free *surface* — that is conservation, and it passes — but **no configuration of sand and water makes it right for water to occupy a column standing above that surface.**
-    - **It is the cheapest defect on this list because both halves already exist.** The invariant is assertable as written — *no water cell may come to rest above the free surface, splash excepted* — and `water_probe` already measures the quantity. This is a headless assertion plus whatever it turns out to catch, not an investigation.
-    - **Doing it inside this wave rather than filing it as an item** is deliberate: it is a session-5 water defect and wave 3 was the session-5 water wave. Leaving it loose is how it got lost the first time.
+- ✅ **D2 — sand landing on the player can push the player through solid walls.**
+  *(major — **fixed 2026-08-11**; the reasoning and the fix's shape are in
+  [ROADMAP.md](ROADMAP.md#wave-4--the-defects-session-5-found-on-the-way-past).
+  It was carried here as "do this first" until 2026-08-12, three commits after
+  it shipped.)* The simulation doesn't know the player is there, so material
+  falls into the cells the body occupies. That's a normal state — being buried
+  by a collapse — and the game escapes it by searching outward for the nearest
+  spot the body fits and moving there. **It checks that the destination is clear
+  and never checks whether anything solid is in the way**, so a body being
+  poured on next to a wall can be relocated to the far side of it. The escape
+  mechanism is the right idea; it just needs to refuse a destination it can't
+  actually reach. It also fires every step under a continuous pour, which is why
+  it reads as a glitchy shove and why you lose control while it's happening.
+- ✅ **D1 — the dig animation freezes instead of repeating while the button is
+  held.** *(**Fixed 2026-08-11.**)* The tool fires every 6 ticks; the swing
+  takes 24. Every shot restarts the swing from its first frame, so it never gets
+  to the second one. Fixed as a swing that loops while the button is held, with
+  the tool firing at one point inside each swing — **built in the simulation,
+  not the renderer**, because animation frames are never allowed to drive
+  gameplay (that would break the guarantee that the same seed and inputs always
+  produce the same run).
+    - **The fire rate is split out of this defect, 2026-08-11, and that is a
+      correction rather than a refinement.** The entry used to end "**this slows
+      digging from about 10 per second to under 2**, which is a deliberate trade
+      for the look" — **a 5x change to the only verb in the game, shipped inside
+      a bug fix.** The defect is that the swing never advances past its first
+      frame; the fire rate is a *design* number that happens to be adjacent to
+      it, and nothing about fixing the former requires picking the latter.
+    - **So the fix is the loop, and the rate is a number in
+      [TUNING.md](TUNING.md).** Start at a 12-tick swing (~5 per second) rather
+      than 24, which keeps the animation readable and does not gut the
+      interaction. **Revisit it at S0**, which is the first moment there is a
+      fail state to balance a dig rate *against* — deciding it now means
+      deciding it with no information, and deciding it permanently means
+      deciding it with no information twice.
+        - > **What actually shipped, recorded 2026-08-12 as a correction rather
+          than a rewrite.** The paragraph above is what was *planned*;
+          `DigTool::SWING_STEPS = 36` is what was *built*, three times the 12
+          recommended here, and it was chosen for a reason this file did not
+          have — "slower than the walk cycle" was the request, and 30 steps is
+          the walk cycle, which is the only unit both sides share. The
+          recommendation was not overruled silently; it was made against an
+          estimate and the build had a constraint. **The half of this bullet
+          that survived is the important half**: the rate is a number and not
+          part of the defect, and **the revisit at S0 still stands** at 36
+          exactly as it would have at 12. Left in place because a wrong
+          prediction next to its correction is worth more than a clean paragraph
+          — the shape of the miss was reasoning about a rate in isolation from
+          the clock it has to beat.
+- ✅ **D6 — the walk cycle is about 10% too fast.** The animation timer only
+  holds whole ticks, and the next value along is 20% slower. Trying that first;
+  if it reads sluggish, *that* is what earns a finer timer. *(Changed to wait 6
+  on 2026-08-12 and **accepted the same day** — 36 steps does not read sluggish,
+  so the 20% overshoot cost nothing and the animation clock keeps its whole-step
+  resolution. See [ROADMAP.md](ROADMAP.md) D6.)*
+- ✅ **D3 — water comes to rest above its own free surface.** *(added to this
+  wave 2026-08-11 — it had no owner anywhere in this file; **fixed 2026-08-12**.
+  It was not `vent_fluid`, which is what this entry and its ROADMAP.md
+  counterpart both predicted — the correction, and why the wrong guess is worth
+  keeping, are at the [D3 entry in
+  ROADMAP.md](ROADMAP.md#wave-4--the-defects-session-5-found-on-the-way-past).
+  The half that survives is a during-pour transient that now clears on release,
+  and it is a looks judgement rather than an open defect.)* Wave 3 stopped water
+  riding to the top of a falling sand column, and a residual climb survived it.
+  **This is a residual to eliminate and not a rate to tune**, which
+  [PLAYTEST_LOG.md](PLAYTEST_LOG.md) already settled: displacing sand into a
+  pool must raise the pool's free *surface* — that is conservation, and it
+  passes — but **no configuration of sand and water makes it right for water to
+  occupy a column standing above that surface.**
+    - **It is the cheapest defect on this list because both halves already
+      exist.** The invariant is assertable as written — *no water cell may come
+      to rest above the free surface, splash excepted* — and `water_probe`
+      already measures the quantity. This is a headless assertion plus whatever
+      it turns out to catch, not an investigation.
+    - **Doing it inside this wave rather than filing it as an item** is
+      deliberate: it is a session-5 water defect and wave 3 was the session-5
+      water wave. Leaving it loose is how it got lost the first time.
 
-- ✅ **D7 — the player steps over a settled sand pile as if it weren't there.** The auto-step-up height is 5 cells against a body 20 cells tall, so the player climbs a quarter of its own height instantly and with no animation. Reported as evidence about E4 and it's almost certainly just this number. README's checklist only ever asks you to walk up a **one-cell** step, so nothing has been testing it. *(Set to 3 on 2026-08-12, with a settled-pile test and a README row, and **accepted the same day** — piles read as objects and nothing that used to be strollable stopped the body. See [ROADMAP.md](ROADMAP.md) D7.)*
+- ✅ **D7 — the player steps over a settled sand pile as if it weren't there.**
+  The auto-step-up height is 5 cells against a body 20 cells tall, so the player
+  climbs a quarter of its own height instantly and with no animation. Reported
+  as evidence about E4 and it's almost certainly just this number. README's
+  checklist only ever asks you to walk up a **one-cell** step, so nothing has
+  been testing it. *(Set to 3 on 2026-08-12, with a settled-pile test and a
+  README row, and **accepted the same day** — piles read as objects and nothing
+  that used to be strollable stopped the body. See [ROADMAP.md](ROADMAP.md)
+  D7.)*
 
 ---
 
@@ -619,76 +2288,179 @@ Kept in full because the reasoning is the valuable part.
 ### The engine and its harness
 
 - **Initial repo and build system.** ✅
-- **Barebones C++/SDL2 pixel physics prototype.** ✅ Sand, water and wall interacting.
-- **Data-driven material system.** ✅ Materials are rows in a table, not branches in code. Four generic behaviours (Static / Powder / Liquid / Gas) drive all movement, with density deciding what sinks through what.
-- **Eight materials.** ✅ Sand, Water, Wall, Wood, Oil, Steam, Fire, plus transparent Empty — each cost one table row and no engine changes.
-- **Fixed timestep.** ✅ The simulation runs at a constant 60 ticks per second regardless of display refresh rate.
-- **Headless test harness.** ✅ The simulation runs with no window, covered by automated tests for conservation of matter, density layering, and border sealing.
-- **Chunked dirty-rect updates.** ✅ The world is split into 64x64 blocks that track what can still move; settled blocks are skipped entirely, so cost scales with how much is *moving* rather than with world size.
-- **Benchmark.** ✅ Times seven scenarios against the 60 Hz budget, at both 960x540 and the played 1920x1080 since P2. Deliberately not a pass/fail test — timings inform, they don't gate.
-- **Reactions.** ✅ A data-driven table of catalyst + target → result. Fire ignites wood and oil, is doused into steam by water, and burns out on its own.
-- **Player Character + Player Physics.** ✅ A rigid body that is *not* a grid cell — it has its own position and only reads the grid to ask "is this solid?". Uses whole squares plus a fraction rather than decimals, so edge-case collision bugs never arise.
-- **Structures fall as rigid bodies.** ✅ An unsupported wall falls as one piece keeping its shape, rather than dissolving into loose gravel (which read as broken rather than physical).
-- **Basic Interaction — digging.** ✅ A ray traced from the player to the first solid cell, which is then blown out to a small radius. Deliberately its own module rather than a method on the player, so the player's grid access can stay read-only.
+- **Barebones C++/SDL2 pixel physics prototype.** ✅ Sand, water and wall
+  interacting.
+- **Data-driven material system.** ✅ Materials are rows in a table, not branches
+  in code. Four generic behaviours (Static / Powder / Liquid / Gas) drive all
+  movement, with density deciding what sinks through what.
+- **Eight materials.** ✅ Sand, Water, Wall, Wood, Oil, Steam, Fire, plus
+  transparent Empty — each cost one table row and no engine changes.
+- **Fixed timestep.** ✅ The simulation runs at a constant 60 ticks per second
+  regardless of display refresh rate.
+- **Headless test harness.** ✅ The simulation runs with no window, covered by
+  automated tests for conservation of matter, density layering, and border
+  sealing.
+- **Chunked dirty-rect updates.** ✅ The world is split into 64x64 blocks that
+  track what can still move; settled blocks are skipped entirely, so cost scales
+  with how much is *moving* rather than with world size.
+- **Benchmark.** ✅ Times seven scenarios against the 60 Hz budget, at both
+  960x540 and the played 1920x1080 since P2. Deliberately not a pass/fail test —
+  timings inform, they don't gate.
+- **Reactions.** ✅ A data-driven table of catalyst + target → result. Fire
+  ignites wood and oil, is doused into steam by water, and burns out on its own.
+- **Player Character + Player Physics.** ✅ A rigid body that is *not* a grid
+  cell — it has its own position and only reads the grid to ask "is this
+  solid?". Uses whole squares plus a fraction rather than decimals, so edge-case
+  collision bugs never arise.
+- **Structures fall as rigid bodies.** ✅ An unsupported wall falls as one piece
+  keeping its shape, rather than dissolving into loose gravel (which read as
+  broken rather than physical).
+- **Basic Interaction — digging.** ✅ A ray traced from the player to the first
+  solid cell, which is then blown out to a small radius. Deliberately its own
+  module rather than a method on the player, so the player's grid access can
+  stay read-only.
 
 ### Foundations (F1–F4)
 
-Four items that weren't features — each was a prerequisite for several slice items and got more expensive the longer it waited.
+Four items that weren't features — each was a prerequisite for several slice
+items and got more expensive the longer it waited.
 
 #### F1 — Determinism, first half: the simulation
 
-- **F1.1 — Take a seed, keep the generator.** ✅ The world now takes a starting number and can report it back. A seed you can't read back is only half of reproducibility.
-- **F1.2 — Add a wide step counter.** ✅ A counter of how many ticks have elapsed, wide enough not to repeat. The existing one-byte counter would have made randomness repeat every 256 ticks — visible patterning, not noise.
-- **F1.3 — Introduce the hash, move one call site.** ✅ Replaced the traditional random number generator with a *stateless hash*: randomness is calculated fresh from (position, tick, seed, purpose), so there's no hidden generator state to save or get out of sync.
-- **F1.4 — Move the remaining four call sites.** ✅ All randomness now goes through the hash, each purpose on its own separate "stream" so unrelated decisions can't correlate.
-- **F1.5 — Reserve the stream separation, don't build it yet.** ✅ Wrote down the rule that world generation and simulation must draw from separate random streams, before there was a generator to break it — otherwise adding one extra cave would silently change how sand falls elsewhere.
-- **F1.6 — Delete the old generator, then measure.** ✅ Measured honestly: the hash is about 1.7–1.9% *slower* in one scenario. Recorded as-is rather than as the win it was filed as.
-- **F1.7 — Docs.** ✅ Wrote the determinism rules into the README, including an explicit note about what was *not* yet true.
+- **F1.1 — Take a seed, keep the generator.** ✅ The world now takes a starting
+  number and can report it back. A seed you can't read back is only half of
+  reproducibility.
+- **F1.2 — Add a wide step counter.** ✅ A counter of how many ticks have
+  elapsed, wide enough not to repeat. The existing one-byte counter would have
+  made randomness repeat every 256 ticks — visible patterning, not noise.
+- **F1.3 — Introduce the hash, move one call site.** ✅ Replaced the traditional
+  random number generator with a *stateless hash*: randomness is calculated
+  fresh from (position, tick, seed, purpose), so there's no hidden generator
+  state to save or get out of sync.
+- **F1.4 — Move the remaining four call sites.** ✅ All randomness now goes
+  through the hash, each purpose on its own separate "stream" so unrelated
+  decisions can't correlate.
+- **F1.5 — Reserve the stream separation, don't build it yet.** ✅ Wrote down the
+  rule that world generation and simulation must draw from separate random
+  streams, before there was a generator to break it — otherwise adding one extra
+  cave would silently change how sand falls elsewhere.
+- **F1.6 — Delete the old generator, then measure.** ✅ Measured honestly: the
+  hash is about 1.7–1.9% *slower* in one scenario. Recorded as-is rather than as
+  the win it was filed as.
+- **F1.7 — Docs.** ✅ Wrote the determinism rules into the README, including an
+  explicit note about what was *not* yet true.
 
 #### F2 — Something owns the run
 
-- **F2.1 — Create `Run` and move the three loose variables into it.** ✅ The world, player and dig tool were three unrelated local variables; four separate future features all needed to reset/save/swap them together.
-- **F2.2 — `reset(seed)` on both the grid and the run.** ✅ Wipes every changeable field by hand rather than using a compiler shortcut, specifically so the test proving nothing is forgotten is possible to write.
-- **F2.3 — An `Input` struct and `Run::step(input)`.** ✅ The second half of determinism. Input used to be sampled once per *drawn frame* and applied to every simulation tick in it, so a held key did different things at 30 fps and 144 fps. Now a run is a seed plus a replayable list of inputs.
-- **F2.4 — Confirm the payoff rather than assuming it.** ✅ No code — checked that the reset hotkey and pause/single-step items are now genuinely small, and surfaced one unresolved policy question (should the brush paint while paused?).
+- **F2.1 — Create `Run` and move the three loose variables into it.** ✅ The
+  world, player and dig tool were three unrelated local variables; four separate
+  future features all needed to reset/save/swap them together.
+- **F2.2 — `reset(seed)` on both the grid and the run.** ✅ Wipes every
+  changeable field by hand rather than using a compiler shortcut, specifically
+  so the test proving nothing is forgotten is possible to write.
+- **F2.3 — An `Input` struct and `Run::step(input)`.** ✅ The second half of
+  determinism. Input used to be sampled once per *drawn frame* and applied to
+  every simulation tick in it, so a held key did different things at 30 fps and
+  144 fps. Now a run is a seed plus a replayable list of inputs.
+- **F2.4 — Confirm the payoff rather than assuming it.** ✅ No code — checked
+  that the reset hotkey and pause/single-step items are now genuinely small, and
+  surfaced one unresolved policy question (should the brush paint while
+  paused?).
 
 #### F3 — Camera and world-space coordinates
 
-- **F3.1 — Separate world size from window size.** ✅ The world used to be exactly the size of the window, so a level couldn't be bigger than one screen.
-- **F3.2 — One `Camera`, and only it knows the pixel scale.** ✅ The conversion between world coordinates and screen coordinates was scattered across five places; now it lives in one file. **V11 revisits the "compile-time" half of this.**
-- **F3.3 — Upload only what is visible.** ✅ Only the visible portion of the world is sent to the graphics card each frame, so the cost stops growing with world size.
-- **F3.4 — Follow the player, clamped at the world edges.** ✅ The camera centres on the player and stops at the world's borders instead of showing empty space beyond them.
-- **F3.5 — Answer off-screen simulation once, in writing.** ✅ Everything simulates always, regardless of where the camera is looking. If it didn't, an avalanche would freeze the moment you walked away — and two players with identical inputs could diverge just from looking at different things.
+- **F3.1 — Separate world size from window size.** ✅ The world used to be
+  exactly the size of the window, so a level couldn't be bigger than one screen.
+- **F3.2 — One `Camera`, and only it knows the pixel scale.** ✅ The conversion
+  between world coordinates and screen coordinates was scattered across five
+  places; now it lives in one file. **V11 revisits the "compile-time" half of
+  this.**
+- **F3.3 — Upload only what is visible.** ✅ Only the visible portion of the
+  world is sent to the graphics card each frame, so the cost stops growing with
+  world size.
+- **F3.4 — Follow the player, clamped at the world edges.** ✅ The camera centres
+  on the player and stops at the world's borders instead of showing empty space
+  beyond them.
+- **F3.5 — Answer off-screen simulation once, in writing.** ✅ Everything
+  simulates always, regardless of where the camera is looking. If it didn't, an
+  avalanche would freeze the moment you walked away — and two players with
+  identical inputs could diverge just from looking at different things.
 
 #### F4 — A way to get a level into the grid
 
-- **F4.1 — `paint(x, y, type, colour)`.** ✅ Placing a cell with an explicit colour instead of a random shade, which is what lets hand-drawn artwork keep its own pixels.
-- **F4.2 — Scene format and a headless loader.** ✅ A level is two same-size images: one saying which material each cell is, one saying what colour it should be.
-- **F4.3 — BMP decoding, loaded at startup.** ✅ Shipped broken with three separate bugs (wrong row stride, scene bigger than the grid so every cell was silently dropped, and assets not copied next to the executable) — all fixed.
-- **F4.4 — Make the first scene a test fixture wearing art.** ✅ A hand-generated scene where every feature exercises something specific: uneven stairs for step-up, fence posts for dig-the-base collapse, a pit with pillars for the collapse flood fill, a water channel, and jump ledges.
+- **F4.1 — `paint(x, y, type, colour)`.** ✅ Placing a cell with an explicit
+  colour instead of a random shade, which is what lets hand-drawn artwork keep
+  its own pixels.
+- **F4.2 — Scene format and a headless loader.** ✅ A level is two same-size
+  images: one saying which material each cell is, one saying what colour it
+  should be.
+- **F4.3 — BMP decoding, loaded at startup.** ✅ Shipped broken with three
+  separate bugs (wrong row stride, scene bigger than the grid so every cell was
+  silently dropped, and assets not copied next to the executable) — all fixed.
+- **F4.4 — Make the first scene a test fixture wearing art.** ✅ A hand-generated
+  scene where every feature exercises something specific: uneven stairs for
+  step-up, fence posts for dig-the-base collapse, a pit with pillars for the
+  collapse flood fill, a water channel, and jump ledges.
 
 ### E1–E3 — Simulation depth (details)
 
-- **E1 — Liquids find their level.** ✅ A surface water cell looks through its own connected body for a lower surface and moves there. The obvious approach — letting the low side *rise* — doesn't work: it leaves a bubble that splits the body in two and the whole thing falls asleep two cells out of level. **E5b replaces the mechanism** — see the note there on what a search can never do that a field can.
-- **E2 — Heat, the seventh axis.** ✅ Every cell carries a temperature; heat flows between touching cells; reactions have temperature windows. First attempt cost 18% performance and was rejected — a cell already at room temperature now does no thermal work at all, bringing it to ~2%.
-- **E3 — Collapses break instead of dropping rigid.** ✅ A landing structure cracks along the boundary between the columns that hit something and the columns that hit nothing. Uses a per-cell "piece ID", so a crack is stored as two cells *disagreeing* rather than as a line, which lets it survive the piece moving.
+- **E1 — Liquids find their level.** ✅ A surface water cell looks through its
+  own connected body for a lower surface and moves there. The obvious approach —
+  letting the low side *rise* — doesn't work: it leaves a bubble that splits the
+  body in two and the whole thing falls asleep two cells out of level. **E5b
+  replaces the mechanism** — see the note there on what a search can never do
+  that a field can.
+- **E2 — Heat, the seventh axis.** ✅ Every cell carries a temperature; heat
+  flows between touching cells; reactions have temperature windows. First
+  attempt cost 18% performance and was rejected — a cell already at room
+  temperature now does no thermal work at all, bringing it to ~2%.
+- **E3 — Collapses break instead of dropping rigid.** ✅ A landing structure
+  cracks along the boundary between the columns that hit something and the
+  columns that hit nothing. Uses a per-cell "piece ID", so a crack is stored as
+  two cells *disagreeing* rather than as a line, which lets it survive the piece
+  moving.
 
 ### V1–V2 — Visual foundation (details)
 
-- **V1 — Transparent empty and a backdrop layer.** ✅ Two changes that only work together: empty cells became see-through *and* the world texture was set to blend. Either alone is a no-op.
-- **V2 — Palette and jitter pass.** ✅ Colours chosen against the new backdrop rather than against black; only fire and water keep full saturation, since they're the two things you must never miss. Shipped a critical bug: retuning the colours made the level file match nothing and the game booted to a blank world for a whole commit. **V11's theme file is the structural fix for the class of problem this was.**
+- **V1 — Transparent empty and a backdrop layer.** ✅ Two changes that only work
+  together: empty cells became see-through *and* the world texture was set to
+  blend. Either alone is a no-op.
+- **V2 — Palette and jitter pass.** ✅ Colours chosen against the new backdrop
+  rather than against black; only fire and water keep full saturation, since
+  they're the two things you must never miss. Shipped a critical bug: retuning
+  the colours made the level file match nothing and the game booted to a blank
+  world for a whole commit. **V11's theme file is the structural fix for the
+  class of problem this was.**
 
 ### Correctness pass — a full read of the source
 
-A line-by-line review of every source file, with each suspected bug reproduced by a test program before it was believed.
+A line-by-line review of every source file, with each suspected bug reproduced
+by a test program before it was believed.
 
-- **The startup scene loaded as an entirely empty world.** ✅ Fixed by separating the level file's colour codes (permanent markers) from the render palette (free to change), so retuning art can never invalidate a level again.
-- **A settled pool of water never went to sleep.** ✅ A pool only settled if its cell count happened to divide evenly by its width — so almost every real puddle churned forever. Fixed by requiring a sideways move to land somewhere it can actually rest.
-- **Steam was an undeclared ignition source.** ✅ Steam spawned hotter than wood's ignition point, so putting a fire out with water was a way of starting a bigger one. Now enforced at compile time: nothing may spawn hotter than the coldest ignition point.
-- **Smaller things, each verified rather than assumed.** ✅ An overflow check that itself overflowed, a shared scratch buffer whose name hid a second user, and two stale comments — one describing a guarantee that measurement contradicted, one warning about a defect that had already been fixed.
+- **The startup scene loaded as an entirely empty world.** ✅ Fixed by separating
+  the level file's colour codes (permanent markers) from the render palette
+  (free to change), so retuning art can never invalidate a level again.
+- **A settled pool of water never went to sleep.** ✅ A pool only settled if its
+  cell count happened to divide evenly by its width — so almost every real
+  puddle churned forever. Fixed by requiring a sideways move to land somewhere
+  it can actually rest.
+- **Steam was an undeclared ignition source.** ✅ Steam spawned hotter than
+  wood's ignition point, so putting a fire out with water was a way of starting
+  a bigger one. Now enforced at compile time: nothing may spawn hotter than the
+  coldest ignition point.
+- **Smaller things, each verified rather than assumed.** ✅ An overflow check
+  that itself overflowed, a shared scratch buffer whose name hid a second user,
+  and two stale comments — one describing a guarantee that measurement
+  contradicted, one warning about a defect that had already been fixed.
 
 ### What the correctness pass changed about how to work here
 
-- **A green test suite proved less than it looked like.** Both serious bugs lived exactly where tests couldn't see — one in an untested file, one in a case a test had deliberately excluded. **When a test comment explains why a case is skipped, that comment is a bug report.**
-- **The manual checklist is load-bearing and wasn't run.** One launch would have caught the blank world immediately.
-- **Two of the bugs were table edits with no code touched.** Data-driven design moves the danger into the *relationships between rows*, which have no compiler checking them unless one is written deliberately.
+- **A green test suite proved less than it looked like.** Both serious bugs
+  lived exactly where tests couldn't see — one in an untested file, one in a
+  case a test had deliberately excluded. **When a test comment explains why a
+  case is skipped, that comment is a bug report.**
+- **The manual checklist is load-bearing and wasn't run.** One launch would have
+  caught the blank world immediately.
+- **Two of the bugs were table edits with no code touched.** Data-driven design
+  moves the danger into the *relationships between rows*, which have no compiler
+  checking them unless one is written deliberately.

@@ -46,16 +46,22 @@ returns 3,000 characters whether or not the match needed them. Measured: a
 `grep -C2` into `ROADMAP.md` returned **9,930 bytes for 20 lines**, against about
 1.3 KB for the same query shape against wrapped text. It also stops a one-word
 change rendering as a whole-line rewrite in `git diff` and `git blame`.
-- **Four files do not comply yet and `W1` is the item that fixes them:**
-  `ROADMAP.md` (avg 394 chars/line), `ROADMAP_ITEMS.md` (285),
-  `ENGINEERING_NOTES.md` (601), `PERFORMANCE.md` (205). `README.md` (63) and
-  `PLAYTEST_LOG.md` (83) already comply, which is why this is an inconsistency to
-  remove rather than a new convention to import. **Named here rather than stated
-  as universal, because a rule the tree visibly violates is one people stop
-  checking.**
-- **Tables and code blocks are exempt** — wrapping either breaks it.
-- **New prose written into the four non-compliant files should be wrapped
-  anyway.** `W1` then has less to do, and nothing is lost if it never runs.
+- **`W1` shipped 2026-08-17 and the four files now comply**, so this is a rule
+  the tree obeys rather than one it visibly violates. Before: `ROADMAP.md` avg
+  394 chars/line, `ROADMAP_ITEMS.md` 285, `ENGINEERING_NOTES.md` 601,
+  `PERFORMANCE.md` 205. After: 68, 77, 71, 62 — the two above 70 are table rows,
+  which are exempt. `README.md` (63) and `PLAYTEST_LOG.md` (83) already complied,
+  which is why this was an inconsistency to remove rather than a new convention
+  to import. Measured gain, same three queries before and after against
+  `ROADMAP.md`: `EASE_PER_SEC` 2,014 → 372 bytes, `determinism` 29,474 → 5,062,
+  `parallax` 54,607 → 9,726 — **about a fifth to a sixth**, which is what the
+  item predicted.
+- **Tables, code blocks and headings are exempt** — wrapping any of them breaks
+  it. A handful of lines still exceed 80 because a single token does (a long
+  anchor link); breaking those would break the link.
+- **Wrap new prose as you write it in every one of these files.** The reflow was
+  a one-time pass over a corpus, not a step to repeat — a file drifts back one
+  unwrapped paragraph at a time.
 
 ## Per-file conventions
 

@@ -1,10 +1,22 @@
 # Performance
 
-Benchmark numbers, the method behind them, and the mistakes that method exists to prevent. Extracted out of [ROADMAP.md](ROADMAP.md) so a roadmap item that makes or corrects a performance claim can point here instead of carrying the methodology inline. See `tests/bench_grid.cpp` / [Running the Benchmark](README.md#running-the-benchmark) for how to reproduce these numbers yourself.
+Benchmark numbers, the method behind them, and the mistakes that method exists
+to prevent. Extracted out of [ROADMAP.md](ROADMAP.md) so a roadmap item that
+makes or corrects a performance claim can point here instead of carrying the
+methodology inline. See `tests/bench_grid.cpp` / [Running the
+Benchmark](README.md#running-the-benchmark) for how to reproduce these numbers
+yourself.
 
-Numbers from `grid_bench` on the dev machine, minimum of 5 runs in one sitting, against a 16.67 ms frame.
+Numbers from `grid_bench` on the dev machine, minimum of 5 runs in one sitting,
+against a 16.67 ms frame.
 
-**Since P2 the benchmark runs every scenario at both world sizes.** 1920x1080 (2,073,600 cells) is `GRID_WIDTH` x `GRID_HEIGHT` in `main.cpp` — the world the game actually simulates, and the column the budget is now judged against. 960x540 (518,400 cells) is the size every number in this file was measured at *before* P2; it is kept as the historical series and as a control on the refactor, since the scenario constants are written to reproduce their old values exactly at that size.
+**Since P2 the benchmark runs every scenario at both world sizes.** 1920x1080
+(2,073,600 cells) is `GRID_WIDTH` x `GRID_HEIGHT` in `main.cpp` — the world the
+game actually simulates, and the column the budget is now judged against.
+960x540 (518,400 cells) is the size every number in this file was measured at
+*before* P2; it is kept as the historical series and as a control on the
+refactor, since the scenario constants are written to reproduce their old values
+exactly at that size.
 
 | Scenario | 1920x1080 — played | 960x540 — historical | ratio |
 |---|---|---|---|
@@ -16,25 +28,70 @@ Numbers from `grid_bench` on the dev machine, minimum of 5 runs in one sitting, 
 | **churning** — sand sinking through water, then settling | 35.249 ms — **211.5%** | 4.674 ms — 28.0% | 7.54x |
 | **cascading** — nothing ever settles, sustained worst case | 40.172 ms — **241.0%** | 11.431 ms — 68.6% | 3.51x |
 
-Replaced wholesale, per the rule below, which also retires the stale `burning` entry of 0.575 ms that the E9 note further down flagged as predating several sittings and a scenario that had since become much more expensive.
+Replaced wholesale, per the rule below, which also retires the stale `burning`
+entry of 0.575 ms that the E9 note further down flagged as predating several
+sittings and a scenario that had since become much more expensive.
 
 ### What the played size actually changed
 
-**The headline is `sparse`, and it is the good news: 1.00x for four times the cells.** The scenario that stands in for an ordinary gameplay frame — a large static world with a small patch of action — costs the *same* at 1920x1080 as at 960x540, to three decimal places, and `settled` is likewise at the noise floor in both. Chunking does what it was built to do: a sleeping cell is free, so the size of the sleeping majority does not matter. **Total cell count is not what this engine pays for; awake cells are.** That is the single most useful thing P2 established, and it was previously assumed rather than measured — `README.md` said in as many words that "nobody has measured the part that does" scale.
+**The headline is `sparse`, and it is the good news: 1.00x for four times the
+cells.** The scenario that stands in for an ordinary gameplay frame — a large
+static world with a small patch of action — costs the *same* at 1920x1080 as at
+960x540, to three decimal places, and `settled` is likewise at the noise floor
+in both. Chunking does what it was built to do: a sleeping cell is free, so the
+size of the sleeping majority does not matter. **Total cell count is not what
+this engine pays for; awake cells are.** That is the single most useful thing P2
+established, and it was previously assumed rather than measured — `README.md`
+said in as many words that "nobody has measured the part that does" scale.
 
-**Two scenarios are over budget at the played size, and nothing got slower to put them there.** `churning` at 211% and `cascading` at 241% are not a regression: they are what the played world has cost since the Noita rescale moved it to 1920x1080, measured for the first time. The benchmark could not see it because the benchmark was a quarter of the size, and the comment justifying that size — "1920x1080 at a 2px scale = 960x540 cells" — had been describing a world that stopped existing at F3.1, when world size was decoupled from window size and `Camera::SCALE` was already 4 rather than 2. **The budget did not break; the instrument was pointed at the wrong world.**
+**Two scenarios are over budget at the played size, and nothing got slower to
+put them there.** `churning` at 211% and `cascading` at 241% are not a
+regression: they are what the played world has cost since the Noita rescale
+moved it to 1920x1080, measured for the first time. The benchmark could not see
+it because the benchmark was a quarter of the size, and the comment justifying
+that size — "1920x1080 at a 2px scale = 960x540 cells" — had been describing a
+world that stopped existing at F3.1, when world size was decoupled from window
+size and `Camera::SCALE` was already 4 rather than 2. **The budget did not
+break; the instrument was pointed at the wrong world.**
 
-**There is no single scaling factor, and quoting one would be wrong.** The same 4x in cells produces anything from 1.00x to 7.54x depending on how much of the world is awake, which is the same finding as the paragraph above read from the other end.
+**There is no single scaling factor, and quoting one would be wrong.** The same
+4x in cells produces anything from 1.00x to 7.54x depending on how much of the
+world is awake, which is the same finding as the paragraph above read from the
+other end.
 
-**`churning`'s 7.54x is substantially an artifact of the measurement window, and the awake-chunk counts are what show it.** The bench now prints chunks awake at both ends of the timed window rather than only at the end, precisely because a single end-of-run count cannot tell "busy throughout" from "asleep for the back half". `churning` reads **105 -> 0** at 960x540 and **360 -> 90** at 1920x1080: the small world reaches complete rest *inside* the 300-step window and the large one never does, so part of the 960x540 number is the cost of a settled world and is averaged down accordingly. **Do not quote 7.54x as a scaling factor for liquids.** The honest reading is that the two rows are at different points in the same scenario's life.
+**`churning`'s 7.54x is substantially an artifact of the measurement window, and
+the awake-chunk counts are what show it.** The bench now prints chunks awake at
+both ends of the timed window rather than only at the end, precisely because a
+single end-of-run count cannot tell "busy throughout" from "asleep for the back
+half". `churning` reads **105 -> 0** at 960x540 and **360 -> 90** at 1920x1080:
+the small world reaches complete rest *inside* the 300-step window and the large
+one never does, so part of the 960x540 number is the cost of a settled world and
+is averaged down accordingly. **Do not quote 7.54x as a scaling factor for
+liquids.** The honest reading is that the two rows are at different points in
+the same scenario's life.
 
-**`cascading` at 3.51x is the clean number**, because it is the one scenario that cannot settle by construction — a row is scraped off the floor and poured back in at the ceiling every step, and its counts (75 -> 105 and 270 -> 300) show it awake and rising throughout both windows. **3.51x for 4.00x the cells is sub-linear**, which is worth stating plainly because it is evidence *against* the most obvious guess: if the played size had pushed the hot loop off a cache cliff, the clean always-awake scenario is where that would show, and it shows the opposite.
+**`cascading` at 3.51x is the clean number**, because it is the one scenario
+that cannot settle by construction — a row is scraped off the floor and poured
+back in at the ceiling every step, and its counts (75 -> 105 and 270 -> 300)
+show it awake and rising throughout both windows. **3.51x for 4.00x the cells is
+sub-linear**, which is worth stating plainly because it is evidence *against*
+the most obvious guess: if the played size had pushed the hot loop off a cache
+cliff, the clean always-awake scenario is where that would show, and it shows
+the opposite.
 
-**The render-side numbers did not move and were not expected to.** `light/fire` reads 15.25 ms and `light/dark` 1.24 ms against 15.48 and 1.28 on record — the field is sized to the viewport, not to the world, so world size cannot reach it. That is also why the light section is run once rather than once per size: a second size would produce a second identical number, and a pair of matching numbers invites being read as evidence about something that was never varied.
+**The render-side numbers did not move and were not expected to.** `light/fire`
+reads 15.25 ms and `light/dark` 1.24 ms against 15.48 and 1.28 on record — the
+field is sized to the viewport, not to the world, so world size cannot reach it.
+That is also why the light section is run once rather than once per size: a
+second size would produce a second identical number, and a pair of matching
+numbers invites being read as evidence about something that was never varied.
 
 ### D3's fluid change cost nothing, and the second run is the only reason that is known
 
-**2026-08-12.** D3 changed one condition in `step_fluid`'s lateral scan — the hottest fluid path there is — so a bracketed reading was owed even though the change removes work rather than adding it. Both directions, one sitting, back to back, at 1920x1080:
+**2026-08-12.** D3 changed one condition in `step_fluid`'s lateral scan — the
+hottest fluid path there is — so a bracketed reading was owed even though the
+change removes work rather than adding it. Both directions, one sitting, back to
+back, at 1920x1080:
 
 | Scenario | before | after | |
 |---|---|---|---|
@@ -44,13 +101,30 @@ Replaced wholesale, per the rule below, which also retires the stale `burning` e
 | *collapsing* (control) | 2.766 | 2.754 | −0.4% |
 | *shattering* (control) | 3.178 | 3.182 | +0.1% |
 
-**The controls held, so the rig was trustworthy, and the reading was still wrong.** `burning` contains no sand-in-water at all and came out as the largest mover on the board — which is the tell. A **second run of the unchanged binary**, with nothing rebuilt between them, gave `burning` 8.648 and `cascading` 41.259: the same binary moved further than the change did. Run-to-run noise here is about 1.5%, every delta above is inside it, and the honest result is **no measurable cost**.
+**The controls held, so the rig was trustworthy, and the reading was still
+wrong.** `burning` contains no sand-in-water at all and came out as the largest
+mover on the board — which is the tell. A **second run of the unchanged
+binary**, with nothing rebuilt between them, gave `burning` 8.648 and
+`cascading` 41.259: the same binary moved further than the change did.
+Run-to-run noise here is about 1.5%, every delta above is inside it, and the
+honest result is **no measurable cost**.
 
-This is filed for the method and not for the numbers. It is the third time on this project that a confident percentage has turned out to be the machine — after the 28% that was the compiler re-laying-out the hot loop, and the fire-only change that moved two scenarios containing no fire. **A control scenario proves the rig is stable; it does not prove a single reading is.** Both A/B directions have to be run at least twice, and the cheapest way to find out whether a delta is real is to measure a change that does not exist.
+This is filed for the method and not for the numbers. It is the third time on
+this project that a confident percentage has turned out to be the machine —
+after the 28% that was the compiler re-laying-out the hot loop, and the
+fire-only change that moved two scenarios containing no fire. **A control
+scenario proves the rig is stable; it does not prove a single reading is.** Both
+A/B directions have to be run at least twice, and the cheapest way to find out
+whether a delta is real is to measure a change that does not exist.
 
 ### E9's steam clock costs 3-4% in two scenarios that contain no steam
 
-**2026-08-12.** E9's steam half adds one branch to `step_cell`'s per-cell chain and a countdown to steam cells. The E-track merge rule says a reading is owed, and the previous entry says both directions have to be run at least twice, so this is **four runs with the change on and three with it off**, one sitting, back to back, at 1920x1080. The "off" build has the steam branch compiled out entirely rather than skipped.
+**2026-08-12.** E9's steam half adds one branch to `step_cell`'s per-cell chain
+and a countdown to steam cells. The E-track merge rule says a reading is owed,
+and the previous entry says both directions have to be run at least twice, so
+this is **four runs with the change on and three with it off**, one sitting,
+back to back, at 1920x1080. The "off" build has the steam branch compiled out
+entirely rather than skipped.
 
 | Scenario | off (3 runs) | on (4 runs) | |
 |---|---|---|---|
@@ -60,19 +134,58 @@ This is filed for the method and not for the numbers. It is the third time on th
 | *collapsing* (control) | 2.76 / 2.77 | 2.77 / 2.78 | flat |
 | *shattering* (control) | 3.16 / 3.18 | 3.18 / 3.18 | flat |
 
-**The two ranges do not overlap on either row, which is what makes this different from the entry below it.** D3's reading was killed by re-running the unchanged binary and watching it move further than the change had; that was tried here and it does not happen — seven runs, and every "on" churning reading is above every "off" one. By the standard this file set for itself two entries ago, the delta is real.
+**The two ranges do not overlap on either row, which is what makes this
+different from the entry below it.** D3's reading was killed by re-running the
+unchanged binary and watching it move further than the change had; that was
+tried here and it does not happen — seven runs, and every "on" churning reading
+is above every "off" one. By the standard this file set for itself two entries
+ago, the delta is real.
 
-**And it cannot be the feature, because neither scenario contains a single steam cell.** `churning` is sand sinking through water and `cascading` is powder poured off a ceiling; the branch is never taken in either, and `step_steam` never executes. What is left is the cost of *asking*: one extra perfectly-predicted comparison per awake cell per step, or the compiler laying the hot loop out differently around it. **Which of those it is has not been established**, and the honest reason is that separating them means reading disassembly for a number that does not change the decision.
+**And it cannot be the feature, because neither scenario contains a single steam
+cell.** `churning` is sand sinking through water and `cascading` is powder
+poured off a ceiling; the branch is never taken in either, and `step_steam`
+never executes. What is left is the cost of *asking*: one extra
+perfectly-predicted comparison per awake cell per step, or the compiler laying
+the hot loop out differently around it. **Which of those it is has not been
+established**, and the honest reason is that separating them means reading
+disassembly for a number that does not change the decision.
 
-**It merges, under the rule as written** — under 10%, with the cost recorded and an argument. The argument is that the alternative to the branch is a fourth write path or a per-material dispatch, both of which cost more than a compare, and that the same chain already carries Fire's check for the same reason.
+**It merges, under the rule as written** — under 10%, with the cost recorded and
+an argument. The argument is that the alternative to the branch is a fourth
+write path or a per-material dispatch, both of which cost more than a compare,
+and that the same chain already carries Fire's check for the same reason.
 
-**The gap this exposed, and it is the more useful output: no benchmark scenario contains steam at all.** So the measured cost of E9's steam half *where it is actually used* — a pocket collecting under a ceiling, its contact layer awake and its interior asleep — is **unknown**, and nothing in this file can currently produce it. That is a concrete requirement for **P4**: a replayed session that includes putting a fire out near a ceiling is the row that would answer it.
+**The gap this exposed, and it is the more useful output: no benchmark scenario
+contains steam at all.** So the measured cost of E9's steam half *where it is
+actually used* — a pocket collecting under a ceiling, its contact layer awake
+and its interior asleep — is **unknown**, and nothing in this file can currently
+produce it. That is a concrete requirement for **P4**: a replayed session that
+includes putting a fire out near a ceiling is the row that would answer it.
 
-> **Updated 2026-08-13 by session 2, and the requirement above was mis-specified.** A session *was* played with fire under a ceiling, and steam reached 10,731 cells across 28 of 341 samples — so the material is confirmed to occur in play at scale. **It still does not answer this question, and a replayed session never can:** pricing a branch needs two readings and the replayed row is a single baseline with no A/B in it, so "the row that would answer it" was never the right shape of instrument. What session 2 actually buys is the **size** — a synthetic steam row built to ~10.7k cells collecting against a ceiling now has a played number behind its dimensions rather than a guess, which is the missing piece that made this scenario unbuildable before. The census also cannot separate painted steam from boiled steam (`painted 484`), so it sizes the load without isolating its cause. Until then the claim about this feature's cost is bounded to "the branch is under 10% in scenarios that never take it", which is a much weaker statement than a row in this table usually makes, and is written that way on purpose.
+> **Updated 2026-08-13 by session 2, and the requirement above was
+> mis-specified.** A session *was* played with fire under a ceiling, and steam
+> reached 10,731 cells across 28 of 341 samples — so the material is confirmed
+> to occur in play at scale. **It still does not answer this question, and a
+> replayed session never can:** pricing a branch needs two readings and the
+> replayed row is a single baseline with no A/B in it, so "the row that would
+> answer it" was never the right shape of instrument. What session 2 actually
+> buys is the **size** — a synthetic steam row built to ~10.7k cells collecting
+> against a ceiling now has a played number behind its dimensions rather than a
+> guess, which is the missing piece that made this scenario unbuildable before.
+> The census also cannot separate painted steam from boiled steam (`painted
+> 484`), so it sizes the load without isolating its cause. Until then the claim
+> about this feature's cost is bounded to "the branch is under 10% in scenarios
+> that never take it", which is a much weaker statement than a row in this table
+> usually makes, and is written that way on purpose.
 
 ### A 16-byte `Element` is 10% *faster* than the 12-byte one, and the free bytes are free
 
-**2026-08-13, at the instrumentation sitting**, pricing the `Element::ticks` representation decision. The question on the table was what E5a's per-cell velocity costs, and the plan's two candidate prices were "nothing, it reuses `ticks`" and "a thirteenth byte, which pulls `P1` forward". Both were measured. Five runs, one sitting, back to back, at 1920x1080, rebuilding between variants and returning to baseline at the end.
+**2026-08-13, at the instrumentation sitting**, pricing the `Element::ticks`
+representation decision. The question on the table was what E5a's per-cell
+velocity costs, and the plan's two candidate prices were "nothing, it reuses
+`ticks`" and "a thirteenth byte, which pulls `P1` forward". Both were measured.
+Five runs, one sitting, back to back, at 1920x1080, rebuilding between variants
+and returning to baseline at the end.
 
 | Scenario | 12 B — baseline, 3 runs | 16 B — a byte appended | 12 B — 3 bytes in the front padding |
 |---|---|---|---|
@@ -82,21 +195,65 @@ This is filed for the method and not for the numbers. It is the third time on th
 | *collapsing* | 2.89 / 2.95 / 2.93 | 2.85 — −2.4% | 2.89 — −1.1% |
 | *shattering* | 3.29 / 3.33 / 3.31 | 3.29 — −0.6% | 3.30 — −0.3% |
 
-**The bracket is the three baselines, not a control scenario, and that is a limitation of this instrument rather than a shortcut.** Every scenario in `grid_bench` walks the cell array, so a change to `sizeof(Element)` reaches all of them and **there is no row the change cannot affect** — the usual control is unavailable here by construction. What stands in for it is the return to baseline: the last run is the unmodified struct rebuilt from scratch and it reads 45.12 against the first run's 45.13, **0.03% apart across the whole sitting**. Per-row noise from the three baselines is 0.7% on `cascading`, 1.0% on `churning`, and **4.8% on `burning`** — which is why `burning` moving +4.3% one way and −5.5% the other is reported as nothing at all.
+**The bracket is the three baselines, not a control scenario, and that is a
+limitation of this instrument rather than a shortcut.** Every scenario in
+`grid_bench` walks the cell array, so a change to `sizeof(Element)` reaches all
+of them and **there is no row the change cannot affect** — the usual control is
+unavailable here by construction. What stands in for it is the return to
+baseline: the last run is the unmodified struct rebuilt from scratch and it
+reads 45.12 against the first run's 45.13, **0.03% apart across the whole
+sitting**. Per-row noise from the three baselines is 0.7% on `cascading`, 1.0%
+on `churning`, and **4.8% on `burning`** — which is why `burning` moving +4.3%
+one way and −5.5% the other is reported as nothing at all.
 
-**One row moves outside its noise band, and it moves the wrong way.** `cascading` at 16 bytes is 10.5% faster, against a 0.7% band — fifteen times the noise, and the only reading in the table that survives its own error bar. **A struct carrying 33% more memory made the memory-bound scenario faster.**
+**One row moves outside its noise band, and it moves the wrong way.**
+`cascading` at 16 bytes is 10.5% faster, against a 0.7% band — fifteen times the
+noise, and the only reading in the table that survives its own error bar. **A
+struct carrying 33% more memory made the memory-bound scenario faster.**
 
-**Why is not established, and the guess is written as a guess.** A 12-byte stride puts 5.33 elements in a 64-byte cache line so that most cells straddle one, while a 16-byte stride puts exactly 4 in, aligned, and makes `swap_elements` a single aligned 16-byte move rather than a 12-byte one in pieces. That is a plausible story and **it has not been checked against disassembly or a cache-miss counter**, so it is a hypothesis. This file's own record says why the distinction matters: three previous confident percentages on this project turned out to be the machine or the compiler, and the one before this was resolved by *not* reading disassembly for a number that did not change the decision. This one does not change the decision either.
+**Why is not established, and the guess is written as a guess.** A 12-byte
+stride puts 5.33 elements in a 64-byte cache line so that most cells straddle
+one, while a 16-byte stride puts exactly 4 in, aligned, and makes
+`swap_elements` a single aligned 16-byte move rather than a 12-byte one in
+pieces. That is a plausible story and **it has not been checked against
+disassembly or a cache-miss counter**, so it is a hypothesis. This file's own
+record says why the distinction matters: three previous confident percentages on
+this project turned out to be the machine or the compiler, and the one before
+this was resolved by *not* reading disassembly for a number that did not change
+the decision. This one does not change the decision either.
 
-**What it does change is a premise, and that is the reason this entry exists.** `element.h` has said since E3 that the next field "costs ~500 KB and a wider stride through the hot loop", and `P1` — split the cell array hot from cold — rests on the engine being limited by how fast cell data comes out of RAM. **The wider stride is measured here as a speedup**, so the "wider stride" half of that argument is not merely unproven, it points the other way on the one scenario that can resolve it. The memory half is untouched and real: 16 bytes is **+4 bytes per cell, 7.9 MB at 1920x1080, +33%**. *(Note the shape: a byte appended to this struct costs four, because alignment rounds 13 up to 16. "A thirteenth byte" was never the available option.)*
+**What it does change is a premise, and that is the reason this entry exists.**
+`element.h` has said since E3 that the next field "costs ~500 KB and a wider
+stride through the hot loop", and `P1` — split the cell array hot from cold —
+rests on the engine being limited by how fast cell data comes out of RAM. **The
+wider stride is measured here as a speedup**, so the "wider stride" half of that
+argument is not merely unproven, it points the other way on the one scenario
+that can resolve it. The memory half is untouched and real: 16 bytes is **+4
+bytes per cell, 7.9 MB at 1920x1080, +33%**. *(Note the shape: a byte appended
+to this struct costs four, because alignment rounds 13 up to 16. "A thirteenth
+byte" was never the available option.)*
 
-**None of which licenses widening `Element`.** The third column is the finding that settles the actual question: **three bytes added in the padding between `type` and `color` cost nothing at all** — the struct stays at 12, and every row is inside its noise band. A change that is free needs no argument about whether a 10% speedup on one synthetic row would have paid for 7.9 MB, and this file is not the place to relitigate `P1` on one unexplained number. **What is owed is that `P1`'s entry stops asserting the stride cost as established** and points here; the measurement that would actually settle `P1` is its own A/B, not this one.
+**None of which licenses widening `Element`.** The third column is the finding
+that settles the actual question: **three bytes added in the padding between
+`type` and `color` cost nothing at all** — the struct stays at 12, and every row
+is inside its noise band. A change that is free needs no argument about whether
+a 10% speedup on one synthetic row would have paid for 7.9 MB, and this file is
+not the place to relitigate `P1` on one unexplained number. **What is owed is
+that `P1`'s entry stops asserting the stride cost as established** and points
+here; the measurement that would actually settle `P1` is its own A/B, not this
+one.
 
-**Reproduce it with `velocity_probe`** for the layout half — it prints `sizeof` and `offsetof` for each candidate rather than counting fields by hand, which is the mistake `ENGINEERING_NOTES.md` records this struct having made before. The timing half is `grid_bench` with the fields added by hand and taken out again.
+**Reproduce it with `velocity_probe`** for the layout half — it prints `sizeof`
+and `offsetof` for each candidate rather than counting fields by hand, which is
+the mistake `ENGINEERING_NOTES.md` records this struct having made before. The
+timing half is `grid_bench` with the fields added by hand and taken out again.
 
 ### A played session never touches the frame budget, and the mean is not why
 
-**2026-08-13, P4, first recorded session.** `grid_bench` has an eighth row that is not hand-built: it replays a recorded session — one `Input` per fixed step, from a file — through `Run::step`, in the world the game actually boots into. A session was played and saved with `F9`, and the row now has numbers in it.
+**2026-08-13, P4, first recorded session.** `grid_bench` has an eighth row that
+is not hand-built: it replays a recorded session — one `Input` per fixed step,
+from a file — through `Run::step`, in the world the game actually boots into. A
+session was played and saved with `F9`, and the row now has numbers in it.
 
 | | |
 |---|---|
@@ -108,7 +265,10 @@ This is filed for the method and not for the numbers. It is the third time on th
 | chunks awake | 129 -> 8 of 510 |
 | end state | **replayed to the recorded end state exactly** |
 
-**Corrected the same day, by the instrument built to answer the question this row raised.** The paragraphs below were written before `grid_bench` could report what a session *contained*, and two of them over-claimed. The census was added immediately afterwards and says this:
+**Corrected the same day, by the instrument built to answer the question this
+row raised.** The paragraphs below were written before `grid_bench` could report
+what a session *contained*, and two of them over-claimed. The census was added
+immediately afterwards and says this:
 
 ```
 dig 0 steps, brush 8085, moving 384, jumping 97 (of 24437)
@@ -125,50 +285,196 @@ peak 16 of 510 chunks awake once the scene had settled (129 in the opening sampl
 Fire+Water+Sand all present in 201 of 408 samples, digging in 0 of those
 ```
 
-**This is not an ordinary played session and it should not be quoted as one.** The dig tool never fired once. The player was stationary for 98.4% of it. `Sand` and `Water` peak at *exactly* their starting counts, so in seven minutes not one grain of sand moved and not one cell of water. What it is, is a **painting session** — 8,085 brush steps, mostly Oil and Wood, set alight — and **its world was never more than 16 of 510 chunks awake** once the fixture scene had settled.
+**This is not an ordinary played session and it should not be quoted as one.**
+The dig tool never fired once. The player was stationary for 98.4% of it. `Sand`
+and `Water` peak at *exactly* their starting counts, so in seven minutes not one
+grain of sand moved and not one cell of water. What it is, is a **painting
+session** — 8,085 brush steps, mostly Oil and Wood, set alight — and **its world
+was never more than 16 of 510 chunks awake** once the fixture scene had settled.
 
-**So "0 of 24,437 steps over budget" is a true measurement of a nearly-asleep world**, and the honest version of the headline is much narrower than the one written below: *a session that paints and burns, with the terrain untouched, does not come near the frame budget*. Whether an ordinary session does is **not answered**, and neither is whether `churning` is representative — this session cannot speak to sand-in-water because it contained no moving sand and no moving water.
+**So "0 of 24,437 steps over budget" is a true measurement of a nearly-asleep
+world**, and the honest version of the headline is much narrower than the one
+written below: *a session that paints and burns, with the terrain untouched,
+does not come near the frame budget*. Whether an ordinary session does is **not
+answered**, and neither is whether `churning` is representative — this session
+cannot speak to sand-in-water because it contained no moving sand and no moving
+water.
 
-**The generalisable lesson, and it is the reason this correction is kept rather than folded away.** This row was built to end an argument about which hand-built scenario counts as realistic, on the reasoning that a *played* frame is realistic by construction. That reasoning has a hole in it that took a played session to expose: **a row is realistic by construction and representative only by evidence, and those are not the same property.** Every argument for P4 in this file and in `ROADMAP.md` conflated them. The instrument was right; the inference from one session was not, and nothing about "it was really played" would ever have shown it — only counting what was in it did. **A second session, played to cover the cases this one missed, is now a scheduled requirement rather than a nice-to-have.**
+**The generalisable lesson, and it is the reason this correction is kept rather
+than folded away.** This row was built to end an argument about which hand-built
+scenario counts as realistic, on the reasoning that a *played* frame is
+realistic by construction. That reasoning has a hole in it that took a played
+session to expose: **a row is realistic by construction and representative only
+by evidence, and those are not the same property.** Every argument for P4 in
+this file and in `ROADMAP.md` conflated them. The instrument was right; the
+inference from one session was not, and nothing about "it was really played"
+would ever have shown it — only counting what was in it did. **A second session,
+played to cover the cases this one missed, is now a scheduled requirement rather
+than a nice-to-have.**
 
-**What survives unchanged**, because it does not depend on the session being typical: the two-part budget rule below (this session makes the case *stronger* — 16 of 510 chunks awake is exactly why a played row cannot price a per-cell change), the byte-exact 24,437-step replay, and the light-field ceiling. **What is now known rather than suspected: this session contained no steam at all, so E9's open question is untouched by it** — which is the thing the census was built to be able to say.
+**What survives unchanged**, because it does not depend on the session being
+typical: the two-part budget rule below (this session makes the case *stronger*
+— 16 of 510 chunks awake is exactly why a played row cannot price a per-cell
+change), the byte-exact 24,437-step replay, and the light-field ceiling. **What
+is now known rather than suspected: this session contained no steam at all, so
+E9's open question is untouched by it** — which is the thing the census was
+built to be able to say.
 
-**Not a bracketed A/B and not a five-run minimum — it is a baseline, and one run of it.** Nothing is being compared here, so there is no second reading for drift to hide in (the same argument the V7 entry makes). What it establishes is the number every later E-track merge reading is taken *against*, and the first such merge will be the first bracketed use of it.
+**Not a bracketed A/B and not a five-run minimum — it is a baseline, and one run
+of it.** Nothing is being compared here, so there is no second reading for drift
+to hide in (the same argument the V7 entry makes). What it establishes is the
+number every later E-track merge reading is taken *against*, and the first such
+merge will be the first bracketed use of it.
 
-*The three paragraphs that follow are the original reading, kept as written. The first is true and narrower than it sounds; the second is withdrawn by the correction above.*
+*The three paragraphs that follow are the original reading, kept as written. The
+first is true and narrower than it sounds; the second is withdrawn by the
+correction above.*
 
-**The headline: nothing in seven minutes of play came within three times the frame budget, counting parts the rows above do not count.** The worst step in the whole session — grid, player, dig tool and brush together — is 28.9% of a frame, and p99 is 8.8%. This does not license dividing it into `churning`'s 226%; it says something weaker and more useful, which is that the played row is bounded well under budget *including* the three subsystems the synthetic rows exclude, so no arithmetic relating the two is needed to read it.
+**The headline: nothing in seven minutes of play came within three times the
+frame budget, counting parts the rows above do not count.** The worst step in
+the whole session — grid, player, dig tool and brush together — is 28.9% of a
+frame, and p99 is 8.8%. This does not license dividing it into `churning`'s
+226%; it says something weaker and more useful, which is that the played row is
+bounded well under budget *including* the three subsystems the synthetic rows
+exclude, so no arithmetic relating the two is needed to read it.
 
-**~~`churning` is not representative of this session, and the question was half mis-framed.~~** *(Withdrawn. The reasoning about what "representative" has to mean is kept — it is the useful half — but the conclusion rested on comparing a liquid scenario against a session the census later showed contained no moving liquid and no moving powder at all. The question is open and session 2 is what closes it. **Reinstated 2026-08-13 by session 2** — which contained both, and which settles it on a stronger statistic than this paragraph reached for; see "A second session" below.)* The open question was whether `churning` at 226% of a frame is a defect or an artifact, and the answer is that it is neither: it is a real activity type — sand sinking through water, which F4.4 put a water channel in the fixture scene to produce — sustained at an intensity this session never reached. `churning` holds **360 of 510 chunks awake** and never settles inside its window; the played session opens at **129** and ends at **8**. The honest statement is *representative of what*: `churning` is a valid measure of the engine under sustained liquid churn and is not a measure of an ordinary played frame, and this row is the second of those and not the first. **Neither row should be deleted or re-labelled on the strength of the other.**
+**~~`churning` is not representative of this session, and the question was half
+mis-framed.~~** *(Withdrawn. The reasoning about what "representative" has to
+mean is kept — it is the useful half — but the conclusion rested on comparing a
+liquid scenario against a session the census later showed contained no moving
+liquid and no moving powder at all. The question is open and session 2 is what
+closes it. **Reinstated 2026-08-13 by session 2** — which contained both, and
+which settles it on a stronger statistic than this paragraph reached for; see "A
+second session" below.)* The open question was whether `churning` at 226% of a
+frame is a defect or an artifact, and the answer is that it is neither: it is a
+real activity type — sand sinking through water, which F4.4 put a water channel
+in the fixture scene to produce — sustained at an intensity this session never
+reached. `churning` holds **360 of 510 chunks awake** and never settles inside
+its window; the played session opens at **129** and ends at **8**. The honest
+statement is *representative of what*: `churning` is a valid measure of the
+engine under sustained liquid churn and is not a measure of an ordinary played
+frame, and this row is the second of those and not the first. **Neither row
+should be deleted or re-labelled on the strength of the other.**
 
-**The finding the plan did not anticipate, and it corrects a decision this file's own P-track section pressed for.** ROADMAP_ITEMS.md says to decide the frame-budget rule "against that row, not against a taxonomy of the synthetic ones". With the number in hand that is **half right and half backwards**. A merge rule of "under 10% on the replayed row" is 10% of 0.1212 ms — **twelve microseconds**, far under this benchmark's run-to-run noise, on a row where 0 of 24,437 steps are anywhere near the budget. A per-awake-cell cost that matters only under load would pass that test while being invisible to it. **So the two kinds of row do different jobs and both are needed:** the replayed row is the authority on *whether the budget is broken* (p99 and steps-over-budget, never the mean), and the synthetic rows stay the authority on *whether a change costs anything at all*, because they are where a per-cell cost is large enough to see. The rule is restated on that basis in ROADMAP_ITEMS.md. The original wording is kept there rather than replaced, because the reasoning behind it was right — a budget is only as honest as the world it is measured in — and only the sensitivity half was wrong.
+**The finding the plan did not anticipate, and it corrects a decision this
+file's own P-track section pressed for.** ROADMAP_ITEMS.md says to decide the
+frame-budget rule "against that row, not against a taxonomy of the synthetic
+ones". With the number in hand that is **half right and half backwards**. A
+merge rule of "under 10% on the replayed row" is 10% of 0.1212 ms — **twelve
+microseconds**, far under this benchmark's run-to-run noise, on a row where 0 of
+24,437 steps are anywhere near the budget. A per-awake-cell cost that matters
+only under load would pass that test while being invisible to it. **So the two
+kinds of row do different jobs and both are needed:** the replayed row is the
+authority on *whether the budget is broken* (p99 and steps-over-budget, never
+the mean), and the synthetic rows stay the authority on *whether a change costs
+anything at all*, because they are where a per-cell cost is large enough to see.
+The rule is restated on that basis in ROADMAP_ITEMS.md. The original wording is
+kept there rather than replaced, because the reasoning behind it was right — a
+budget is only as honest as the world it is measured in — and only the
+sensitivity half was wrong.
 
-**A second result that was not the point of the item: 24,437 steps of real play replayed byte-exact.** `test_run.cpp` already proved a recorded sequence replays identically, for short synthetic sequences. This is 6 minutes 47 seconds of a person actually playing — movement, ~~digging~~, brush strokes — rebuilt from a seed and an input list and landing on the same world fingerprint. That is the strongest determinism evidence this project has, and it is also the first end-to-end confirmation that F5 ~~and F6~~'s fixed-point conversions hold over a long run rather than over a test.
+**A second result that was not the point of the item: 24,437 steps of real play
+replayed byte-exact.** `test_run.cpp` already proved a recorded sequence replays
+identically, for short synthetic sequences. This is 6 minutes 47 seconds of a
+person actually playing — movement, ~~digging~~, brush strokes — rebuilt from a
+seed and an input list and landing on the same world fingerprint. That is the
+strongest determinism evidence this project has, and it is also the first
+end-to-end confirmation that F5 ~~and F6~~'s fixed-point conversions hold over a
+long run rather than over a test.
 
-**Corrected 2026-08-13 by session 2, and the shape of this mistake is worth more than the correction.** The word *digging* and the *F6* half were both false **when they were written**, and the census that disproves them was printed twenty lines further up in the same run: `dig 0 steps`. F6 converted `DigTool::march` to integer-only, so a session that never fired the dig tool cannot possibly have confirmed it. This was not a rule that drifted out of date — **it was contradicted by data already on the page**, which is how a paragraph written in the glow of a good number goes wrong, and it is a different failure from the one this document usually guards against. **Session 2 supplies what this claimed:** 479 dig steps, replayed byte-exact. F5's half stood up as written — session 1 moved for 384 steps and jumped for 97.
+**Corrected 2026-08-13 by session 2, and the shape of this mistake is worth more
+than the correction.** The word *digging* and the *F6* half were both false
+**when they were written**, and the census that disproves them was printed
+twenty lines further up in the same run: `dig 0 steps`. F6 converted
+`DigTool::march` to integer-only, so a session that never fired the dig tool
+cannot possibly have confirmed it. This was not a rule that drifted out of date
+— **it was contradicted by data already on the page**, which is how a paragraph
+written in the glow of a good number goes wrong, and it is a different failure
+from the one this document usually guards against. **Session 2 supplies what
+this claimed:** 479 dig steps, replayed byte-exact. F5's half stood up as
+written — session 1 moved for 384 steps and jumped for 97.
 
-**What this row does *not* measure, stated because a number this comfortable invites over-reading:**
+**What this row does *not* measure, stated because a number this comfortable
+invites over-reading:**
 
-- **Rendering is not in it.** `Run::step` is the simulation; the light field is per *frame* and lives in the section below. A lit frame costs **15.19 ms** at 3440x1440 in this same run — so the worst played step plus a large fire on an ultrawide is about 20 ms and **is** over budget, and the term that puts it there is the lighting, not the simulation. That ceiling is the light-field entry's, unchanged by this row.
-- **One session, one player, seven minutes, recorded by the person who wrote the engine.** It is evidence about what this session did, not a bound on what a player can make the engine do. *(Understated as written: the census above shows how far from a bound it is.)*
-- ~~**What the session contained is not reported, and that is a gap in the instrument.**~~ **Closed the same day.** The replay row now prints a census — inputs counted exactly from the log, world materials sampled once a second in a **second, untimed replay pass**. The second pass is not fussiness: a census walks 25 MB and evicts the whole cache, so sampling inside the timed loop would make ~1.7% of steps pay cold-cache costs, landing on p99 and worst — the two statistics the budget rule reads. **Determinism is what makes measuring twice free**, and it is the first time F2.3's replayability has paid for something other than a test.
-  - **Sampled means presence, not absence.** A fire that lit and burned out between two samples reads as never seen, and the output says so on its own last line rather than leaving it to be inferred.
-  - **The baseline sample is why the peaks are readable.** The fixture scene already contains Sand, Water, Wall and Wood, so "present in every sample" is a fact about the scene; the `at start` column is what turns a peak into a statement about the session. The same sample is excluded from the peak-awake figure, because loading the scene wakes 129 chunks that settle within the first second and would otherwise be reported as how busy the session was.
+- **Rendering is not in it.** `Run::step` is the simulation; the light field is
+  per *frame* and lives in the section below. A lit frame costs **15.19 ms** at
+  3440x1440 in this same run — so the worst played step plus a large fire on an
+  ultrawide is about 20 ms and **is** over budget, and the term that puts it
+  there is the lighting, not the simulation. That ceiling is the light-field
+  entry's, unchanged by this row.
+- **One session, one player, seven minutes, recorded by the person who wrote the
+  engine.** It is evidence about what this session did, not a bound on what a
+  player can make the engine do. *(Understated as written: the census above
+  shows how far from a bound it is.)*
+- ~~**What the session contained is not reported, and that is a gap in the
+  instrument.**~~ **Closed the same day.** The replay row now prints a census —
+  inputs counted exactly from the log, world materials sampled once a second in
+  a **second, untimed replay pass**. The second pass is not fussiness: a census
+  walks 25 MB and evicts the whole cache, so sampling inside the timed loop
+  would make ~1.7% of steps pay cold-cache costs, landing on p99 and worst — the
+  two statistics the budget rule reads. **Determinism is what makes measuring
+  twice free**, and it is the first time F2.3's replayability has paid for
+  something other than a test.
+  - **Sampled means presence, not absence.** A fire that lit and burned out
+    between two samples reads as never seen, and the output says so on its own
+    last line rather than leaving it to be inferred.
+  - **The baseline sample is why the peaks are readable.** The fixture scene
+    already contains Sand, Water, Wall and Wood, so "present in every sample" is
+    a fact about the scene; the `at start` column is what turns a peak into a
+    statement about the session. The same sample is excluded from the peak-awake
+    figure, because loading the scene wakes 129 chunks that settle within the
+    first second and would otherwise be reported as how busy the session was.
 
-**What the row is for.** Every other scenario in this file is hand-built, and twice now the plan has had to argue about which of them counts as a realistic frame — most recently over whether `churning` at 211% of a frame is a defect or an artifact. That argument cannot be settled by classifying scenarios; it can only be dissolved by having a row that is a played frame by construction. It is also the row the frame-budget rule is now stated against (ROADMAP_ITEMS.md, P track), so **every E-track item from E10 on takes its merge reading here.**
+**What the row is for.** Every other scenario in this file is hand-built, and
+twice now the plan has had to argue about which of them counts as a realistic
+frame — most recently over whether `churning` at 211% of a frame is a defect or
+an artifact. That argument cannot be settled by classifying scenarios; it can
+only be dissolved by having a row that is a played frame by construction. It is
+also the row the frame-budget rule is now stated against (ROADMAP_ITEMS.md, P
+track), so **every E-track item from E10 on takes its merge reading here.**
 
 **Method, and the two ways it differs from every table above:**
 
-- **The unit is a whole `Run::step`** — grid, player, dig tool and brush — not `Grid::update`. A played frame contains all four, and a budget quoted against the grid alone is a budget for part of a frame. **The rows above and this row are therefore not comparable by division**, and dividing them is the specific mistake this note exists to prevent.
-- **Four statistics, and the mean is the least useful.** Mean, p99, worst step, and how many steps went over 16.67 ms. A session that sleeps through 95% of its steps and spends the other 5% at 40 ms stutters visibly and has an excellent mean; "n of N steps over budget" is what a budget rule can actually be written against.
+- **The unit is a whole `Run::step`** — grid, player, dig tool and brush — not
+  `Grid::update`. A played frame contains all four, and a budget quoted against
+  the grid alone is a budget for part of a frame. **The rows above and this row
+  are therefore not comparable by division**, and dividing them is the specific
+  mistake this note exists to prevent.
+- **Four statistics, and the mean is the least useful.** Mean, p99, worst step,
+  and how many steps went over 16.67 ms. A session that sleeps through 95% of
+  its steps and spends the other 5% at 40 ms stutters visibly and has an
+  excellent mean; "n of N steps over budget" is what a budget rule can actually
+  be written against.
 
-**What makes a replayed row trustworthy, since it is the first row in this file whose input is a file on disk.** The log carries the seed, the fixture scene's cell count and a fingerprint of every cell of the world before the first step; the bench rebuilds the world and refuses to run if either disagrees. A log replayed into a world it was not recorded in is the failure mode this instrument exists to avoid and it is the one that would show as a perfectly plausible number. **The end state is checked too, and reported rather than enforced** — a changed simulation legitimately replays to a different world, and the bench cannot tell that from a stale log, so it says which it saw and leaves the judgement to the reader.
+**What makes a replayed row trustworthy, since it is the first row in this file
+whose input is a file on disk.** The log carries the seed, the fixture scene's
+cell count and a fingerprint of every cell of the world before the first step;
+the bench rebuilds the world and refuses to run if either disagrees. A log
+replayed into a world it was not recorded in is the failure mode this instrument
+exists to avoid and it is the one that would show as a perfectly plausible
+number. **The end state is checked too, and reported rather than enforced** — a
+changed simulation legitimately replays to a different world, and the bench
+cannot tell that from a stale log, so it says which it saw and leaves the
+judgement to the reader.
 
-**Verified before any session existed, and kept here because it is what made the first number believable on sight:** the format round-trips through disk with every field intact and a truncated log is refused (`run_test`); a log read back from disk replays into the recorded world, and the fingerprint notices a single changed cell (`run_test`); the fixture scene loads to 334,901 cells through the new headless loader, cross-checked against `tools/pixel_art.py`'s independent reader (`scene_test`, pinned); and the whole replay path — rebuild, staleness check, timing, end-state check — was exercised end to end against a scripted log built in a scratch directory and thrown away. **That scripted log is deliberately not in the repo:** a hand-written input sequence is exactly the thing this row exists not to measure.
+**Verified before any session existed, and kept here because it is what made the
+first number believable on sight:** the format round-trips through disk with
+every field intact and a truncated log is refused (`run_test`); a log read back
+from disk replays into the recorded world, and the fingerprint notices a single
+changed cell (`run_test`); the fixture scene loads to 334,901 cells through the
+new headless loader, cross-checked against `tools/pixel_art.py`'s independent
+reader (`scene_test`, pinned); and the whole replay path — rebuild, staleness
+check, timing, end-state check — was exercised end to end against a scripted log
+built in a scratch directory and thrown away. **That scripted log is
+deliberately not in the repo:** a hand-written input sequence is exactly the
+thing this row exists not to measure.
 
 ### A second session, with digging and fluids, closes `churning` — and the worst step is the reason, not the awake count
 
-**2026-08-13, P4, second recorded session.** Played deliberately to cover what the first one missed: digging, sand dumped into the water channel, fire under a ceiling, movement held through the results.
+**2026-08-13, P4, second recorded session.** Played deliberately to cover what
+the first one missed: digging, sand dumped into the water channel, fire under a
+ceiling, movement held through the results.
 
 | | |
 |---|---|
@@ -195,21 +501,85 @@ peak 44 of 510 chunks awake once the scene had settled (129 in the opening sampl
 Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 ```
 
-**This is the session the first one was mistaken for.** The dig tool fired on 479 steps, `Sand` peaks 1,827 cells above its start and `Water` 1,755 above its own, `Steam` exists at all, and the four-way overlap the manual checklist asks about is present in 198 of 341 samples with digging inside 11 of them. Every property session 1 was quoted as having and did not have, this one has.
+**This is the session the first one was mistaken for.** The dig tool fired on
+479 steps, `Sand` peaks 1,827 cells above its start and `Water` 1,755 above its
+own, `Steam` exists at all, and the four-way overlap the manual checklist asks
+about is present in 198 of 341 samples with digging inside 11 of them. Every
+property session 1 was quoted as having and did not have, this one has.
 
-**One caveat on how that is argued, because the session 1 entry got it wrong and this entry nearly repeated it.** A cell count **cannot detect movement** — material moving around conserves its count, so `peak` and `at start` only ever speak about matter *created or destroyed*. The session 1 write-up says "`Sand` and `Water` peak at exactly their starting counts, **so** in seven minutes not one grain of sand moved", and that *therefore* does not follow: what those equal counts prove is that no sand was painted or dug, not that none of it fell. **The conclusion happens to be right and the stated reason is not** — what actually carries it is the **16 of 510 chunks awake**, since every write wakes its 3x3 neighbourhood and a world where matter is moving cannot be 3% awake. Read the same way here: session 2's counts prove sand and water were *added*, and it is **44 of 510 awake against 16** — nearly three times as much of the world in motion — that says the terrain was worked, corroborated by 479 exact dig steps and the player's own account of dumping sand into the channel. **The awake count is the census's movement column; the material rows are not.**
+**One caveat on how that is argued, because the session 1 entry got it wrong and
+this entry nearly repeated it.** A cell count **cannot detect movement** —
+material moving around conserves its count, so `peak` and `at start` only ever
+speak about matter *created or destroyed*. The session 1 write-up says "`Sand`
+and `Water` peak at exactly their starting counts, **so** in seven minutes not
+one grain of sand moved", and that *therefore* does not follow: what those equal
+counts prove is that no sand was painted or dug, not that none of it fell. **The
+conclusion happens to be right and the stated reason is not** — what actually
+carries it is the **16 of 510 chunks awake**, since every write wakes its 3x3
+neighbourhood and a world where matter is moving cannot be 3% awake. Read the
+same way here: session 2's counts prove sand and water were *added*, and it is
+**44 of 510 awake against 16** — nearly three times as much of the world in
+motion — that says the terrain was worked, corroborated by 479 exact dig steps
+and the player's own account of dumping sand into the channel. **The awake count
+is the census's movement column; the material rows are not.**
 
-**`churning` is not representative of played work, and this is now evidence rather than assertion.** `churning` at 1920x1080 costs **37.25 ms/step sustained, at 360 of 510 chunks awake, and never settles inside its window.** A session that deliberately drove sand into water peaked at **44 of 510** and its **worst single step out of 20,415 was 4.83 ms** — 7.7x under `churning`'s *mean*. The conclusion withdrawn from the session 1 entry is reinstated here, on the input it always needed.
+**`churning` is not representative of played work, and this is now evidence
+rather than assertion.** `churning` at 1920x1080 costs **37.25 ms/step
+sustained, at 360 of 510 chunks awake, and never settles inside its window.** A
+session that deliberately drove sand into water peaked at **44 of 510** and its
+**worst single step out of 20,415 was 4.83 ms** — 7.7x under `churning`'s
+*mean*. The conclusion withdrawn from the session 1 entry is reinstated here, on
+the input it always needed.
 
-**The statistic that carries it is `worst`, not the sampled awake peak, and this is the transferable part.** The census samples the world every 60 steps, so a one-second spike to 300 awake chunks would be invisible to it — quoting "44 of 510" as a bound is exactly the presence-not-absence error the census output warns about on its own last line. **The timing is not sampled.** Every one of the 20,415 steps was measured, and the largest was 4.83 ms; a step at `churning`'s load could not have hidden between two samples, because it would have had to hide from the clock as well. **When a sampled statistic and a per-step statistic support the same sentence, write the sentence against the per-step one** — the census is for saying what a session *contained*, not for bounding how busy it got.
+**The statistic that carries it is `worst`, not the sampled awake peak, and this
+is the transferable part.** The census samples the world every 60 steps, so a
+one-second spike to 300 awake chunks would be invisible to it — quoting "44 of
+510" as a bound is exactly the presence-not-absence error the census output
+warns about on its own last line. **The timing is not sampled.** Every one of
+the 20,415 steps was measured, and the largest was 4.83 ms; a step at
+`churning`'s load could not have hidden between two samples, because it would
+have had to hide from the clock as well. **When a sampled statistic and a
+per-step statistic support the same sentence, write the sentence against the
+per-step one** — the census is for saying what a session *contained*, not for
+bounding how busy it got.
 
-> **Corrected the same day by the `VENT_RADIUS` sitting, and the correction is about `worst`, not about the conclusion.** Replaying this session four times in one process on identical code gave means within **0.3%** and p99s within **1.2%** — and worsts of **4.8212, 4.8360, 4.8608 and 8.2937 ms, a 72% spread.** `worst` is one observation out of 20,415 and it catches whatever the operating system was doing at that instant, which is exactly the failure mode "read p99, never the mean" was written to avoid at the other end of the distribution. **The paragraph above reached past the two statistics the budget rule already names for a more dramatic one.** The `churning` conclusion is unaffected — 4.83 against 37.25 ms/step *sustained* is a factor of eight, far outside a 72% band, and p99 at 1.19 ms carries it just as well — but the sentence should have been built on **p99 and 0 of 20,415 steps over budget**, which are stable to about 1% and exact respectively. Both remain true. The general rule stands with a clause added: prefer the per-step statistic over the sampled one, **and prefer the distribution over its single largest sample.**
+> **Corrected the same day by the `VENT_RADIUS` sitting, and the correction is
+> about `worst`, not about the conclusion.** Replaying this session four times
+> in one process on identical code gave means within **0.3%** and p99s within
+> **1.2%** — and worsts of **4.8212, 4.8360, 4.8608 and 8.2937 ms, a 72%
+> spread.** `worst` is one observation out of 20,415 and it catches whatever the
+> operating system was doing at that instant, which is exactly the failure mode
+> "read p99, never the mean" was written to avoid at the other end of the
+> distribution. **The paragraph above reached past the two statistics the budget
+> rule already names for a more dramatic one.** The `churning` conclusion is
+> unaffected — 4.83 against 37.25 ms/step *sustained* is a factor of eight, far
+> outside a 72% band, and p99 at 1.19 ms carries it just as well — but the
+> sentence should have been built on **p99 and 0 of 20,415 steps over budget**,
+> which are stable to about 1% and exact respectively. Both remain true. The
+> general rule stands with a clause added: prefer the per-step statistic over
+> the sampled one, **and prefer the distribution over its single largest
+> sample.**
 
-**What this does not do is price anything**, and the two-part rule above is unchanged: p99 and steps-over-budget here, the bracketed synthetic rows for whether a change costs anything at all. **`churning` is not deleted or demoted by this finding** — it remains the authority on the engine under sustained liquid churn, which is a thing worth having a number for. What it stops being is a candidate for "a realistic frame".
+**What this does not do is price anything**, and the two-part rule above is
+unchanged: p99 and steps-over-budget here, the bracketed synthetic rows for
+whether a change costs anything at all. **`churning` is not deleted or demoted
+by this finding** — it remains the authority on the engine under sustained
+liquid churn, which is a thing worth having a number for. What it stops being is
+a candidate for "a realistic frame".
 
-**Do not read the two sessions' means against each other.** 0.2061 against session 1's 0.1212 is a 70% gap across different sittings *and* different content, and this document forbids the first comparison and has no method for the second. The gap is *consistent with* content — 44 peak awake against 16, 43 at the end against 8 — and that is a plausibility check, not a measurement. **What is measured is that each session is far under budget on its own worst step.**
+**Do not read the two sessions' means against each other.** 0.2061 against
+session 1's 0.1212 is a 70% gap across different sittings *and* different
+content, and this document forbids the first comparison and has no method for
+the second. The gap is *consistent with* content — 44 peak awake against 16, 43
+at the end against 8 — and that is a plausibility check, not a measurement.
+**What is measured is that each session is far under budget on its own worst
+step.**
 
-> **The comparison became admissible at the `VENT_RADIUS` sitting, and it says something the means alone did not.** Both sessions were replayed on one binary minutes apart, and the synthetic `churning` rows in the two processes agree to **0.3%** — which is the control this document asks for, and its absence was the whole reason the paragraph above refused. Read against each other:
+> **The comparison became admissible at the `VENT_RADIUS` sitting, and it says
+> something the means alone did not.** Both sessions were replayed on one binary
+> minutes apart, and the synthetic `churning` rows in the two processes agree to
+> **0.3%** — which is the control this document asks for, and its absence was
+> the whole reason the paragraph above refused. Read against each other:
 >
 > | | session 1 (painting) | session 2 (digging, fluids, steam) |
 > |---|---|---|
@@ -217,21 +587,68 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 > | p99 | **1.5042 ms** | 1.2189 ms — **-19%** |
 > | over budget | 0 of 24,437 | 0 of 20,415 |
 >
-> **The busier session costs two thirds more per step on average and has a *quieter* tail.** That is the opposite of the shape a budget worries about, and it is the more useful reading of the two: terrain work shows up as **steady throughput**, in more chunks awake on more steps, rather than as spikes. Nothing here is a fluid *stall*. **Do not turn this into a rule about fluids being cheap** — it is one reading of each of two sessions, and the p99 repeat band is 1.2% while these differ by 19%, which makes the direction trustworthy and the magnitude not. What it does retire is the guess that session 2's higher mean implied a worse frame anywhere.
+> **The busier session costs two thirds more per step on average and has a
+> *quieter* tail.** That is the opposite of the shape a budget worries about,
+> and it is the more useful reading of the two: terrain work shows up as
+> **steady throughput**, in more chunks awake on more steps, rather than as
+> spikes. Nothing here is a fluid *stall*. **Do not turn this into a rule about
+> fluids being cheap** — it is one reading of each of two sessions, and the p99
+> repeat band is 1.2% while these differ by 19%, which makes the direction
+> trustworthy and the magnitude not. What it does retire is the guess that
+> session 2's higher mean implied a worse frame anywhere.
 
-**E9's steam question is still open, and the census is now precise about why.** Steam reached **10,731 cells and appears in 28 of 341 samples**, so the material occurs in real play at real scale. But `painted 484` says some of it came from the hotbar, and **the census cannot separate painted steam from boiled steam** — the player reports doing both. So the pocket-collecting-under-a-ceiling case E9's cost question is actually about did occur, and is *not isolable from this row*. **Structurally it never could have been:** the replayed row is one baseline number with no A/B in it, and pricing a branch needs two readings. What session 2 supplies is the **calibration target** the E9 entry above said nothing in this file could produce — a steam row built to ~10.7k cells against a ceiling is now a scenario with a played number behind its size, instead of a guess.
+**E9's steam question is still open, and the census is now precise about why.**
+Steam reached **10,731 cells and appears in 28 of 341 samples**, so the material
+occurs in real play at real scale. But `painted 484` says some of it came from
+the hotbar, and **the census cannot separate painted steam from boiled steam** —
+the player reports doing both. So the pocket-collecting-under-a-ceiling case
+E9's cost question is actually about did occur, and is *not isolable from this
+row*. **Structurally it never could have been:** the replayed row is one
+baseline number with no A/B in it, and pricing a branch needs two readings. What
+session 2 supplies is the **calibration target** the E9 entry above said nothing
+in this file could produce — a steam row built to ~10.7k cells against a ceiling
+is now a scenario with a played number behind its size, instead of a guess.
 
-**An instrument gap this session exposed, because it is the first session that could.** The census table loops from `t = 1`, skipping `Empty`, so **brush strokes that erase are counted in `brush` and appear in no row.** Session 2's painted column sums to 8,493 against `brush 9158` — **665 erasing steps, 7.3% of all brush work, invisible in the table.** Session 1's column summed exactly (8,085 = 8,085) because nothing was erased, so the gap could not have been seen before. This matters slightly beyond bookkeeping: erasing destroys matter as an external write, the same category as digging, and `Grid::update()` never creating or destroying matter is an invariant whose read of a session ought to be able to see both.
+**An instrument gap this session exposed, because it is the first session that
+could.** The census table loops from `t = 1`, skipping `Empty`, so **brush
+strokes that erase are counted in `brush` and appear in no row.** Session 2's
+painted column sums to 8,493 against `brush 9158` — **665 erasing steps, 7.3% of
+all brush work, invisible in the table.** Session 1's column summed exactly
+(8,085 = 8,085) because nothing was erased, so the gap could not have been seen
+before. This matters slightly beyond bookkeeping: erasing destroys matter as an
+external write, the same category as digging, and `Grid::update()` never
+creating or destroying matter is an invariant whose read of a session ought to
+be able to see both.
 
-**Determinism, and this is the run that earns the F6 half of the claim.** 20,415 steps containing 479 dig steps, fluid displacement and steam, rebuilt from a seed and an input list to the same fingerprint. Session 1 proved this over movement and brush strokes only; `DigTool::march`'s integer conversion had never been exercised over a long run until now. **Both sessions replay exactly against the same binary**, which is also a statement that the simulation has not moved between them.
+**Determinism, and this is the run that earns the F6 half of the claim.** 20,415
+steps containing 479 dig steps, fluid displacement and steam, rebuilt from a
+seed and an input list to the same fingerprint. Session 1 proved this over
+movement and brush strokes only; `DigTool::march`'s integer conversion had never
+been exercised over a long run until now. **Both sessions replay exactly against
+the same binary**, which is also a statement that the simulation has not moved
+between them.
 
-**Both recordings are kept, under names that say what they contain** — `session_1_painting.rec` and `session_2_digging_fluids_steam.rec`. Session 1 survived only because it had been committed: `F9` writes `session.rec` on the first save *of each process*, so relaunching the game and pressing `F9` overwrites the previous session's recording, which is what happened here. A session costs several minutes of a person's time and is the one input in this file that cannot be regenerated on demand.
+**Both recordings are kept, under names that say what they contain** —
+`session_1_painting.rec` and `session_2_digging_fluids_steam.rec`. Session 1
+survived only because it had been committed: `F9` writes `session.rec` on the
+first save *of each process*, so relaunching the game and pressing `F9`
+overwrites the previous session's recording, which is what happened here. A
+session costs several minutes of a person's time and is the one input in this
+file that cannot be regenerated on demand.
 
 ### `VENT_RADIUS` re-swept in one binary: the knee was not there, and the toggle itself costs `churning` 32%
 
-**2026-08-13, the instrumentation sitting's third item.** `VENT_RADIUS` was a compile-time `constexpr`, so pricing it meant one build per data point — the method the E1 entry above records producing a confident 28% that turned out to be the compiler re-laying-out the hot loop. It is now a runtime value (`Grid::set_vent_radius`), and `grid_bench` sweeps it: four radii, one process, and for the replayed row the same recorded input stream each time.
+**2026-08-13, the instrumentation sitting's third item.** `VENT_RADIUS` was a
+compile-time `constexpr`, so pricing it meant one build per data point — the
+method the E1 entry above records producing a confident 28% that turned out to
+be the compiler re-laying-out the hot loop. It is now a runtime value
+(`Grid::set_vent_radius`), and `grid_bench` sweeps it: four radii, one process,
+and for the replayed row the same recorded input stream each time.
 
-**The sweep, `churning`, one sitting, one binary.** Baseline r=0 is venting off — the search box collapses to the fluid's own cell, which is never `Empty`, so `vent_fluid` always returns false. The original sweep could only get that baseline by editing the call out into a fourth build.
+**The sweep, `churning`, one sitting, one binary.** Baseline r=0 is venting off
+— the search box collapses to the fluid's own cell, which is never `Empty`, so
+`vent_fluid` always returns false. The original sweep could only get that
+baseline by editing the call out into a fourth build.
 
 | radius | cells scanned | 960x540 | per extra cell | 1920x1080 | per extra cell |
 |---|---|---|---|---|---|
@@ -240,13 +657,37 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 | **r=3** (ships) | 49 | **6.5541 ms** | **0.0644 ms** | **49.4125 ms** | **0.486 ms** |
 | r=4 | 81 | 8.3531 ms | 0.0612 ms | 62.9793 ms | 0.461 ms |
 
-**There is no knee.** Cost is linear in the area of the box to within 5% at every radius and at both world sizes — which is what a box scan should do, and is not what the recorded sweep said. That one read `3.13 / 4.12 / 4.93 / 6.72` at 960x540, i.e. **0.0413 / 0.0375 / 0.0449 ms per extra cell** — an r=3 point sitting 9% below its neighbour on one side and 16% below it on the other. **That dip is the entire argument for 3**, and it does not survive being measured on one compile.
+**There is no knee.** Cost is linear in the area of the box to within 5% at
+every radius and at both world sizes — which is what a box scan should do, and
+is not what the recorded sweep said. That one read `3.13 / 4.12 / 4.93 / 6.72`
+at 960x540, i.e. **0.0413 / 0.0375 / 0.0449 ms per extra cell** — an r=3 point
+sitting 9% below its neighbour on one side and 16% below it on the other. **That
+dip is the entire argument for 3**, and it does not survive being measured on
+one compile.
 
-**So "3 is the knee: nearly all of 4's accuracy for three quarters of its cost" was an artifact, and 3 now stands on quality alone.** It still stands: r=4 buys 50 steps of a `water_probe` transient that D3 established clears itself on release, for 27% more scan. **The knob was set to the right value for a reason that was not true.** That is a better outcome than it sounds — the recorded sweep predicted the *shape* of the cost curve correctly, and got the one point wrong that it was being used to choose.
+**So "3 is the knee: nearly all of 4's accuracy for three quarters of its cost"
+was an artifact, and 3 now stands on quality alone.** It still stands: r=4 buys
+50 steps of a `water_probe` transient that D3 established clears itself on
+release, for 27% more scan. **The knob was set to the right value for a reason
+that was not true.** That is a better outcome than it sounds — the recorded
+sweep predicted the *shape* of the cost curve correctly, and got the one point
+wrong that it was being used to choose.
 
-**Internal control, and it is the reason the table above is trustworthy.** `churning` at the shipped radius is measured twice in the same process — once as the ordinary row, once as the sweep's r=3 — and the two agree to **0.2% at both sizes** (6.5409 vs 6.5541, 49.3008 vs 49.4125). Two readings of the same work, taken minutes apart in one binary, is the tightest agreement any pair of numbers in this document has ever shown.
+**Internal control, and it is the reason the table above is trustworthy.**
+`churning` at the shipped radius is measured twice in the same process — once as
+the ordinary row, once as the sweep's r=3 — and the two agree to **0.2% at both
+sizes** (6.5409 vs 6.5541, 49.3008 vs 49.4125). Two readings of the same work,
+taken minutes apart in one binary, is the tightest agreement any pair of numbers
+in this document has ever shown.
 
-**The conversion from `constexpr` to runtime is not free, and it is measurable despite being cross-build.** The header comment first claimed the opposite — that telling the two apart needed the rebuild comparison this instrument exists to avoid — and that was wrong for a reason worth stating: **a cross-build comparison is legitimate when it has a control**, which is what this document's rule actually says. `churning` is the only bench scenario containing water, so **every other row is a control the change cannot touch.** Two builds, back to back, one sitting, nothing else different:
+**The conversion from `constexpr` to runtime is not free, and it is measurable
+despite being cross-build.** The header comment first claimed the opposite —
+that telling the two apart needed the rebuild comparison this instrument exists
+to avoid — and that was wrong for a reason worth stating: **a cross-build
+comparison is legitimate when it has a control**, which is what this document's
+rule actually says. `churning` is the only bench scenario containing water, so
+**every other row is a control the change cannot touch.** Two builds, back to
+back, one sitting, nothing else different:
 
 | scenario | `constexpr` | runtime | change | |
 |---|---|---|---|---|
@@ -259,15 +700,41 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 | `burning` 960 / 1920 | 3.0097 / 7.8397 | 3.0608 / 8.4468 | +1.7% / **+7.7%** | control, and the widest excursion |
 | **replayed session** | **0.2076 mean, 1.2039 p99** | **0.2082 mean, 1.2189 p99** | **+0.3% / +1.2%** | |
 
-**Read the widest control before the result.** `burning` at 1920x1080 moved 7.7% under a change that cannot reach it, so the noise band on this pair of runs is ±8%, not ±2%. `churning`'s +32% is four times that and reproduced at both world sizes with the same magnitude, which noise does not do.
+**Read the widest control before the result.** `burning` at 1920x1080 moved 7.7%
+under a change that cannot reach it, so the noise band on this pair of runs is
+±8%, not ±2%. `churning`'s +32% is four times that and reproduced at both world
+sizes with the same magnitude, which noise does not do.
 
-**That `burning` figure is not a new anomaly — it is the same one D3 already caught, to the decimal.** ROADMAP.md's wave 4 records `burning` "first read as +7.7% and the repeat is what killed it", filed in this document for that reason rather than for its value. **A control scenario with a known ±8% mood, hit twice by different changes at the same magnitude, is the most useful thing in the control set:** it is the row that says how big a delta has to be before it means anything on this machine. Nothing in this project has ever been believed at 7.7%; `churning` at 32% is a different claim. **The cost is real:** losing the compile-time loop bound costs the powder-into-fluid path about a third.
+**That `burning` figure is not a new anomaly — it is the same one D3 already
+caught, to the decimal.** ROADMAP.md's wave 4 records `burning` "first read as
++7.7% and the repeat is what killed it", filed in this document for that reason
+rather than for its value. **A control scenario with a known ±8% mood, hit twice
+by different changes at the same magnitude, is the most useful thing in the
+control set:** it is the row that says how big a delta has to be before it means
+anything on this machine. Nothing in this project has ever been believed at
+7.7%; `churning` at 32% is a different claim. **The cost is real:** losing the
+compile-time loop bound costs the powder-into-fluid path about a third.
 
-**And it is kept anyway, on the other half of the two-part rule.** On the recorded session the same conversion moves the mean by 0.3% and p99 by 1.2% — both inside the 0.3%/1.2% band that repeating the *identical* run produces, i.e. not distinguishable from nothing. The 32% lands entirely on cells doing powder/fluid exchange and a played world has few of them, which is the same finding as `churning` not being representative, arriving from the other direction. **This is the first time the two halves of the frame-budget rule have disagreed, and the disagreement is the answer rather than a problem with it:** the synthetic row is right that the change costs something, the played row is right that it costs nothing here, and both are needed to say *where* the cost is.
+**And it is kept anyway, on the other half of the two-part rule.** On the
+recorded session the same conversion moves the mean by 0.3% and p99 by 1.2% —
+both inside the 0.3%/1.2% band that repeating the *identical* run produces, i.e.
+not distinguishable from nothing. The 32% lands entirely on cells doing
+powder/fluid exchange and a played world has few of them, which is the same
+finding as `churning` not being representative, arriving from the other
+direction. **This is the first time the two halves of the frame-budget rule have
+disagreed, and the disagreement is the answer rather than a problem with it:**
+the synthetic row is right that the change costs something, the played row is
+right that it costs nothing here, and both are needed to say *where* the cost
+is.
 
-**What to watch.** If played worlds ever get much livelier at the powder/fluid interface — **E10's angle of repose and E5a's per-cell velocity both do exactly that** — this is a known 32% sitting on precisely the path that would get busier, and the toggle that measured it is the instrument for re-deciding. E5b would remove `vent_fluid` altogether and take the question with it.
+**What to watch.** If played worlds ever get much livelier at the powder/fluid
+interface — **E10's angle of repose and E5a's per-cell velocity both do exactly
+that** — this is a known 32% sitting on precisely the path that would get
+busier, and the toggle that measured it is the instrument for re-deciding. E5b
+would remove `vent_fluid` altogether and take the question with it.
 
-**The played sweep is the second half, and it says the radius is nearly free in play.** Same session, four radii, one process:
+**The played sweep is the second half, and it says the radius is nearly free in
+play.** Same session, four radii, one process:
 
 | radius | mean | p99 | over budget | end state |
 |---|---|---|---|---|
@@ -276,13 +743,30 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 | **r=3** | **0.2082** | **1.2189** | **0 of 20,415** | **exact** |
 | r=4 | 0.2078 | 1.2160 | 0 of 20,415 | diverged |
 
-**Venting off to r=4 is worth about 1% of the played mean and 3% of p99, against 140% of `churning`'s.** **The diverged column is the measurement, not a failure** — a different radius is a different simulation, so identical inputs are supposed to produce a different world, and the bench reports end state rather than enforcing it for exactly this case. The row that has to read `exact` is r=3, and it does: making the constant runtime did not change the shipped simulation, at 20,415 steps of digging, fluid and steam, byte for byte. Session 1 replays exactly as well.
+**Venting off to r=4 is worth about 1% of the played mean and 3% of p99, against
+140% of `churning`'s.** **The diverged column is the measurement, not a
+failure** — a different radius is a different simulation, so identical inputs
+are supposed to produce a different world, and the bench reports end state
+rather than enforcing it for exactly this case. The row that has to read `exact`
+is r=3, and it does: making the constant runtime did not change the shipped
+simulation, at 20,415 steps of digging, fluid and steam, byte for byte. Session
+1 replays exactly as well.
 
-**One incidental reading, recorded and not relied on.** `churning` at 1920x1080 under the `constexpr` build read 37.4535 against the 37.25 on record from an earlier sitting — 0.5% apart. That is a cross-sitting timing comparison and this document does not accept those as evidence; it is noted because it is the closest any two sittings in this file have come, not because anything rests on it.
+**One incidental reading, recorded and not relied on.** `churning` at 1920x1080
+under the `constexpr` build read 37.4535 against the 37.25 on record from an
+earlier sitting — 0.5% apart. That is a cross-sitting timing comparison and this
+document does not accept those as evidence; it is noted because it is the
+closest any two sittings in this file have come, not because anything rests on
+it.
 
 ### The fluid spike, priced: E5b is worth 8% of a played step and 47% of `churning`, and the two disagree about which rule is expensive
 
-**2026-08-13, the instrumentation sitting's last item.** The replayed row times a whole `Run::step`, so it can say the budget is intact and nothing about which rule inside it costs. The three displacement rules E5b would retire together — `vent_fluid`, `find_lower_surface` (via `seek_level`) and `make_room_above` — are now individually switchable at runtime, and `grid_bench` ablates them one at a time in one process.
+**2026-08-13, the instrumentation sitting's last item.** The replayed row times
+a whole `Run::step`, so it can say the budget is intact and nothing about which
+rule inside it costs. The three displacement rules E5b would retire together —
+`vent_fluid`, `find_lower_surface` (via `seek_level`) and `make_room_above` —
+are now individually switchable at runtime, and `grid_bench` ablates them one at
+a time in one process.
 
 **`churning` at 1920x1080, five configurations, one process.**
 
@@ -294,7 +778,14 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 | no lift | 47.3265 | **+0.10 ms, +0.2%** | ← null control |
 | **none** | **24.7928** | **−22.43 ms, −47.5%** | the whole of E5b's territory |
 
-**Read the null control first.** `make_room_above` fires only on a brush write and `churning` never paints, so `no lift` removes a rule that cannot run — **whatever it reads is the table's noise floor, and it reads +0.2%.** That is what makes `no seek`'s 0.3% interpretable: it is *at* the floor, not above it. **`find_lower_surface` costs `churning` nothing measurable**, which is worth stating plainly because the table that reorganised the E-track lists it as "a search of up to 512 cells, per awake surface cell, per tick" — the most alarming-looking row of the four, and on this scenario it is free.
+**Read the null control first.** `make_room_above` fires only on a brush write
+and `churning` never paints, so `no lift` removes a rule that cannot run —
+**whatever it reads is the table's noise floor, and it reads +0.2%.** That is
+what makes `no seek`'s 0.3% interpretable: it is *at* the floor, not above it.
+**`find_lower_surface` costs `churning` nothing measurable**, which is worth
+stating plainly because the table that reorganised the E-track lists it as "a
+search of up to 512 cells, per awake surface cell, per tick" — the most
+alarming-looking row of the four, and on this scenario it is free.
 
 **The played session, same five configurations, same process.**
 
@@ -306,123 +797,580 @@ Fire+Water+Sand all present in 198 of 341 samples, digging in 11 of those
 | no lift | 0.1996 | −0.5% | 1.1492 | −0.4% | diverged |
 | **none** | **0.1839** | **−8.3%** | **1.1009** | **−4.6%** | diverged |
 
-**The two scenarios invert.** On `churning`, venting is 47% of the row and seeking is zero. **In play, venting is zero and seeking is 7%.** Both are explicable and neither is noise: `churning` is powder sinking into fluid *everywhere*, which is all venting and leaves no settled surface to seek from, while a played world has large quiet pools whose long surfaces run `seek_level` on every awake cell of them. **A synthetic worst case does not merely exaggerate the played cost — here it points at a different rule.** That is a sharper version of the same lesson session 2 taught about `churning`, and it arrived from the other end: the scenario is not just unrepresentative in *degree*, it is unrepresentative in *kind*.
+**The two scenarios invert.** On `churning`, venting is 47% of the row and
+seeking is zero. **In play, venting is zero and seeking is 7%.** Both are
+explicable and neither is noise: `churning` is powder sinking into fluid
+*everywhere*, which is all venting and leaves no settled surface to seek from,
+while a played world has large quiet pools whose long surfaces run `seek_level`
+on every awake cell of them. **A synthetic worst case does not merely exaggerate
+the played cost — here it points at a different rule.** That is a sharper
+version of the same lesson session 2 taught about `churning`, and it arrived
+from the other end: the scenario is not just unrepresentative in *degree*, it is
+unrepresentative in *kind*.
 
-**So the fluid spike's answer is: E5b cannot be justified on performance.** The whole of what it retires is **8.3% of the played mean and 4.6% of played p99**, on a row that already runs 0 of 20,415 steps over budget with ~11.8 ms of headroom at its busiest single moment. **8% of 1.2% of a frame is not a reason to build a second grid over the world.** E5b's case is D3 and D4 — fluids that do not flow, water that climbs — and those are quality defects that no timing can close. **The spike did its job by removing an argument rather than supplying one**, which is what a price is for: it stops E5b being proposed as an optimisation and leaves it standing on the six capabilities its entry actually lists.
+**So the fluid spike's answer is: E5b cannot be justified on performance.** The
+whole of what it retires is **8.3% of the played mean and 4.6% of played p99**,
+on a row that already runs 0 of 20,415 steps over budget with ~11.8 ms of
+headroom at its busiest single moment. **8% of 1.2% of a frame is not a reason
+to build a second grid over the world.** E5b's case is D3 and D4 — fluids that
+do not flow, water that climbs — and those are quality defects that no timing
+can close. **The spike did its job by removing an argument rather than supplying
+one**, which is what a price is for: it stops E5b being proposed as an
+optimisation and leaves it standing on the six capabilities its entry actually
+lists.
 
 **How much to trust these numbers, stated in three parts.**
 
-- **Within-process repeatability is excellent.** `churning` at the shipped configuration is measured three separate times in this run — as the ordinary row, as the vent sweep's r=3, and as the ablation's `all` — reading **47.3446 / 47.1065 / 47.2268**, a spread of 0.5%. The replay's mean is measured twice at **0.2007 and 0.2006**. Nothing else in this document has ever agreed that closely.
-- **The ablation rows are separate simulations, not a partition of a step.** Removing a rule changes what the world does, so every later step in that run is doing different work. A row's gap from `all` is that rule's share *of this scenario*, and some of `no seek`'s 7.3% is the world having ended up quieter rather than the search itself. **Do not present these as a pie chart.** They happen to be nearly additive here — `no vent` + `no seek` + `no lift` comes to −22.29 ms against `none`'s −22.43 — and that is a consistency check, not a guarantee.
-- **Every ablated row diverges from the recorded end state and that is the measurement.** The `all` row reads `exact`, which is what says the switches only measure the simulation rather than changing it.
+- **Within-process repeatability is excellent.** `churning` at the shipped
+  configuration is measured three separate times in this run — as the ordinary
+  row, as the vent sweep's r=3, and as the ablation's `all` — reading **47.3446
+  / 47.1065 / 47.2268**, a spread of 0.5%. The replay's mean is measured twice
+  at **0.2007 and 0.2006**. Nothing else in this document has ever agreed that
+  closely.
+- **The ablation rows are separate simulations, not a partition of a step.**
+  Removing a rule changes what the world does, so every later step in that run
+  is doing different work. A row's gap from `all` is that rule's share *of this
+  scenario*, and some of `no seek`'s 7.3% is the world having ended up quieter
+  rather than the search itself. **Do not present these as a pie chart.** They
+  happen to be nearly additive here — `no vent` + `no seek` + `no lift` comes to
+  −22.29 ms against `none`'s −22.43 — and that is a consistency check, not a
+  guarantee.
+- **Every ablated row diverges from the recorded end state and that is the
+  measurement.** The `all` row reads `exact`, which is what says the switches
+  only measure the simulation rather than changing it.
 
 ### The 960x540 control is a control on the counts, not on the times
 
-**2026-08-13, same run.** `.claude/rules/simulation.md` said the 960x540 block "should reproduce the numbers on record. If it stops matching, the refactor broke something rather than the engine." **That rule could not be obeyed as written, and it is corrected rather than deleted, because the reason is this file's own oldest rule.** Absolute timings are not portable across sittings — the note above records one unchanged binary spanning 2.3x within an hour — so a control defined as "reproduces the times on record" is defined against the one quantity this document forbids comparing across sittings. It also cannot account for work legitimately added since the table was measured (E9's steam branch is +3-4% on two rows, on the record, with an argument).
+**2026-08-13, same run.** `.claude/rules/simulation.md` said the 960x540 block
+"should reproduce the numbers on record. If it stops matching, the refactor
+broke something rather than the engine." **That rule could not be obeyed as
+written, and it is corrected rather than deleted, because the reason is this
+file's own oldest rule.** Absolute timings are not portable across sittings —
+the note above records one unchanged binary spanning 2.3x within an hour — so a
+control defined as "reproduces the times on record" is defined against the one
+quantity this document forbids comparing across sittings. It also cannot account
+for work legitimately added since the table was measured (E9's steam branch is
++3-4% on two rows, on the record, with an argument).
 
-**What did reproduce, exactly, is the part that is deterministic.** Against the P2 sitting: `churning` 105 -> 0 and `cascading` 75 -> 105 chunks awake at 960x540, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080, and peak fractured cells at 2384 and 2348. Every one matched. The times moved 0-13% row-wise in the same direction at both sizes, which is a sitting, not a refactor.
+**What did reproduce, exactly, is the part that is deterministic.** Against the
+P2 sitting: `churning` 105 -> 0 and `cascading` 75 -> 105 chunks awake at
+960x540, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080, and peak
+fractured cells at 2384 and 2348. Every one matched. The times moved 0-13%
+row-wise in the same direction at both sizes, which is a sitting, not a
+refactor.
 
-**Confirmed again at the session 2 sitting, 2026-08-13** — all six counts reproduced a third time: `churning` 105 -> 0 and `cascading` 75 -> 105 at 960x540 with 2,384 peak fractured cells, `churning` 360 -> 90 and `cascading` 270 -> 300 at 1920x1080 with 2,348. **Three sittings, six counts, no drift.** That is the case for this being the control, and it is worth noting that no timing in this document has ever reproduced across sittings that way.
+**Confirmed again at the session 2 sitting, 2026-08-13** — all six counts
+reproduced a third time: `churning` 105 -> 0 and `cascading` 75 -> 105 at
+960x540 with 2,384 peak fractured cells, `churning` 360 -> 90 and `cascading`
+270 -> 300 at 1920x1080 with 2,348. **Three sittings, six counts, no drift.**
+That is the case for this being the control, and it is worth noting that no
+timing in this document has ever reproduced across sittings that way.
 
-**Confirmed a fourth time at the `VENT_RADIUS` sitting, and this one is the strongest of the four** — the six counts reproduced across *two different builds* of the engine, `constexpr` and runtime, whose `churning` times differ by 32%. **A control that holds exactly while the thing it is controlling moves by a third is doing its job**, and it is the reason the 32% could be attributed to the change rather than to the compiler. Note what that also demonstrates: the counts are blind to cost. They say the engine is doing the same work, not that it is doing it at the same speed, and the whole `VENT_RADIUS` finding lives in the gap between those two statements.
+**Confirmed a fourth time at the `VENT_RADIUS` sitting, and this one is the
+strongest of the four** — the six counts reproduced across *two different
+builds* of the engine, `constexpr` and runtime, whose `churning` times differ by
+32%. **A control that holds exactly while the thing it is controlling moves by a
+third is doing its job**, and it is the reason the 32% could be attributed to
+the change rather than to the compiler. Note what that also demonstrates: the
+counts are blind to cost. They say the engine is doing the same work, not that
+it is doing it at the same speed, and the whole `VENT_RADIUS` finding lives in
+the gap between those two statements.
 
-**So the control is the awake-chunk and fracture counts, and they are a better control than the times ever were:** the benchmark has run on a fixed seed since F1.1, so those counts are a property of the simulation and any change to what the engine *does* moves them, while the machine cannot. This is what the scene-loader extraction into `src/scene/bmp.cpp` was checked against, alongside the launch check's 334,901 cells.
+**So the control is the awake-chunk and fracture counts, and they are a better
+control than the times ever were:** the benchmark has run on a fixed seed since
+F1.1, so those counts are a property of the simulation and any change to what
+the engine *does* moves them, while the machine cannot. This is what the
+scene-loader extraction into `src/scene/bmp.cpp` was checked against, alongside
+the launch check's 334,901 cells.
 
 ## The light field does not fit the widest display mode
 
-Measured with `grid_bench`'s render-side section after the player rescale (body 4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of repeated runs:
+Measured with `grid_bench`'s render-side section after the player rescale (body
+4x8 → 8x20 cells) and the switchable display modes, one sitting, minimum of
+repeated runs:
 
 | Viewport | `light/fire` | `light/dark` |
 |---|---|---|
 | 481x271 cells — 1920x1080 | 6.43 ms/frame (38.6%) | 0.53 ms (3.2%) |
 | 861x361 cells — 3440x1440 | **15.48 ms/frame (92.9%)** | 1.28 ms (7.7%) |
 
-**At 3440x1440 a sustained large fire costs 93% of a 60 Hz frame in lighting alone, before the simulation has run at all.** That is not a projection; `cascading` is 71% in the same binary, and the two together cannot both happen inside one frame. It is a real ceiling on the widest mode and it is written down here rather than quietly tuned away.
+**At 3440x1440 a sustained large fire costs 93% of a 60 Hz frame in lighting
+alone, before the simulation has run at all.** That is not a projection;
+`cascading` is 71% in the same binary, and the two together cannot both happen
+inside one frame. It is a real ceiling on the widest mode and it is written down
+here rather than quietly tuned away.
 
 Two things drive it, and they are separable because both were measured:
 
-- **Viewport area.** The cost is very close to linear in padded viewport cells — 2.4x the area for 2.4x the time. That is inherent: the field scans, propagates and packs what is on screen, and the widest mode has 2.4x as much on screen as the narrowest. Nothing about this is a defect.
-- **The reach retune.** Holding the light's reach at four body-heights through the player rescale (`TRANSMIT_CLEAR` 0.52 → 0.77, `ITERATIONS` 16 → 24) cost 2.3x, not the 1.5x the iteration count suggests: a longer reach means the `CONVERGED` early-out is hit later, so more of the field is still moving on the later iterations. Measured directly, same binary, same scenario, wide viewport: **6.81 ms at the old tuning against 15.48 ms at the new.**
+- **Viewport area.** The cost is very close to linear in padded viewport cells —
+  2.4x the area for 2.4x the time. That is inherent: the field scans, propagates
+  and packs what is on screen, and the widest mode has 2.4x as much on screen as
+  the narrowest. Nothing about this is a defect.
+- **The reach retune.** Holding the light's reach at four body-heights through
+  the player rescale (`TRANSMIT_CLEAR` 0.52 → 0.77, `ITERATIONS` 16 → 24) cost
+  2.3x, not the 1.5x the iteration count suggests: a longer reach means the
+  `CONVERGED` early-out is hit later, so more of the field is still moving on
+  the later iterations. Measured directly, same binary, same scenario, wide
+  viewport: **6.81 ms at the old tuning against 15.48 ms at the new.**
 
-**`light/dark` is the number that says the game is still playable, and it is the one to weigh this against.** An unlit world costs 1.28 ms at the widest mode, and an unlit world is what the fixture scene and almost all of a session actually are. What is over budget is specifically a large sustained fire on an ultrawide.
+**`light/dark` is the number that says the game is still playable, and it is the
+one to weigh this against.** An unlit world costs 1.28 ms at the widest mode,
+and an unlit world is what the fixture scene and almost all of a session
+actually are. What is over budget is specifically a large sustained fire on an
+ultrawide.
 
-**The obvious fix was tried in the head and rejected on the record: `LightField::BLOCK` 4 → 8 is ~4x cheaper and re-opens B9d.** Occlusion is averaged over a block, so a one-cell wall reads as `1/BLOCK` opaque; session 3 reported light penetrating walls at `BLOCK=4` and doubling it halves that figure again. Buying frame time by undoing a defect a playtest found is not a trade to make silently, and `light.h` carries the same note at the constant. The two hardcoded `4`s that would have made the switch produce a *darker* field rather than a coarser one (`LOG_CELL_AIR`, `TRANSMIT_SOLID`) are fixed, so whoever does decide to turn that knob gets what they asked for.
+**The obvious fix was tried in the head and rejected on the record:
+`LightField::BLOCK` 4 → 8 is ~4x cheaper and re-opens B9d.** Occlusion is
+averaged over a block, so a one-cell wall reads as `1/BLOCK` opaque; session 3
+reported light penetrating walls at `BLOCK=4` and doubling it halves that figure
+again. Buying frame time by undoing a defect a playtest found is not a trade to
+make silently, and `light.h` carries the same note at the constant. The two
+hardcoded `4`s that would have made the switch produce a *darker* field rather
+than a coarser one (`LOG_CELL_AIR`, `TRANSMIT_SOLID`) are fixed, so whoever does
+decide to turn that knob gets what they asked for.
 
-What has **not** been measured, and should be before anything is optimised here: whether a bounding box around the emissive blocks, expanded by the reach, would help. `light/fire` is a full-width burning slab, so its bounding box is the whole field and it would show nothing — which is the point. The scenario that would show it does not exist yet, and inventing one to make a number look good is the failure this document is otherwise about.
+What has **not** been measured, and should be before anything is optimised here:
+whether a bounding box around the emissive blocks, expanded by the reach, would
+help. `light/fire` is a full-width burning slab, so its bounding box is the
+whole field and it would show nothing — which is the point. The scenario that
+would show it does not exist yet, and inventing one to make a number look good
+is the failure this document is otherwise about.
 
-**E9's fire rebuild is not in that table and its cost has deliberately not been written down as a number, because the only measurement taken of it does not meet this document's own standard.** The reading was `cascading` 11.44 → 12.87 ms and `churning` 2.87 → 3.17 ms: two different builds, compared across a `git stash`, in the same sitting. That is the *exact* method the E1 note below records as having produced a confident 28% that was entirely an artifact of the compiler re-laying-out the hot loop, and it fails the control rule as well — `churning` and `cascading` contain no fire at all, so E9 cannot change a single thing either of them does, and **both moved anyway.** By this file's rules that is evidence about the binary or the machine, not about the feature.
+**E9's fire rebuild is not in that table and its cost has deliberately not been
+written down as a number, because the only measurement taken of it does not meet
+this document's own standard.** The reading was `cascading` 11.44 → 12.87 ms and
+`churning` 2.87 → 3.17 ms: two different builds, compared across a `git stash`,
+in the same sitting. That is the *exact* method the E1 note below records as
+having produced a confident 28% that was entirely an artifact of the compiler
+re-laying-out the hot loop, and it fails the control rule as well — `churning`
+and `cascading` contain no fire at all, so E9 cannot change a single thing
+either of them does, and **both moved anyway.** By this file's rules that is
+evidence about the binary or the machine, not about the feature.
 
-What is worth recording is the shape of the guess that followed, because it was wrong in an instructive way. The suspicion was two new per-cell branches in `step_cell`, which runs for every awake cell every step. Collapsing them into one chained branch moved `cascading` by less than run-to-run noise (12.77 → 12.87, i.e. the wrong direction, i.e. nothing). **The branches were not paying for it.** The remaining candidates are the `Reaction` struct widening from 6 to 8 bytes — it is walked twice per non-Empty cell, so the table grew 36 → 48 bytes in a genuinely hot loop — and plain code-layout perturbation from two new functions in the same translation unit. Those are not distinguishable without the runtime-toggle method used for E1 and E2, and E9 has no such toggle yet.
+What is worth recording is the shape of the guess that followed, because it was
+wrong in an instructive way. The suspicion was two new per-cell branches in
+`step_cell`, which runs for every awake cell every step. Collapsing them into
+one chained branch moved `cascading` by less than run-to-run noise (12.77 →
+12.87, i.e. the wrong direction, i.e. nothing). **The branches were not paying
+for it.** The remaining candidates are the `Reaction` struct widening from 6 to
+8 bytes — it is walked twice per non-Empty cell, so the table grew 36 → 48 bytes
+in a genuinely hot loop — and plain code-layout perturbation from two new
+functions in the same translation unit. Those are not distinguishable without
+the runtime-toggle method used for E1 and E2, and E9 has no such toggle yet.
 
-`burning` — the one scenario that can actually price this — read 5.98–6.09 ms against a table entry of 0.575 ms, but that entry predates several sittings and the scenario itself now does something much more expensive: flame is manufactured and destroyed continuously rather than sitting still. **That is a real cost being charged where the feature does something, which is the correct place for it, and it is the number to re-measure properly when the table is next replaced wholesale.**
+`burning` — the one scenario that can actually price this — read 5.98–6.09 ms
+against a table entry of 0.575 ms, but that entry predates several sittings and
+the scenario itself now does something much more expensive: flame is
+manufactured and destroyed continuously rather than sitting still. **That is a
+real cost being charged where the feature does something, which is the correct
+place for it, and it is the number to re-measure properly when the table is next
+replaced wholesale.**
 
-**Re-measured in full at E2 and again at E3, all of them in one sitting each time.** The whole table moves between sittings rather than only the rows a feature touches, which is what the machine-state note below predicts and is the reason it is replaced wholesale instead of edited row by row — a table with one fresh row and the rest stale would invite exactly the cross-sitting comparison this document forbids. The share of any one feature in the difference is not readable from here and is not meant to be; those are measured properly further down, against a control, in one binary.
+**Re-measured in full at E2 and again at E3, all of them in one sitting each
+time.** The whole table moves between sittings rather than only the rows a
+feature touches, which is what the machine-state note below predicts and is the
+reason it is replaced wholesale instead of edited row by row — a table with one
+fresh row and the rest stale would invite exactly the cross-sitting comparison
+this document forbids. The share of any one feature in the difference is not
+readable from here and is not meant to be; those are measured properly further
+down, against a control, in one binary.
 
-**`shattering` exists because `collapsing` cannot see a landing, and neither could this document until E3 went looking.** `collapsing` drains its slabs at `DRAIN_TOP` "rather than being allowed to land" — its own comment says so, and that is correct for what it measures, which is the cost of rigid structure *in the air*. E3's fracture fires on landing and on nothing else. So the first bracketed A/B for E3 ran the feature **zero times** and returned three tightly-agreeing flat numbers: a perfectly executed measurement of nothing. The new scenario drops the same slabs onto a sawtooth floor so every one of them comes down across a support boundary and actually breaks.
+**`shattering` exists because `collapsing` cannot see a landing, and neither
+could this document until E3 went looking.** `collapsing` drains its slabs at
+`DRAIN_TOP` "rather than being allowed to land" — its own comment says so, and
+that is correct for what it measures, which is the cost of rigid structure *in
+the air*. E3's fracture fires on landing and on nothing else. So the first
+bracketed A/B for E3 ran the feature **zero times** and returned three
+tightly-agreeing flat numbers: a perfectly executed measurement of nothing. The
+new scenario drops the same slabs onto a sawtooth floor so every one of them
+comes down across a support boundary and actually breaks.
 
-Since F1.1 the benchmark runs on a fixed seed, so every run of it simulates the same world. That removes one source of spread but not the one that matters — see the machine-state note below, which is much larger.
+Since F1.1 the benchmark runs on a fixed seed, so every run of it simulates the
+same world. That removes one source of spread but not the one that matters — see
+the machine-state note below, which is much larger.
 
-**Each number is the fastest of 5 runs, not an average.** A run can only be made slower by interference, never faster, so the minimum is the closest thing to a measurement of the code rather than of the machine. Averaging mixes the two together.
+**Each number is the fastest of 5 runs, not an average.** A run can only be made
+slower by interference, never faster, so the minimum is the closest thing to a
+measurement of the code rather than of the machine. Averaging mixes the two
+together.
 
-**Never compare a number here against one from a different sitting.** Absolute timings are not portable across sittings — see below for how badly. Anything claiming a cost has to be an A/B measured back to back, and the ones that have been are written out in full below rather than folded into this table, because a single column of numbers cannot show its own method.
+**Never compare a number here against one from a different sitting.** Absolute
+timings are not portable across sittings — see below for how badly. Anything
+claiming a cost has to be an A/B measured back to back, and the ones that have
+been are written out in full below rather than folded into this table, because a
+single column of numbers cannot show its own method.
 
-**`collapsing` exists because every other scenario is blind to falling structure.** None of the other five contains a single cell of Wall or Wood that can move, so none of them can price the one part of the engine that is re-derived rather than stepped. Eight independent slabs of 400 cells each, permanently in the air at full speed, cost 1.67 ms — 25,600 cell-moves in a step, each one a flood fill's worth of re-deriving what is holding it up, at about 65 ns apiece. Note the awake-chunk count: **zero**. Rigid falling runs entirely outside the chunk system, before the sweep, driven by its own queue, so the on-screen chunk counter says nothing about it.
+**`collapsing` exists because every other scenario is blind to falling
+structure.** None of the other five contains a single cell of Wall or Wood that
+can move, so none of them can price the one part of the engine that is
+re-derived rather than stepped. Eight independent slabs of 400 cells each,
+permanently in the air at full speed, cost 1.67 ms — 25,600 cell-moves in a
+step, each one a flood fill's worth of re-deriving what is holding it up, at
+about 65 ns apiece. Note the awake-chunk count: **zero**. Rigid falling runs
+entirely outside the chunk system, before the sweep, driven by its own queue, so
+the on-screen chunk counter says nothing about it.
 
-**The support check's cost is below the noise floor.** Earlier revisions of this file claimed about 5%, measured back-to-back and believed on that basis. It does not survive a better method. The A/B was re-run bracketed — on, off, on — and `cascading` came out at 11.53, 11.61, 11.59 ms: the "off" reading lands *between* the two "on" readings. Whatever the hook costs, it is smaller than what this benchmark can see. `churning` agrees, at 2.790 against 2.788. The claim of 5% was measurement error, not a cost that has since been optimised away.
+**The support check's cost is below the noise floor.** Earlier revisions of this
+file claimed about 5%, measured back-to-back and believed on that basis. It does
+not survive a better method. The A/B was re-run bracketed — on, off, on — and
+`cascading` came out at 11.53, 11.61, 11.59 ms: the "off" reading lands
+*between* the two "on" readings. Whatever the hook costs, it is smaller than
+what this benchmark can see. `churning` agrees, at 2.790 against 2.788. The
+claim of 5% was measurement error, not a cost that has since been optimised
+away.
 
-**Machine state moves this benchmark more than any feature has.** In a single sitting, one unchanged binary measured `cascading` at 27 ms, then 15 ms, then 11.5 ms, as background load on the machine drained away — a 2.3x spread, on the same code, within an hour. Meanwhile `churning` barely moved, because it is the scenario that fits in cache; `cascading` keeps 105 of 135 chunks awake and is bandwidth-bound, so it is the one that notices what else the machine is doing.
+**Machine state moves this benchmark more than any feature has.** In a single
+sitting, one unchanged binary measured `cascading` at 27 ms, then 15 ms, then
+11.5 ms, as background load on the machine drained away — a 2.3x spread, on the
+same code, within an hour. Meanwhile `churning` barely moved, because it is the
+scenario that fits in cache; `cascading` keeps 105 of 135 chunks awake and is
+bandwidth-bound, so it is the one that notices what else the machine is doing.
 
-**Removing the generator (F1.6) was not the free win it was expected to be.** `ENGINEERING_NOTES.md` had this filed as a performance item — `std::mt19937` replaced by a stateless hash, materially faster in the inner loop. Bracketed properly (five runs each, alternating hash/generator/hash/generator/…, minimum of each) `cascading` gives the generator a range of `11.6376`–`11.7399` ms against the hash's `11.8529`–`11.9704` ms, and **those two ranges do not overlap.** That is a real, repeatable **regression of about 1.7–1.9%**, not noise — `churning`'s ranges *do* overlap (`2.6529`–`2.6834` against `2.6680`–`2.6890`), which is what a non-effect looks like under this method, and is the contrast that makes the `cascading` result trustworthy rather than a hopeful reading of overlapping noise. The likely reason: the hash spends roughly six multiplies recomputing every draw from scratch, where `std::mt19937`'s `operator()` is a cheap step against already-resident state — determinism was never a promise that recomputing from nothing is free, and `cascading` is the one scenario with enough active cells per step to make that cost visible. **The trade was made for correctness, not speed, and the record should say so rather than quietly keep the old story.** Nothing here threatens the 71% budget — the change is a fraction of a percent of the frame — but the RNG entry in `ENGINEERING_NOTES.md` used to claim a speed-up and is corrected there rather than deleted.
+**Removing the generator (F1.6) was not the free win it was expected to be.**
+`ENGINEERING_NOTES.md` had this filed as a performance item — `std::mt19937`
+replaced by a stateless hash, materially faster in the inner loop. Bracketed
+properly (five runs each, alternating hash/generator/hash/generator/…, minimum
+of each) `cascading` gives the generator a range of `11.6376`–`11.7399` ms
+against the hash's `11.8529`–`11.9704` ms, and **those two ranges do not
+overlap.** That is a real, repeatable **regression of about 1.7–1.9%**, not
+noise — `churning`'s ranges *do* overlap (`2.6529`–`2.6834` against
+`2.6680`–`2.6890`), which is what a non-effect looks like under this method, and
+is the contrast that makes the `cascading` result trustworthy rather than a
+hopeful reading of overlapping noise. The likely reason: the hash spends roughly
+six multiplies recomputing every draw from scratch, where `std::mt19937`'s
+`operator()` is a cheap step against already-resident state — determinism was
+never a promise that recomputing from nothing is free, and `cascading` is the
+one scenario with enough active cells per step to make that cost visible. **The
+trade was made for correctness, not speed, and the record should say so rather
+than quietly keep the old story.** Nothing here threatens the 71% budget — the
+change is a fraction of a percent of the frame — but the RNG entry in
+`ENGINEERING_NOTES.md` used to claim a speed-up and is corrected there rather
+than deleted.
 
-**E1 (liquids find their level) costs nothing this benchmark can see, and getting that answer required changing the method.** Measured as a runtime toggle in **one binary** rather than as two builds, bracketed on/off/on, five runs each: `churning` — the only scenario containing Water — gives `2.7652`–`2.7782`, `2.7123`–`2.7969`, `2.7391`–`2.7951` ms, three ranges that overlap almost completely, which is what a non-effect looks like. `cascading` is the control here (it is pure Sand, so nothing in it can reach the new code) and reads `11.8227`, `11.8187`, `11.9228` ms across the three brackets: flat, so the machine was not drifting while `churning` was being measured. The rule is cheap for a structural reason rather than a lucky one — only a cell with `Empty` directly above it reaches the search at all, so a settled pool pays one array read per cell and only its thin surface line pays anything more.
+**E1 (liquids find their level) costs nothing this benchmark can see, and
+getting that answer required changing the method.** Measured as a runtime toggle
+in **one binary** rather than as two builds, bracketed on/off/on, five runs
+each: `churning` — the only scenario containing Water — gives `2.7652`–`2.7782`,
+`2.7123`–`2.7969`, `2.7391`–`2.7951` ms, three ranges that overlap almost
+completely, which is what a non-effect looks like. `cascading` is the control
+here (it is pure Sand, so nothing in it can reach the new code) and reads
+`11.8227`, `11.8187`, `11.9228` ms across the three brackets: flat, so the
+machine was not drifting while `churning` was being measured. The rule is cheap
+for a structural reason rather than a lucky one — only a cell with `Empty`
+directly above it reaches the search at all, so a settled pool pays one array
+read per cell and only its thin surface line pays anything more.
 
-**The first attempt at that A/B was measured by compiling the feature out, and it produced a confident 28% that was entirely an artifact.** Two builds, bracketed properly: `churning` went 2.76 → 3.29 → 2.76 ms and `cascading` went 11.98 → 15.32 → 11.86 ms with the call compiled out. The bracket closed cleanly both times, so this was not drift — the "off" binary really was 28% slower, repeatably. But **`cascading` contains no Water at all**, so E1 cannot change a single thing it does; the only way it can move is if the binary around it changed. Deleting a call from `step_fluid` lets the compiler re-inline and re-lay-out the hot loop, and that perturbation is an order of magnitude larger than the feature being measured. **This is the control rule below doing its job, and it is worth noticing that it caught something the rule was not written to catch** — it was written against machine drift, and the thing it caught was the measurement apparatus. A third rule follows from it, added below.
+**The first attempt at that A/B was measured by compiling the feature out, and
+it produced a confident 28% that was entirely an artifact.** Two builds,
+bracketed properly: `churning` went 2.76 → 3.29 → 2.76 ms and `cascading` went
+11.98 → 15.32 → 11.86 ms with the call compiled out. The bracket closed cleanly
+both times, so this was not drift — the "off" binary really was 28% slower,
+repeatably. But **`cascading` contains no Water at all**, so E1 cannot change a
+single thing it does; the only way it can move is if the binary around it
+changed. Deleting a call from `step_fluid` lets the compiler re-inline and
+re-lay-out the hot loop, and that perturbation is an order of magnitude larger
+than the feature being measured. **This is the control rule below doing its job,
+and it is worth noticing that it caught something the rule was not written to
+catch** — it was written against machine drift, and the thing it caught was the
+measurement apparatus. A third rule follows from it, added below.
 
-**E2 (heat) was the item this document named as most likely to break the budget, and its first implementation did.** Bracketed on/off/on in one binary, five runs each, minimum of each: the full thermal pass cost `cascading` **+18%** (14.764 / 12.490 / 14.723 ms) and `churning` **+32%** (4.033 / 3.054 / 4.009 ms), with `settled` flat at 0.0001 ms across all three brackets as the drift control. `settled` is the only honest control available for this feature — every material in the table now has a conductivity, so no scenario is *immune*; what `settled` has is no awake cells at all, so it prices the sitting rather than the pass. At those numbers `cascading` sat at **88% of a 60 Hz frame**, against 71% before, and `ROADMAP.md` says in as many words that if one E item alone breaks the budget, P1 gets pulled forward ahead of the rest.
+**E2 (heat) was the item this document named as most likely to break the budget,
+and its first implementation did.** Bracketed on/off/on in one binary, five runs
+each, minimum of each: the full thermal pass cost `cascading` **+18%** (14.764 /
+12.490 / 14.723 ms) and `churning` **+32%** (4.033 / 3.054 / 4.009 ms), with
+`settled` flat at 0.0001 ms across all three brackets as the drift control.
+`settled` is the only honest control available for this feature — every material
+in the table now has a conductivity, so no scenario is *immune*; what `settled`
+has is no awake cells at all, so it prices the sitting rather than the pass. At
+those numbers `cascading` sat at **88% of a 60 Hz frame**, against 71% before,
+and `ROADMAP.md` says in as many words that if one E item alone breaks the
+budget, P1 gets pulled forward ahead of the rest.
 
-**It was not pulled forward, and the reason is the most useful thing in this entry.** Reading what the 18% was made of rather than reaching for the plan's escape hatch: `cascading` contains no fire and never gets warm, so every one of those cycles was spent probing eight neighbours per awake cell per step to confirm that nothing had changed. A cell sitting at exactly ambient now returns immediately, which is exact rather than an approximation — conduction writes both ends of an exchange by the same amount, so it does not matter which of a pair initiates it, and a cell cannot be off ambient and asleep, since it only stops marking itself dirty once every gradient around it is inside the dead band. Re-bracketed the same way, the overhead is **+2.2%** on `cascading` (12.514 / 12.238 / 12.552 ms) and **+2.7%** on `churning` (3.038 / 2.956 / 3.037 ms) — real, repeatable, non-overlapping, and small. `burning`, the scenario that actually uses heat, pays **+29%** (0.556 / 0.431 / 0.560 ms) of a scenario that is 3.3% of a frame, which is the cost being charged where the feature is doing something.
+**It was not pulled forward, and the reason is the most useful thing in this
+entry.** Reading what the 18% was made of rather than reaching for the plan's
+escape hatch: `cascading` contains no fire and never gets warm, so every one of
+those cycles was spent probing eight neighbours per awake cell per step to
+confirm that nothing had changed. A cell sitting at exactly ambient now returns
+immediately, which is exact rather than an approximation — conduction writes
+both ends of an exchange by the same amount, so it does not matter which of a
+pair initiates it, and a cell cannot be off ambient and asleep, since it only
+stops marking itself dirty once every gradient around it is inside the dead
+band. Re-bracketed the same way, the overhead is **+2.2%** on `cascading`
+(12.514 / 12.238 / 12.552 ms) and **+2.7%** on `churning` (3.038 / 2.956 / 3.037
+ms) — real, repeatable, non-overlapping, and small. `burning`, the scenario that
+actually uses heat, pays **+29%** (0.556 / 0.431 / 0.560 ms) of a scenario that
+is 3.3% of a frame, which is the cost being charged where the feature is doing
+something.
 
-**The generalisable lesson is not "add an early-out".** It is that *the first honest measurement of a feature is a measurement of the first implementation of it*, and this file has now twice mistaken one for the other in the same sitting — once by measuring the compiler instead of the code (E1, above), and once by nearly spending a whole roadmap item to avoid a one-line comparison. The bracket was right both times; what it does not tell you is which of the things you changed you are looking at.
+**The generalisable lesson is not "add an early-out".** It is that *the first
+honest measurement of a feature is a measurement of the first implementation of
+it*, and this file has now twice mistaken one for the other in the same sitting
+— once by measuring the compiler instead of the code (E1, above), and once by
+nearly spending a whole roadmap item to avoid a one-line comparison. The bracket
+was right both times; what it does not tell you is which of the things you
+changed you are looking at.
 
-**E3 (fracture) costs nothing this benchmark can see, and unlike the two entries above that is a claim about a scenario the feature can actually reach.** Bracketed on/off/on in one binary, five runs each, against `shattering`: `1.3290`, `1.3311`, `1.3301` ms — three readings inside two thousandths of a millisecond of each other, with `collapsing` alongside as the control at `1.4823` / `1.4623` / `1.5134`. The reason is countable rather than hopeful: instrumenting the run showed **37 cracks across the whole benchmark**, roughly one per slab, each costing a single flood fill bounded by `MAX_SUPPORT_CELLS`. That is about fifty cell-visits a step spread over a scenario already doing thousands. This document predicted E3 would move `collapsing`, on the reasoning that a piece breaking into several is several pieces each re-deriving their own support. **That prediction was wrong, and it was wrong for a reason worth more than the number**: it assumed fragments accumulate, and they do not — a fragment that comes to rest stops being re-derived, exactly like any other piece at rest.
+**E3 (fracture) costs nothing this benchmark can see, and unlike the two entries
+above that is a claim about a scenario the feature can actually reach.**
+Bracketed on/off/on in one binary, five runs each, against `shattering`:
+`1.3290`, `1.3311`, `1.3301` ms — three readings inside two thousandths of a
+millisecond of each other, with `collapsing` alongside as the control at
+`1.4823` / `1.4623` / `1.5134`. The reason is countable rather than hopeful:
+instrumenting the run showed **37 cracks across the whole benchmark**, roughly
+one per slab, each costing a single flood fill bounded by `MAX_SUPPORT_CELLS`.
+That is about fifty cell-visits a step spread over a scenario already doing
+thousands. This document predicted E3 would move `collapsing`, on the reasoning
+that a piece breaking into several is several pieces each re-deriving their own
+support. **That prediction was wrong, and it was wrong for a reason worth more
+than the number**: it assumed fragments accumulate, and they do not — a fragment
+that comes to rest stops being re-derived, exactly like any other piece at rest.
 
-**A landing costs one fill, and that took a fix rather than being free.** A slab lands with every one of its cells queued for a support check, and each of those seeds would have re-walked the whole piece to answer a question the first one had already answered — 28 redundant fills for a 60-wide slab, on the single step where the most work is already happening. Fracture's visited marks are advanced once per resolve pass rather than once per call, so the second seed onward returns immediately.
+**A landing costs one fill, and that took a fix rather than being free.** A slab
+lands with every one of its cells queued for a support check, and each of those
+seeds would have re-walked the whole piece to answer a question the first one
+had already answered — 28 redundant fills for a 60-wide slab, on the single step
+where the most work is already happening. Fracture's visited marks are advanced
+once per resolve pass rather than once per call, so the second seed onward
+returns immediately.
 
-**Making liquids actually settle costs nothing this benchmark can see, and it removed a cost that never appeared in this document at all.** A liquid surface cell used to slide sideways into any `Empty` beside it, which meant the last partial row of any body of water wandered across its own flat surface forever: a tank filled to an exact multiple of its width slept, one cell more and it never did — two chunks awake and roughly thirty cells changing places per step, permanently, on water that had visibly finished moving. Bracketed on/off/on in one binary, five runs each, minimum of each: `churning` — the only scenario containing Water — reads `3.7414` / `3.7373` / `3.7379` ms, three readings inside five thousandths of a millisecond, which is what a non-effect looks like. `cascading` is the control (pure Sand, and nothing in it can reach the rule) at `16.383` / `16.411` / `16.555` ms, flat, so the machine was not drifting underneath the reading. Note those `cascading` figures sit well above the 11.5 ms elsewhere in this file — same binary, different sitting, and exactly the machine-state spread the note above describes. **They are only comparable within their own bracket, which is the point of bracketing.**
+**Making liquids actually settle costs nothing this benchmark can see, and it
+removed a cost that never appeared in this document at all.** A liquid surface
+cell used to slide sideways into any `Empty` beside it, which meant the last
+partial row of any body of water wandered across its own flat surface forever: a
+tank filled to an exact multiple of its width slept, one cell more and it never
+did — two chunks awake and roughly thirty cells changing places per step,
+permanently, on water that had visibly finished moving. Bracketed on/off/on in
+one binary, five runs each, minimum of each: `churning` — the only scenario
+containing Water — reads `3.7414` / `3.7373` / `3.7379` ms, three readings
+inside five thousandths of a millisecond, which is what a non-effect looks like.
+`cascading` is the control (pure Sand, and nothing in it can reach the rule) at
+`16.383` / `16.411` / `16.555` ms, flat, so the machine was not drifting
+underneath the reading. Note those `cascading` figures sit well above the 11.5
+ms elsewhere in this file — same binary, different sitting, and exactly the
+machine-state spread the note above describes. **They are only comparable within
+their own bracket, which is the point of bracketing.**
 
-**The interesting part is what the fix cost somewhere else, which the benchmark could not have told us.** Refusing the pointless lateral moves also refused the useful ones: that same sideways walk was how cells got off the top of a mound, several cells a step for free, and with it gone a poured column settled into a permanent six-cell heap and then went to sleep holding it. Long-range levelling had been resting on the jitter the whole time. The replacement is `seek_level`, whose reach was far shorter than it looked — breadth-first through the *body* rather than along its surface, spending its budget in both directions at once, so `MAX_PRESSURE_CELLS = 64` bought about six columns of reach in a pool five cells deep, and the heap needed seven. Raised to 512. **That is affordable now for a reason that was not true before**: settled bodies sleep instead of asking the pressure question forever, so the budget is spent while a pool is moving rather than as a standing cost — the opposite of the trade the original 64 was chosen under. A benchmark scenario whose liquids never come to rest would have shown none of this, which is worth remembering when reading `churning`'s flat numbers above.
+**The interesting part is what the fix cost somewhere else, which the benchmark
+could not have told us.** Refusing the pointless lateral moves also refused the
+useful ones: that same sideways walk was how cells got off the top of a mound,
+several cells a step for free, and with it gone a poured column settled into a
+permanent six-cell heap and then went to sleep holding it. Long-range levelling
+had been resting on the jitter the whole time. The replacement is `seek_level`,
+whose reach was far shorter than it looked — breadth-first through the *body*
+rather than along its surface, spending its budget in both directions at once,
+so `MAX_PRESSURE_CELLS = 64` bought about six columns of reach in a pool five
+cells deep, and the heap needed seven. Raised to 512. **That is affordable now
+for a reason that was not true before**: settled bodies sleep instead of asking
+the pressure question forever, so the budget is spent while a pool is moving
+rather than as a standing cost — the opposite of the trade the original 64 was
+chosen under. A benchmark scenario whose liquids never come to rest would have
+shown none of this, which is worth remembering when reading `churning`'s flat
+numbers above.
 
-**V7 (per-cell emissive lighting) costs 0.20 ms of CPU per frame with a fire on screen, and 0.05 ms without one — and the notable thing is that measuring it at all required admitting this benchmark could not.** `grid_bench` times `Grid::update`. The light field is not in `Grid::update`; it is render work, computed per *frame* rather than per step, over the viewport rather than the world. Every existing scenario is structurally blind to it, so the usual bracketed A/B here would have returned flat numbers that agreed beautifully about nothing — which is the third rule below, and the mistake E3's first attempt already made once. The instrument changed instead of the scenario: `run_light` in `tests/bench_grid.cpp` times the `LightField::update` calls directly and reports per frame, under its own heading, in its own unit.
+**V7 (per-cell emissive lighting) costs 0.20 ms of CPU per frame with a fire on
+screen, and 0.05 ms without one — and the notable thing is that measuring it at
+all required admitting this benchmark could not.** `grid_bench` times
+`Grid::update`. The light field is not in `Grid::update`; it is render work,
+computed per *frame* rather than per step, over the viewport rather than the
+world. Every existing scenario is structurally blind to it, so the usual
+bracketed A/B here would have returned flat numbers that agreed beautifully
+about nothing — which is the third rule below, and the mistake E3's first
+attempt already made once. The instrument changed instead of the scenario:
+`run_light` in `tests/bench_grid.cpp` times the `LightField::update` calls
+directly and reports per frame, under its own heading, in its own unit.
 
-Readings, two consecutive runs of the same binary: `light/fire` **0.2016** and **0.2022** ms/frame, `light/dark` **0.0492** and **0.0508** ms/frame. About **1.2% of a 60 Hz frame** in the case the feature exists for, and the unlit figure is the scan and the `any_light()` early-out with no propagation behind it — which is what most frames of most sessions will actually pay.
+Readings, two consecutive runs of the same binary: `light/fire` **0.2016** and
+**0.2022** ms/frame, `light/dark` **0.0492** and **0.0508** ms/frame. About
+**1.2% of a 60 Hz frame** in the case the feature exists for, and the unlit
+figure is the scan and the `any_light()` early-out with no propagation behind it
+— which is what most frames of most sessions will actually pay.
 
-**The feature is counted, not assumed to have run**, per the rule this document learned from E3: `light/fire` reports **300/300 frames lit** and `light/dark` reports **0/300**. Without those counts, `light/dark`'s reassuringly small number would be indistinguishable from a light field that was silently doing nothing at all.
+**The feature is counted, not assumed to have run**, per the rule this document
+learned from E3: `light/fire` reports **300/300 frames lit** and `light/dark`
+reports **0/300**. Without those counts, `light/dark`'s reassuringly small
+number would be indistinguishable from a light field that was silently doing
+nothing at all.
 
-**V7 then got 2.4x more expensive fixing how it looked, and that is recorded rather than absorbed.** Session 2's playtest found the lighting blown out; the fix added diagonal neighbours to the propagation (four gathers become eight), a `sqrt` per block for the diagonal's attenuation, and a divide per channel for tone mapping. `light/fire` went **0.20 → 0.485 ms/frame** (0.4853 and 0.4843 on two consecutive runs), or 1.2% → **2.9% of a 60 Hz frame**. `light/dark` is unchanged at 0.05 ms, as it must be — none of that work runs when nothing is emitting.
+**V7 then got 2.4x more expensive fixing how it looked, and that is recorded
+rather than absorbed.** Session 2's playtest found the lighting blown out; the
+fix added diagonal neighbours to the propagation (four gathers become eight), a
+`sqrt` per block for the diagonal's attenuation, and a divide per channel for
+tone mapping. `light/fire` went **0.20 → 0.485 ms/frame** (0.4853 and 0.4843 on
+two consecutive runs), or 1.2% → **2.9% of a 60 Hz frame**. `light/dark` is
+unchanged at 0.05 ms, as it must be — none of that work runs when nothing is
+emitting.
 
-**This is a real cost and it was worth paying, but the honest framing is that the first number was cheap partly because the feature was wrong.** Four-neighbour propagation makes distance Manhattan, and the diamond-shaped falloff that produces was visible on screen as shafts radiating from every fire. The affordable-shape budget in `ROADMAP.md` is intact — still one downsampled grid, still one extra `SDL_RenderCopy`, still no shader path — and 2.9% of a frame for the whole of the lighting remains far inside it. Worth watching if BLOCK is ever reduced: the propagation is now the dominant term and it scales as the square of the resolution.
+**This is a real cost and it was worth paying, but the honest framing is that
+the first number was cheap partly because the feature was wrong.**
+Four-neighbour propagation makes distance Manhattan, and the diamond-shaped
+falloff that produces was visible on screen as shafts radiating from every fire.
+The affordable-shape budget in `ROADMAP.md` is intact — still one downsampled
+grid, still one extra `SDL_RenderCopy`, still no shader path — and 2.9% of a
+frame for the whole of the lighting remains far inside it. Worth watching if
+BLOCK is ever reduced: the propagation is now the dominant term and it scales as
+the square of the resolution.
 
-**No bracket and no control, deliberately, and the reason is that nothing is being compared.** Every other entry above is a difference between two states, which is what makes drift able to masquerade as an effect. This is a direct timing of a call, so there is no second reading for drift to hide in. The first version of it *was* shaped like an A/B — whole loop timed, a light-free loop subtracted — and that was strictly worse: two ~2-second loops differenced to recover ~50 ms, where one percent of machine-state drift between them is the size of the entire answer.
+**No bracket and no control, deliberately, and the reason is that nothing is
+being compared.** Every other entry above is a difference between two states,
+which is what makes drift able to masquerade as an effect. This is a direct
+timing of a call, so there is no second reading for drift to hide in. The first
+version of it *was* shaped like an A/B — whole loop timed, a light-free loop
+subtracted — and that was strictly worse: two ~2-second loops differenced to
+recover ~50 ms, where one percent of machine-state drift between them is the
+size of the entire answer.
 
-**What is measured is CPU only. The texture upload and the extra `SDL_RenderCopy` are unmeasured**, because this project has no headless instrument that can see the GPU. They are not being claimed as free — they are one small streaming upload (51x38 texels) and one stretched blit per frame, which is what the architecture note in `ROADMAP.md` budgeted, and *unmeasured* is what E9's entry above established as the honest word for a number the method cannot support.
+**What is measured is CPU only. The texture upload and the extra
+`SDL_RenderCopy` are unmeasured**, because this project has no headless
+instrument that can see the GPU. They are not being claimed as free — they are
+one small streaming upload (51x38 texels) and one stretched blit per frame,
+which is what the architecture note in `ROADMAP.md` budgeted, and *unmeasured*
+is what E9's entry above established as the honest word for a number the method
+cannot support.
 
-The rules below are the whole reason this document exists. (They were introduced as "three" and have been four for a while; the count is now dropped rather than corrected each time one is earned.)
-- **Bracket every A/B (on, off, on).** Drift during a sitting is monotonic as the machine settles, so an unbracketed pair silently charges the second measurement for the drift between them. This is exactly how the 5% figure got in here.
-- **Toggle a feature at runtime, in one binary, not by recompiling.** Two builds differ by more than the feature: removing a call changes inlining and code layout across the whole hot loop, and that difference can be far larger than the thing being measured — 28% larger, in the E1 case above, in a scenario the feature could not touch. A `static const bool` read once from an environment variable costs a predictable branch and keeps every other byte of the binary identical. Recompiling is still the only option when the change is a data layout rather than a call (P1), and there the control matters more, not less.
-- **Check that the benchmark can reach the feature before believing a flat result.** A control proves the machine was steady; it says nothing about whether the code under test ever executed. E3's first A/B was bracketed, controlled, five runs a side, and completely worthless, because `collapsing` deletes its slabs before they land and fracture only fires on landing — three flat numbers that agreed beautifully about nothing. **A null result is only evidence if the feature ran**, and the cheapest way to know it ran is to count it: instrumenting for one throwaway build turned "no measurable cost" into "37 cracks, one fill each", which is a different and much stronger sentence.
-- **If the benchmark cannot reach the feature, change the instrument — not the scenario, and not the standard.** The two failure modes this replaces are both on the record: E9's cost was measured with the wrong method and had to be written down as unmeasured, and E3's first A/B was executed perfectly against a scenario that never ran the code. V7 is the first item here that is not simulation at all, and the temptation was to squeeze it into the per-step table anyway, where its number would have been meaningless in a unit that was not its own. A second instrument, in its own unit, under its own heading, is cheaper than either. **The corollary is the part that binds:** a feature with no instrument that can see it is *unmeasured*, and that word goes in this file — it does not become a plausible number.
-- **A number without a matching control is not evidence.** When a scenario looks like it regressed, first check whether a scenario that *cannot* be affected moved too. `churning` and `cascading` contain no Wall or Wood at all, so nothing in either can ever fall — if they move when the falling code changes, the machine moved, not the code. This has already earned its keep twice: once against a phantom 2x regression, and again when fall acceleration landed and `cascading` read 17.8, then 27.4, then 12.0 ms across three consecutive runs of the same binary.
+The rules below are the whole reason this document exists. (They were introduced
+as "three" and have been four for a while; the count is now dropped rather than
+corrected each time one is earned.)
+- **Bracket every A/B (on, off, on).** Drift during a sitting is monotonic as
+  the machine settles, so an unbracketed pair silently charges the second
+  measurement for the drift between them. This is exactly how the 5% figure got
+  in here.
+- **Toggle a feature at runtime, in one binary, not by recompiling.** Two builds
+  differ by more than the feature: removing a call changes inlining and code
+  layout across the whole hot loop, and that difference can be far larger than
+  the thing being measured — 28% larger, in the E1 case above, in a scenario the
+  feature could not touch. A `static const bool` read once from an environment
+  variable costs a predictable branch and keeps every other byte of the binary
+  identical. Recompiling is still the only option when the change is a data
+  layout rather than a call (P1), and there the control matters more, not less.
+- **Check that the benchmark can reach the feature before believing a flat
+  result.** A control proves the machine was steady; it says nothing about
+  whether the code under test ever executed. E3's first A/B was bracketed,
+  controlled, five runs a side, and completely worthless, because `collapsing`
+  deletes its slabs before they land and fracture only fires on landing — three
+  flat numbers that agreed beautifully about nothing. **A null result is only
+  evidence if the feature ran**, and the cheapest way to know it ran is to count
+  it: instrumenting for one throwaway build turned "no measurable cost" into "37
+  cracks, one fill each", which is a different and much stronger sentence.
+- **If the benchmark cannot reach the feature, change the instrument — not the
+  scenario, and not the standard.** The two failure modes this replaces are both
+  on the record: E9's cost was measured with the wrong method and had to be
+  written down as unmeasured, and E3's first A/B was executed perfectly against
+  a scenario that never ran the code. V7 is the first item here that is not
+  simulation at all, and the temptation was to squeeze it into the per-step
+  table anyway, where its number would have been meaningless in a unit that was
+  not its own. A second instrument, in its own unit, under its own heading, is
+  cheaper than either. **The corollary is the part that binds:** a feature with
+  no instrument that can see it is *unmeasured*, and that word goes in this file
+  — it does not become a plausible number.
+- **A number without a matching control is not evidence.** When a scenario looks
+  like it regressed, first check whether a scenario that *cannot* be affected
+  moved too. `churning` and `cascading` contain no Wall or Wood at all, so
+  nothing in either can ever fall — if they move when the falling code changes,
+  the machine moved, not the code. This has already earned its keep twice: once
+  against a phantom 2x regression, and again when fall acceleration landed and
+  `cascading` read 17.8, then 27.4, then 12.0 ms across three consecutive runs
+  of the same binary.
 
-**Acceleration is priced per cell of travel, not per step.** A piece at speed 8 costs eight times what a piece at speed 1 costs *in that step*, because it does the work eight times — one full re-derivation per cell moved, which is what stops it stepping over a thin floor. The total cost of falling a given distance is therefore unchanged by acceleration; it is spent sooner and in fewer steps. That follows from the structure of the loop rather than from a measurement, and it is why `MAX_FALL_SPEED` is the knob to reach for if `collapsing` ever matters: it is a direct multiplier on the worst case.
+**Acceleration is priced per cell of travel, not per step.** A piece at speed 8
+costs eight times what a piece at speed 1 costs *in that step*, because it does
+the work eight times — one full re-derivation per cell moved, which is what
+stops it stepping over a thin floor. The total cost of falling a given distance
+is therefore unchanged by acceleration; it is spent sooner and in fewer steps.
+That follows from the structure of the loop rather than from a measurement, and
+it is why `MAX_FALL_SPEED` is the knob to reach for if `collapsing` ever
+matters: it is a direct multiplier on the worst case.
 
-Affordable either way — with one caveat this paragraph used to get for free and no longer does. `cascading` is a synthetic worst case the game does not produce and real gameplay sits near `sparse`/`burning`. **What changed is the size comparison, and it changed direction.** This line has been wrong twice about the played size: it said 200x150 for several revisions after F4.3 moved the world to 640x400, and then said 640x400 after the Noita rescale moved it to **1920x1080** — which is four times `grid_bench`'s 960x540 rather than a fraction of it, so the benchmark can no longer be read as an upper bound on the played world. **Every per-step number in this file used to be measured at 960x540 while the game ran larger; P2 closed that**, and the table at the top is now quoted at both sizes with the played one first. The tables can be read as a budget for the shipped size again, with one correction that P2 supplied and this paragraph had backwards: the gap was never a uniform factor of four to be mentally applied to a row. `sparse` is 1.00x and `cascading` is 3.51x, because the engine pays for awake cells rather than for cells. `ENGINEERING_NOTES.md` had two items filed as cheap wins aimed squarely at this loop. **Neither survived contact with a measurement.** Deriving colour to shrink the cell stays off the table for the authored-colour reason, and RNG — F1.6, in `ROADMAP.md` — turned out to cost a small amount rather than save one. Which is fine — determinism was the point of F1.6, not speed, and it is a fraction of a percent of the frame either way. In the mid-seventies of a frame, `cascading` does not have much headroom, and it is the number to watch.
+Affordable either way — with one caveat this paragraph used to get for free and
+no longer does. `cascading` is a synthetic worst case the game does not produce
+and real gameplay sits near `sparse`/`burning`. **What changed is the size
+comparison, and it changed direction.** This line has been wrong twice about the
+played size: it said 200x150 for several revisions after F4.3 moved the world to
+640x400, and then said 640x400 after the Noita rescale moved it to **1920x1080**
+— which is four times `grid_bench`'s 960x540 rather than a fraction of it, so
+the benchmark can no longer be read as an upper bound on the played world.
+**Every per-step number in this file used to be measured at 960x540 while the
+game ran larger; P2 closed that**, and the table at the top is now quoted at
+both sizes with the played one first. The tables can be read as a budget for the
+shipped size again, with one correction that P2 supplied and this paragraph had
+backwards: the gap was never a uniform factor of four to be mentally applied to
+a row. `sparse` is 1.00x and `cascading` is 3.51x, because the engine pays for
+awake cells rather than for cells. `ENGINEERING_NOTES.md` had two items filed as
+cheap wins aimed squarely at this loop. **Neither survived contact with a
+measurement.** Deriving colour to shrink the cell stays off the table for the
+authored-colour reason, and RNG — F1.6, in `ROADMAP.md` — turned out to cost a
+small amount rather than save one. Which is fine — determinism was the point of
+F1.6, not speed, and it is a fraction of a percent of the frame either way. In
+the mid-seventies of a frame, `cascading` does not have much headroom, and it is
+the number to watch.
 
-**The next answer to "`cascading` is slow" now has a name, and it is a real optimisation with a real design cost rather than a line item that was already sitting in this file.** It is **P1** in `ROADMAP.md`'s Engine & Visual Depth section, and the argument for it starts from this document: `cascading` is bandwidth-bound (see the machine-state note above — it keeps 105 of 135 chunks awake and is the scenario that notices what else the machine is doing, while `churning` fits in cache and barely moves). `ENGINEERING_NOTES.md` priced a 12→2 byte cell at ~6x the hot loop's memory traffic and then rejected the *only route to it that was considered*, shrinking the cell, because that route is mutually exclusive with authored per-cell colour. P1 takes the other route: **stop reading colour in the hot loop at all.** `type` and `updated_tag` are read for nearly every awake cell every step; `color` is touched only on write and on upload. Splitting the `Element` array into hot and cold arrays cuts the bytes the sweep streams per cell without giving up a single authored pixel.
+**The next answer to "`cascading` is slow" now has a name, and it is a real
+optimisation with a real design cost rather than a line item that was already
+sitting in this file.** It is **P1** in `ROADMAP.md`'s Engine & Visual Depth
+section, and the argument for it starts from this document: `cascading` is
+bandwidth-bound (see the machine-state note above — it keeps 105 of 135 chunks
+awake and is the scenario that notices what else the machine is doing, while
+`churning` fits in cache and barely moves). `ENGINEERING_NOTES.md` priced a 12→2
+byte cell at ~6x the hot loop's memory traffic and then rejected the *only route
+to it that was considered*, shrinking the cell, because that route is mutually
+exclusive with authored per-cell colour. P1 takes the other route: **stop
+reading colour in the hot loop at all.** `type` and `updated_tag` are read for
+nearly every awake cell every step; `color` is touched only on write and on
+upload. Splitting the `Element` array into hot and cold arrays cuts the bytes
+the sweep streams per cell without giving up a single authored pixel.
 
-**Recorded here as a prediction, before it is measured, so it can be graded rather than quietly reinterpreted afterwards.** The prediction is: `cascading` improves materially, `churning` moves much less or not at all — because the first is bandwidth-bound and the second is not — and `settled` does not move at all. **If `churning` improves as much as `cascading`, the explanation is wrong even if the numbers are good**, and that matters more than the win, because it would mean this document's account of *why* `cascading` is expensive is mistaken and every future decision resting on it is unsound. Bracketed (on, off, on), five runs each, minimum of each, per the two rules above. This file has now written down two confident performance predictions and been wrong about both; the point of writing the third down in advance is that being wrong a third time should cost nothing but a corrected paragraph.
+**Recorded here as a prediction, before it is measured, so it can be graded
+rather than quietly reinterpreted afterwards.** The prediction is: `cascading`
+improves materially, `churning` moves much less or not at all — because the
+first is bandwidth-bound and the second is not — and `settled` does not move at
+all. **If `churning` improves as much as `cascading`, the explanation is wrong
+even if the numbers are good**, and that matters more than the win, because it
+would mean this document's account of *why* `cascading` is expensive is mistaken
+and every future decision resting on it is unsound. Bracketed (on, off, on),
+five runs each, minimum of each, per the two rules above. This file has now
+written down two confident performance predictions and been wrong about both;
+the point of writing the third down in advance is that being wrong a third time
+should cost nothing but a corrected paragraph.
 
-**P2 did not grade that prediction, but it did undermine the control it is graded with, and that has to be settled before P1 is measured rather than after.** The criterion above is "`churning` moves much less or not at all", and it works only while `churning` is the scenario that *fits in cache* — which is what the machine-state note observed, at 960x540, where the cell array is about 6 MB. At 1920x1080 it is about 25 MB, and the same scenario cannot be assumed cache-resident at four times the size. If it is not, then at the played size both scenarios are bandwidth-bound, both would improve under P1, and **the criterion would report "the explanation is wrong" on a run where the explanation was right** — a control that fails in the direction of discarding a correct account is worse than no control. Note also that `churning` is the one row P2 found contaminated by its own settling (see the table notes above), so it is doing double duty as a control while being the least clean row in the table. **What this needs is a measurement, not a rewrite**: whether `churning` at 1920x1080 is bandwidth-bound is answerable directly, and until it is answered, P1's bracket should be run at both sizes and graded on the 960x540 pair, which is the configuration the prediction was actually written against.
+**P2 did not grade that prediction, but it did undermine the control it is
+graded with, and that has to be settled before P1 is measured rather than
+after.** The criterion above is "`churning` moves much less or not at all", and
+it works only while `churning` is the scenario that *fits in cache* — which is
+what the machine-state note observed, at 960x540, where the cell array is about
+6 MB. At 1920x1080 it is about 25 MB, and the same scenario cannot be assumed
+cache-resident at four times the size. If it is not, then at the played size
+both scenarios are bandwidth-bound, both would improve under P1, and **the
+criterion would report "the explanation is wrong" on a run where the explanation
+was right** — a control that fails in the direction of discarding a correct
+account is worse than no control. Note also that `churning` is the one row P2
+found contaminated by its own settling (see the table notes above), so it is
+doing double duty as a control while being the least clean row in the table.
+**What this needs is a measurement, not a rewrite**: whether `churning` at
+1920x1080 is bandwidth-bound is answerable directly, and until it is answered,
+P1's bracket should be run at both sizes and graded on the 960x540 pair, which
+is the configuration the prediction was actually written against.
 
-The one to watch *second* is `collapsing`, for a different reason: it is the only scenario whose cost is set by a tuning constant rather than by how much material is moving. Raising `MAX_FALL_SPEED` to make things feel heavier multiplies it directly. This paragraph used to say **E3 (fracture) is the scheduled item most likely to move this number**, on the reasoning that a piece breaking into several is several pieces each re-deriving their own support. It did not move it at all — see the E3 entry above for why, and for the fact that `collapsing` could not have seen it either way.
+The one to watch *second* is `collapsing`, for a different reason: it is the
+only scenario whose cost is set by a tuning constant rather than by how much
+material is moving. Raising `MAX_FALL_SPEED` to make things feel heavier
+multiplies it directly. This paragraph used to say **E3 (fracture) is the
+scheduled item most likely to move this number**, on the reasoning that a piece
+breaking into several is several pieces each re-deriving their own support. It
+did not move it at all — see the E3 entry above for why, and for the fact that
+`collapsing` could not have seen it either way.
 
-**Two of the three E items add per-cell work to a loop already in the seventies in its worst case, so each carries its own bracketed measurement rather than deferring all of it to P1.** E2 was correctly identified in advance as the one to watch, and it is now measured above: it briefly did break the budget, and the answer turned out to be an exact early-out rather than the escape hatch. That is the one prediction this file has made and got right; E3, measured above, is the third it got wrong, and it was wrong in the direction of expecting a cost that did not appear. Four written down, one correct — which is worth as much as the three that were not, because the value of writing them down in advance does not depend on which way they land. **The E track is now complete and the budget survived it**, at a cost of a little over two percent on the worst case, all of it E2's. If a later item does break the budget, `ROADMAP.md` still says P1 gets pulled forward ahead of the rest — which is the right response precisely because P1 is a layout change that makes every subsequent per-cell addition cheaper, rather than a one-off refund. E2's own new field, `temperature`, is now part of what P1 would move into the hot array.
+**Two of the three E items add per-cell work to a loop already in the seventies
+in its worst case, so each carries its own bracketed measurement rather than
+deferring all of it to P1.** E2 was correctly identified in advance as the one
+to watch, and it is now measured above: it briefly did break the budget, and the
+answer turned out to be an exact early-out rather than the escape hatch. That is
+the one prediction this file has made and got right; E3, measured above, is the
+third it got wrong, and it was wrong in the direction of expecting a cost that
+did not appear. Four written down, one correct — which is worth as much as the
+three that were not, because the value of writing them down in advance does not
+depend on which way they land. **The E track is now complete and the budget
+survived it**, at a cost of a little over two percent on the worst case, all of
+it E2's. If a later item does break the budget, `ROADMAP.md` still says P1 gets
+pulled forward ahead of the rest — which is the right response precisely because
+P1 is a layout change that makes every subsequent per-cell addition cheaper,
+rather than a one-off refund. E2's own new field, `temperature`, is now part of
+what P1 would move into the hot array.
