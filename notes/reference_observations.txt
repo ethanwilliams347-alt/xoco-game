@@ -600,3 +600,61 @@ best available evidence of what a non-night palette would look like — the whol
 frame's hue budget inverts, warm above and cool below — and it is filed here
 unused because time of day is a held-open question in art_direction.txt section
 8 rather than a scheduled one.
+
+
+ENTRY 10 — the subject moves, the composition does not.
+--------------------------------------------------------------------------
+Frames: CnC_fishing.jpg, CnC_underwater_1.jpg, CnC_underwater_2.jpg — the same
+three as entry 5, read together instead of one at a time, which is the only
+reason this is here.
+
+Entry 9's disproof run had just established that the *fractions* in these frames
+are not comparable — the fishing frame's plane is cut by its split-view
+waterline rather than by the frame edge — and left only the ordinal claim
+standing. That looked like the end of what the family could say. It was not,
+because a fraction is not the only thing a set of frames can agree on.
+
+Where the subject sits, top of frame to boat:
+
+    CnC_fishing.jpg        ~0.60 down
+    CnC_underwater_1.jpg   ~0.36 down
+    CnC_underwater_2.jpg   ~0.27 down
+
+Read as three attempts at one composition those numbers are a mess — a third of
+the frame of disagreement, on the one element every frame is built around. Read
+as three *states* they are not, and the thing that resolves them is what stays
+still:
+
+**The near volume holds the lower 55-65% of the frame in all three.** In the
+fishing frame that volume is the lit plane the boat sits on and you look across
+it. In the two underwater frames it is the water column and you look down into
+it. The subject is not at an inconsistent height; it is riding on top of
+whichever volume the frame is about, and it rises exactly when that volume goes
+underneath it.
+
+**So the rule is not "put the subject at height X". It is "give the volume the
+frame is about the bottom two thirds, and let the subject sit on its edge."**
+That is a rule about composition rather than about a coordinate, which is why
+three frames that disagree about the coordinate can all obey it.
+
+*What it was worth, immediately.* V22 had stalled on what looked like a genuine
+conflict: the reference wants the player low so the ground plane gets its two
+thirds, and digging wants them high so there is world visible below them to dig
+into. Those are the same rule in two states — the volume worth showing changes
+when you start digging, so the framing does too. It became V23, the camera's
+vertical anchor, and the two anchors are read straight off the table above.
+
+*Disproof, and it is a sharp one:* a frame where the subject sits low and the
+volume of interest is nonetheless below them, or high with the interest above.
+Either breaks the "sits on the edge of the volume" reading and leaves the three
+heights as simple inconsistency. None of the eight frames shows it. **A moving
+frame would test it far better than a still one** — this entry claims the
+subject's height is a function of what the frame is about, and a video where the
+camera never re-frames while the subject changes depth would disprove it
+outright.
+
+*And the caution entry 9 earned, restated because this entry is built on the
+same three frames it was earned from:* a reading that survives its own disproof
+can still be unaffordable, and those are separate findings. This one was
+affordable — it cost a camera anchor and a state machine, both testable — but
+that was luck about which item it landed in, not a property of the reading.

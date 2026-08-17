@@ -23,11 +23,48 @@ cmake --build build --config Release
 
 ---
 
-**Nothing is owed right now.** The V21 brightness look came back **good** on
-2026-08-17 and is off this list; the land-or-water decision closed on
-2026-08-16 (land, with the plane behaving the way the reference's water does —
-[V22](ROADMAP.md)). The next thing that will land here is under the heads-up
-below, and it is coming.
+**One thing is owed: play V23 and tell me how the camera feels.** Added
+2026-08-17. **This is the largest change to how the game looks that has been
+made without a human seeing it first** — the player no longer sits at the centre
+of the screen, and the framing now moves while you dig. Everything about whether
+that is right is feel, and none of it is measurable from here.
+
+**What changed, in one line:** standing still, you sit about four fifths of the
+way down the screen so the ground plane gets the frame; hold the dig button
+aimed downward and the camera moves until you are about a third of the way down,
+so the ground you are digging into fills it instead. Let go and it returns.
+
+**The three questions, in the order they matter.** *(This is checklist step 13,
+written up in full at the bottom of this file.)*
+
+1. **Does the movement read as the camera answering the dig, or as the camera
+   wandering?** This is the one number that came from nothing — the two framings
+   are read off the reference frames, but the *speed* between them
+   (`EASE_PER_SEC`, currently a 0.6-second swing) is a guess. Too fast reads as a
+   cut, too slow never arrives and drifts permanently. **Both failures get
+   described as "nauseating", so please say which one it is**, not just that it
+   is wrong.
+2. **Standing on the surface — can you still see enough below you to play?**
+   There are about 55 cells of world under your feet at the surface framing, and
+   that number was the whole argument against doing this. If it feels blind,
+   `SURFACE_ANCHOR` comes down and the plane gives some frame back.
+3. **Does the ground plane finally read as a surface receding away from you?**
+   That is the question three previous attempts failed at, and this is the first
+   change aimed at the actual cause. **A "no" here is a real answer and I would
+   rather have it than a polite yes** — it would mean the geometry was never the
+   whole problem, which is worth knowing before V22 spends a scene rewrite on
+   the same premise.
+
+*Also worth reporting if you see it:* whether the camera does anything strange
+at the very bottom or top of the world (it should just stop, the world edge
+wins), and whether aiming the mouse without moving it makes the view creep on
+its own — there is a feedback loop between the camera and the cursor that is
+cut in the code and pinned by a test, but the test is arithmetic and your eye is
+not.
+
+*Closed and off this list:* the V21 brightness look came back **good** on
+2026-08-17; the land-or-water decision closed on 2026-08-16 (land, with the
+plane behaving the way the reference's water does — [V22](ROADMAP.md)).
 
 *Two results worth keeping, because they close questions rather than sitting
 open:* the backdrop ceiling is **settled at V21's value** — it took one step
@@ -151,6 +188,18 @@ has ever had.*
     **Also confirm nothing else moved.** Only the mountains and the ground plane are graded. The sky, the terrain, the trees, the props and the player are all at 1.00 on purpose, so if the *whole frame* looks darker rather than just the ridge, the grade has landed in the wrong place — check whether `Params::world_grade` has acquired a caller.
 
     **And check a fire at the horizon if you can arrange one.** The grade pass is drawn *before* the additive light pass specifically so that a fire is not dimmed along with the scene. `golden_frame_test` measures this headlessly and a `static_assert` holds the ordering, so this is a confirmation rather than a hunt — but it is the one visible consequence of the ordering argument, and it is worth having seen once.
+
+13. **The camera leaves screen centre, and digging brings it back (`V23`, new 2026-08-17).** **The newest step and the one with the least behind it** — every other step in this list names a regression that has actually happened, and this one names a change nobody has seen. Needs an open surface location with diggable ground under it, which the spawn is.
+
+    **What you should see.** Standing still, you sit roughly four fifths of the way down the screen rather than at its centre, with the backdrop's ground plane taking most of the frame above you. Hold the dig button with the cursor below you and the view should move — over about six tenths of a second — until you are around a third of the way down and the ground you are digging into fills the frame. Release, and it returns at the same rate. Digging **sideways or upward should barely move it at all**: the camera is supposed to respond to the volume going *underneath* you, not to the dig button.
+
+    **The failure modes, which are not symmetrical.** Too fast reads as a cut rather than a move; too slow means the camera is still arriving when you have stopped digging, so it never settles into either framing and just drifts. **Both get called "nauseating", so name which one.** The speed constant is the one number in this feature derived from nothing at all — the two framings come from the reference frames, the duration is a guess.
+
+    **The cost this step is really watching.** At the surface framing there are about **55 cells of world visible below your feet**, down from ~135 at centre. That is the argument that nearly stopped this being built, and the dig framing is what pays it back. So: is normal play — walking, jumping, aiming at something below you before you start digging — noticeably blinder? A yes here is not a defect report, it is `SURFACE_ANCHOR` being too high.
+
+    **Two edges worth a deliberate look.** Walk to the very bottom and the very top of the world: the view should simply stop at the world edge, with the anchor losing to the clamp, and never show anything outside the grid. And **hold the mouse perfectly still while digging downward** — the view must not creep on its own. There is a genuine feedback loop there (the camera moves the view, the view is what the mouse position is resolved through, the resolved aim is what moves the camera), it is cut in the code and pinned by a test with a negative control, but the test is arithmetic and this is the observation it stands in for.
+
+    **Finally, the question the whole V-track has been failing at:** does the ground plane now read as a surface receding away from you, rather than as a band sitting behind you? Three previous attempts tried to buy that with colour and could not, because the plane was 100% occluded by the world in front of it — this is the first change aimed at the cause. **A "no" is a valuable answer here** and should not be softened: it would mean geometry was not the whole problem, and V22 is about to spend a scene rewrite on the assumption that it was.
 
 ---
 
