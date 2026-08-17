@@ -3803,6 +3803,61 @@ simulation's resolution and no amount of asset work changes that.
       constant. The brightness re-check is item 1 of the owed list in
       MANUAL_TESTING.md and it is the only instrument there is.
 
+- [x] **V23b — The camera goes back to centre, and the mechanism goes with
+  it.** *(2026-08-17, hours after V23a)* *Observed:* playtest session 9, a
+  direction rather than a result: *"lets go back to the camera always being
+  centered."* *Unlocks:* nothing. It removes an item's worth of code and hands
+  V22 back a constraint it had been relieved of.
+
+    **What shipped is a deletion.** `src/game/camera_bias.h` and
+    `tests/test_camera_bias.cpp` are gone; `Camera::set_vertical_anchor`,
+    `vertical_anchor()` and the `anchor_y_` member are gone; `main.cpp` no longer
+    updates a bias per frame. `Camera::follow`'s vertical expression is character
+    for character the pre-V23 one, and the golden checksum went back to
+    **`0xcde4dc1a39927fca`** — the value it held before V23, not a new number.
+    **That the checksum returned to an earlier value is the evidence the revert
+    is complete**, and it is worth expecting the next time `git log -S` on that
+    constant lists the same value twice.
+
+    - **Removed rather than neutralised, and that was the decision in this
+      item.** The alternative was to leave the mechanism with both anchors at
+      0.50 — a smaller diff that keeps the option warm. It was refused because
+      this project's recurring failure is a stated rule that stopped matching the
+      code: TUNING.md would have gone on listing three knobs, the checklist would
+      have gone on describing a framing, and every one of them would have been
+      describing behaviour nothing produces. **A knob nobody turns is worse than
+      no knob, because it reads as a supported way to change the game.**
+    - **The suite count is unchanged at 14.** The Camera half of the retired
+      suite is now `tests/test_camera.cpp` — the centred framing, all four
+      world-edge clamps, the A1 fractional split and the parallax endpoints. The
+      framing checks went with the framing. **The centring assertion matters
+      more than it did**: it is now the whole of the shipped composition rule and
+      nothing else states it.
+    - **What this costs is V22's route, and the cost is exactly the measurement
+      V23 was built on.** A centred camera caps the receding ground plane's
+      visible share below the player at **~50% by construction**, and it measured
+      20.2% at the spawn against a reference reading of "clearly past half". That
+      measurement is untouched by the revert. **So V22 cannot reach its target
+      framing by moving the player down the frame any more**, and its remaining
+      route is the fixture scene — which session 8 had already argued is the
+      load-bearing half.
+    - **Three sessions, three directions, one day, and that is a result about
+      this project's process rather than about the camera.** V23 was built from
+      a measurement and three reference stills, V23a from the first human look,
+      V23b from the second. **The reference reading was never wrong about the
+      references** — what it lacked was any evidence about play, and the item
+      shipped with that stated and shipped anyway. The reusable form: when a feel
+      item's whole evidence base is still images, its first playtest is not a
+      verification step, it is the experiment, and the item should be sized as
+      one that might be deleted.
+    - **What is not settled and must not be quietly re-litigated.** Whether a
+      non-centred framing is right *at all* was never separately answered — it
+      was asked for, delivered wrong, corrected, and withdrawn. The two things
+      the next attempt would otherwise rediscover are kept at `Camera::follow`:
+      an anchor belongs on the camera and not at the caller (it is called twice
+      per rendered frame and applying it at one site tears the backdrop), and a
+      framing is a fraction of the viewport, never a count of cells.
+
 - [x] **V23a — The dig framing was never delivered, and the report that caught
   it.** *(2026-08-17, the day after V23)* *Observed:* playtest session 8, the
   V23 feel report V22 was gated on. *Unlocks:* nothing new — it repairs V23 and

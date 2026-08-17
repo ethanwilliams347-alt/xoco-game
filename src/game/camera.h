@@ -28,35 +28,29 @@ public:
     // `frac_x()` and paid out in screen pixels when the texture is drawn.
     void follow(float center_x, float center_y, int viewport_w, int viewport_h, int world_w, int world_h) {
         view_fx_ = clamp_view(center_x - static_cast<float>(viewport_w) / 2.0f, viewport_w, world_w);
-        view_fy_ = clamp_view(center_y - static_cast<float>(viewport_h) * anchor_y_, viewport_h, world_h);
+        view_fy_ = clamp_view(center_y - static_cast<float>(viewport_h) / 2.0f, viewport_h, world_h);
     }
 
-    // Where on the screen the followed point sits, as a fraction of the
-    // viewport's height: 0.5 is dead centre and was the only behaviour before
-    // V23. Larger values draw the player lower on the screen, which is the
-    // direction the reference frames want - `Camera::follow` centring strictly
-    // is what capped the receding plane's visible share at ~50% of its band by
-    // construction, and no scene edit could reach past that, because the scene
-    // does not decide where on screen the player is drawn.
+    // **The vertical framing is centred and there is no setter for it any
+    // more** (V23b, 2026-08-17). V23 made it a settable fraction so the player
+    // could sit low on the ground and rise while digging; session 9 asked for
+    // the centring back, and the whole mechanism - `set_vertical_anchor`, the
+    // `anchor_y_` member and `CameraBias` - went with it rather than being left
+    // as a knob nothing turns. The expression above is character for character
+    // the pre-V23 one, which is why the golden checksum went back to the value
+    // it held before V23 rather than to a third number.
     //
-    // **A fraction rather than a count of cells, and that is not a detail.**
-    // The thing being matched is a *composition* - the reference puts its
-    // subject about four fifths down the frame - and a fixed cell offset
-    // expresses that only at the one viewport height it was tuned at. Every
-    // other entry in DISPLAY_MODES would get a different picture from the same
-    // constant.
-    //
-    // Held here rather than applied by the caller because `follow` is called
-    // **twice per rendered frame** (once on the stepped position, once re-aimed
-    // at the interpolated draw position - the A1 correction below), and an
-    // anchor applied at one call site and not the other tears the backdrop
-    // against the world every frame.
-    //
-    // Deliberately not clamped: a value outside [0, 1] aims the camera at a
-    // point off-screen, which is meaningless rather than dangerous, and
-    // `clamp_view` still keeps the view inside the world.
-    void set_vertical_anchor(float fraction) { anchor_y_ = fraction; }
-    float vertical_anchor() const { return anchor_y_; }
+    // Two things to carry forward if a non-centred framing is ever asked for
+    // again, both learned rather than guessed. It belongs **here** and not at
+    // the caller, because `follow` is called twice per rendered frame (once on
+    // the stepped position, once re-aimed at the interpolated draw position -
+    // the A1 correction below) and an anchor applied at one call site and not
+    // the other tears the backdrop against the world every frame. And it has to
+    // be a **fraction of the viewport**, not a count of cells: a composition
+    // stated in cells only holds at the one viewport height it was tuned at,
+    // and DISPLAY_MODES has several. The rest of the argument, including why
+    // the framing V23 asked for was not the framing it delivered, is in
+    // ROADMAP.md under V23 / V23a / V23b.
 
     // Float in, float out: a world position drawn against a fractional view has
     // a fractional screen position, and rounding it here would put the jitter
@@ -130,10 +124,4 @@ private:
 
     float view_fx_ = 0.0f;
     float view_fy_ = 0.0f;
-
-    // 0.5 is exactly the pre-V23 expression, and it is the default so that the
-    // anchor mechanism could be built, linked and run against the standing
-    // golden checksum before anything moved - the house rule for a change with
-    // a no-op half.
-    float anchor_y_ = 0.5f;
 };

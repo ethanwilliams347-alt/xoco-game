@@ -188,9 +188,12 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
    with the list of what is owed to the tester; put an item on it the moment you
    ask for one, and take it off the moment it comes back.** Each of its
    **thirteen** steps names a regression that has actually
-   happened — **except steps 10 and 13, which are the two whose first result is a
-   design decision rather than a pass or a fail.** Step 13 is V23's camera
-   framing, written 2026-08-17 and **owed its first run**. Step 11 (V11's parallax check)
+   happened — **except step 10, whose first result is a design decision rather
+   than a pass or a fail.** Step 13 was the second such step and is not one any
+   more: it covered V23's moving camera framing, and **V23b deleted that
+   framing on 2026-08-17** when the tester asked for the centred camera back, so
+   the step is now an ordinary check that the player stays at mid screen.
+   Step 11 (V11's parallax check)
    carried a reopen trigger for a mid-ground band, and **that trigger fired on
    2026-08-16** (V19 4b) — so the step now checks a wrapping ground plane, not
    two static layers, and its new failure modes are a vertical tiling join and a

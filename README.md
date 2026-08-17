@@ -74,8 +74,8 @@ for the sprite manifest that decides which BMP each key loads, and `debug_test`
 for T1's debug tooling — the pause, the free camera's clamp and the cell
 inspector's text, none of which would be reachable by any test had they been
 written where the keys are bound. Three more cover the renderer's arithmetic:
-`backdrop_test` for the wrapping-layer maths, `camera_bias_test` for the
-camera's vertical framing and the way digging moves it, and `golden_frame_test`,
+`backdrop_test` for the wrapping-layer maths, `camera_test` for the view's
+framing and its world-edge clamps, and `golden_frame_test`,
 which composes a fixed scene through the real renderer and checksums it — **the
 one suite that links SDL**, though it still needs no display. CTest runs all of
 them.

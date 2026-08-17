@@ -204,32 +204,26 @@ has produced. That is the one way to misuse the golden test.
 | ~~`GROUND_HORIZON_FRACTION`~~ | — | **retired 2026-08-16** | Was 0.55, "where the plane's far edge sits as a fraction of window height, where the played frame's terrain skyline already sits". **Not a feel knob and should never have been one** — it is where the ground meets the *mountains*, which is a fact about the mountains, and its justification named the terrain. Stated in window space it was free to contradict the art, and it did at every camera position the world reaches: the plane covered the whole mountain band. Replaced by a derivation from `backdrop_layers::MOUNTAINS_SKYLINE_MAX`, generated from the same seeded walk that draws the silhouette and so **deliberately not tunable**. See `ground_horizon_y` in [frame.cpp](src/render/frame.cpp) and V20 in ROADMAP.md. |
 | `Params::world_grade` | [frame.h](src/render/frame.h) | identity | The world-*wide* multiply — night, underground, fog, per-biome. **Nothing sets it yet**; at identity the quad is not drawn at all. Set it and every world layer dims together while the fire does not, which is why the grade pass is ordered before the light pass and not after. |
 
-## Camera framing
+## Camera framing — **no knobs, and that is the current answer**
 
-[src/game/camera_bias.h](src/game/camera_bias.h)
+**The camera centres the player and there is nothing here to tune** (V23b,
+2026-08-17). This section held three constants for one day —
+`SURFACE_ANCHOR` 0.80, `COLUMN_ANCHOR` 0.50 and `EASE_PER_SEC` 0.85, in a
+`src/game/camera_bias.h` that no longer exists — and they are gone with the
+mechanism rather than parked at neutral values. The History entries below are
+where they survive.
 
-**Where the player sits on the screen, and why it moves.** These are the most
-visible feel constants in the project — they change the composition of every
-frame — and they are also the ones with the least evidence behind them, because
-the thing they are tuned against is a pair of still images and the thing they
-have to survive is play.
+Two things worth keeping, because they are what the next attempt would otherwise
+rediscover:
 
-**They are fractions of viewport height, not counts of cells**, and that is
-deliberate: what is being matched is a composition, and a cell offset expresses
-it only at the one viewport height it was tuned at. Every other entry in
-`DISPLAY_MODES` would get a different picture from the same number.
-
-**None of these moves the golden checksum on its own** — the fixture reads
-`SURFACE_ANCHOR` and would follow it, so retuning that one *does* move it and
-the new value goes in the same commit. `COLUMN_ANCHOR` and `EASE_PER_SEC` are
-outside the fixture's coverage entirely, since it composes one still frame with
-no dig and no elapsed time.
-
-| Knob | Line | Now | What it does |
-|---|---|---|---|
-| `SURFACE_ANCHOR` | [camera_bias.h](src/game/camera_bias.h) | 0.80 (91) | Where the player sits when not digging, as a fraction down the screen. **This is the number the whole receding-plane effort turned out to depend on**, and no scene edit could substitute for it: at the old 0.5 the plane's visible band below the player capped at ~50% *by construction*, and measured 20.2% at the spawn, against a reference reading of "clearly past half, around two thirds". At 0.80 the contact lands near 65%. Raise it and the plane gets more of the frame while the ground below the player shrinks toward nothing; lower it and the effect this item exists for goes away. **The cost is stated as a number: at 0.80 there are about 55 cells of world visible below the player**, and that is what digging has to live in before the dig framing takes over. **Not derived from the fishing frame's own 0.60**, which is a different measurement — that frame's plane is cut by its split-view waterline rather than by the frame edge, so the two fractions are not averageable (entry 9's disproof run). |
-| `COLUMN_ANCHOR` | [camera_bias.h](src/game/camera_bias.h) | 0.50 (119) | Where the player sits when the interesting volume is below them — digging downward, **or airborne**, which is a second trigger session 8 asked for. Called `DIG_ANCHOR` at 0.30 until 2026-08-17, read off the mean of `CnC_underwater_1` (~0.36) and `CnC_underwater_2` (~0.27). **0.30 was not deliverable and that is why it moved, not feel overruling the reference:** the view clamps at `world_h - viewport_h` = 810, so at the fixture floor (row ~948) a request for 0.30 resolved to 0.51 on screen and at row 1000 to 0.70 — the camera answering the dig *least* where there was most world below it. 0.50 is delivered everywhere the game is played. Lower and more of the shaft is visible while the surface leaves the frame entirely; higher and it converges on the surface framing, at which point digging is back to ~55 cells of look-ahead. **The test pins the framing as delivered through `Camera::follow`, not as requested** — asserting the constant alone is what let 0.30 ship. |
-| `EASE_PER_SEC` | [camera_bias.h](src/game/camera_bias.h) | 0.85 (124) | Anchor units per second. **The swing it crosses is 0.30 since 2026-08-17, not 0.50, so the duration is 0.35 s and not the six tenths this row used to quote** — the constant never moved, the distance did, which means session 8 was asked about a speed it had not seen. **The failure at both ends is the same word — "nauseating" — for opposite reasons**: too fast and the view cuts rather than moves, too slow and the camera is still arriving when the player has stopped digging, so it never composes either framing and drifts permanently. Frame-rate independent by construction and pinned by a test, not by this number. |
+- **A framing is a fraction of the viewport, never a count of cells.** What is
+  being matched is a composition, and a cell offset expresses it only at the one
+  viewport height it was tuned at; every other entry in `DISPLAY_MODES` gets a
+  different picture from the same number.
+- **A framing has to be asserted as *delivered*, not as requested.** The view
+  clamps at `world_h - viewport_h`, so near the world's floor a request and its
+  result are different numbers — which is exactly how V23's dig framing shipped
+  past a green suite and reached a human as "upside down".
 
 ## Debug camera
 
@@ -254,6 +248,18 @@ at the result, not whether the number is a speed.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-17** — **V23b: all three camera knobs deleted; the camera centres
+  again.** Playtest session 9 asked for the centred framing back, one day after
+  V23 introduced it and hours after V23a's correction. `SURFACE_ANCHOR`,
+  `COLUMN_ANCHOR` and `EASE_PER_SEC` are gone, along with `CameraBias` and
+  `Camera::set_vertical_anchor` — **not set to neutral values, removed**, so
+  that nothing here claims a knob the code does not have. `Camera::follow`'s
+  vertical expression is character for character the pre-V23 one and the golden
+  checksum went back to `0xcde4dc1a39927fca`, the number it held before V23,
+  which is the evidence the revert is complete. **What is not settled by this is
+  the receding plane**, whose visible share the centred camera caps at ~50% by
+  construction — that measurement is unchanged and V22 still has to answer it
+  some other way.
 - **2026-08-17** — **V23a: the dig framing moved to centre and gained a second
   trigger, on the first human report.** `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR`
   0.50, renamed because it is no longer only about digging: being **airborne**

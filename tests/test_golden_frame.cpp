@@ -39,7 +39,6 @@
 #include <cstdio>
 #include <vector>
 #include "game/camera.h"
-#include "game/camera_bias.h"
 #include "physics/grid.h"
 #include "render/frame.h"
 #include "render/light.h"
@@ -205,13 +204,12 @@ int main() {
     stamp_world(grid);
 
     Camera camera;
-    // V23. The fixture carries the shipped anchor rather than the default 0.5,
-    // for the reason the null-texture layer taught: a checksum over a
-    // configuration the game never runs covers nothing that ships. Every
-    // parallax origin in the composition is a function of the view, so the
-    // anchor moves all of them, and at 0.5 this test would go on hashing the
-    // one framing the game stopped using.
-    camera.set_vertical_anchor(CameraBias::SURFACE_ANCHOR);
+    // Centred, which is the shipped framing again as of V23b - the fixture
+    // carried V23's 0.80 anchor for the reason the null-texture layer taught,
+    // that a checksum over a configuration the game never runs covers nothing
+    // that ships. That reason is why this line moved back rather than being
+    // left at 0.80: every parallax origin is a function of the view, so the
+    // anchor moves all of them, and the checksum below moved with it.
     camera.follow(CAM_X, CAM_Y, PADDED_W, PADDED_H, WORLD_W, WORLD_H);
 
     // The cell texture, uploaded exactly the way main.cpp uploads it - the
@@ -434,8 +432,20 @@ int main() {
     // the null-texture lesson in a second form, and the "ground plane actually
     // reaches the fixture's window" check below exists for the first form.
     //
-    // Seventh move. `git log -S` on this constant remains the instrument.
-    constexpr uint64_t GOLDEN = 0xf29c435ed9d923b1ull;
+    // **V23b moved it an eighth time, on 2026-08-17, straight back to
+    // 0xcde4dc1a39927fca - the number it held before V23.** Session 9 asked for
+    // the centred framing back, so the anchor was removed from `Camera`
+    // entirely and `follow`'s vertical expression is character for character
+    // the pre-V23 one again. The frame therefore is the pre-V23 frame, and the
+    // checksum returning to an *earlier* value rather than a new one is the
+    // evidence of that - a third number here would have meant the revert left
+    // something behind.
+    //
+    // **So `git log -S` on this constant now lists the same value twice**, and
+    // that is worth expecting rather than reading as a mistake the next time
+    // somebody runs it: this file's history is eight moves over seven distinct
+    // frames.
+    constexpr uint64_t GOLDEN = 0xcde4dc1a39927fcaull;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),

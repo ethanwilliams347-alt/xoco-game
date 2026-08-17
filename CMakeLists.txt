@@ -186,13 +186,13 @@ if(BUILD_TESTING)
     target_include_directories(backdrop_test PRIVATE src tests)
     add_test(NAME backdrop_test COMMAND backdrop_test)
 
-    # V23's vertical anchor and its dig framing. Links no sources either -
-    # `camera.h` and `camera_bias.h` are both SDL-free headers, which is the
-    # whole reason the decision lives in a header rather than in main.cpp's
-    # frame loop, where every constant in it would be unreachable from here.
-    add_executable(camera_bias_test tests/test_camera_bias.cpp)
-    target_include_directories(camera_bias_test PRIVATE src tests)
-    add_test(NAME camera_bias_test COMMAND camera_bias_test)
+    # The camera's view arithmetic: the centred framing, the world-edge clamps,
+    # and the anchor mechanism the clamps have to survive. Links no sources -
+    # `camera.h` is an SDL-free header. Was `camera_bias_test` until V23b
+    # retired the moving anchor; the Camera half of that suite is what this is.
+    add_executable(camera_test tests/test_camera.cpp)
+    target_include_directories(camera_test PRIVATE src tests)
+    add_test(NAME camera_test COMMAND camera_test)
 
     # V17's golden frame. **The first test target in the project that links
     # SDL**, and that is worth saying out loud rather than leaving to be noticed

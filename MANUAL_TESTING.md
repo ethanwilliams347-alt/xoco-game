@@ -23,40 +23,23 @@ cmake --build build --config Release
 
 ---
 
-**One thing is owed: play the camera again and say whether the framing you
-asked for is the framing you wanted.** Added 2026-08-17, straight out of your
-own session 8 report, and it should take about a minute.
+**Nothing is owed.** The camera questions this list carried for two days were
+withdrawn on 2026-08-17 rather than answered: session 9 asked for the centred
+camera back, so the framing, the airborne trigger and the ease speed are no
+longer things anybody has to look at — there is nothing left to tune. The next
+thing that goes here will be whatever V22's fixture-scene work needs looking at.
 
-**What changed since you last played.** Digging downward now eases you to **mid
-screen** instead of a third of the way down, and **leaving the ground does the
-same thing** — jump, fall or get launched and the camera centres you, whatever
-the mouse is doing. Standing on the ground is unchanged: you sit low, about four
-fifths down.
-
-**Three things to look at, in order.**
-
-1. **Is the centred framing the right one?** It is your word, so this is
-   really "did I read you correctly": digging down, does mid screen give you
-   enough of the hole *and* enough of the world?
-2. **Does jumping feel bad now?** This is the one thing nobody has seen. A jump
-   counts as flying, so the camera leans on every hop. It should read as a lean
-   rather than a swing — if it twitches or feels busy while you are just moving
-   around, that is a real result and there is a specific fix for it.
-3. **The speed.** You were asked this last time and the answer does not carry
-   over: the camera travels a shorter distance now, so the same setting crosses
-   it in 0.35 s instead of 0.6 s. Too fast (a cut) or too slow (never arrives)?
-
-**Not this time:** the ground plane. That answer was "no" and it is understood;
-nothing about the plane has changed, so there is nothing new to look at.
-
-*Closed and off this list:* the V23 camera look came back on 2026-08-17 —
-**"upside down", the dig framing wanted at centre rather than the upper third,
-and being airborne wanted as a trigger**; and the ground plane came back **no**
-for the fourth time, with the player still standing on the fixture scene rather
-than in the plane. Both are recorded as session 8 and neither needs re-running
-until something changes. The V21 brightness look came back **good** on
-2026-08-17; the land-or-water decision closed on 2026-08-16 (land, with the
-plane behaving the way the reference's water does — [V22](ROADMAP.md)).
+*Closed and off this list:* **the camera framing, all of it, closed 2026-08-17
+by removal** — session 8 reported it "upside down" (the clamp; see step 13),
+V23a corrected it, session 9 asked for plain centring and V23b deleted the
+mechanism. The three questions that stood here — is centred right, does jumping
+twitch, is the 0.35 s swing the right speed — **have no subject any more.** The
+ground plane came back **no** for the fourth time in session 8, with the player
+still standing on the fixture scene rather than in the plane; it is recorded and
+does not need re-running until something about the plane changes. The V21
+brightness look came back **good** on 2026-08-17; the land-or-water decision
+closed on 2026-08-16 (land, with the plane behaving the way the reference's
+water does — [V22](ROADMAP.md)).
 
 *Two results worth keeping, because they close questions rather than sitting
 open:* the backdrop ceiling is **settled at V21's value** — it took one step
@@ -181,83 +164,33 @@ has ever had.*
 
     **And check a fire at the horizon if you can arrange one.** The grade pass is drawn *before* the additive light pass specifically so that a fire is not dimmed along with the scene. `golden_frame_test` measures this headlessly and a `static_assert` holds the ordering, so this is a confirmation rather than a hunt — but it is the one visible consequence of the ordering argument, and it is worth having seen once.
 
-13. **The camera's vertical framing, and the dig move (`V23`, new 2026-08-17).**
-    **The owed list at the top of this file promised this step and then did not
-    write it** — it said "written up in full at the bottom of this file" and
-    pointed at nothing, and it went a full session that way before being caught by
-    a count of the steps. Recorded rather than quietly fixed, because a pointer to
-    a section that does not exist is the exact failure this project's
-    documentation rules are about, and because **the thing that caught it was
-    counting, not reading** — which is the argument `W3` is built on.
+13. **The camera is centred, and stays centred (`V23b`, 2026-08-17).**
+    **This step used to describe a moving camera and is now a check that it
+    does not move.** V23 gave the view a vertical anchor - low on the surface,
+    rising while digging - session 8 reported it as "upside down", V23a found
+    the world-edge clamp was swallowing most of it, and session 9 asked for the
+    centred camera back. The mechanism was deleted rather than neutralised, so
+    there are no knobs behind this step any more.
 
-    **This is the first checklist step whose first run is a design decision rather
-    than a pass or a fail** — step 10 is the other one. The three questions in
-    their answerable form are at the top of this file and are not repeated here;
-    what follows is what the step checks **every time after that.**
+    **What should be true.** The player sits at **mid screen, always**:
+    standing, walking, digging in any direction, jumping, falling. Nothing the
+    mouse does moves the framing. If the player ever drifts off centre while the
+    view is free to follow, a vertical anchor has come back from somewhere.
 
-    **What should be true.** Standing still on the surface, the player sits about
-    four fifths of the way down the screen (`CameraBias::SURFACE_ANCHOR`, 0.80).
-    Hold the dig button aimed **downward** and the framing eases until the player
-    is at **mid screen** (`COLUMN_ANCHOR`, 0.50) — so the ground being dug fills
-    the view. Release and it eases back. **Digging sideways or upward must not
-    move it**, and that is deliberate rather than an omission. **Leaving the
-    ground takes the same framing whatever the cursor is doing** — a jump, a
-    fall, being launched — which is session 8's ask and the reason the constant
-    is no longer called `DIG_ANCHOR`.
+    **The one exception, and it is the world's edge, not the camera's.** At the
+    top and bottom of the world the view stops and the player walks toward the
+    edge of the screen instead - `clamp_view` winning is correct, and it is what
+    keeps the renderer from uploading cells outside the grid. Same at the left
+    and right edges. `camera_test` pins all four.
 
-    **The two things session 8 changed here, so a re-run is read against the
-    right expectation.** The dig framing was 0.30 and is 0.50, because 0.30 was
-    *never delivered*: the view clamps 810 cells down, so at the fixture floor a
-    request for 0.30 came out at 0.51 on screen and deeper at 0.70 — the camera
-    moving least where there was most below it, which is what "upside down"
-    named. And **the swing is now 0.35 s rather than 0.6 s** at the same
-    `EASE_PER_SEC`, purely because the distance shrank — so the speed question
-    is open again and the previous answer cannot be reused.
-
-    **One thing to watch that is new and was reasoned about rather than
-    measured:** an ordinary **jump** is airborne, so the camera now leans on
-    every hop. A hop is shorter than the 0.35 s swing so it should read as a
-    lean and not a swing. **If it twitches, say so** — the fix is to trigger on
-    *descending* rather than on airborne, and that is a one-line change with a
-    different feel, not a tuning of this one.
-
-    **The three failures to look for, all of which are cheap to see once you know
-    the shape.** *(a)* **Creep under a still hand** — aim the cursor, do not move
-    the mouse, and watch whether the view drifts on its own. There is a positive
-    feedback loop in this design (the anchor moves the view, the view resolves the
-    mouse, the resolved aim picks the anchor); it **saturates rather than
-    oscillating**, so the symptom is a slow crawl and not a wobble, and it would
-    never look like a bug. It is cut by measuring the aim in the unbiased frame and
-    pinned by `tests/test_camera_bias.cpp`, which carries a negative control — but
-    the test is arithmetic and the eye is the other instrument. *(b)* **The world
-    edge** — at the very top and bottom of the world the camera should simply stop;
-    the edge clamp wins over the anchor. *(c)* **The free camera** — with
-    `debug.free_camera` detached the anchor is frozen on purpose. If detaching the
-    camera makes the framing jump, that freeze has come loose.
-
-    **The knobs, if it is wrong.** `SURFACE_ANCHOR`, `COLUMN_ANCHOR` and
-    `EASE_PER_SEC` in [src/game/camera_bias.h](src/game/camera_bias.h), and their
-    rows in [TUNING.md](TUNING.md). **The anchors are fractions of the viewport and
-    not counts of cells** — `DISPLAY_MODES` has several viewport heights, and a
-    cell count expresses a composition only at the one height it was tuned at.
-    **And a framing has to be checked as *delivered*, not as requested** — the
-    world-edge clamp can swallow most of one, which is exactly how 0.30 shipped
-    and reached a human. `tests/test_camera_bias.cpp` now asserts the delivered
-    fraction at the fixture floor.
-    **`EASE_PER_SEC` is the number with no evidence behind it**: the two anchors
-    were read off reference frames and the speed between them was a guess.
-
-    **The three knobs are not covered equally, and knowing which is which saves a
-    confused commit.** The golden fixture calls
-    `set_vertical_anchor(CameraBias::SURFACE_ANCHOR)` and composes **one still
-    frame, with no dig and no elapsed time**. So retuning `SURFACE_ANCHOR` *does*
-    move `golden_frame_test`'s checksum, and that is correct — put the new value
-    and the new checksum in the same commit. **`COLUMN_ANCHOR` and `EASE_PER_SEC` are
-    outside the fixture's coverage entirely**, so a checksum that does not move
-    after retuning those two is the expected result and not evidence the change
-    failed to apply. **This step and a launch of the game are the only instruments
-    that reach them.**
-
+    **What this step does not settle.** A centred camera caps the receding
+    ground plane's visible share below the player at **~50% by construction**,
+    which measured 20.2% at the spawn against a reference reading of "clearly
+    past half". That measurement is what produced V23 in the first place and it
+    is untouched by the revert - so if V22 comes back to the plane, this
+    constraint is still sitting there, and the answer will have to be something
+    other than moving the player down the frame. The argument is in ROADMAP.md
+    under V23 / V23a / V23b.
 ---
 
 ## Where results go

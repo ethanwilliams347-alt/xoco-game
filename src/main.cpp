@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 #include "game/camera.h"
-#include "game/camera_bias.h"
 #include "game/debug_view.h"
 #include "game/display.h"
 #include "game/input_log.h"
@@ -709,10 +708,11 @@ int main(int argc, char* argv[]) {
     std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
                 static_cast<int>(prop_defs.size()));
 
+    // Centred, and deliberately not configurable from here. V23 gave this a
+    // moving vertical anchor and session 9 asked for the centring back; the
+    // whole mechanism went with it, so there is nothing left to hold. See
+    // ROADMAP.md's V23b entry before adding a second framing.
     Camera camera;
-    // V23. Holds the surface framing from the first frame, so a run opens
-    // already composed rather than easing in from centre.
-    CameraBias camera_bias;
 
     bool running = true;
     SDL_Event e;
@@ -1173,28 +1173,16 @@ int main(int argc, char* argv[]) {
         input.brush_type = current_brush;
         input.brush_size = brush_size;
 
-        // V23: the camera's vertical anchor, updated here and applied to the
-        // *draw* follow further down rather than to the one above.
+        // V23's anchor update stood here and is gone (V23b). The camera is
+        // centred and stays centred; nothing per-frame is left to do to it
+        // besides the `follow` further down.
         //
-        // **The ordering is the point, and it is the same argument T1 left on
-        // the free camera directly above.** The cursor was resolved against the
-        // anchor that was on screen when the player aimed - the frame they were
-        // looking at - which is both the honest reading of their intent and the
-        // anchor `CameraBias` has to unbias against for its correction to
-        // cancel. Updating the anchor before that conversion would resolve the
-        // aim through a view the player never saw.
-        //
-        // Frozen while the free camera is detached: it is not tracking the
-        // player, so there is no composition to hold, and driving it would pull
-        // the detached view around by a body it deliberately left behind.
-        if (!debug.free_camera) {
-            camera_bias.update(static_cast<float>(frame_time), input.dig,
-                               run.player.is_on_ground(),
-                               gridX - run.player.center_x(),
-                               gridY - run.player.center_y(),
-                               mode.padded_h());
-            camera.set_vertical_anchor(camera_bias.anchor());
-        }
+        // Worth keeping the note it leaves behind: the anchor was updated
+        // *after* the cursor was resolved, on purpose, so that the aim was read
+        // through the frame the player was actually looking at. Any later
+        // feature that moves the view from player input inherits that ordering
+        // problem and the positive feedback loop behind it - the argument is in
+        // ROADMAP.md's V23 entry, which is the only place it survives now.
 
         // The menu freezes the simulation by not accumulating time, rather than
         // by skipping the step loop with the accumulator still filling: the

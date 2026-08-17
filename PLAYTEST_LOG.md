@@ -1020,3 +1020,30 @@ points at the artefact that draws it.
 
 Symptoms and measurements only. What causes each and what to do about it is
 ROADMAP.md's.
+
+## Session 9 — 2026-08-17: the camera, put back
+
+Not a checklist pass. A direction, given after V23a shipped and before the
+re-test it asked for was run.
+
+### What was asked for
+
+> *"lets go back to the camera always being centered."*
+
+### What is in that
+
+**The whole two-state framing is withdrawn, not retuned.** No number was named
+and none was asked about; the request is for the behaviour the game had before
+V23 — the player at mid screen, always. Read against session 8, which asked for
+*low on the ground, centre when digging or airborne*, this reverses the first
+half a day later and after one look at the corrected version.
+
+**The three questions this list was carrying have no subject any more** — is
+centred right, does jumping twitch, is the 0.35 s swing the right speed. They
+were withdrawn rather than answered, and that is worth recording as a distinct
+outcome from "answered no": nothing was measured about them.
+
+**Nothing was said about the ground plane**, so session 8's fourth **no** stands
+as the live answer on it. The camera is no longer a candidate route to it.
+
+Symptoms and directions only. What was done about this is V23b in ROADMAP.md.
