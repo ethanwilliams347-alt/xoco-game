@@ -973,3 +973,50 @@ ownership question rather than a symptom.
 
 Symptoms and measurements only. What causes each and what to do about it is
 ROADMAP.md's.
+
+## Session 8 — 2026-08-17: V23's camera, and the plane's answer is still no
+
+The V23 camera report, which was the one thing owed to the build and the one
+thing V22 was waiting on. Step 13's three questions were asked in order; two
+came back with an answer, and the third came back with the same answer it has
+given three times.
+
+### What was reported
+
+> *"the camera illusion might be upside down, the character should be bottom
+> part of screen when on ground but then smooth center to player when digging
+> or flying out of frame. the ground plane is still not correct, the character
+> should be standing within the ground plane. currently the player is standing
+> on the test albedo.bmp setup with the backdrop"*
+
+### What is in that, separated from what it implies
+
+**Question 1 — does the movement read as answering the dig, or as wandering.**
+Answered as neither cleanly: **"upside down"**, which is a third failure the
+step did not offer and which is worth more than either of the two it did. The
+tester then stated the framing they expected in full, and it is not a rejection
+of the two-state idea — **on the ground, low; digging or airborne, centre.**
+Two things in that differ from what shipped: the dig framing is named as
+**centre**, where V23 built 0.30, and **being airborne is named as a trigger**,
+where V23 triggers on the dig aim only.
+
+**Question 2 — are ~55 cells below enough.** Not answered directly, and the
+phrase **"or flying out of frame"** is the nearest thing to an answer. It
+reports the player leaving the frame rather than the world below being too
+shallow, which is a different complaint than the one the question was written
+to collect.
+
+**Question 3 — does the ground plane finally read as receding.** **No.** This
+is the fourth no, and it is the one that gates V22. The tester repeats session
+7b's observation in the same terms — the player stands on the fixture scene,
+not in the plane — after a change that was aimed at the cause the geometry
+actually had. **That the answer did not move is the finding**, and it is a
+finding about the premise rather than about V23: camera framing was necessary
+and is not sufficient.
+
+**One thing the report names that no previous one did:** the fixture scene by
+its file, `albedo.bmp`. Sessions 6, 7 and 7b described the surface; this one
+points at the artefact that draws it.
+
+Symptoms and measurements only. What causes each and what to do about it is
+ROADMAP.md's.

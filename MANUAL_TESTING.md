@@ -23,46 +23,18 @@ cmake --build build --config Release
 
 ---
 
-**One thing is owed: play V23 and tell me how the camera feels.** Added
-2026-08-17. **This is the largest change to how the game looks that has been
-made without a human seeing it first** — the player no longer sits at the centre
-of the screen, and the framing now moves while you dig. Everything about whether
-that is right is feel, and none of it is measurable from here.
+**Nothing is owed right now.** The V23 camera report came back on 2026-08-17
+and is written up as session 8 in [PLAYTEST_LOG.md](PLAYTEST_LOG.md). Expect a
+new item here as soon as the camera change it asked for is built — the framing
+you described (**on the ground low, digging or airborne centred**) is a feel
+change and only you can say whether it landed.
 
-**What changed, in one line:** standing still, you sit about four fifths of the
-way down the screen so the ground plane gets the frame; hold the dig button
-aimed downward and the camera moves until you are about a third of the way down,
-so the ground you are digging into fills it instead. Let go and it returns.
-
-**The three questions, in the order they matter.** *(This is checklist step 13,
-written up in full at the bottom of this file.)*
-
-1. **Does the movement read as the camera answering the dig, or as the camera
-   wandering?** This is the one number that came from nothing — the two framings
-   are read off the reference frames, but the *speed* between them
-   (`EASE_PER_SEC`, currently a 0.6-second swing) is a guess. Too fast reads as a
-   cut, too slow never arrives and drifts permanently. **Both failures get
-   described as "nauseating", so please say which one it is**, not just that it
-   is wrong.
-2. **Standing on the surface — can you still see enough below you to play?**
-   There are about 55 cells of world under your feet at the surface framing, and
-   that number was the whole argument against doing this. If it feels blind,
-   `SURFACE_ANCHOR` comes down and the plane gives some frame back.
-3. **Does the ground plane finally read as a surface receding away from you?**
-   That is the question three previous attempts failed at, and this is the first
-   change aimed at the actual cause. **A "no" here is a real answer and I would
-   rather have it than a polite yes** — it would mean the geometry was never the
-   whole problem, which is worth knowing before V22 spends a scene rewrite on
-   the same premise.
-
-*Also worth reporting if you see it:* whether the camera does anything strange
-at the very bottom or top of the world (it should just stop, the world edge
-wins), and whether aiming the mouse without moving it makes the view creep on
-its own — there is a feedback loop between the camera and the cursor that is
-cut in the code and pinned by a test, but the test is arithmetic and your eye is
-not.
-
-*Closed and off this list:* the V21 brightness look came back **good** on
+*Closed and off this list:* the V23 camera look came back on 2026-08-17 —
+**"upside down", the dig framing wanted at centre rather than the upper third,
+and being airborne wanted as a trigger**; and the ground plane came back **no**
+for the fourth time, with the player still standing on the fixture scene rather
+than in the plane. Both are recorded as session 8 and neither needs re-running
+until something changes. The V21 brightness look came back **good** on
 2026-08-17; the land-or-water decision closed on 2026-08-16 (land, with the
 plane behaving the way the reference's water does — [V22](ROADMAP.md)).
 
