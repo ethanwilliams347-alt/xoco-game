@@ -253,7 +253,9 @@ and the next session then starts from a description of a state that never
 settled. Everything worth keeping already has a home in the table above; the
 handoff points at those, it does not duplicate them. When asked to write it,
 write what is needed to continue and nothing else — no recap of finished work
-for its own sake.
+for its own sake. **Its shape is fixed** — four sections, no copied tables or
+numbers — and that is written down in `.claude/rules/documentation.md`, which
+also records the 2026-08-17 rewrite that the shape came out of.
 
 ## The detail lives in `.claude/rules/`
 

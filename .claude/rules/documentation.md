@@ -142,3 +142,34 @@ new defect.
 of anything scheduled. Ideas land here for free. A note that names in advance
 what would stop it being a note is the strongest form of admission an item can
 later have.
+
+**`notes/handoff_prompt.md`** — the last thing written before a session closes,
+and the first thing the next session reads. **Do not edit it unless told to**;
+edited mid-session it becomes a running commentary on work still moving, and the
+next session starts from a state that never settled.
+
+- **It is a pointer, not a summary, and that is the rule the file keeps
+  breaking.** Every fact in it is owned by another document. It says *where to
+  start* and *what a fresh reader would get wrong* — nothing else. **Rewritten
+  on that basis 2026-08-17**, after `W4`: the version it replaced carried a
+  six-row copy of the W-track table, which is the same duplication `W4` spent a
+  day removing from the plan, and it had already gone stale in three places
+  (a deleted `ROADMAP_ITEMS.md`, a shipped `W1`/`W2`/`W4`, and a whole section
+  briefing the reader on camera work `V23b` had deleted).
+- **Four sections, in this order, and adding a fifth is the smell.** *Start
+  here* (one pointer, plus what is next and why it is next); *what a fresh
+  reader gets wrong* (only things that are actively misleading, each naming the
+  document that owns the truth); *owed to a human* (a line, deferring to
+  `MANUAL_TESTING.md`, which is the authority); *standing constraints, carried
+  verbatim from the user*. The verification block at the end is a fifth and it
+  earns its place by being commands, not prose.
+- **Never restate a table, an order or a size from `ROADMAP.md`.** Name the item
+  and let the reader open the plan. A number copied here is a number maintained
+  in two places, and this file is the one nobody re-checks.
+- **Write it forward, not backward.** Write what is needed to continue and
+  nothing else — no recap of finished work for its own sake. Closed work belongs
+  in this file only where believing it is still open would misdirect the next
+  session, and then in one bullet.
+- **Rewrite it whole rather than appending.** It is short by design, it has no
+  history to preserve, and everything worth keeping already has a home in the
+  routing table.
