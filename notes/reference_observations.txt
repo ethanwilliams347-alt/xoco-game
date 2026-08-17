@@ -552,6 +552,31 @@ CnC_fishing.jpg before treating it as a ratio to author to. If it moves a lot,
 what survives is the ordinal claim (the figure is inside the plane, not at its
 near edge) and not the fraction.
 
+*Disproof run, 2026-08-17, and it fired — partly.* CnC_fishing.jpg cannot
+supply the ratio at all, and the reason is worth more than the number would
+have been: **its plane does not run to the bottom of the frame.** The frame is
+the split above/below-water device, cut by a hard white waterline at row ~683
+(63% down), so the visible plane runs only from the far bank (~555) to that
+cut. The boat's hull sits at ~645, which is 70% of *that* band. **That is not
+the same measurement** — the lighthouse's plane is bounded by the frame edge
+and this one by a graphic device — so the two fractions are not averageable and
+64% does not become "64 and 70, call it 67".
+
+What survives is exactly what this note predicted would survive: **the ordinal
+claim.** Both frames put the contact well past the midpoint of the visible
+plane, 64% and 70%, and neither is anywhere near 50%. Author to "clearly past
+half, around two thirds", never to a specific fraction — there is no evidence
+in this set that resolves finer than that, and a precise-looking number here
+would be an accident of two incomparable crops.
+
+*And the ordinal claim is the one that costs.* Even the loose version of it is
+unreachable by any scene edit — `Camera::follow` centres strictly, so a
+center-locked player cannot exceed ~50% of the band no matter what the terrain
+does. See V22 in ROADMAP.md. **A reference reading that survives its own
+disproof can still be unaffordable, and those are separate findings** — this
+one was measured twice and is true, and the open question is whether a digging
+game can pay for it at all.
+
 -------------------------------------------------------------------------------
 OTHER FRAMES PRESENT, NOT YET OBSERVED
 -------------------------------------------------------------------------------

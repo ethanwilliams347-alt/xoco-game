@@ -23,33 +23,19 @@ cmake --build build --config Release
 
 ---
 
-### One look. **Added 2026-08-16 (V21).**
+**Nothing is owed right now.** The V21 brightness look came back **good** on
+2026-08-17 and is off this list; the land-or-water decision closed on
+2026-08-16 (land, with the plane behaving the way the reference's water does —
+[V22](ROADMAP.md)). The next thing that will land here is under the heads-up
+below, and it is coming.
 
-**You answered "too bright" and the backdrop has been taken down by a fifth.**
-Nothing else about it changed — the mountains, the ground plane and their
-relative darkness are all exactly where they were, everything just sits lower.
-This needs one look, and it is the *only* instrument there is: the change is
-outside what any test in the project can see.
-
-1. **Is the brightness right now?** Same view as last time — open sky, clear
-   view into the distance. **Report:** right / still too bright / now too dark /
-   the colours look wrong.
-
-   **If it is still too bright, say so and stop there** — do not expect me to
-   just take it down again. There is very little room left: darkening everything
-   also flattens the gap between the mountains and the ground behind them, which
-   is the gap that was broken last time and is most of what makes the distance
-   read. Past about one more step, we would be back to the flat frame you
-   reported in session 6. So a second "too bright" means the problem is the
-   *colour* — it is a fairly strong purple, and strong colour reads as bright —
-   and that is a different change, not a smaller version of this one.
-
-   "Now too dark" is just as useful and there is plenty of room in that
-   direction.
-
-*The land-or-water decision that used to be here **came back on 2026-08-16 and is
-closed**: land, with the plane behaving the way the reference's water does. It is
-[V22](ROADMAP.md).*
+*Two results worth keeping, because they close questions rather than sitting
+open:* the backdrop ceiling is **settled at V21's value** — it took one step
+down from V20 and the second look passed, so the "if it is still too bright the
+problem is the colour, not the level" branch was never taken and the purple
+question stays unasked. And **that ceiling is now a baseline**, not a
+provisional setting: V22 tunes the world's grade *underneath* it, so a later
+report of "too bright" means the new knob, not this one.
 
 ### A heads-up, not a task yet. **Added 2026-08-16 (V22).**
 
