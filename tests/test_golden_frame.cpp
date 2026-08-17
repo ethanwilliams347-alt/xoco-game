@@ -39,6 +39,7 @@
 #include <cstdio>
 #include <vector>
 #include "game/camera.h"
+#include "game/camera_bias.h"
 #include "physics/grid.h"
 #include "render/frame.h"
 #include "render/light.h"
@@ -204,6 +205,13 @@ int main() {
     stamp_world(grid);
 
     Camera camera;
+    // V23. The fixture carries the shipped anchor rather than the default 0.5,
+    // for the reason the null-texture layer taught: a checksum over a
+    // configuration the game never runs covers nothing that ships. Every
+    // parallax origin in the composition is a function of the view, so the
+    // anchor moves all of them, and at 0.5 this test would go on hashing the
+    // one framing the game stopped using.
+    camera.set_vertical_anchor(CameraBias::SURFACE_ANCHOR);
     camera.follow(CAM_X, CAM_Y, PADDED_W, PADDED_H, WORLD_W, WORLD_H);
 
     // The cell texture, uploaded exactly the way main.cpp uploads it - the
@@ -406,8 +414,28 @@ int main() {
     // does not have is carried instead by `backdrop_test`'s two new properties,
     // which pin the rounding independently of any frame.
     //
-    // Sixth move. `git log -S` on this constant remains the instrument.
-    constexpr uint64_t GOLDEN = 0xcde4dc1a39927fcaull;
+    // **V23 moved it a seventh time, on 2026-08-17, and the cause is one line
+    // in the fixture rather than anything in the renderer.** The camera gained
+    // a vertical anchor - where on screen the followed point sits, as a
+    // fraction of the viewport - and the fixture adopts the shipped value
+    // instead of the 0.5 default. Every parallax origin in the composition is a
+    // function of the view, so moving the view moves all of them at their own
+    // factors, and that is the whole of the difference.
+    //
+    // **This one did have its no-op half and it was taken.** The anchor
+    // mechanism shipped in its own commit, defaulting to 0.5 - which is
+    // literally the expression `Camera::follow` already contained - and was run
+    // against 0xcde4dc1a39927fca, which held. So the step from that number to
+    // this one is the fixture adopting the shipped framing and nothing else.
+    //
+    // Worth stating why the fixture adopts it rather than staying at the
+    // default, since leaving it would have kept the checksum still: a hash over
+    // a configuration the game never runs covers nothing that ships. That is
+    // the null-texture lesson in a second form, and the "ground plane actually
+    // reaches the fixture's window" check below exists for the first form.
+    //
+    // Seventh move. `git log -S` on this constant remains the instrument.
+    constexpr uint64_t GOLDEN = 0xf29c435ed9d923b1ull;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),

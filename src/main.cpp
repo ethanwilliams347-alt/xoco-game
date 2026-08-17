@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "game/camera.h"
+#include "game/camera_bias.h"
 #include "game/debug_view.h"
 #include "game/display.h"
 #include "game/input_log.h"
@@ -709,6 +710,9 @@ int main(int argc, char* argv[]) {
                 static_cast<int>(prop_defs.size()));
 
     Camera camera;
+    // V23. Holds the surface framing from the first frame, so a run opens
+    // already composed rather than easing in from centre.
+    CameraBias camera_bias;
 
     bool running = true;
     SDL_Event e;
@@ -1168,6 +1172,28 @@ int main(int argc, char* argv[]) {
         input.brush_active = (mouseState & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
         input.brush_type = current_brush;
         input.brush_size = brush_size;
+
+        // V23: the camera's vertical anchor, updated here and applied to the
+        // *draw* follow further down rather than to the one above.
+        //
+        // **The ordering is the point, and it is the same argument T1 left on
+        // the free camera directly above.** The cursor was resolved against the
+        // anchor that was on screen when the player aimed - the frame they were
+        // looking at - which is both the honest reading of their intent and the
+        // anchor `CameraBias` has to unbias against for its correction to
+        // cancel. Updating the anchor before that conversion would resolve the
+        // aim through a view the player never saw.
+        //
+        // Frozen while the free camera is detached: it is not tracking the
+        // player, so there is no composition to hold, and driving it would pull
+        // the detached view around by a body it deliberately left behind.
+        if (!debug.free_camera) {
+            camera_bias.update(static_cast<float>(frame_time), input.dig,
+                               gridX - run.player.center_x(),
+                               gridY - run.player.center_y(),
+                               mode.padded_h());
+            camera.set_vertical_anchor(camera_bias.anchor());
+        }
 
         // The menu freezes the simulation by not accumulating time, rather than
         // by skipping the step loop with the accumulator still filling: the
