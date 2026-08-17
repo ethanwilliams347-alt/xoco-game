@@ -39,12 +39,35 @@ exist only for that reason. File a correction as a correction, not as a rewrite.
 because it stops people checking. If a document claims something is enforced,
 verify the enforcement still points where the claim says.
 
+**Wrap prose at 80 columns.** Adopted 2026-08-17 as `W1`; the argument is
+retrieval cost, not neatness. These files are searched far more often than they
+are read, and a grep hit is atomic at the line — so a 3,000-character line
+returns 3,000 characters whether or not the match needed them. Measured: a
+`grep -C2` into `ROADMAP.md` returned **9,930 bytes for 20 lines**, against about
+1.3 KB for the same query shape against wrapped text. It also stops a one-word
+change rendering as a whole-line rewrite in `git diff` and `git blame`.
+- **Four files do not comply yet and `W1` is the item that fixes them:**
+  `ROADMAP.md` (avg 394 chars/line), `ROADMAP_ITEMS.md` (285),
+  `ENGINEERING_NOTES.md` (601), `PERFORMANCE.md` (205). `README.md` (63) and
+  `PLAYTEST_LOG.md` (83) already comply, which is why this is an inconsistency to
+  remove rather than a new convention to import. **Named here rather than stated
+  as universal, because a rule the tree visibly violates is one people stop
+  checking.**
+- **Tables and code blocks are exempt** — wrapping either breaks it.
+- **New prose written into the four non-compliant files should be wrapped
+  anyway.** `W1` then has less to do, and nothing is lost if it never runs.
+
 ## Per-file conventions
 
-**ROADMAP.md** — the authority on *why*, and 280 KB, so search it rather than
-reading it through.
-- **It is the only document that carries development steps.** A plan split across
-  two files is a plan that disagrees with itself.
+**ROADMAP.md** — the authority on *why*, and **399 KB**, so search it rather than
+reading it through. *(This line said 280 KB until 2026-08-17; the file had grown
+43% past the number that was telling people how carefully to search it.)*
+- **It is the only document that carries development steps.** ⚠️ **This has been
+  false since `ROADMAP_ITEMS.md` was split out, and the sentence's own warning is
+  what came true:** a plan split across two files is a plan that disagrees with
+  itself, and **all 48 item IDs now appear in both.** `W4` merges them back to one
+  live plan plus a dated archive. **Until it lands, keep filing both halves** —
+  a half-migrated plan is worse than a duplicated one.
 - Live work first; finished work moves to *Shipped* at the bottom, kept for its
   reasoning rather than its status.
 - **Item IDs (`F1`, `E5a`, `V13`, `P2`, `S0`) are never renumbered.** New items get
@@ -87,7 +110,8 @@ project who wants to see whether it works. Keep it that way — **no reasoning, 
 regression history, no roadmap IDs.** Anything that needs a paragraph belongs in
 MANUAL_TESTING.md.
 
-**MANUAL_TESTING.md** — the twelve-step Manual Tester Checklist in full (split out
+**MANUAL_TESTING.md** — the Manual Tester Checklist in full, **thirteen steps as
+of 2026-08-17** (split out
 of README on 2026-08-16). Each checklist step names the regression it exists to
 catch, most of which have actually happened once. When a new class of regression
 is found by hand, add the step; when a step's expectation is wrong, fix the

@@ -28,7 +28,8 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 | ~~5~~ | ~~**S0 — The run can be lost**~~ | ~~week~~ | ✅ **built 2026-08-14, and it took two days rather than a week.** Health, contact-heat and fall damage, one objective, win and loss both through `Run::reset(seed)`, `HP` on the HUD. **Playtested 2026-08-14 and checklist step 10 passed** — the mechanical half returned nothing ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-14--step-10-runs-and-the-question-is-held-open)). **The design half is deliberately unanswered:** the combat decision was held open rather than closed on the first sitting with it, which is a decision about the decision and is recorded as one below. Findings in [ROADMAP.md](ROADMAP.md#-medium-term-core-gameplay-loop) |
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
-| 8 | **V-track: the renderer block** | ~2 weeks | — *(**now next**, and it is four steps run in order — see below)* |
+| 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a, 4b and V23 done; step 7 (V22) is gated on the owed V23 feel report** and cannot start until it comes back — see below |
+| 9 | **W-track: the workbench** | ~3 days | — *(**now next**, 2026-08-17, and it is six items run in order — see below)* |
 
 **Item 8 in detail, because it is a block rather than an item.** Started 2026-08-16 on a request for a split-view and parallax backdrop system. Run strictly in this order; each step's reason for coming before the next is the point.
 
@@ -111,7 +112,51 @@ This file is **the plan**: what is next, how big it is, and what is blocking. [R
 >
 > **Everything else is held, not cancelled.** E10 keeps its place at the head of the queue when this block closes.
 
-Everything after these eight is in [Running order](#-running-order) below.
+**Item 9 in detail, because it is also a block rather than an item.** Opened
+2026-08-17 out of an external review of the repo, and it is **the thing to start
+on next**. The full reasoning, the measurements and the two things the review
+checked and found *healthy* are in [ROADMAP.md](ROADMAP.md#️-w--the-workbench-how-this-project-is-worked-on)
+— this table is the order and the sizes only.
+
+| # | what | size | state |
+|---|---|---|---|
+| W1 | **Reflow `ROADMAP.md`, `ROADMAP_ITEMS.md`, `ENGINEERING_NOTES.md`, `PERFORMANCE.md` to 80 columns.** Pure formatting; no wording, no decision, no number changes | afternoon | **first** |
+| W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | queued |
+| W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | queued, **deliberately after W1 and W4** |
+| W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | queued; **the archive boundary is the user's call** |
+| W5 | **Extract `main()`** — a `boot` unit, the per-frame composition into `render/frame.cpp`, and a `main()` of ~150 lines | days | queued; **the one item here that needs the tester afterwards** |
+| W6 | **Trim `README.md` to a front door** — architecture to `ENGINEERING_NOTES.md`, benchmark procedure to `PERFORMANCE.md`, `## General Testing` untouched | afternoon | queued |
+
+> **Why this goes ahead of V22, since V22 was "next" as of yesterday.** **V22 is
+> blocked on a human and none of W1–W6 are blocked on anything.** The V23 feel
+> report is owed, V22 must not start until it comes back, and question 3 of that
+> report can still change what V22 *is*. Running this track inside that window
+> costs the V track nothing. Two reasons that would hold regardless: **W5 is
+> aimed at the queue V22 is sitting in** — every checklist step it converts into
+> a headless assertion is one the tester no longer runs before a visual change
+> can ship — and **W1 and W4 are proportional to the size of the corpus, so they
+> are cheapest now and never cheaper again.**
+>
+> **The three numbers that admitted the track.** Docs are 1.09 MB against 1.20 MB
+> of `src/` + `tests/` + `tools/`. A measured `grep -C2` into `ROADMAP.md`
+> returned **9,930 bytes for 20 lines**, because the file averages 394 characters
+> to the line and a grep hit is atomic at the line. And **all 48 roadmap item IDs
+> appear in both roadmap files** — a perfect overlap across 582 KB, mandated by
+> the routing table rather than produced by carelessness.
+>
+> **What this track is not.** The volume of writing is not the defect and
+> reducing it is not the goal; the review's own finding was that the
+> documentation discipline here is real and that the docs it checked are
+> accurate. **Every item changes where reasoning is stored or how it is found,
+> and none of them is licence to record less.**
+>
+> **`Grid` was examined and is not in this track.** `grid.cpp` is 1,664 lines of
+> 35 named methods averaging 47 lines; the 14 separate test executables, the
+> `.claude/rules/` split, `TUNING.md` and `PLAYTEST_LOG.md` are all load-bearing
+> and stay as they are. Recorded so the question is not re-opened by the next
+> reader who notices the file size.
+
+Everything after these nine is in [Running order](#-running-order) below.
 
 > **S0 was estimated at a week and took two days, and the reason is worth recording against the estimate rather than celebrated.** The week was priced on the item's *scope* — health, two damage sources, an objective, win and loss, a readout — and every one of those was as small as it looked. What the estimate did not contain, and what actually cost the time, was **two interactions with things already built**: `Run` spawns the body in mid-air, so the first thing every run contained was a terminal-velocity fall priced at 80 of 100 health; and `Run::reset` mid-session would have silently invalidated P4's session log. Neither is in this item's description and both are in its build. **The transferable form: a spike's estimate covers what it builds, and what it costs is what it touches.** Both findings are written up at the item.
 >
@@ -148,6 +193,14 @@ Everything after these eight is in [Running order](#-running-order) below.
 ## 🧭 Running order
 
 **~~Wave 4~~ → ~~E9-steam~~ → ~~F5~~ → ~~instrumentation sitting~~ → ~~S0~~ → ~~T1~~ → E10 → E12 → E5a → P1 → E6 → V17 → (V11 + V12 + V13) → V16 → (E7 + E11 + V9) → V14 → rest of the slice → gate prerequisites → playtest gate → V15 + S1 (if combat) → E5b, P3, E8.** P2 shipped 2026-08-10; the session 5 playtest ran the same day and E4 closed with it, answered "no".
+
+**Two blocks sit in front of that line and neither is in it, which is why it has
+not been rewritten.** The V-track block (item 8) preempted `E10`, and the W-track
+block (item 9) is **the immediate next work as of 2026-08-17**, running ahead of
+the V block's last step because that step is gated on a human. Both are
+sub-plans with their own internal order, both are in [Next up](#️-next-up), and
+**`E10` still keeps the head of this queue when they close** — it was
+out-prioritised, not changed.
 
 The two structural changes from the order before 2026-08-11 (`E4 → E5 → E6 → E7 → E8`, then V, then P, then the whole game):
 

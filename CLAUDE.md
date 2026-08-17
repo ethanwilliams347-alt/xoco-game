@@ -186,10 +186,11 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
    README on 2026-08-16, where `## General Testing` is now the short public
    fundamentals pass and carries none of the reasoning. **MANUAL_TESTING.md opens
    with the list of what is owed to the tester; put an item on it the moment you
-   ask for one, and take it off the moment it comes back.** Each of its twelve
-   steps names a regression that has actually
-   happened — **except step 10, which is the one whose result is a design
-   decision rather than a pass or a fail.** Step 11 (V11's parallax check)
+   ask for one, and take it off the moment it comes back.** Each of its
+   **thirteen** steps names a regression that has actually
+   happened — **except steps 10 and 13, which are the two whose first result is a
+   design decision rather than a pass or a fail.** Step 13 is V23's camera
+   framing, written 2026-08-17 and **owed its first run**. Step 11 (V11's parallax check)
    carried a reopen trigger for a mid-ground band, and **that trigger fired on
    2026-08-16** (V19 4b) — so the step now checks a wrapping ground plane, not
    two static layers, and its new failure modes are a vertical tiling join and a
@@ -212,7 +213,7 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 
 | What you have | Where it goes |
 |---|---|
-| Sequenced work, and why it is ordered that way | ROADMAP.md (the why) / ROADMAP_ITEMS.md (the order) |
+| Sequenced work, and why it is ordered that way | ROADMAP.md (the why) / ROADMAP_ITEMS.md (the order) — **this row is known to be wrong and `W4` is the item that fixes it; see below before filing against it** |
 | A technical decision made and then deferred, or refused | ENGINEERING_NOTES.md |
 | A feel constant you retuned | TUNING.md — a row **and** a dated History line |
 | A benchmark number or a measurement method | PERFORMANCE.md |
@@ -221,6 +222,17 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 | How to build/run/test; the manual checklist | README.md |
 | How to get art in | ASSETS.md, and `../drawing_to_sprite.md` for the player |
 | Raw lore, brainstorming, reference observations | `notes/` |
+
+**The first row is under repair and this note is the warning, not the fix.**
+Splitting one item's *why* from its *order* means every item is written in two
+files and thereafter maintained in step — and it is: **all 48 roadmap item IDs
+appear in both roadmap files**, across 582 KB. ROADMAP.md's own preamble still
+says "This is the only document that carries development steps", which
+ROADMAP_ITEMS.md falsified. **Until `W4` lands, keep filing both halves as the
+row says** — a half-migrated plan is worse than a duplicated one. `W4` merges
+them to one live file and moves shipped rationale to a dated archive; it owns
+rewriting this row, and the reasoning is in ROADMAP.md's **W — The workbench**
+section.
 
 **`notes/handoff_prompt.md` is the exception: do not edit it unless told to.**
 It is the last thing written before a session closes, and its job is to let the

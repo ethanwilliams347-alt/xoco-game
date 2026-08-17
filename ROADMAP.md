@@ -6,7 +6,7 @@ This document tracks the concrete, sequenced engineering work — what's next, w
 - **[PERFORMANCE.md](PERFORMANCE.md)** — `grid_bench` numbers, measurement methodology, and the mistakes that methodology exists to prevent.
 - **[ENGINEERING_NOTES.md](ENGINEERING_NOTES.md)** — deferred technical decisions and the reasoning behind them.
 - **[README.md](README.md)** — how to build, run, and test the game, including the short `## General Testing` fundamentals pass.
-- **[MANUAL_TESTING.md](MANUAL_TESTING.md)** — the twelve-step Manual Tester Checklist in full, and the list of what is currently owed to the tester.
+- **[MANUAL_TESTING.md](MANUAL_TESTING.md)** — the Manual Tester Checklist in full (**thirteen steps as of 2026-08-17**), and the list of what is currently owed to the tester.
 - **[PLAYTEST_LOG.md](PLAYTEST_LOG.md)** — what was asked at each playtest and what came back. **Questions and answers only.** No plan, no root causes, no fixes: a defect's symptom is recorded there and everything downstream of it — why it happened, what was done, what that cost — lives here, in the wave that spent it.
 - **`notes/`** — informal lore and feature brainstorming, upstream of anything here.
 
@@ -247,6 +247,217 @@ Four constants moved — Wood's conductivity 72 → 40, Charred's decay 46 → 3
   > **The test that was missing was not the one D7 needed, it was the one the fix risked.** Every lip case in `player_test` is built from Wall and is written in terms of `MAX_STEP_HEIGHT`, so all four followed the constant down without complaint — a cliff at the new height is still a cliff. What none of them touched is *powder*, which is the terrain the player actually meets and which is not a cliff but a staircase whose total rise dwarfs any step height. A settled-pile case was added and passes at 5 and at 3, and it deliberately asserts no number: the player crosses the pile, which must stay true at any value a one-cell staircase can clear. **Lowering a constant that four tests are parameterised on can only be caught by a test that is not.**
   >
   > README's step 2 row is added as promised, but pointed the other way from what the entry expected — the risk that needs eyes now is sand that *used* to be strollable stopping the body, not piles being skated over. Also fixed there: the mechanics section had described the step-up as "up to 2 cells" long after it stopped being 2, so it now names the constant instead of restating it.
+
+---
+
+## 🛠️ W — The workbench (how this project is worked on)
+
+*New track, opened 2026-08-17 out of an external review of the repo. **It is the
+next thing to be worked on**, ahead of V22, and the reason it can go first is in
+the ordering note at the bottom of this section rather than in enthusiasm.*
+
+**Every entry in this section is wrapped at 80 columns on purpose.** That is
+`W1`'s convention, applied to the first text written after it was decided, so the
+convention has at least one compliant example before anybody is asked to follow
+it.
+
+### The finding this track exists to answer
+
+The review's one structural claim, and everything below is downstream of it:
+**the reasoning in this project is archived rather than indexed.** The rule at
+the top of `CLAUDE.md` — that the reasoning is the deliverable — is correct, is
+being followed, and is producing documents that are accurate. The review checked
+the most falsifiable claim it could find, `CLAUDE.md`'s "the full suite is 14
+suites", against `ctest --test-dir build -N`, and it is true. *(Its first
+measurement said otherwise: `grep -c add_test CMakeLists.txt` returns **20**.
+Six of those twenty are comments explaining why `grid_bench` and the five probes
+are deliberately **not** registered. **The doc was right and the grep was wrong**,
+and that is recorded here rather than dropped because it is the exact shape of
+false alarm this project's own rules invite — a reader who trusted the cheaper
+measurement would have "corrected" a true claim into a false one.)*
+
+What is failing is not the policy. It is the **storage format**, and it fails in
+four measurable ways.
+
+**1. The doc corpus is the size of the codebase.** 1.09 MB of Markdown against
+1.20 MB of `src/` + `tests/` + `tools/`. `ROADMAP.md` alone is 399 KB — 69% the
+size of all of `src/` — and 67,371 words. `CLAUDE.md` already concedes the
+consequence, instructing readers to "search it, don't read it front to back". A
+document that can only be grepped is a database with no index.
+
+**2. The four heaviest documents are unwrapped, and that multiplies the cost of
+every search into them.** A grep hit is atomic at the line, so a 3,000-character
+line returns 3,000 characters whether or not the match needed them.
+
+| File | Lines | Avg line | Max line | Lines >500 chars |
+|---|---|---|---|---|
+| `ENGINEERING_NOTES.md` | 91 | **601** | 2,386 | 53 |
+| `ROADMAP.md` | 1,008 | **394** | 3,083 | 367 |
+| `ROADMAP_ITEMS.md` | 641 | 285 | 4,102 | 128 |
+| `PERFORMANCE.md` | 428 | 205 | 1,688 | 69 |
+| `README.md` | 901 | 63 | 508 | 1 |
+| `PLAYTEST_LOG.md` | 975 | 83 | 1,042 | 17 |
+
+Measured: `grep -C2` for `determinis` in `ROADMAP.md` returned **9,930 bytes for
+20 lines**. The same shape of query against wrapped text returns about 1.3 KB.
+**The project already wraps** — `README.md` and `PLAYTEST_LOG.md` are clean — so
+this is an inconsistency to remove, not a new convention to import.
+
+**3. The plan is written twice, by instruction.** Extracting every item ID
+matching `(E|V|P|F)[0-9]+[a-z]?` from both roadmap files gives **48 IDs in
+`ROADMAP.md`, 48 in `ROADMAP_ITEMS.md`, and 48 in both** — a perfect overlap
+across 582 KB, with near-identical section headings on top of it. This is not a
+discipline failure. `CLAUDE.md`'s routing table says *"ROADMAP.md (the why) /
+ROADMAP_ITEMS.md (the order)"*, and **every item has both a why and a position**,
+so the table mandates that every item be written in two places and thereafter
+maintained in step. **The clearest evidence is in this file's own preamble**,
+which states "This is the only document that carries development steps" — a
+sentence that was true when written and that `ROADMAP_ITEMS.md` has falsified. By
+the project's own standard that is worse than no claim, and it is `W4`'s job.
+
+**4. Nothing is mechanised.** There is no `.claude/settings.json` in the repo at
+all — no permission allowlist, no hooks. The consequence that matters is not the
+prompting; it is that **the project's self-declared first risk, "a stated rule
+that stopped matching the code and kept being believed", is defended only by
+human vigilance.** Four commits exist purely to repair such a claim, the most
+recent being `814ac71`, "Correct the suite count in CLAUDE.md and README, which
+V23 made false". Vigilance caught those four. It is the wrong instrument for the
+fifth.
+
+### What the review checked and found healthy, so nobody spends a session on it
+
+Recorded because "not a problem" is a finding, and an unrecorded one gets
+re-litigated.
+
+- **`Grid` is well factored and is not to be split.** `grid.cpp` is the largest
+  translation unit at 1,664 lines, and it is 35 named methods — `step_powder`,
+  `step_fluid`, `step_thermal`, `vent_fluid`, `fracture_landing`, `seek_level`
+  and the rest — averaging 47 lines. Size here is subject matter, not sprawl.
+- **The 14 separate test executables stay separate.** The isolation is what the
+  `ENGINE_SOURCES` / `RENDER_SOURCES` split buys, and the whole suite runs in
+  about a second. There is nothing to win.
+- **The `.claude/rules/` three-way split, `TUNING.md` and `PLAYTEST_LOG.md` are
+  all load-bearing separations** with their arguments already written down. None
+  of them is a consolidation candidate.
+- **`main.cpp`'s `#include <random>` is not an invariant violation.** It is used
+  once, at `std::random_device rd;`, to pick the world seed — which is precisely
+  the boundary the determinism rule draws.
+
+### The items
+
+**`W1` — Reflow the four unwrapped documents to 80 columns.** *(afternoon)*
+`ROADMAP.md`, `ROADMAP_ITEMS.md`, `ENGINEERING_NOTES.md`, `PERFORMANCE.md`. Pure
+formatting, **zero information loss, no decision touched, no wording changed** —
+which is what makes it the first item rather than the most valuable one. It also
+repairs `git diff` and `git blame`, which currently render a one-word change as a
+3,000-character line rewrite. *Verify:* word count and link count unchanged per
+file before and after; `ctest` untouched by construction; a spot grep costs
+roughly a sixth of what it did.
+
+**`W2` — `.claude/settings.json` with a permission allowlist.** *(afternoon)*
+`cmake`, `ctest`, `git`, `python tools/*`. The mechanical half of the friction.
+Note that this adds no dependency — it is a config file the harness already looks
+for.
+
+**`W3` — Make doc-truth a test rather than a discipline.** *(afternoon)* A
+fifteenth `ctest` suite asserting the docs' **checkable numeric claims** against
+their sources: the suite count against the registered tests, `Element`'s size and
+free-byte offsets against the `static_assert`s in
+[element.h](src/physics/element.h), the golden checksum quoted in prose against
+the one in [tests/test_golden_frame.cpp](tests/test_golden_frame.cpp),
+`FIXTURE_SCENE_CELLS` against [tests/test_scene.cpp](tests/test_scene.cpp).
+**This is the highest-leverage item in the track and it is deliberately not
+first**, because `W1` and `W4` will move the very lines it pins and pinning them
+twice is the mistake V20 and V21 already made one level down.
+**Scope limit, stated so it does not creep:** it can only ever check claims that
+have a machine-readable source of truth. It cannot check reasoning, and an
+attempt to make it do so turns the docs into a format rather than an argument.
+
+**`W4` — One live plan; the shipped reasoning moves to an archive.** *(days)*
+`ROADMAP_ITEMS.md` keeps *Next up*, *Running order*, *Decisions owed* and
+*Prerequisites*, and each open item **absorbs its own rationale inline** instead
+of citing a second file for it. The rationale for **shipped** items — the bulk of
+the 399 KB — moves to a dated `ROADMAP_ARCHIVE.md` that **nothing is ever
+required to read**. Nothing is deleted; this project does not delete a wrong
+prediction and will not start here. **The routing-table row in `CLAUDE.md` is
+part of the item, not a follow-up** — leaving it in place would re-create the
+duplication on the next item filed. **The judgement call is the archive
+boundary** and it is the user's, not a session's: the default is *shipped and
+closed*, and the argument against a looser line is that every item left live is
+one that has to be re-read forever.
+
+**`W5` — Extract `main()`.** *(days)* `main()` runs from its opening brace to the
+end of [src/main.cpp](src/main.cpp) — **1,377 lines**, about 92 blank-delimited
+blocks, covering display-mode negotiation, texture creation, backdrop and prop
+binding, sheet loading, seeding, scene load, objective planting, the `F9`
+recorder, the V23 camera wiring and the settings menu, and then the frame loop.
+The line count is not the argument. **The argument is the causal chain:**
+`CLAUDE.md` requires the Manual Tester Checklist after changes to `main.cpp`
+*because the suites cannot reach it*, and the suites cannot reach it *because it
+is one function*. So `main.cpp`'s shape is the thing converting machine-checkable
+work into human-checkable work — and the human is one person, who is currently
+holding the V23 feel report that V22 is gated on.
+**The pattern is already proven in this repo and stopped halfway.**
+[src/game/run.h](src/game/run.h) is SDL-free for exactly this reason, in its own
+words — *"a run that needs a window cannot be driven by a test"* — and
+`tests/test_run.cpp` is 562 lines of driving it. The shape: a `boot` unit
+returning a populated struct, the per-frame composition joining the existing
+`render/frame.cpp`, and a `main()` of roughly 150 lines of SDL lifecycle and
+pump. *Verify:* the launch line still prints `Scene: WxH, N cells placed` with
+`N` = 334901; `golden_frame_test` unmoved; **and at least one checklist step
+demoted to a headless assertion, because if none can be, the item did not buy
+what it was admitted on.** **This is the one item in the track that needs the
+tester afterwards.**
+
+**`W6` — Trim `README.md` to a front door.** *(afternoon)* It is 901 lines doing
+four jobs: build/run/test, 153 lines of benchmark procedure, 534 lines of engine
+architecture, and the public fundamentals pass. The benchmark section is a
+**lossy restatement** of a file that owns the topic — it shares `PERFORMANCE.md`'s
+entire distinctive vocabulary while carrying a fraction of it (`churning` 5 uses
+against 69, `p99` 1 against 19). Architecture goes to `ENGINEERING_NOTES.md`,
+benchmark procedure to `PERFORMANCE.md`, and README keeps build, run, test,
+controls, `## General Testing` and links out. **`## General Testing` stays public
+and stays short** — that is already a written rule and this item must not be read
+as licence to move it.
+
+### Refused, or deferred with the reason
+
+- **Untracking the generated BMPs is deferred, not scheduled.** `assets/` is
+  49 MB, of which about 44 MB is script-generated — `backdrop_mountains.bmp`
+  21 MB, `backdrop_sky.bmp` 16 MB, `test_albedo.bmp` and `test_material.bmp`
+  6.2 MB each — all reproducible from `tools/generate_backdrop.py` and
+  `generate_test_scene.py`, with `.git` at 20 MB and growing by tens of MB per
+  backdrop regeneration. **The reason it is not scheduled is that generating at
+  build time makes Python a *build* dependency where it is presently only a
+  *tools* dependency**, which is the "zero new dependencies" invariant, and
+  because `golden_frame_test`, `test_scene.cpp` and `rim_probe` all need those
+  fixtures byte-identical. **Reopen trigger: clone or fetch time actually
+  hurting.** Whoever spends it proves generator determinism first — a generator
+  that is one byte non-reproducible turns a checksum suite into a flaky one.
+- **Splitting `.claude/rules/simulation.md` is noted and not scheduled.** At
+  25 KB it loads for `src/physics/`, `src/game/`, `main.cpp`, `tests/` and
+  `CMakeLists.txt` — effectively every code path — and its harness-and-build-graph
+  half could scope more narrowly. It is left alone because the measured baseline
+  it contributes to is acceptable and because `W5` changes which files exist.
+
+### Why this track goes ahead of V22, which is the only ordering claim here
+
+**V22 is blocked on a human and `W1`–`W6` are blocked on nothing.** The V23 feel
+report is owed, V22 must not start until it comes back, and question 3 of that
+report can still return an answer that changes what V22 is. Running the workbench
+track in that window costs the V track nothing at all.
+
+Two second-order reasons, both of which would hold anyway. **`W5` is aimed
+directly at the queue V22 is sitting in** — every checklist step it converts to
+an assertion is a step the tester does not have to run before the next visual
+change ships. And **`W1` and `W4` are cheapest now and never cheaper again**:
+both are proportional to the size of the corpus, and the corpus only grows.
+
+**One thing must not be read into this.** The volume of writing is *not* the
+defect and reducing it is not the goal — the review's own conclusion was that the
+documentation discipline is this project's genuine strength. Every item above
+changes where reasoning is stored or how it is retrieved. **None of them is
+licence to record less.**
 
 ---
 

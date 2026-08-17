@@ -12,8 +12,8 @@ tester needs in order to tell a known cost from a new defect.
 ## ⚠️ Owed to the tester — the current list
 
 *Written so it can be done without reading the rest of this file. An item goes on
-the moment a session asks for it and comes off the moment it is done — if this
-list is empty, nothing is waiting on a human. Always clarify what my response should be*
+the moment a session asks for it and comes off the moment it is done — if this 
+list is empty, nothing is waiting on a human. Always clarify what my response should be.*
 
 **Build and launch:** 
 
@@ -189,17 +189,59 @@ has ever had.*
 
     **And check a fire at the horizon if you can arrange one.** The grade pass is drawn *before* the additive light pass specifically so that a fire is not dimmed along with the scene. `golden_frame_test` measures this headlessly and a `static_assert` holds the ordering, so this is a confirmation rather than a hunt — but it is the one visible consequence of the ordering argument, and it is worth having seen once.
 
-13. **The camera leaves screen centre, and digging brings it back (`V23`, new 2026-08-17).** **The newest step and the one with the least behind it** — every other step in this list names a regression that has actually happened, and this one names a change nobody has seen. Needs an open surface location with diggable ground under it, which the spawn is.
+13. **The camera's vertical framing, and the dig move (`V23`, new 2026-08-17).**
+    **The owed list at the top of this file promised this step and then did not
+    write it** — it said "written up in full at the bottom of this file" and
+    pointed at nothing, and it went a full session that way before being caught by
+    a count of the steps. Recorded rather than quietly fixed, because a pointer to
+    a section that does not exist is the exact failure this project's
+    documentation rules are about, and because **the thing that caught it was
+    counting, not reading** — which is the argument `W3` is built on.
 
-    **What you should see.** Standing still, you sit roughly four fifths of the way down the screen rather than at its centre, with the backdrop's ground plane taking most of the frame above you. Hold the dig button with the cursor below you and the view should move — over about six tenths of a second — until you are around a third of the way down and the ground you are digging into fills the frame. Release, and it returns at the same rate. Digging **sideways or upward should barely move it at all**: the camera is supposed to respond to the volume going *underneath* you, not to the dig button.
+    **This is the first checklist step whose first run is a design decision rather
+    than a pass or a fail** — step 10 is the other one. The three questions in
+    their answerable form are at the top of this file and are not repeated here;
+    what follows is what the step checks **every time after that.**
 
-    **The failure modes, which are not symmetrical.** Too fast reads as a cut rather than a move; too slow means the camera is still arriving when you have stopped digging, so it never settles into either framing and just drifts. **Both get called "nauseating", so name which one.** The speed constant is the one number in this feature derived from nothing at all — the two framings come from the reference frames, the duration is a guess.
+    **What should be true.** Standing still on the surface, the player sits about
+    four fifths of the way down the screen (`CameraBias::SURFACE_ANCHOR`, 0.80).
+    Hold the dig button aimed **downward** and the framing eases until the player
+    is about a third of the way down (`DIG_ANCHOR`, 0.30) — so the ground being dug
+    fills the view. Release and it eases back. **Digging sideways or upward must
+    not move it**, and that is deliberate rather than an omission.
 
-    **The cost this step is really watching.** At the surface framing there are about **55 cells of world visible below your feet**, down from ~135 at centre. That is the argument that nearly stopped this being built, and the dig framing is what pays it back. So: is normal play — walking, jumping, aiming at something below you before you start digging — noticeably blinder? A yes here is not a defect report, it is `SURFACE_ANCHOR` being too high.
+    **The three failures to look for, all of which are cheap to see once you know
+    the shape.** *(a)* **Creep under a still hand** — aim the cursor, do not move
+    the mouse, and watch whether the view drifts on its own. There is a positive
+    feedback loop in this design (the anchor moves the view, the view resolves the
+    mouse, the resolved aim picks the anchor); it **saturates rather than
+    oscillating**, so the symptom is a slow crawl and not a wobble, and it would
+    never look like a bug. It is cut by measuring the aim in the unbiased frame and
+    pinned by `tests/test_camera_bias.cpp`, which carries a negative control — but
+    the test is arithmetic and the eye is the other instrument. *(b)* **The world
+    edge** — at the very top and bottom of the world the camera should simply stop;
+    the edge clamp wins over the anchor. *(c)* **The free camera** — with
+    `debug.free_camera` detached the anchor is frozen on purpose. If detaching the
+    camera makes the framing jump, that freeze has come loose.
 
-    **Two edges worth a deliberate look.** Walk to the very bottom and the very top of the world: the view should simply stop at the world edge, with the anchor losing to the clamp, and never show anything outside the grid. And **hold the mouse perfectly still while digging downward** — the view must not creep on its own. There is a genuine feedback loop there (the camera moves the view, the view is what the mouse position is resolved through, the resolved aim is what moves the camera), it is cut in the code and pinned by a test with a negative control, but the test is arithmetic and this is the observation it stands in for.
+    **The knobs, if it is wrong.** `SURFACE_ANCHOR`, `DIG_ANCHOR` and
+    `EASE_PER_SEC` in [src/game/camera_bias.h](src/game/camera_bias.h), and their
+    rows in [TUNING.md](TUNING.md). **The anchors are fractions of the viewport and
+    not counts of cells** — `DISPLAY_MODES` has several viewport heights, and a
+    cell count expresses a composition only at the one height it was tuned at.
+    **`EASE_PER_SEC` is the number with no evidence behind it**: the two anchors
+    were read off reference frames and the speed between them was a guess.
 
-    **Finally, the question the whole V-track has been failing at:** does the ground plane now read as a surface receding away from you, rather than as a band sitting behind you? Three previous attempts tried to buy that with colour and could not, because the plane was 100% occluded by the world in front of it — this is the first change aimed at the cause. **A "no" is a valuable answer here** and should not be softened: it would mean geometry was not the whole problem, and V22 is about to spend a scene rewrite on the assumption that it was.
+    **The three knobs are not covered equally, and knowing which is which saves a
+    confused commit.** The golden fixture calls
+    `set_vertical_anchor(CameraBias::SURFACE_ANCHOR)` and composes **one still
+    frame, with no dig and no elapsed time**. So retuning `SURFACE_ANCHOR` *does*
+    move `golden_frame_test`'s checksum, and that is correct — put the new value
+    and the new checksum in the same commit. **`DIG_ANCHOR` and `EASE_PER_SEC` are
+    outside the fixture's coverage entirely**, so a checksum that does not move
+    after retuning those two is the expected result and not evidence the change
+    failed to apply. **This step and a launch of the game are the only instruments
+    that reach them.**
 
 ---
 
