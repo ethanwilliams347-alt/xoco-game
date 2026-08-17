@@ -317,7 +317,7 @@ nothing in the game depended on the answer. So the failure predicted there is
 not merely a dependency any more, it is the **current behaviour**: grit shed by
 an enemy will fall straight through the enemy shedding it. The prediction was
 right and the schedule moved out from under it. That is carried as a decision
-owed in [ROADMAP_ITEMS.md](../ROADMAP_ITEMS.md#-decisions-owed) with `S1` as the
+owed in [ROADMAP_ITEMS.md](../ROADMAP.md#-decisions-owed) with `S1` as the
 named consumer, and **a narrow answer — bodies that shed matter displace it, the
 player still does not — is the one to consider first**, since it is the only
 case with a consumer behind it.

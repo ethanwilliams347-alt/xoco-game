@@ -169,7 +169,7 @@ argue about which of them counts as a realistic frame. The last row of the
 benchmark ends that argument by not being hand-built: it replays a **recorded
 session** — what someone actually did, one input per fixed step — so it is a
 played frame by construction. **It is the row the frame-budget rule in
-`ROADMAP_ITEMS.md` is aimed at.**
+`ROADMAP.md` is aimed at.**
 
 ```bash
 .\build\Release\SlopPhysics.exe      # play for a minute or two, then press F9

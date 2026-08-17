@@ -68,7 +68,7 @@ actually walk past.** Nothing is owed from you on it.
 
 **Where answers go:** what you saw →
 [PLAYTEST_LOG.md](PLAYTEST_LOG.md) (symptoms only, no theories). A decision →
-[ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). Or just tell me and I will
+[ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed). Or just tell me and I will
 file them.
 
 *Previous pass (five items on V20's palette) came back complete on 2026-08-16
@@ -124,7 +124,7 @@ has ever had.*
 
    **Two limits on reading a recording as this step, worth knowing before doing it again.** The census reports materials **co-present in the world**, not *near* each other — this step says "near", and world-wide co-presence is the weaker claim. And a recording can only ever show the step's *crash* half; the reason step 9 is a manual step is that a person also notices things that are wrong but not fatal, which no replay will report. **A recording strengthens this step and does not replace it.**
 
-10. **The run can be lost (`S0`, new 2026-08-14).** The other nine steps ask whether the engine is still correct. **This one asks whether there is a game**, and it is the only step on this list whose result is a design decision rather than a pass or a fail — the combat question in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed) is due on it.
+10. **The run can be lost (`S0`, new 2026-08-14).** The other nine steps ask whether the engine is still correct. **This one asks whether there is a game**, and it is the only step on this list whose result is a design decision rather than a pass or a fail — the combat question in [ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed) is due on it.
 
     **The mechanical half, which is what can actually regress.** At launch the HUD reads `HP:100` and a `GOAL:` bearing, and an `Objective: (1700, 932)` line prints beside the seed — a missing objective line means the column scanned no ground and the run cannot be won. Confirm the spawn drop costs nothing: the body falls several hundred cells at startup and must land at `HP:100`, because that fall is priced at 80 of 100 and is free by an explicit rule. Then **jump repeatedly and confirm jumping never costs health** — that is the rule most likely to break silently, since it is a relationship between two constants and only one of them is in this file. Walk off the diving ledge above the water channel and confirm a real drop *does* cost health. Paint Fire (`7`) onto yourself and confirm the bar comes down at about a fifth a second, then step out and confirm it stops; paint Steam (`6`) onto yourself and confirm it does **not** — steam spawns twelve degrees under the burn threshold, deliberately, and that gap is the one a MATERIALS retune could close without anybody noticing.
 
@@ -132,7 +132,7 @@ has ever had.*
 
     **What to be fussy about, in order.** *`R` must do nothing while the run is playing* — it is inert on purpose, and a mid-run restart would be a session thrown away by a mis-hit. **`Ctrl`+`R` is a different key and does reset mid-run**, added by `T1`; that is deliberate and not this step failing. *The `GOAL:` bearing must count down as you approach*, since a bearing that does not is worse than none. *And a body dug out of burning terrain must still be burning*: the burn rule sits deliberately above the unstuck path, so being buried in fire is not a way to stop taking damage.
 
-    **The half that is not a check.** Play it as a run rather than as a test — spawn, cross, arrive — and then answer the question the item was built to ask: **does this need an enemy to be interesting?** Neither "yes" nor "no" is a failure and both close a decision that has been open for months. Record the answer in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed) and the symptoms in [PLAYTEST_LOG.md](PLAYTEST_LOG.md), the usual way round.
+    **The half that is not a check.** Play it as a run rather than as a test — spawn, cross, arrive — and then answer the question the item was built to ask: **does this need an enemy to be interesting?** Neither "yes" nor "no" is a failure and both close a decision that has been open for months. Record the answer in [ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed) and the symptoms in [PLAYTEST_LOG.md](PLAYTEST_LOG.md), the usual way round.
 
 11. **Depth and parallax (`V11`, new 2026-08-16).** `golden_frame_test` hashes a composed frame, so the *order* of the layers and the *position* of each one are checked on every build — but it hashes a software rasterisation of a still frame at one camera position. **Parallax is a thing you can only see by moving**, and depth is a thing you can only judge by looking, so both halves of this step are outside what any suite can reach.
 
@@ -198,7 +198,7 @@ has ever had.*
 Symptoms — what you saw, not what you think caused it — go to
 [PLAYTEST_LOG.md](PLAYTEST_LOG.md). Root causes and fixes go to
 [ROADMAP.md](ROADMAP.md), in the wave that spent them. A design answer (step 10)
-goes to [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). A retuned feel
+goes to [ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed). A retuned feel
 constant goes to [TUNING.md](TUNING.md) as a row **and** a dated History line.
 
 **When a step's expectation turns out to be wrong, fix the wording here rather

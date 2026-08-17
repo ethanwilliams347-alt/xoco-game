@@ -119,7 +119,7 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
 - **The played row proves the budget is intact; it cannot price a change.** It
   costs 0.12 ms a step, so 10% of it is under the noise floor. A merge reading
   needs both halves: p99 and steps-over-budget on the replayed row, *and* the
-  bracketed synthetic rows at 1920x1080. Stated in full in ROADMAP_ITEMS.md's P
+  bracketed synthetic rows at 1920x1080. Stated in full in ROADMAP.md's P
   track; this bullet exists because the rule used to name only the first half.
 
 ## Invariants — breaking one of these is a defect, not a design choice
@@ -173,9 +173,10 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
 
 ## How work gets done here
 
-1. **Read before writing.** [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md) is the authority
-   on *what is next*; [ROADMAP.md](ROADMAP.md) is the authority on *why*, and is
-   large — search it, don't read it front to back.
+1. **Read before writing.** [ROADMAP.md](ROADMAP.md) is the authority on both
+   *what is next* and *why*, and is large — start at its **The plan** block,
+   which is the only part that has to be re-read to know what to do, and search
+   the rest rather than reading it front to back.
 2. **A confirmed defect the headless suites can reach gets a failing test before
    its fix** — and the test must be verified against the *unfixed* code, so it
    fails for the right reason.
@@ -216,7 +217,8 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 
 | What you have | Where it goes |
 |---|---|
-| Sequenced work, and why it is ordered that way | ROADMAP.md (the why) / ROADMAP_ITEMS.md (the order) — **this row is known to be wrong and `W4` is the item that fixes it; see below before filing against it** |
+| Sequenced work, and why it is ordered that way | ROADMAP.md — **one file, both halves.** An item's order and its argument go in the same entry |
+| A finished item's reasoning, once nothing open depends on it | ROADMAP_ARCHIVE.md — **nothing is ever required to read it** |
 | A technical decision made and then deferred, or refused | ENGINEERING_NOTES.md |
 | A feel constant you retuned | TUNING.md — a row **and** a dated History line |
 | A benchmark number or a measurement method | PERFORMANCE.md |
@@ -226,16 +228,21 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 | How to get art in | ASSETS.md, and `../drawing_to_sprite.md` for the player |
 | Raw lore, brainstorming, reference observations | `notes/` |
 
-**The first row is under repair and this note is the warning, not the fix.**
-Splitting one item's *why* from its *order* means every item is written in two
-files and thereafter maintained in step — and it is: **all 48 roadmap item IDs
-appear in both roadmap files**, across 582 KB. ROADMAP.md's own preamble still
-says "This is the only document that carries development steps", which
-ROADMAP_ITEMS.md falsified. **Until `W4` lands, keep filing both halves as the
-row says** — a half-migrated plan is worse than a duplicated one. `W4` merges
-them to one live file and moves shipped rationale to a dated archive; it owns
-rewriting this row, and the reasoning is in ROADMAP.md's **W — The workbench**
-section.
+**`W4` shipped 2026-08-17 and the first two rows are what it left behind.** This
+note used to be a warning that the row was wrong: the plan was split into
+`ROADMAP.md` (the why) and `ROADMAP_ITEMS.md` (the order), so **every item was
+written in two files and thereafter maintained in step** — all 48 IDs appeared
+in both, across 582 KB. `ROADMAP_ITEMS.md` is now merged into `ROADMAP.md` and
+deleted, and closed work moved to `ROADMAP_ARCHIVE.md`. **File one entry per
+item, in `ROADMAP.md`, carrying its own order and its own argument.**
+
+**The archive is not the old "Shipped" section under a new name.** The boundary
+is *finished **and** nothing open depends on the reasoning* — so a closed item
+whose finding still binds an open one has that finding written **into the open
+item** before it moves. `V22` carrying `V23b`'s ~50% camera cap is the worked
+example. **Move a finding before you move an entry**, or the archive quietly
+becomes required reading and the whole item is undone. The reasoning is in
+ROADMAP.md's **W — The workbench** section.
 
 **`notes/handoff_prompt.md` is the exception: do not edit it unless told to.**
 It is the last thing written before a session closes, and its job is to let the

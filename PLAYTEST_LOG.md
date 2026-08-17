@@ -331,7 +331,7 @@ Session 1's A6 reported two things — water capped on top of a spawned pile, an
 
 ### Phase B — the E4 decision, which this session is the gate for
 
-**This phase was missing and the session could not have discharged what the plan says it discharges.** [Decisions owed](ROADMAP_ITEMS.md#-decisions-owed) has *"Does the player displace material? (E4) — due after session 5 — Play it. If the artifact isn't obviously better, write 'no'."* E4 is item 2 in the plan and blocked on this session. Every row above is about water and venting; none of them looks at the player at all, so as written this session would have ended with E4 exactly as blocked as it started.
+**This phase was missing and the session could not have discharged what the plan says it discharges.** [Decisions owed](ROADMAP.md#-decisions-owed) has *"Does the player displace material? (E4) — due after session 5 — Play it. If the artifact isn't obviously better, write 'no'."* E4 is item 2 in the plan and blocked on this session. Every row above is about water and venting; none of them looks at the player at all, so as written this session would have ended with E4 exactly as blocked as it started.
 
 **What is being judged is the absence, not a feature.** E4 is not built — the grid does not know the player exists, so material falls straight through the body. There is nothing to toggle and nothing to compare against. The question is only whether that reads as *broken* when you go looking for it, and the bar the decision sets is deliberately high: "obviously better" or the answer is no. **A "yes" is not a small answer** — the implementation waits on E5a, which is what gives shoved material somewhere to go, so a yes queues work behind another item rather than starting any.
 
@@ -366,7 +366,7 @@ And **the E4 answer**, in one sentence, because item 2 in the plan is waiting on
 
 **Wave 3's exit condition is met, on the two rows it was written to close.** **W-2:** no burst on release, so the outward surge is confirmed gone *as a consequence* of the conservation fix rather than as a second defect nobody had fixed — that claim was a look with no test behind it and it holds. **W-4:** the residue is not independently visible; what is visible is the flow itself, which is a different finding and is below.
 
-**W-5 is the session's real result, and it counts for more than the others because a row written in advance discriminated it.** The checklist said: *"If the lift is gone and the staggering is not, that is a new finding about the flow model rather than about venting."* The lift is gone and the staggering is not. That converts the general checklist's "water/oil ... does not flow properly and is bugged" from an unlocalised complaint into a finding about `step_fluid`'s lateral run, and it is what withdrew E11's *"no action is proposed"* — see [E11](ROADMAP_ITEMS.md#e--simulation-depth). **This is the strongest form a checklist has taken in this project: a question whose two possible answers pointed at two different subsystems, asked before either was suspected.**
+**W-5 is the session's real result, and it counts for more than the others because a row written in advance discriminated it.** The checklist said: *"If the lift is gone and the staggering is not, that is a new finding about the flow model rather than about venting."* The lift is gone and the staggering is not. That converts the general checklist's "water/oil ... does not flow properly and is bugged" from an unlocalised complaint into a finding about `step_fluid`'s lateral run, and it is what withdrew E11's *"no action is proposed"* — see [E11](ROADMAP.md#e--simulation-depth). **This is the strongest form a checklist has taken in this project: a question whose two possible answers pointed at two different subsystems, asked before either was suspected.**
 
 **E4 answered: no.** Two of the four rows turned out not to be testing E4 at all — E-1 is a defect in the unstuck search and E-2 is almost certainly `MAX_STEP_HEIGHT`, so neither is evidence about displacement. E-3 works. That leaves E-4, water, as the only surviving argument, which is the reverse of the split the checklist guessed at ("yes for powder, no for fluid"). Nothing returned "obviously better", and the decision's own rule is that an inconclusive answer is a "no". Recorded in [ENGINEERING_NOTES.md](ENGINEERING_NOTES.md).
 
@@ -657,7 +657,7 @@ cheap to re-run and worth naming the next time the run is played.
 **The combat question was deliberately not answered, and that is a decision about
 the decision rather than the step failing.** The item was built to make the
 question answerable by playing, and the sitting that made it answerable chose to
-hold it open. The entry in [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed)
+hold it open. The entry in [ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed)
 is updated to say that, in place of a date it would have missed.
 
 **This is exactly the state that entry warns about, so it is written down as
@@ -812,7 +812,7 @@ bands. Symptoms only — what to do about it is V19 in ROADMAP.md.
 | 1 | Vertical tiling join in the plane; do the dashes stream smoothly? | *"dashes seem to move smoothly but the effect isn't very convincing"* — **no join reported.** The wrapping arithmetic passes; the read does not. |
 | 2 | Stair-step between the 24 parallax strips | *"there seem to be some visual bugs with black bands appearing in between the plane pixels"* — **fail.** |
 | 3 | Do mountains read as a dark cut-out; does the plane recede? | *"mountains are not visible just the plane"* — **fail.** |
-| 4 | Does the run need an enemy to be interesting? | *"needs an enemy but i will do that later"* — **answered yes.** Filed at [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). |
+| 4 | Does the run need an enemy to be interesting? | *"needs an enemy but i will do that later"* — **answered yes.** Filed at [ROADMAP_ITEMS.md](ROADMAP.md#-decisions-owed). |
 | 5 | Movement keys held through a structure collapse | *"looks fine"* — **pass.** |
 
 ### Defects

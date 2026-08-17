@@ -1,7 +1,7 @@
 ---
 paths:
   - "**/ROADMAP.md"
-  - "**/ROADMAP_ITEMS.md"
+  - "**/ROADMAP_ARCHIVE.md"
   - "**/PLAYTEST_LOG.md"
   - "**/TUNING.md"
   - "**/PERFORMANCE.md"
@@ -65,24 +65,32 @@ change rendering as a whole-line rewrite in `git diff` and `git blame`.
 
 ## Per-file conventions
 
-**ROADMAP.md** — the authority on *why*, and **399 KB**, so search it rather than
-reading it through. *(This line said 280 KB until 2026-08-17; the file had grown
-43% past the number that was telling people how carefully to search it.)*
-- **It is the only document that carries development steps.** ⚠️ **This has been
-  false since `ROADMAP_ITEMS.md` was split out, and the sentence's own warning is
-  what came true:** a plan split across two files is a plan that disagrees with
-  itself, and **all 48 item IDs now appear in both.** `W4` merges them back to one
-  live plan plus a dated archive. **Until it lands, keep filing both halves** —
-  a half-migrated plan is worse than a duplicated one.
-- Live work first; finished work moves to *Shipped* at the bottom, kept for its
-  reasoning rather than its status.
+**ROADMAP.md** — the one live plan: what is next, how big it is, and why it is
+ordered that way, **one entry per item**. **346 KB**, so search it rather than
+reading it through — except its **The plan** block at the top, which is the only
+part that has to be re-read to know what to do. *(This line said 280 KB, then 399
+KB; `W4` took it to 346 KB, against a 319 KB archive, by moving closed work out.)*
+- **It is the only document that carries development steps.** This was false from
+  the day `ROADMAP_ITEMS.md` was split out until `W4` merged it back on
+  2026-08-17 — the sentence's own warning was what came true: a plan split across
+  two files is a plan that disagrees with itself, and all 48 item IDs ended up in
+  both. **It is true again, and the way to keep it true is to file an item's
+  order and its argument in the same entry**, never in a second file.
+- Live work first; finished work leaves the file for `ROADMAP_ARCHIVE.md`.
 - **Item IDs (`F1`, `E5a`, `V13`, `P2`, `S0`) are never renumbered.** New items get
   new IDs even when that leaves the numbering ragged.
 
-**ROADMAP_ITEMS.md** — the authority on *what is next*: the running order as a
-table with sizes. Split out deliberately, because an order that lives in six
-preambles scattered through a 280 KB file is a force against changing direction.
-**Update this one when priorities move.**
+**ROADMAP_ARCHIVE.md** — closed work, and **nothing is ever required to read
+it**. That promise is the whole point of the file and it is easy to break.
+- **The boundary is "finished *and* nothing open depends on the reasoning"**, not
+  "marked done". Before an entry moves, any finding in it that still constrains
+  an open item gets written **into that open item** — `V22` carrying `V23b`'s
+  ~50% camera cap is the worked example, and the absorbed text says where it came
+  from and when.
+- **Never cite the archive from a live entry as required reading.** A stub
+  pointing at it for the full history is fine; "see the archive for why" is the
+  failure mode, and it turns the archive back into part of the plan.
+- Nothing is deleted here, including wrong predictions and superseded plans.
 
 **PLAYTEST_LOG.md** — **questions and answers only.** A defect's symptom is
 recorded here; why it happened, what was done and what it cost live in
