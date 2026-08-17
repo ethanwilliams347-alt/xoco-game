@@ -53,7 +53,7 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\SlopPhysics.exe
 ```
 
-**The full suite is 13 suites and runs in about a second.** Twelve are headless
+**The full suite is 14 suites and runs in about a second.** Thirteen are headless
 and link no SDL; **`golden_frame_test` is the last of them and links SDL2-static**
 (V17, 2026-08-16). It still needs no display — it composes into a software
 renderer over an `SDL_Surface` — but "the tests do not link SDL" stopped being

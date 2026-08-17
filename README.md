@@ -64,7 +64,7 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-eleven suites, one per concern — `grid_test` for the cellular automata,
+fourteen suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
@@ -73,7 +73,12 @@ animation selector, `props_test` for the prop list format, `sprites_test`
 for the sprite manifest that decides which BMP each key loads, and `debug_test`
 for T1's debug tooling — the pause, the free camera's clamp and the cell
 inspector's text, none of which would be reachable by any test had they been
-written where the keys are bound — and CTest runs all of them.
+written where the keys are bound. Three more cover the renderer's arithmetic:
+`backdrop_test` for the wrapping-layer maths, `camera_bias_test` for the
+camera's vertical framing and the way digging moves it, and `golden_frame_test`,
+which composes a fixed scene through the real renderer and checksums it — **the
+one suite that links SDL**, though it still needs no display. CTest runs all of
+them.
 
 The last three are not simulation, and they are headless for the same reason it
 is: `LightField` produces a plain ARGB buffer, `player_anim` produces a sheet
