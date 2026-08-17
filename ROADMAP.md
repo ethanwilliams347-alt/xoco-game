@@ -56,10 +56,6 @@ time the plan is executed.
 The single milestone that matters. Everything before Long Term (VISION.md)
 serves this:
 
-> The player enters **one** quantum world, uses physics-based movement and
-> destruction to complete **one** objective type, extracts successfully or dies
-> losing the run, and their pet ML agent visibly gains from the run and earns
-> coins idly.
 
 If that loop is not fun, no amount of factories or stock markets will save it.
 If it *is* fun, it is a demo worth showing and a foundation worth expanding.
@@ -1265,10 +1261,42 @@ a 3,000-character line rewrite. *Verify:* word count and link count unchanged
 per file before and after; `ctest` untouched by construction; a spot grep costs
 roughly a sixth of what it did.
 
-**`W2` — `.claude/settings.json` with a permission allowlist.** *(afternoon)*
+**`W2` — `.claude/settings.json` with a permission allowlist. Shipped
+2026-08-17.** *(afternoon)*
 `cmake`, `ctest`, `git`, `python tools/*`. The mechanical half of the friction.
 Note that this adds no dependency — it is a config file the harness already
 looks for.
+
+*Shipped as 40 rules, and the count is the interesting part.* The item named
+four things to allow and the file lists ten times that, for two reasons the item
+did not anticipate. **This project is worked through two shells, not one** —
+`PowerShell` is the primary here and `Bash` is also available, they take
+different syntax, and a permission rule is scoped to the tool that runs the
+command. So every entry is written twice, once per tool, and a rule that exists
+for only one of them is a rule that silently does nothing half the time. And
+**`git` could not be allowed as `git`**: the four-word summary hides that `git
+log` and `git push` are not the same kind of act. The file allows the reading
+verbs (`status`, `diff`, `log`, `show`, `blame`, `grep`, `ls-files`, `branch`)
+and the three staging/committing ones the working agreement already governs
+(`add`, `rm`, `commit`), and stops there. The exe entries cover the six by-hand
+probes in `CLAUDE.md`'s command list; `SlopPhysics.exe` is deliberately **not**
+among them, because it opens a window and blocks, and nothing headless should be
+launching it.
+
+*There is no `deny` list, and that is a decision rather than an omission.*
+Anything unmatched already falls through to asking, so a deny list would only
+defend against an allow rule written too broadly — which is a reason to keep the
+allow rules narrow, not a reason to maintain a second list that has to stay in
+step with the first. The concrete cost of the alternative: denying `git push`
+outright would mean the user cannot ask for a push without first editing this
+file, which is friction pointed the wrong way. **If a broad allow is ever added,
+that is the moment to revisit this**, not before.
+
+*The file is versioned on purpose and `.gitignore` already said so.* It ignores
+`/.claude/settings.local.json` and `/CLAUDE.local.md` by name — the machine-local
+halves — with a comment explaining that `CLAUDE.md` and `.claude/rules/` are
+versioned because they are project instructions. `settings.json` is the third
+member of that set, and needed no `.gitignore` change to become one.
 
 **`W3` — Make doc-truth a test rather than a discipline.** *(afternoon)* A
 fifteenth `ctest` suite asserting the docs' **checkable numeric claims** against
@@ -4836,15 +4864,6 @@ of them plus E4's for long enough to be evidence of that.
   This is the drawing primitive the health readout, pet agent panel and
   resolution options will each build their own screen on; none of those three
   screens exist yet.
-- [ ] **Quantum Worlds:** A portal/level generation system where the player
-  enters a single "trial". One world, one generator — variety comes later. Needs
-  F1 for a seed, F2 for something to swap, and **F4 for any way at all to get a
-  level into the grid**. All three are built. **Generation draws only from
-  streams minted by `worldgen(n)`** — F1.5 reserved that separation before there
-  was a generator to break it, and the reason is written next to it in
-  `random.h`: without it, generating one extra cave shifts the values the
-  simulation reads for those same cells, and a terrain tweak silently alters how
-  sand falls somewhere it never touched.
 - [ ] **Player health and death — the full version.** *(the thin half is `S0`
   above and **shipped 2026-08-14**; what is left here is everything S0
   explicitly does not build)* A real damage model rather than two hard-coded
@@ -4864,43 +4883,6 @@ of them plus E4's for long enough to be evidence of that.
       a blow landed, and it is what a hit reaction, a sound or a screen shake
       each want. Kept because it costs a forwarded int; "presented rather than
       merely applied" is the item that spends it.
-- [ ] **Objective + Extraction — the full version.** *(the thin half is `S0` and
-  **shipped 2026-08-14**)* A real objective type placed by the generator rather
-  than hard-coded into the test scene, and an extraction that is a place in the
-  world rather than a flag being set. Needs F4 — an objective has to be
-  *somewhere*, and placing it means the level format has a slot for it.
-    - **S0's is a point, and the reason is the whole of what this item has to
-      decide.** A point is reached or it is not; a *cell* means a row in
-      `MATERIALS` and four questions with it — what happens when the objective
-      is dug, burnt, displaced, or buried by a collapse. Two of those four have
-      good answers and two are design decisions, and none of them should be
-      settled by a spike picking a representation. **Whichever this item picks,
-      note that the format question is already answered by precedent:** a
-      placement is a list, not an image, and the prop format's rules apply to it
-      whole — including that it must not carry a `y` its loader ignores, which
-      is why S0's objective scans the terrain under its column the way a prop
-      does.
-- [ ] **Save and persistence.** The Definition of Done requires the agent to
-  earn coins *idly*, which means progress survives quitting. Nothing in the
-  project writes a file today. Needs a format decision, a save location, and an
-  explicit answer to what happens when a save from an older build is loaded —
-  the cheap answer, refusing to load mismatched versions, is fine and should be
-  chosen deliberately rather than by accident. F1 already decided how much of
-  this there is: with a stateless hash the whole of the simulation's randomness
-  is a seed and a step count, so there is no generator state to serialise and no
-  way for a loaded world to quietly diverge from the one that was saved. **E5a
-  changes that arithmetic and is the one thing to check before assuming it still
-  holds** — cells now carry a velocity, so a save taken mid-explosion has to
-  record it or the world loads with everything in the air at rest. **That is
-  strictly easier than it was under the old E5 design**, where matter in flight
-  lived outside the cell array entirely and would have needed its own serialised
-  list; velocity on the cell means the cell array is still the whole of the
-  world.
-- [ ] **The Pet ML Agent:** The UI/system for the pet agent that "observes" the
-  player and gains from completed runs. Deterministic progression, not real ML —
-  see `VISION.md`.
-- [ ] **Proof-of-Work Economy:** The idle earning loop — agent performs tasks
-  between runs and earns coins.
 - [ ] **Playtest gate:** Put the slice in front of people who did not build it.
   Do not proceed past this line on the strength of your own opinion. Two things
   make this cheaper than it sounds and both are earned above: F1 plus F2.3 mean

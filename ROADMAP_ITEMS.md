@@ -44,7 +44,7 @@ only part of the file that has to be re-read to know what to do.*
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
 | 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
-| 9 | **W-track: the workbench** | ~3 days | — *(**now next**, 2026-08-17, and it is six items run in order — see below)* |
+| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1` and `W2` both shipped 2026-08-17. **`W4` is next, not `W3`**, because `W3` pins the lines `W4` moves; and `W4` needs the user's archive boundary before it can start |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -383,13 +383,17 @@ to go. **Do not re-ask it.**
 on next**. The full reasoning, the measurements and the two things the review
 checked and found *healthy* are in
 [ROADMAP.md](ROADMAP.md#️-w--the-workbench-how-this-project-is-worked-on) — this
-table is the order and the sizes only. **`W1` shipped 2026-08-17; `W2` is next,
-and it is next by the original order rather than by a fresh decision.**
+table is the order and the sizes only. **`W1` and `W2` both shipped 2026-08-17;
+`W3` is next — but `W3` is the one item in the track with a stated dependency,
+and it is on `W4`.** `W3` pins doc numbers to their sources and `W4` moves the
+lines it would pin, so the order from here is **`W4` then `W3`**, which the `W3`
+row has said since the block was opened. `W4`'s archive boundary is the user's
+call, so `W4` cannot start without one.
 
 | # | what | size | state |
 |---|---|---|---|
 | W1 | **Reflow `ROADMAP.md`, `ROADMAP_ITEMS.md`, `ENGINEERING_NOTES.md`, `PERFORMANCE.md` to 80 columns.** Pure formatting; no wording, no decision, no number changes | afternoon | **shipped 2026-08-17** |
-| W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | queued |
+| W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | **shipped 2026-08-17** — 40 rules, because every entry is written once per shell and `git` had to be split verb by verb; no `deny` list, on purpose |
 | W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | queued, **deliberately after W1 and W4** |
 | W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | queued; **the archive boundary is the user's call** |
 | W5 | **Extract `main()`** — a `boot` unit, the per-frame composition into `render/frame.cpp`, and a `main()` of ~150 lines | days | queued; **the one item here that needs the tester afterwards** |
