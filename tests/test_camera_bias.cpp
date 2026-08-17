@@ -70,7 +70,7 @@ int main() {
               std::to_string(at_floor.view_y()));
 
         Camera at_ceiling;
-        at_ceiling.set_vertical_anchor(CameraBias::DIG_ANCHOR);
+        at_ceiling.set_vertical_anchor(CameraBias::COLUMN_ANCHOR);
         at_ceiling.follow(960.0f, 4.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
         check("anchor still clamps at the world's top edge", at_ceiling.view_y() == 0, "");
 
@@ -78,7 +78,7 @@ int main() {
         // so: a vertical anchor that quietly moved x would shift every parallax
         // layer sideways, which is the seam V11 exists to prevent.
         Camera a, b;
-        b.set_vertical_anchor(CameraBias::DIG_ANCHOR);
+        b.set_vertical_anchor(CameraBias::COLUMN_ANCHOR);
         a.follow(960.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
         b.follow(960.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
         check("the anchor is vertical only", a.view_x() == b.view_x() && near(a.frac_x(), b.frac_x()), "");
@@ -87,7 +87,7 @@ int main() {
     // ------------------------------------------------------------ the target
     {
         check("not digging holds the surface framing",
-              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, false, 0, 200, VIEWPORT_H),
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, false, true, 0, 200, VIEWPORT_H),
                    CameraBias::SURFACE_ANCHOR),
               "a steep aim with the button up must not move the camera");
 
@@ -95,12 +95,12 @@ int main() {
         // the aim has to clear the anchor's own displacement before it reads as
         // downward at all, so this uses a genuinely deep target.
         check("digging straight down reaches the dig framing",
-              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, true, 0, 400, VIEWPORT_H),
-                   CameraBias::DIG_ANCHOR),
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, true, true, 0, 400, VIEWPORT_H),
+                   CameraBias::COLUMN_ANCHOR),
               "");
 
         check("digging upward keeps the surface framing",
-              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, true, 0, -400, VIEWPORT_H),
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, true, true, 0, -400, VIEWPORT_H),
                    CameraBias::SURFACE_ANCHOR),
               "the volume worth showing is not underneath the player");
 
@@ -109,8 +109,8 @@ int main() {
         // either is a sign the downward fraction stopped being clamped.
         for (int dy = -400; dy <= 400; dy += 25) {
             for (int dx = -300; dx <= 300; dx += 100) {
-                const float t = CameraBias::target(CameraBias::SURFACE_ANCHOR, true, dx, dy, VIEWPORT_H);
-                if (t < CameraBias::DIG_ANCHOR - 0.001f || t > CameraBias::SURFACE_ANCHOR + 0.001f) {
+                const float t = CameraBias::target(CameraBias::SURFACE_ANCHOR, true, true, dx, dy, VIEWPORT_H);
+                if (t < CameraBias::COLUMN_ANCHOR - 0.001f || t > CameraBias::SURFACE_ANCHOR + 0.001f) {
                     check("target stays between the two reference framings", false,
                           "dx=" + std::to_string(dx) + " dy=" + std::to_string(dy) +
                           " t=" + std::to_string(t));
@@ -118,6 +118,65 @@ int main() {
             }
         }
         check("target stays between the two reference framings", true, "");
+    }
+
+    // ------------------------------------------- airborne, session 8's ask
+    // The tester's framing rule is "on the ground low, digging **or flying out
+    // of frame** centred", and the second half is a trigger V23 did not have:
+    // it read the dig aim only, so a falling player kept the surface framing
+    // and fell out of the bottom of the screen, which is a 55-cell budget
+    // spent in well under a second at terminal velocity.
+    //
+    // Asserted as *the framing an airborne player gets*, not as a flag, because
+    // the flag is an implementation and the framing is the thing reported.
+    {
+        check("airborne takes the dig framing without the dig button",
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, false, false, 0, 0, VIEWPORT_H),
+                   CameraBias::COLUMN_ANCHOR),
+              "falling with no aim at all must still recentre");
+
+        check("airborne aiming upward still recentres",
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, false, false, 0, -400, VIEWPORT_H),
+                   CameraBias::COLUMN_ANCHOR),
+              "the reason is the fall, not where the cursor is");
+
+        check("on the ground and not digging is still the surface framing",
+              near(CameraBias::target(CameraBias::SURFACE_ANCHOR, false, true, 0, 400, VIEWPORT_H),
+                   CameraBias::SURFACE_ANCHOR),
+              "");
+
+        // Landing has to give the frame back, or the camera stays centred for
+        // the rest of the run after one jump.
+        CameraBias bias;
+        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, false, false, 0, 0, VIEWPORT_H);
+        check("a long fall arrives at the dig framing",
+              near(bias.anchor(), CameraBias::COLUMN_ANCHOR, 0.01f), std::to_string(bias.anchor()));
+        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, false, true, 0, 0, VIEWPORT_H);
+        check("landing returns to the surface framing",
+              near(bias.anchor(), CameraBias::SURFACE_ANCHOR, 0.01f), std::to_string(bias.anchor()));
+    }
+
+    // --------------------------------------- the dig framing is reachable
+    // Session 8 reported the camera as "upside down", and the arithmetic that
+    // explains it is the world-edge clamp, not a sign. The fixture scene's
+    // floor is row ~950 of 1080 and the viewport is 270 cells, so the view
+    // cannot descend past 810: a target of 0.30 there resolves to 0.51 on
+    // screen, and deeper it degrades further. The camera answered the dig
+    // *least* where there was most to see below - which is the inversion the
+    // report named.
+    //
+    // This check is why COLUMN_ANCHOR is 0.50 rather than a reference reading: it
+    // asserts the framing is actually delivered at the depth the game is
+    // played at, which 0.30 could not be.
+    {
+        Camera digging;
+        digging.set_vertical_anchor(CameraBias::COLUMN_ANCHOR);
+        digging.follow(960.0f, 948.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
+        check("the dig framing is delivered at the fixture floor, not just asked for",
+              near(on_screen_fraction(digging, 948.0f), CameraBias::COLUMN_ANCHOR, 0.02f),
+              std::to_string(on_screen_fraction(digging, 948.0f)) +
+                  " - a framing the clamp cannot honour reads as the camera "
+                  "half-moving and stopping");
     }
 
     // --------------------------------------------------- the feedback cut
@@ -140,11 +199,11 @@ int main() {
             camera.follow(960.0f, player_y, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
             const int cursor_world_y = camera.screen_to_world_y(held_mouse_y);
             const int aim_dy = cursor_world_y - static_cast<int>(player_y);
-            return CameraBias::target(anchor, true, 0, aim_dy, VIEWPORT_H);
+            return CameraBias::target(anchor, true, true, 0, aim_dy, VIEWPORT_H);
         };
 
         const float from_surface = framing_asked_for(CameraBias::SURFACE_ANCHOR);
-        const float from_dig = framing_asked_for(CameraBias::DIG_ANCHOR);
+        const float from_dig = framing_asked_for(CameraBias::COLUMN_ANCHOR);
         check("a still hand asks for the same framing from either anchor",
               near(from_surface, from_dig, 0.02f),
               "surface=" + std::to_string(from_surface) + " dig=" + std::to_string(from_dig));
@@ -158,10 +217,10 @@ int main() {
             camera.set_vertical_anchor(anchor);
             camera.follow(960.0f, player_y, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
             const int aim_dy = camera.screen_to_world_y(held_mouse_y) - static_cast<int>(player_y);
-            return CameraBias::target(0.5f, true, 0, aim_dy, VIEWPORT_H);
+            return CameraBias::target(0.5f, true, true, 0, aim_dy, VIEWPORT_H);
         };
         check("the still-hand check can actually fail",
-              !near(naive_framing(CameraBias::SURFACE_ANCHOR), naive_framing(CameraBias::DIG_ANCHOR), 0.02f),
+              !near(naive_framing(CameraBias::SURFACE_ANCHOR), naive_framing(CameraBias::COLUMN_ANCHOR), 0.02f),
               "if these agree the correction above is not what is being tested");
     }
 
@@ -173,9 +232,9 @@ int main() {
         check("ease moves down as well as up",
               near(CameraBias::ease(0.80f, 0.30f, 10.0f), 0.30f), "");
 
-        const float one_frame = CameraBias::ease(CameraBias::SURFACE_ANCHOR, CameraBias::DIG_ANCHOR, 1.0f / 60.0f);
+        const float one_frame = CameraBias::ease(CameraBias::SURFACE_ANCHOR, CameraBias::COLUMN_ANCHOR, 1.0f / 60.0f);
         check("ease is gradual at a frame's dt",
-              one_frame < CameraBias::SURFACE_ANCHOR && one_frame > CameraBias::DIG_ANCHOR,
+              one_frame < CameraBias::SURFACE_ANCHOR && one_frame > CameraBias::COLUMN_ANCHOR,
               std::to_string(one_frame));
 
         // Frame-rate independence: the same simulated second must land in the
@@ -183,8 +242,8 @@ int main() {
         // class F2.3 removed from the simulation, checked here so it does not
         // come back through the view.
         CameraBias fast, slow;
-        for (int i = 0; i < 60; ++i) fast.update(1.0f / 60.0f, true, 0, 400, VIEWPORT_H);
-        for (int i = 0; i < 15; ++i) slow.update(1.0f / 15.0f, true, 0, 400, VIEWPORT_H);
+        for (int i = 0; i < 60; ++i) fast.update(1.0f / 60.0f, true, true, 0, 400, VIEWPORT_H);
+        for (int i = 0; i < 15; ++i) slow.update(1.0f / 15.0f, true, true, 0, 400, VIEWPORT_H);
         check("a second of easing is a second at any frame rate",
               near(fast.anchor(), slow.anchor(), 0.01f),
               "fast=" + std::to_string(fast.anchor()) + " slow=" + std::to_string(slow.anchor()));
@@ -197,11 +256,11 @@ int main() {
               near(bias.anchor(), CameraBias::SURFACE_ANCHOR),
               "the first frame of a run is a frame the player sees");
 
-        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, true, 0, 400, VIEWPORT_H);
+        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, true, true, 0, 400, VIEWPORT_H);
         check("digging down arrives at the dig framing",
-              near(bias.anchor(), CameraBias::DIG_ANCHOR, 0.01f), std::to_string(bias.anchor()));
+              near(bias.anchor(), CameraBias::COLUMN_ANCHOR, 0.01f), std::to_string(bias.anchor()));
 
-        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, false, 0, 400, VIEWPORT_H);
+        for (int i = 0; i < 120; ++i) bias.update(1.0f / 60.0f, false, true, 0, 400, VIEWPORT_H);
         check("releasing returns to the surface framing",
               near(bias.anchor(), CameraBias::SURFACE_ANCHOR, 0.01f), std::to_string(bias.anchor()));
     }

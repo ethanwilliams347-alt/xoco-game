@@ -23,11 +23,31 @@ cmake --build build --config Release
 
 ---
 
-**Nothing is owed right now.** The V23 camera report came back on 2026-08-17
-and is written up as session 8 in [PLAYTEST_LOG.md](PLAYTEST_LOG.md). Expect a
-new item here as soon as the camera change it asked for is built — the framing
-you described (**on the ground low, digging or airborne centred**) is a feel
-change and only you can say whether it landed.
+**One thing is owed: play the camera again and say whether the framing you
+asked for is the framing you wanted.** Added 2026-08-17, straight out of your
+own session 8 report, and it should take about a minute.
+
+**What changed since you last played.** Digging downward now eases you to **mid
+screen** instead of a third of the way down, and **leaving the ground does the
+same thing** — jump, fall or get launched and the camera centres you, whatever
+the mouse is doing. Standing on the ground is unchanged: you sit low, about four
+fifths down.
+
+**Three things to look at, in order.**
+
+1. **Is the centred framing the right one?** It is your word, so this is
+   really "did I read you correctly": digging down, does mid screen give you
+   enough of the hole *and* enough of the world?
+2. **Does jumping feel bad now?** This is the one thing nobody has seen. A jump
+   counts as flying, so the camera leans on every hop. It should read as a lean
+   rather than a swing — if it twitches or feels busy while you are just moving
+   around, that is a real result and there is a specific fix for it.
+3. **The speed.** You were asked this last time and the answer does not carry
+   over: the camera travels a shorter distance now, so the same setting crosses
+   it in 0.35 s instead of 0.6 s. Too fast (a cut) or too slow (never arrives)?
+
+**Not this time:** the ground plane. That answer was "no" and it is understood;
+nothing about the plane has changed, so there is nothing new to look at.
 
 *Closed and off this list:* the V23 camera look came back on 2026-08-17 —
 **"upside down", the dig framing wanted at centre rather than the upper third,
@@ -178,9 +198,28 @@ has ever had.*
     **What should be true.** Standing still on the surface, the player sits about
     four fifths of the way down the screen (`CameraBias::SURFACE_ANCHOR`, 0.80).
     Hold the dig button aimed **downward** and the framing eases until the player
-    is about a third of the way down (`DIG_ANCHOR`, 0.30) — so the ground being dug
-    fills the view. Release and it eases back. **Digging sideways or upward must
-    not move it**, and that is deliberate rather than an omission.
+    is at **mid screen** (`COLUMN_ANCHOR`, 0.50) — so the ground being dug fills
+    the view. Release and it eases back. **Digging sideways or upward must not
+    move it**, and that is deliberate rather than an omission. **Leaving the
+    ground takes the same framing whatever the cursor is doing** — a jump, a
+    fall, being launched — which is session 8's ask and the reason the constant
+    is no longer called `DIG_ANCHOR`.
+
+    **The two things session 8 changed here, so a re-run is read against the
+    right expectation.** The dig framing was 0.30 and is 0.50, because 0.30 was
+    *never delivered*: the view clamps 810 cells down, so at the fixture floor a
+    request for 0.30 came out at 0.51 on screen and deeper at 0.70 — the camera
+    moving least where there was most below it, which is what "upside down"
+    named. And **the swing is now 0.35 s rather than 0.6 s** at the same
+    `EASE_PER_SEC`, purely because the distance shrank — so the speed question
+    is open again and the previous answer cannot be reused.
+
+    **One thing to watch that is new and was reasoned about rather than
+    measured:** an ordinary **jump** is airborne, so the camera now leans on
+    every hop. A hop is shorter than the 0.35 s swing so it should read as a
+    lean and not a swing. **If it twitches, say so** — the fix is to trigger on
+    *descending* rather than on airborne, and that is a one-line change with a
+    different feel, not a tuning of this one.
 
     **The three failures to look for, all of which are cheap to see once you know
     the shape.** *(a)* **Creep under a still hand** — aim the cursor, do not move
@@ -196,11 +235,15 @@ has ever had.*
     `debug.free_camera` detached the anchor is frozen on purpose. If detaching the
     camera makes the framing jump, that freeze has come loose.
 
-    **The knobs, if it is wrong.** `SURFACE_ANCHOR`, `DIG_ANCHOR` and
+    **The knobs, if it is wrong.** `SURFACE_ANCHOR`, `COLUMN_ANCHOR` and
     `EASE_PER_SEC` in [src/game/camera_bias.h](src/game/camera_bias.h), and their
     rows in [TUNING.md](TUNING.md). **The anchors are fractions of the viewport and
     not counts of cells** — `DISPLAY_MODES` has several viewport heights, and a
     cell count expresses a composition only at the one height it was tuned at.
+    **And a framing has to be checked as *delivered*, not as requested** — the
+    world-edge clamp can swallow most of one, which is exactly how 0.30 shipped
+    and reached a human. `tests/test_camera_bias.cpp` now asserts the delivered
+    fraction at the fixture floor.
     **`EASE_PER_SEC` is the number with no evidence behind it**: the two anchors
     were read off reference frames and the speed between them was a guess.
 
@@ -209,7 +252,7 @@ has ever had.*
     `set_vertical_anchor(CameraBias::SURFACE_ANCHOR)` and composes **one still
     frame, with no dig and no elapsed time**. So retuning `SURFACE_ANCHOR` *does*
     move `golden_frame_test`'s checksum, and that is correct — put the new value
-    and the new checksum in the same commit. **`DIG_ANCHOR` and `EASE_PER_SEC` are
+    and the new checksum in the same commit. **`COLUMN_ANCHOR` and `EASE_PER_SEC` are
     outside the fixture's coverage entirely**, so a checksum that does not move
     after retuning those two is the expected result and not evidence the change
     failed to apply. **This step and a launch of the game are the only instruments

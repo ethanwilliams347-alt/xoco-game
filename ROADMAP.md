@@ -3803,6 +3803,62 @@ simulation's resolution and no amount of asset work changes that.
       constant. The brightness re-check is item 1 of the owed list in
       MANUAL_TESTING.md and it is the only instrument there is.
 
+- [x] **V23a — The dig framing was never delivered, and the report that caught
+  it.** *(2026-08-17, the day after V23)* *Observed:* playtest session 8, the
+  V23 feel report V22 was gated on. *Unlocks:* nothing new — it repairs V23 and
+  re-owes the same report.
+
+    **The finding is not a feel result and that is what makes it worth reading.**
+    The tester's words were that the illusion "might be upside down", which is a
+    third failure the checklist did not offer — it asked whether the camera read
+    as *answering the dig* or as *wandering*. Checked against the code, the sign
+    is right: `SURFACE_ANCHOR` 0.80 does draw the player low. **What was wrong is
+    that the dig framing was requested and not delivered.** `Camera::follow`
+    clamps the view at `world_h - viewport_h` = 810, so a `DIG_ANCHOR` of 0.30
+    resolved to **0.51 on screen at the fixture floor** (row ~948) and to **0.70
+    at row 1000**. The camera answered the dig *least* where there was most world
+    below to see and most where there was least — **an inversion of the item's
+    intent produced entirely by the clamp**, and a move that visibly starts and
+    does not arrive.
+
+    **The lesson generalises past this item and is the reason for the new test.**
+    V23 asserted the constants and the arithmetic that chooses between them; it
+    never asserted what a player is shown, because the clamp lives one call away
+    in `Camera`. **A composition constant has to be tested as delivered, through
+    `follow`, not as requested** — `camera_bias_test` now pins the on-screen
+    fraction at the fixture floor, and that check fails against V23's code, which
+    is how it was verified.
+
+    **What shipped.** `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR` 0.50 —
+    **renamed, because it gained a second trigger**: being airborne now takes the
+    same framing whatever the cursor is doing, which session 8 asked for in the
+    same breath ("digging or flying out of frame") and which V23 had no notion
+    of. A falling player previously kept the surface framing and spent its ~55
+    cells in under a second, which is the likeliest thing behind "flying out of
+    frame". Four checks were written first and failed for the right reasons.
+
+    - **The tester's number and the reference reading converged, and the
+      convergence is not a coincidence.** 0.50 is what the report asked for, and
+      0.50 is also what the clamp was already delivering at the surface (0.511).
+      **The tester was describing the framing the game actually produced in the
+      one place they could see it**, and V23's 0.30 was a number that existed
+      only in the constant. Recorded because it is a reusable shape: when a
+      report and a measurement disagree with a constant, check whether the
+      constant is reaching the screen at all.
+    - **`EASE_PER_SEC` did not move and its meaning did.** The swing is 0.30
+      rather than 0.50, so the same 0.85 now crosses it in **0.35 s where the
+      checklist asked the tester about 0.6 s**. The speed question is therefore
+      still open and session 8's answer to it cannot be reused — flagged in
+      MANUAL_TESTING.md rather than quietly re-asked.
+    - **One consequence reasoned about and not measured, stated so the re-test
+      can find it.** A jump is airborne, so the camera now leans on every hop.
+      A hop is shorter than the swing, so it should read as a lean; **if it
+      twitches, the fix is to trigger on descending rather than on airborne**,
+      which is a different feel and not a retune of this one.
+    - **What this does not touch.** The ground plane. Session 8 answered
+      question 3 **no** for the fourth time, which is a finding about V22's
+      premise and is written up there, not here.
+
 - [x] **V23 — The camera leaves centre, and digging brings it back.** *(new and
   built 2026-08-17)* *Observed:* not a playtest report — a **measurement taken
   while starting V22's scene work**, which is the unusual thing about this item
@@ -3900,6 +3956,31 @@ simulation's resolution and no amount of asset work changes that.
     all**, which is why it is retitled: leaving the name pointed at the material
     is how an item quietly gets built to its own obsolete premise.
 
+    - **⚠️ The gate answered "no" for the fourth time, on 2026-08-17, and this
+      is the first thing to read before spending a week here.**
+      [PLAYTEST_LOG.md](PLAYTEST_LOG.md) session 8 was the V23 feel report this
+      item was gated on, and its third question — does the plane finally read as
+      receding — came back **no**, in session 7b's exact terms: *"the character
+      should be standing within the ground plane. currently the player is
+      standing on the test albedo.bmp setup with the backdrop."* **V23 was the
+      first attempt aimed at the cause the geometry actually had, it landed, and
+      the answer did not move.** That is the finding, and it is a finding about
+      this item's premise rather than about V23: **camera framing was necessary
+      and is not sufficient either.**
+
+      What it does *not* license is re-opening the closed decision — the plane
+      stays land, and what transfers from the reference is the relationship.
+      What it does say is that **two mechanisms have now each been proven
+      necessary and insufficient in turn** (value continuity, then framing), and
+      the one thing all three reports have named and nothing has yet changed is
+      **the fixture scene itself**. Session 8 named it by its file for the first
+      time, `albedo.bmp`. The fixture-scene rewrite was already this item's
+      second half and was already the expensive one; **this is the evidence that
+      it is the load-bearing half, not the dressing.** Sequence it first.
+
+      **The cost of that has not changed and must be flagged before it is
+      spent:** the rewrite costs both `.rec` recordings and takes P4's replayed
+      row dark until the tester plays and presses `F9`.
     - **Value continuity is necessary and it is not sufficient, and that
       correction arrived hours after the bullet below was written.**
       [PLAYTEST_LOG.md session

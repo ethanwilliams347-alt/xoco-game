@@ -221,15 +221,15 @@ it only at the one viewport height it was tuned at. Every other entry in
 
 **None of these moves the golden checksum on its own** — the fixture reads
 `SURFACE_ANCHOR` and would follow it, so retuning that one *does* move it and
-the new value goes in the same commit. `DIG_ANCHOR` and `EASE_PER_SEC` are
+the new value goes in the same commit. `COLUMN_ANCHOR` and `EASE_PER_SEC` are
 outside the fixture's coverage entirely, since it composes one still frame with
 no dig and no elapsed time.
 
 | Knob | Line | Now | What it does |
 |---|---|---|---|
 | `SURFACE_ANCHOR` | [camera_bias.h](src/game/camera_bias.h) | 0.80 (91) | Where the player sits when not digging, as a fraction down the screen. **This is the number the whole receding-plane effort turned out to depend on**, and no scene edit could substitute for it: at the old 0.5 the plane's visible band below the player capped at ~50% *by construction*, and measured 20.2% at the spawn, against a reference reading of "clearly past half, around two thirds". At 0.80 the contact lands near 65%. Raise it and the plane gets more of the frame while the ground below the player shrinks toward nothing; lower it and the effect this item exists for goes away. **The cost is stated as a number: at 0.80 there are about 55 cells of world visible below the player**, and that is what digging has to live in before the dig framing takes over. **Not derived from the fishing frame's own 0.60**, which is a different measurement — that frame's plane is cut by its split-view waterline rather than by the frame edge, so the two fractions are not averageable (entry 9's disproof run). |
-| `DIG_ANCHOR` | [camera_bias.h](src/game/camera_bias.h) | 0.30 (96) | Where the player rises to while digging downward. The mean of `CnC_underwater_1` (~0.36) and `CnC_underwater_2` (~0.27), which agree to within a tenth of the frame on a device neither is trying to demonstrate. **This is the constant that resolves the item's whole trade** — the surface framing starves digging on its own, and this is what feeds it back. Lower and more of the shaft is visible while the surface leaves the frame entirely; higher and it converges on the surface framing, at which point digging is back to ~55 cells of look-ahead. |
-| `EASE_PER_SEC` | [camera_bias.h](src/game/camera_bias.h) | 0.85 (101) | Anchor units per second. The full swing is 0.50, so this crosses it in about six tenths of a second. **The failure at both ends is the same word — "nauseating" — for opposite reasons**: too fast and the view cuts rather than moves, too slow and the camera is still arriving when the player has stopped digging, so it never composes either framing and drifts permanently. Frame-rate independent by construction and pinned by a test, not by this number. |
+| `COLUMN_ANCHOR` | [camera_bias.h](src/game/camera_bias.h) | 0.50 (119) | Where the player sits when the interesting volume is below them — digging downward, **or airborne**, which is a second trigger session 8 asked for. Called `DIG_ANCHOR` at 0.30 until 2026-08-17, read off the mean of `CnC_underwater_1` (~0.36) and `CnC_underwater_2` (~0.27). **0.30 was not deliverable and that is why it moved, not feel overruling the reference:** the view clamps at `world_h - viewport_h` = 810, so at the fixture floor (row ~948) a request for 0.30 resolved to 0.51 on screen and at row 1000 to 0.70 — the camera answering the dig *least* where there was most world below it. 0.50 is delivered everywhere the game is played. Lower and more of the shaft is visible while the surface leaves the frame entirely; higher and it converges on the surface framing, at which point digging is back to ~55 cells of look-ahead. **The test pins the framing as delivered through `Camera::follow`, not as requested** — asserting the constant alone is what let 0.30 ship. |
+| `EASE_PER_SEC` | [camera_bias.h](src/game/camera_bias.h) | 0.85 (124) | Anchor units per second. **The swing it crosses is 0.30 since 2026-08-17, not 0.50, so the duration is 0.35 s and not the six tenths this row used to quote** — the constant never moved, the distance did, which means session 8 was asked about a speed it had not seen. **The failure at both ends is the same word — "nauseating" — for opposite reasons**: too fast and the view cuts rather than moves, too slow and the camera is still arriving when the player has stopped digging, so it never composes either framing and drifts permanently. Frame-rate independent by construction and pinned by a test, not by this number. |
 
 ## Debug camera
 
@@ -254,11 +254,25 @@ at the result, not whether the number is a speed.
 
 Newest first. One line per retune: what moved, and what was being fixed.
 
+- **2026-08-17** — **V23a: the dig framing moved to centre and gained a second
+  trigger, on the first human report.** `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR`
+  0.50, renamed because it is no longer only about digging: being **airborne**
+  now takes the same framing, which playtest session 8 asked for in the same
+  breath ("digging or flying out of frame"). **The reason 0.30 moved is not that
+  it felt wrong — it is that it was never delivered.** `Camera::follow` clamps
+  the view at `world_h - viewport_h` = 810, so at the fixture scene's floor a
+  request for 0.30 resolved to 0.51 on screen, and deeper to 0.70: the camera
+  answered the dig least where there was most world below to see. The tester
+  reported that as the illusion being "upside down". `EASE_PER_SEC` is untouched
+  at 0.85 **and is now a 0.35-second swing rather than a 0.6-second one**, purely
+  because the distance shrank — so the question about its speed is still open and
+  the answer given cannot be reused.
 - **2026-08-17** — **V23: the camera stopped centring, and three new knobs
   arrived at once.** Not a retune — a new section, listed here because the
   numbers in it are the least evidenced in the file and the next session should
   know that before trusting them. `SURFACE_ANCHOR` 0.80, `DIG_ANCHOR` 0.30,
-  `EASE_PER_SEC` 0.85. **What was being fixed is not a feel complaint but a
+  `EASE_PER_SEC` 0.85. *(The middle one moved the next day — see the entry
+  above.)* **What was being fixed is not a feel complaint but a
   measurement**: `Camera::follow` centred strictly, which capped the receding
   plane's visible share at ~50% of its band by construction and put it at 20.2%
   at the spawn, so three rounds of value tuning had been aimed at pixels the

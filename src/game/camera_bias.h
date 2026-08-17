@@ -91,21 +91,50 @@ public:
     // asks for.
     static constexpr float SURFACE_ANCHOR = 0.80f;
 
-    // DIG is the mean of the two underwater frames, which agree to within a
-    // tenth of the frame on a device neither of them is trying to demonstrate.
-    static constexpr float DIG_ANCHOR = 0.30f;
+    // The framing for when the interesting volume is *below* the player -
+    // digging into it, or falling through it. **Named for the situation and not
+    // for the dig**, because session 8 gave it a second trigger; it was called
+    // `DIG_ANCHOR` until 2026-08-17.
+    //
+    // **0.50 is the tester's number and it replaced 0.30, which was the mean of
+    // the two underwater reference frames.** The reference reading was not
+    // wrong about the references; it was unreachable in this world, and that is
+    // what session 8 reported as the camera being "upside down".
+    //
+    // The arithmetic, because it is the whole argument. The view clamps at
+    // `world_h - viewport_h` = 1080 - 270 = 810, so at the fixture scene's
+    // floor (row ~948) a target of 0.30 resolves to **0.51 on screen**, and at
+    // row 1000 to 0.70 - a swing of a tenth. **The camera answered the dig
+    // least where there was most world below to see, and most where there was
+    // least**, which is an inversion of the item's whole intent and reads
+    // exactly as a move that starts and does not arrive. 0.50 is delivered
+    // wherever the player actually plays: at the fixture floor it resolves to
+    // 0.511, inside the tolerance the test asserts.
+    //
+    // **So this is not the reference being overruled by feel.** It is the
+    // reference reading meeting a constraint the item never checked it against,
+    // and `camera_bias_test` now pins the delivered framing rather than the
+    // requested one - the check that would have caught this before a human had
+    // to.
+    static constexpr float COLUMN_ANCHOR = 0.50f;
 
-    // Anchor units per second. The full swing is 0.50, so this crosses it in
-    // about six tenths of a second - fast enough that it reads as the camera
-    // answering the dig, slow enough that it is a move rather than a cut.
+    // Anchor units per second. **The full swing was 0.50 and is 0.30 since
+    // session 8 moved the column framing to 0.50, so this crosses it in 0.35 s
+    // rather than the 0.6 s this comment used to quote** - the constant did not
+    // change, the distance it covers did, and the speed the tester was asked
+    // about is therefore not the speed they saw. Fast enough to read as the
+    // camera answering the dig, slow enough to be a move rather than a cut;
+    // still the one number here that came from nothing.
     static constexpr float EASE_PER_SEC = 0.85f;
 
     // `aim_dx`/`aim_dy` are the cursor's offset from the player in world cells,
     // y down, exactly as the dig tool sees it. `viewport_h` is needed to undo
     // the anchor's own contribution to that offset - see the feedback note
     // above; it is the same viewport height handed to `Camera::follow`.
-    void update(float dt_seconds, bool digging, int aim_dx, int aim_dy, int viewport_h) {
-        current_ = ease(current_, target(current_, digging, aim_dx, aim_dy, viewport_h), dt_seconds);
+    void update(float dt_seconds, bool digging, bool on_ground, int aim_dx, int aim_dy,
+                int viewport_h) {
+        current_ = ease(current_, target(current_, digging, on_ground, aim_dx, aim_dy, viewport_h),
+                        dt_seconds);
     }
 
     float anchor() const { return current_; }
@@ -123,7 +152,24 @@ public:
     // position. A constant here would leave a residue that grows with the
     // camera's distance from where the constant assumed it was, which is the
     // feedback loop back in a quieter form.
-    static float target(float anchor_now, bool digging, int aim_dx, int aim_dy, int viewport_h) {
+    static float target(float anchor_now, bool digging, bool on_ground, int aim_dx, int aim_dy,
+                        int viewport_h) {
+        // **Airborne takes the column framing outright, ahead of every aim
+        // test below.** Session 8 asked for it in the same breath as the dig
+        // ("digging or flying out of frame"), and the reason it belongs first
+        // is that a falling player has no aim worth reading: the volume that
+        // matters has gone underneath them whatever the cursor is doing, and
+        // the surface framing leaves them ~55 cells from the bottom edge,
+        // which a terminal-velocity fall crosses in well under a second.
+        //
+        // Consequence worth stating rather than discovering: **an ordinary jump
+        // moves the camera now**, since a jump is airborne. The ease takes 0.35
+        // s to cross this gap and a hop is shorter than that, so a hop reads as
+        // a lean rather than a swing - but if the re-test comes back "the
+        // camera twitches when I jump", this is the line that did it, and the
+        // fix is a condition on descending rather than on airborne.
+        if (!on_ground) return COLUMN_ANCHOR;
+
         if (!digging) return SURFACE_ANCHOR;
 
         const float unbiased_dy =
@@ -138,7 +184,7 @@ public:
         if (len <= 0.0f) return SURFACE_ANCHOR;
         const float downward = clamp01(unbiased_dy / len);
 
-        return SURFACE_ANCHOR + (DIG_ANCHOR - SURFACE_ANCHOR) * downward;
+        return SURFACE_ANCHOR + (COLUMN_ANCHOR - SURFACE_ANCHOR) * downward;
     }
 
     // Frame-rate independent by construction rather than by tuning: a fixed

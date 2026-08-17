@@ -1189,6 +1189,7 @@ int main(int argc, char* argv[]) {
         // the detached view around by a body it deliberately left behind.
         if (!debug.free_camera) {
             camera_bias.update(static_cast<float>(frame_time), input.dig,
+                               run.player.is_on_ground(),
                                gridX - run.player.center_x(),
                                gridY - run.player.center_y(),
                                mode.padded_h());
