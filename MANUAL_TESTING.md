@@ -23,7 +23,7 @@ cmake --build build --config Release
 
 ---
 
-### One look, and one decision. **Added 2026-08-16 (V21).**
+### One look. **Added 2026-08-16 (V21).**
 
 **You answered "too bright" and the backdrop has been taken down by a fifth.**
 Nothing else about it changed — the mountains, the ground plane and their
@@ -47,29 +47,11 @@ outside what any test in the project can see.
    "Now too dark" is just as useful and there is plenty of room in that
    direction.
 
-### The decision — and this one is yours, not a test
-
-You pointed at `resources/images/CnC_parallax_1..3.jpg` and said the player is on
-the water plane. **You are right, and it is a bigger observation than the item
-you were answering.** In those references the receding plane is a *lake*, the
-boat floats on it, and the depth comes mostly from the whole scene being
-*reflected* in it. Ours is an opaque band painted behind the world with the
-player standing on solid ground in front of it — so it can never recede the way
-that one does, no matter how it is shaded.
-
-Changing that is not a fix, it is a change of direction, and it was decided the
-other way once already on purpose. **I have not built anything toward it.** What
-I need from you is which of these you want; there is no wrong answer and the
-cheap one is genuinely respectable:
-
-- **Leave it** — ours is a digging game on solid ground, the plane stays a
-  backdrop band, and I keep improving it as one.
-- **Reflections only** — keep the ground plane where it is, but make it mirror
-  the mountains above it. Buys most of the reference's depth cue without
-  touching the world or the starting scene.
-- **Go for the water plane** — the player is on or beside water, which is the
-  new starting scene you suggested. The biggest of the three by a distance, and
-  it reaches the world and the scene, not just the backdrop.
+*The decision that was owed here — land or water — **came back on 2026-08-16 and
+is closed**: land, with the plane behaving the way the reference's water does and
+the player in it rather than in front of it. Nothing is owed on it. It is
+[V22 in ROADMAP.md](ROADMAP.md), and the next thing it will ask you for is a look
+at how the ground meets the plane, once that is built.*
 
 **Where answers go:** what you saw →
 [PLAYTEST_LOG.md](PLAYTEST_LOG.md) (symptoms only, no theories). A decision →
