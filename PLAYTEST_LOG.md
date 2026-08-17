@@ -858,3 +858,75 @@ asked the right question about the wrong layer.
 
 Symptoms and measurements only. What causes each and what to do about it is
 ROADMAP.md's.
+
+---
+
+## Session 7 — 2026-08-16: V20's raised palette, and what the plane is *made of*
+
+Five items were owed (V20's). All five came back in one pass. **Two of the
+answers are new information and one of them is a direction question that no
+previous session had the frame to ask.**
+
+### Per-item result, in the tester's words
+
+| # | asked | answer |
+|---|---|---|
+| 1 | Is it still a night scene? | **"too bright"** |
+| 2 | Can you see the mountains now? | "mountains visible" |
+| 3 | Do the black bands still appear while walking? | "black bands gone" |
+| 4 | Does that ground look like it goes away from you? | **"no"** — see below |
+| 5 | Is the frame rate still fine? | "frame rate fine" |
+
+Items 2, 3 and 5 close cleanly. Item 2 closes the defect session 6 filed as the
+mountains being invisible; item 3 closes the walking-only banding, which is the
+one no test could have reached; item 5 is the only reading `GROUND_STRIPS` has
+ever had, and the answer is that 24 strips times their tiling copies is not
+felt. **That is a reading, not a measurement, and it is the only instrument that
+exists** — `grid_bench` times `Grid::update` and `Run::step` and cannot see a
+draw call.
+
+### Item 1 — "too bright"
+
+Recorded as the plain answer it was. The item offered four answers — too bright,
+too washed out, the colours look wrong, fine — and **"washed out" was available
+and not chosen**, which is the discrimination worth keeping: the report is level,
+not separation, and not hue.
+
+For scale against the reference rather than against feel: the frame the tester
+saw ran post-grade sky 95→62, mountain rim 71, body 44, ground 30→81. The
+reference's own **night** frame has its sky at L 163. So the report is not that
+our sky outran the reference's night sky — it did not, by a wide margin.
+
+### Item 4 — the plane does not recede, and the reason is not its values
+
+The answer was "no", and it arrived with a reading of the reference that no
+earlier session had made:
+
+> look at the CnC_parallax .jpg files. the player is on the water plane. this may
+> require a new starting scene to be completely redrawn/spawned
+
+Checked against `resources/images/CnC_parallax_1..3.jpg`. **The reference's
+receding plane is a lake surface, and the boat — the player — floats on it.**
+Three observations off those frames, symptoms only:
+
+- The plane's depth cues are **reflections of the bands standing above it**,
+  vertically mirrored and value-compressed, not marks authored onto a surface.
+  Every band in the scene appears twice.
+- The horizontal ripple dashes **grow in size and frequency toward the viewer**,
+  which our tile does reproduce — it is the one mechanism of the three that we
+  built.
+- **The player occupies the plane rather than standing in front of it.** The
+  boat sits at roughly the plane's vertical midpoint in all three frames, with
+  plane both above and below it.
+
+Ours is an opaque band drawn *behind* the world, with the player standing on
+terrain in front of it. **That is a difference in what the plane is, not in how
+it is shaded**, and it is why item 4 could not have been answered by a retune.
+
+The tester's own framing — that this may need the starting scene redrawn or
+spawned differently — is recorded as theirs and is not resolved here. It
+contradicts a recorded V19 decision ("the seven-band scene, with land where the
+reference has water") and reopening that is a direction call, not a defect fix.
+
+Symptoms and measurements only. What causes each and what to do about it is
+ROADMAP.md's.

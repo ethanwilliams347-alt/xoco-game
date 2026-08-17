@@ -48,8 +48,25 @@ void apply_grade(SDL_Texture* tex, const Grade& g) {
 // the failure mode is "the backdrop is flat" instead of "the window
 // is full of noise".
 void draw_clear(SDL_Renderer* renderer, const Params&, const Grade& g) {
-    SDL_SetRenderDrawColor(renderer, graded(0x14, g.r), graded(0x10, g.g),
-                           graded(0x22, g.b), 255); // sky_deep, tools/pixel_art.py
+    // `sky_horizon`, tools/pixel_art.py - hand-copied, and the copy went stale
+    // once. **This read `0x14, 0x10, 0x22` with the comment `sky_deep` until V21
+    // (2026-08-16), and both halves of that were wrong by then.** V20 raised the
+    // backdrop group wholesale and did not carry the change here, so the clear
+    // sat at luminance 18 while the sky above it had moved to 62-95 - and V20
+    // had *also* inverted the sky ramp, which made `sky_deep` the brighter of
+    // the pair and `sky_horizon` the darkest sky tone this comment says to use.
+    // The value was invisible in the ordinary frame, because the sky texture
+    // covers the window, which is exactly why nothing caught it.
+    //
+    // It is still hand-copied. `.claude/rules/assets-and-formats.md` is blunt
+    // that two copies of a constant with a comment between them is not
+    // enforcement, and this is now the second duplicated backdrop constant to go
+    // stale silently. Generating it into `backdrop_layers.h` alongside the
+    // parallax factors is the fix and is written up in ENGINEERING_NOTES.md
+    // rather than done here, because V21 is a retune and a retune that quietly
+    // grows a code path is how a measurement stops being bracketed.
+    SDL_SetRenderDrawColor(renderer, graded(0x38, g.r), graded(0x2C, g.g),
+                           graded(0x57, g.b), 255);
     SDL_RenderClear(renderer);
 }
 
@@ -316,7 +333,16 @@ void draw_objective(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     const float gy = static_cast<float>(p.objective_y);
     struct Ring { int cells; uint8_t r, g, b; };
     const Ring rings[3] = {
-        { 12, 0x14, 0x10, 0x22 },  // sky_deep, the same dark the frame clears to
+        // A near-black outline, and **deliberately not tied to the backdrop.**
+        // This read "sky_deep, the same dark the frame clears to" until V21
+        // (2026-08-16), by which point both halves were false: V20 had moved
+        // `sky_deep` and V21 moved the clear to `sky_horizon`. **The value is
+        // kept exactly where it was, because the comment was describing a
+        // coincidence as if it were a constraint** - this ring's job is to stay
+        // legible against *sand*, the same job the reticle's outline has, and
+        // nothing about it wants to track the sky. Retuning it to chase a
+        // backdrop change would have been the actual defect.
+        { 12, 0x14, 0x10, 0x22 },
         { 10, 0xF0, 0xC0, 0x40 },
         {  4, 0xFF, 0xFF, 0xFF },
     };

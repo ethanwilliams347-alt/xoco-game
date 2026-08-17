@@ -68,9 +68,35 @@ import struct
 # what reaches the screen, and the RGB is whatever hits the target on the hue
 # the group already had:
 #
-#     sky top        95      mountain rim     71    (grade 0.60)
-#     sky horizon    62      mountain body    44    (grade 0.60)
-#     ground far     30      ground near      78    (grade 0.53)
+#     sky top        76      mountain rim     57    (grade 0.60)
+#     sky horizon    50      mountain body    35    (grade 0.60)
+#     ground far     24      ground near      62    (grade 0.53)
+#
+# **Those are V21's numbers (2026-08-16). V20's were 95/62, 71/44, 30/78 and
+# playtest session 7 answered item 1 "too bright".** V21 multiplies the whole
+# group by **0.80** and changes nothing else: every ratio between bands is
+# preserved exactly, both grades are untouched, and this is therefore a ceiling
+# move of the second kind in `.claude/rules/assets-and-formats.md` - the kind no
+# grade can perform, and the kind whose whole virtue is that it cannot separate
+# or merge two bands by accident.
+#
+# **The reason the factor is 0.80 and not lower is the thing to read before
+# taking it down again.** A ceiling move is a multiply, so it scales every
+# *absolute* separation by the same factor - and absolute separation is the exact
+# quantity V20 was created to buy, after matching the reference plane by ratio
+# bought 9.8 levels. The mountain/ground horizon join is the tightest one and it
+# is the reference's own signature: 14 levels there. At 0.80 it goes 14 -> 11. At
+# 0.72 it would be 10, and at 0.60 it would be 8, back under the reference's
+# smallest single band join and most of the way back to the flat frame session 6
+# reported. **So the ceiling is nearly out of downward room.** If session 8 still
+# reports "too bright", the next move is *not* a smaller factor - it is hue and
+# saturation (this group is a strongly saturated violet and saturation reads as
+# brightness), or the grades, and either is a different item with a different
+# argument.
+#
+# `star` is deliberately *not* scaled. It is a point accent rather than a band,
+# so it carries no ratio to preserve, and the reference's night frame keeps its
+# stars and moon at full value while everything around them descends.
 #
 # Two relationships in that table are the point of it rather than side effects.
 # **`ground_far` is the darkest value in the frame** - entry 7's mechanism 2, the
@@ -83,16 +109,16 @@ PALETTE = {
     # sky (V8, layer 1) - cool, deep, no warm colour anywhere in this group.
     # `sky_deep` is the top of the frame and `sky_horizon` the bottom of the sky;
     # deep is now the brighter of the two - see the note above.
-    'sky_deep':     (0x68, 0x54, 0xB1),
-    'sky_horizon':  (0x46, 0x37, 0x6D),
+    'sky_deep':     (0x53, 0x43, 0x8E),
+    'sky_horizon':  (0x38, 0x2C, 0x57),
     'star':         (0xE8, 0xE4, 0xFF),
 
     # mountains (V8, layer 2) - one flat silhouette tone plus a peak rim.
     # **The rim is authored to land *brighter than the sky behind it*** (71
     # against the sky's 62 at that height), because it is the one lit edge in the
     # band and a rim at or below the sky is a rim nobody can see.
-    'mountain':     (0x53, 0x41, 0x7C),
-    'mountain_rim': (0x83, 0x6A, 0xC5),
+    'mountain':     (0x42, 0x34, 0x63),
+    'mountain_rim': (0x69, 0x55, 0x9E),
 
     # the ground plane (V19, drawn behind the world) - the one band in the
     # frame that recedes *within itself*, so it is authored as a ramp rather
@@ -117,9 +143,9 @@ PALETTE = {
     # contrast, matching its ratio is not matching it.** The pair below is now
     # stated as a difference - 30 to 78 post-grade, 48 levels - and the ratio it
     # happens to have is not the thing being held.
-    'ground_far':   (0x3E, 0x33, 0x61),
-    'ground_near':  (0xA5, 0x8C, 0xBE),
-    'ground_mark':  (0xB9, 0x9C, 0xCB),
+    'ground_far':   (0x32, 0x29, 0x4E),
+    'ground_near':  (0x84, 0x70, 0x98),
+    'ground_mark':  (0x94, 0x7D, 0xA2),
 
     # trees (V4 props, layer 3) - desaturated green, warmer than the sky,
     # cooler than the terrain rim, so it sits legibly between the two

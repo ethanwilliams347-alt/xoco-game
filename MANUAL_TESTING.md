@@ -23,51 +23,65 @@ cmake --build build --config Release
 
 ---
 
-### Five things, all in one look at the backdrop. **Added 2026-08-16 (V20).**
+### One look, and one decision. **Added 2026-08-16 (V21).**
 
-Your last four reports have all been fixed. **None of the fixes can be checked by
-a test** — one is a palette, one is a composition, and one only shows itself
-while the camera is moving. Walk out to somewhere with open sky and a clear view
-into the distance, then answer these in order. One line each is plenty.
+**You answered "too bright" and the backdrop has been taken down by a fifth.**
+Nothing else about it changed — the mountains, the ground plane and their
+relative darkness are all exactly where they were, everything just sits lower.
+This needs one look, and it is the *only* instrument there is: the change is
+outside what any test in the project can see.
 
-**A warning before you start:** item 1 is a big deliberate swing and it may have
-gone too far. Say so if it has — "too bright" is a completely valid answer and is
-the single most useful thing you can tell me today.
+1. **Is the brightness right now?** Same view as last time — open sky, clear
+   view into the distance. **Report:** right / still too bright / now too dark /
+   the colours look wrong.
 
-1. **Is it still a night scene?** The whole backdrop was brightened a long way on
-   purpose — it used to occupy about 9 shades of grey out of 255, which is why
-   nothing separated. Look at the sky, the mountains and the ground behind the
-   world together. **Wanted:** it reads as moonlit, and you can tell the three
-   apart at a glance. **Report:** too bright / too washed out / the colours look
-   wrong / fine.
-2. **Can you see the mountains now?** They should stand as a dark jagged ridge in
-   the upper-middle of the screen, with a lighter edge along their peaks, and the
-   ground plane should start *below* them and never cover them — at any height
-   you walk or fall to. **Report:** visible / still hidden / visible but they
-   look wrong.
-3. **Do the black bands still appear?** This is the one that needs **movement** —
-   a still screenshot will not show it. Walk slowly left and right for a few
-   seconds while watching the flat ground *behind* the world, below the
-   mountains. **Wanted:** smooth, no horizontal dark stripes appearing and
-   disappearing. **Report:** gone / still there / different now.
-4. **Does that ground look like it goes away from you?** It should be darkest
-   right where it meets the mountains and get steadily lighter as it comes toward
-   the bottom of the screen, with the dashes on it getting bigger and more
-   frequent nearer to you. **Report:** convincing / still looks like a flat wall.
-5. **Is the frame rate still fine?** That ground is drawn in 24 slices and
-   nothing here has ever measured what that costs. Just say whether it feels as
-   smooth as it did.
+   **If it is still too bright, say so and stop there** — do not expect me to
+   just take it down again. There is very little room left: darkening everything
+   also flattens the gap between the mountains and the ground behind them, which
+   is the gap that was broken last time and is most of what makes the distance
+   read. Past about one more step, we would be back to the flat frame you
+   reported in session 6. So a second "too bright" means the problem is the
+   *colour* — it is a fairly strong purple, and strong colour reads as bright —
+   and that is a different change, not a smaller version of this one.
+
+   "Now too dark" is just as useful and there is plenty of room in that
+   direction.
+
+### The decision — and this one is yours, not a test
+
+You pointed at `resources/images/CnC_parallax_1..3.jpg` and said the player is on
+the water plane. **You are right, and it is a bigger observation than the item
+you were answering.** In those references the receding plane is a *lake*, the
+boat floats on it, and the depth comes mostly from the whole scene being
+*reflected* in it. Ours is an opaque band painted behind the world with the
+player standing on solid ground in front of it — so it can never recede the way
+that one does, no matter how it is shaded.
+
+Changing that is not a fix, it is a change of direction, and it was decided the
+other way once already on purpose. **I have not built anything toward it.** What
+I need from you is which of these you want; there is no wrong answer and the
+cheap one is genuinely respectable:
+
+- **Leave it** — ours is a digging game on solid ground, the plane stays a
+  backdrop band, and I keep improving it as one.
+- **Reflections only** — keep the ground plane where it is, but make it mirror
+  the mountains above it. Buys most of the reference's depth cue without
+  touching the world or the starting scene.
+- **Go for the water plane** — the player is on or beside water, which is the
+  new starting scene you suggested. The biggest of the three by a distance, and
+  it reaches the world and the scene, not just the backdrop.
 
 **Where answers go:** what you saw →
 [PLAYTEST_LOG.md](PLAYTEST_LOG.md) (symptoms only, no theories). A decision →
 [ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed). Or just tell me and I will
 file them.
 
-*Previous pass (five items on V19 4b) came back complete on 2026-08-16 and is
-filed at
-[PLAYTEST_LOG.md, session 6](PLAYTEST_LOG.md#session-6--2026-08-16-v19-4bs-ground-plane-first-human-eyes);
-the combat decision it closed is in
-[ROADMAP_ITEMS.md](ROADMAP_ITEMS.md#-decisions-owed).*
+*Previous pass (five items on V20's palette) came back complete on 2026-08-16
+and is filed at
+[PLAYTEST_LOG.md, session 7](PLAYTEST_LOG.md#session-7--2026-08-16-v20s-raised-palette-and-what-the-plane-is-made-of).
+Three of its five closed outright: the mountains are visible, the walking bands
+are gone, and the frame rate is fine — which is the only reading `GROUND_STRIPS`
+has ever had.*
 
 ---
 
