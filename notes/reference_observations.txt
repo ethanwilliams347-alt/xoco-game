@@ -506,6 +506,52 @@ is aerial perspective acting on gold like everything else and there is no
 crossing.
 
 
+--------------------------------------------------------------------------
+ENTRY 9 — where the figure sits IN the plane, measured. CnC_lighthouse.jpg,
+2026-08-16.
+--------------------------------------------------------------------------
+
+Observed because the tester named this frame specifically, as the thing our
+player is supposed to be doing and is not. Entry 7 measured what the plane is
+made of; this measures where the figure stands in it, which turns out to be
+the part that was missing.
+
+Column band x 200..900, avoiding the island. 1920x1080.
+
+  horizon (brightest row of the middle band)   row  645   59.7% down
+  hull waterline (densest dark row, x 700..960) row  920   85.2% down
+  plane runs                                    645..1074  39.7% of the frame
+
+  plane BEHIND the contact point   275 rows   64% of the plane
+  plane IN FRONT of it             154 rows   36% of the plane
+
+**The number to carry is that third.** The boat does not stand at the plane's
+near edge looking across it; it is roughly two thirds of the way down, with a
+full third of the plane between it and the viewer. That is what makes the
+plane recede *around* the figure rather than behind it, and it is a fact about
+composition, not about shading — no value, ramp or grade produces it.
+
+The second fact, and it is the one that costs us a scene: **between the boat
+and the horizon there is nothing but plane.** No silhouette, no clutter, no
+vertical feature except the lighthouse island, which is deliberately off to one
+side. The uninterrupted run from the figure to the horizon is what the eye
+reads the distance along.
+
+*How this transfers, since land is not water:* the third-in-front is the half
+that transfers unchanged, because it is geometry. In our composition the plane
+in front of the player is not backdrop at all — it is the simulated world, and
+the player already stands on it. So the requirement lands on the *world*: the
+terrain at spawn must present a flat, open surface running to where the
+backdrop plane takes over, with the contact point around two thirds down the
+combined band.
+
+*Disproof, and it is a live one:* this is a single frame, and the figure is a
+boat on water — a thing that cannot stand anywhere except in the plane, so the
+composition may be forced rather than chosen. Check the 36% against
+CnC_fishing.jpg before treating it as a ratio to author to. If it moves a lot,
+what survives is the ordinal claim (the figure is inside the plane, not at its
+near edge) and not the fraction.
+
 -------------------------------------------------------------------------------
 OTHER FRAMES PRESENT, NOT YET OBSERVED
 -------------------------------------------------------------------------------
@@ -515,7 +561,15 @@ the_garden_of_earthly_delights.jpg. They are not Cast n Chill and are not part
 of this pass. Listed so that a later reader knows they were seen and skipped
 rather than missed.
 
-CnC_lighthouse.jpg is the one CnC frame not cited above: a dusk seascape,
+**CnC_lighthouse.jpg was in this list until 2026-08-16 and has moved out of it
+— it is now ENTRY 9 above.** What follows is the note as written when it was
+still unobserved, kept because it was right about the frame and wrong about
+what the frame was good for: it was filed as evidence about *time of day*, and
+what the tester actually wanted from it was *where the figure stands*. Worth
+recognising as a shape — a frame set aside as "unused, wrong question" can be
+the answer to a question nobody had asked yet.
+
+CnC_lighthouse.jpg was the one CnC frame not cited above: a dusk seascape,
 almost entirely cloud, and the only frame in the set with a warm sky. It is the
 best available evidence of what a non-night palette would look like — the whole
 frame's hue budget inverts, warm above and cool below — and it is filed here

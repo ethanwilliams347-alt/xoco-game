@@ -47,11 +47,42 @@ outside what any test in the project can see.
    "Now too dark" is just as useful and there is plenty of room in that
    direction.
 
-*The decision that was owed here — land or water — **came back on 2026-08-16 and
-is closed**: land, with the plane behaving the way the reference's water does and
-the player in it rather than in front of it. Nothing is owed on it. It is
-[V22 in ROADMAP.md](ROADMAP.md), and the next thing it will ask you for is a look
-at how the ground meets the plane, once that is built.*
+*The land-or-water decision that used to be here **came back on 2026-08-16 and is
+closed**: land, with the plane behaving the way the reference's water does. It is
+[V22](ROADMAP.md).*
+
+### A decision, and a warning about what it costs. **Added 2026-08-16 (V22).**
+
+You said the player is touching the test scene's ground and not the plane, and
+that this may need a whole new scene. **You are right, and I measured
+`CnC_lighthouse.jpg` to find out how right.** In that frame the boat sits two
+thirds of the way *down* the water, with a third of the water in front of it, and
+**nothing between the boat and the horizon.** Our spawn is the opposite of that
+by design: it is the F4.4 test fixture — stairs, fence posts, a pit with pillars,
+a water channel, jump ledges — and every one of those stands between you and the
+horizon on a jagged surface.
+
+**So the first scene has two jobs and they cannot share a location.** Which one
+the spawn serves is yours:
+
+- **Move the fixture** *(my recommendation)* — keep every test feature, but put
+  a flat open run where you spawn and the fixture further along, out of the
+  opening shot. Changes no test's meaning.
+- **Replace it** — a new scene authored for the look, fixture deleted. Cheapest
+  to build, and it quietly throws away five things that each catch a specific
+  bug. That loss is invisible until something breaks.
+- **Two scenes** — the tests keep the fixture, the game ships something else.
+  Honest, but it means the thing you look at and the thing that is tested stop
+  being the same thing, which this project has avoided on purpose so far.
+
+> **⚠️ Whichever you pick, it costs you a re-record, and nobody else can do it.**
+> Changing the starting scene makes both saved sessions
+> (`session_1_painting.rec`, `session_2_digging_fluids_steam.rec`) stale — they
+> replay into a world that no longer exists. That is caught automatically, so
+> nothing breaks silently. But it means **the one benchmark that proves the game
+> still runs fast on a really-played frame stops working until you play for a
+> few minutes and press `F9`** (how: README, "Recording a session"). Worth
+> knowing *before* you choose, not after. I will ask for it at the right moment.
 
 **Where answers go:** what you saw →
 [PLAYTEST_LOG.md](PLAYTEST_LOG.md) (symptoms only, no theories). A decision →

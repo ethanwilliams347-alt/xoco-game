@@ -930,3 +930,46 @@ reference has water") and reopening that is a direction call, not a defect fix.
 
 Symptoms and measurements only. What causes each and what to do about it is
 ROADMAP.md's.
+
+## Session 7b — 2026-08-16: the plane the player is not touching
+
+A follow-up on the same build, unprompted, after the V22 direction was settled
+as "land, with the player in the plane". It is filed as its own session rather
+than appended to 7 because it reports on a **different surface** than any item
+in 7 did, and because it arrived after a decision had already been taken on
+7's evidence — which is exactly the sequence where a late symptom gets read as
+a restatement of an earlier one and dropped.
+
+### What was reported
+
+> *"in the current build, the player is not touching the plane, they are only
+> touching the original test scene ground. this may require a completely new
+> scene from the ground up without the previous test scene. the player in my
+> game is supposed to be touching the land layer like the player boat is
+> touching the water in CnC_lighthouse.jpg specifically."*
+
+### What is in that, separated from what it implies
+
+Three separable observations, and the value of the report is that they are not
+the same claim:
+
+1. **The player's feet are on the fixture's terrain, not on the ground plane.**
+   This is a fact about the build and is directly checkable.
+2. **The two do not read as one surface.** The plane's near portion is not
+   merely mis-valued against the terrain — it is *not visible at spawn*.
+3. **A named reference frame for the target**, `CnC_lighthouse.jpg`, rather
+   than a description of the desired look. Measured the same day at
+   [notes/reference_observations.txt](notes/reference_observations.txt) entry 9.
+
+The third is what makes this session worth its own heading. Every previous
+report about the plane described an *appearance* ("it doesn't recede", "too
+bright"); this one names a frame and a relationship, and the measurement taken
+off it found a number no appearance-level report could have produced.
+
+**The tester's own proposed cause — a completely new scene — is recorded as
+theirs and is not resolved here.** It is a strong candidate and it collides
+with F4.4's stated purpose for that scene, which is a scheduling and
+ownership question rather than a symptom.
+
+Symptoms and measurements only. What causes each and what to do about it is
+ROADMAP.md's.
