@@ -145,7 +145,8 @@ struct Element {
 // **So the correct statement is: three bytes remain, at offsets 1-3, and they are
 // spoken for.** E5a's per-cell velocity is what goes there - a signed 4.4 byte
 // per axis plus a nibble per axis of sub-cell remainder is exactly three - and
-// the decision that put them there is in ROADMAP_ITEMS.md and ENGINEERING_NOTES.md.
+// the decision that put them there is in ROADMAP.md and ENGINEERING_NOTES.md.
+// (It said ROADMAP_ITEMS.md until W4 merged that file away on 2026-08-17.)
 // After that the struct really is full, and the next field genuinely costs four
 // bytes rather than one.
 //

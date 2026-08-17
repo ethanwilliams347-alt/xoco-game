@@ -24,6 +24,10 @@ thing standing in the way of a test.
 
 A new suite is a new `add_executable` + `add_test` pair in `CMakeLists.txt`
 linking the **narrowest** source set that compiles it (see the next section).
+Adding one changes a number three documents state in prose, and **`docs_test`
+(`W3`, 2026-08-17) will fail until they are updated** — that is the suite doing
+its job, not an obstacle to route around. Never satisfy it by loosening a check;
+fix the sentence.
 
 **T1 added an eleventh suite and the reason generalises.** `debug_test` covers
 `src/game/debug_view.h` — the pause, the single-step queue, the free camera's

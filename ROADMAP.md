@@ -112,7 +112,7 @@ has to be re-read to know what to do.***
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
 | 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
-| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1`, `W2` and `W4` all shipped 2026-08-17. **`W3` is next**, its dependency on `W4` now discharged; then `W5` (the one item here that needs the tester afterwards) and `W6`. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
+| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1`, `W2`, `W3` and `W4` all shipped 2026-08-17. **`W5` is next** (the one item here that needs the tester afterwards), then `W6`. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -452,17 +452,17 @@ on next**. The full reasoning, the measurements and the two things the review
 checked and found *healthy* are in
 [ROADMAP.md](ROADMAP.md#️-w--the-workbench-how-this-project-is-worked-on) — this
 table is the order and the sizes only. **`W1`, `W2` and `W4` all shipped
-2026-08-17, and `W3` is next.** `W3` was held behind `W4` on purpose — it pins
-doc numbers to their sources and `W4` moved the very lines it would pin — so the
-dependency is discharged and `W3` can now pin numbers that will hold. **`W3`
-should pin the two `W4` produced while it is there:** the live-plan and archive
-sizes, which are the numbers most likely to drift next.
+2026-08-17, and `W3` shipped the same day.** `W3` was held behind `W4` on
+purpose — it pins doc numbers to their sources and `W4` moved the very lines it
+would pin — and with that dependency discharged it pinned numbers that will
+hold, including the two `W4` produced: the live-plan and archive sizes. **`W5`
+is next**, and it is the one item in the track that needs the tester afterwards.
 
 | # | what | size | state |
 |---|---|---|---|
 | W1 | **Reflow `ROADMAP.md`, `ROADMAP_ITEMS.md` (since deleted by W4), `ENGINEERING_NOTES.md`, `PERFORMANCE.md` to 80 columns.** Pure formatting; no wording, no decision, no number changes | afternoon | **shipped 2026-08-17** |
 | W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | **shipped 2026-08-17** — 40 rules, because every entry is written once per shell and `git` had to be split verb by verb; no `deny` list, on purpose |
-| W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | **next** — its dependency on W1 and W4 is discharged, both shipped 2026-08-17 |
+| W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | **shipped 2026-08-17** as `docs_test`, seven checks, plus the checklist length and the two `W4` sizes; every check was verified against a mutated doc before being kept |
 | W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | **shipped 2026-08-17**, in two commits — a verified-lossless relocation, then the merge and the per-entry sweep. Boundary chosen: *finished **and** nothing open depends on the reasoning* |
 | W5 | **Extract `main()`** — a `boot` unit, the per-frame composition into `render/frame.cpp`, and a `main()` of ~150 lines | days | queued; **the one item here that needs the tester afterwards** |
 | W6 | **Trim `README.md` to a front door** — architecture to `ENGINEERING_NOTES.md`, benchmark procedure to `PERFORMANCE.md`, `## General Testing` untouched | afternoon | queued |
@@ -1426,6 +1426,71 @@ twice is the mistake V20 and V21 already made one level down. **Scope limit,
 stated so it does not creep:** it can only ever check claims that have a
 machine-readable source of truth. It cannot check reasoning, and an attempt to
 make it do so turns the docs into a format rather than an argument.
+
+**Shipped 2026-08-17** as `docs_test` ([tests/test_docs.cpp](tests/test_docs.cpp)),
+registered last in `CMakeLists.txt` so the count it asserts is the one at the
+bottom of `ctest`'s output. Seven checks, the four specified plus three the item
+asked for or the work turned up:
+
+- **The suite count**, from `add_test(NAME ` registrations — *not* `grep -c
+  add_test`, which returns 20 against a true 15 because six of the mentions are
+  comments explaining why the probes are deliberately unregistered. That false
+  alarm is on the record in this track's opening finding, and the suite is
+  written to not reproduce it. The headless count is **derived** (`suites` minus
+  the one target linking `SDL2-static`) rather than written down twice.
+- **`Element`'s size and its three free bytes**, from `sizeof` and `offsetof`,
+  not from the comment in `element.h` — this struct's byte count has been got
+  wrong twice by counting fields, so the check counts the hole the compiler
+  actually leaves.
+- **The golden checksum**, parsed out of `test_golden_frame.cpp` and required in
+  `TUNING.md` and `ROADMAP.md`. Three copies of `0xcde4dc1a39927fca` is three
+  chances to drift, and `V23b` made the number's *provenance* the evidence a
+  revert was complete.
+- **`FIXTURE_SCENE_CELLS`**, as the whole `Scene: 1920x1080, N cells placed`
+  launch line, in `MANUAL_TESTING.md` and `ASSETS.md`. A stale copy there has
+  the tester passing a world that failed.
+- **The Manual Tester Checklist's length** (thirteen), counted from the numbered
+  markers and matched against the word spelled in `CLAUDE.md`, `ROADMAP.md` and
+  `.claude/rules/documentation.md`. It changed twice in two days.
+- **The two sizes `W4` created**, live plan and archive, against the files on
+  disk. **The 10% tolerance is the point, not a weakness:** the docs quote KB
+  rounded and not consistently binary or decimal — 350,147 bytes is 342 KiB or
+  350 kB against a stated 346 — so an exact assertion would mean editing prose on
+  every roadmap commit, which is how a check gets deleted. Ten percent catches
+  the file quietly doubling, which is the failure that matters.
+- **No live Markdown link to the deleted `ROADMAP_ITEMS.md`.** Prose citing it
+  inside a dated entry is correct as written and is not what this looks for.
+
+**Two decisions worth carrying forward.**
+
+**Claims are matched on whitespace-normalised text.** The first version compared
+raw bytes and failed on a true sentence, because `W1` wraps prose at 80 columns
+and the break moves whenever a word earlier in the paragraph is edited — the
+first instinct was to reword `CLAUDE.md` so the needle fit on one line, which is
+the document bending to the checker. Normalising makes a claim about a
+*sentence* checkable and incidentally kills the CRLF/LF mismatch that has cost
+this project two sessions.
+
+**Two things are deliberately not pinned, and this is the boundary to defend.**
+`notes/handoff_prompt.md`, because it is rewritten whole at every session close,
+so a pin would fail on the day it stops mentioning a number rather than the day
+a number goes wrong. And historical records — `PLAYTEST_LOG.md`,
+`ROADMAP_ARCHIVE.md`, dated result lines inside live entries — because a number
+there is a record of what was measured *then*, correct as written, and pinning
+one would force the archive to be edited, which is precisely what the archive
+promises never to need.
+
+**Every check was verified against a mutated document before being kept**, one
+at a time, restoring after each: a wrong cell count in `ASSETS.md`, a wrong size
+in the rules file, a wrong checksum in `TUNING.md` and again in `ROADMAP.md`, a
+wrong free-byte count in `CLAUDE.md`, a wrong step word in `ROADMAP.md`, and a
+deleted checklist marker. **Two mutations initially failed to fail and both were
+the mutation's fault, not the check's** — replacing only the *first* of
+`TUNING.md`'s two checksum copies left the claim satisfied, and renumbering a
+checklist marker from `13.` to `14.` does not change how many markers there are.
+That is worth recording because "the test did not go red" was the wrong
+conclusion twice in ten minutes. The suite's first genuine failure was real:
+`CLAUDE.md` and `README.md` still said fourteen suites, and it caught them.
 
 **`W4` — One live plan; the shipped reasoning moves to an archive.**
 **Shipped 2026-08-17**, in two commits, and the split into two is the part worth

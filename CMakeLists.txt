@@ -212,6 +212,15 @@ if(BUILD_TESTING)
     target_link_libraries(golden_frame_test PRIVATE SDL2-static)
     add_test(NAME golden_frame_test COMMAND golden_frame_test)
 
+    # W3's doc-truth suite. Links no sources - it includes `element.h` for a
+    # `sizeof` and otherwise reads files - and it is registered *last* on
+    # purpose, so that the suite count it asserts is the one a reader sees at
+    # the bottom of `ctest`'s output. WORKING_DIRECTORY, like scene_test,
+    # because every path it opens is repo-relative.
+    add_executable(docs_test tests/test_docs.cpp)
+    target_include_directories(docs_test PRIVATE src tests)
+    add_test(NAME docs_test COMMAND docs_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
     # Benchmark. Deliberately not an add_test() - timings are for reading, and a
     # slow machine should not fail the build.
     # Links SCENE_PROP_SOURCES as of P4: the replayed row rebuilds the fixture

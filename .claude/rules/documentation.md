@@ -63,6 +63,23 @@ change rendering as a whole-line rewrite in `git diff` and `git blame`.
   a one-time pass over a corpus, not a step to repeat — a file drifts back one
   unwrapped paragraph at a time.
 
+**Some of these numbers are now a test.** `docs_test` (`W3`, 2026-08-17,
+[tests/test_docs.cpp](../../tests/test_docs.cpp)) asserts the corpus's checkable
+numeric claims against the code and files they come from: the suite count,
+`Element`'s size and free bytes, the golden checksum quoted in prose,
+`FIXTURE_SCENE_CELLS`, the checklist's length, the two file sizes stated below,
+and the absence of a live link to the deleted `ROADMAP_ITEMS.md`. Three
+consequences for writing here:
+- **Claims are matched on whitespace-normalised text**, so wrapping a sentence
+  differently is safe and rewording it is what breaks the check. That is the
+  intended direction: the document never has to be written around the checker.
+- **A failing `docs_test` means a document is wrong**, not that the check is.
+  Fix the sentence.
+- **It only checks what has a machine-readable source.** It cannot check
+  reasoning, and making it try would turn these files into a format rather than
+  an argument. Historical records and `notes/handoff_prompt.md` are deliberately
+  outside it — a number in a dated entry is correct as written.
+
 ## Per-file conventions
 
 **ROADMAP.md** — the one live plan: what is next, how big it is, and why it is
@@ -70,6 +87,9 @@ ordered that way, **one entry per item**. **346 KB**, so search it rather than
 reading it through — except its **The plan** block at the top, which is the only
 part that has to be re-read to know what to do. *(This line said 280 KB, then 399
 KB; `W4` took it to 346 KB, against a 319 KB archive, by moving closed work out.)*
+**Both figures are checked by `docs_test`, to within 10%** — enough slack that
+ordinary editing does not touch this line, tight enough to catch the file
+doubling.
 - **It is the only document that carries development steps.** This was false from
   the day `ROADMAP_ITEMS.md` was split out until `W4` merged it back on
   2026-08-17 — the sentence's own warning was what came true: a plan split across

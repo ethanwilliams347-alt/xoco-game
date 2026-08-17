@@ -64,7 +64,7 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-fourteen suites, one per concern — `grid_test` for the cellular automata,
+fifteen suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
@@ -77,8 +77,12 @@ written where the keys are bound. Three more cover the renderer's arithmetic:
 `backdrop_test` for the wrapping-layer maths, `camera_test` for the view's
 framing and its world-edge clamps, and `golden_frame_test`,
 which composes a fixed scene through the real renderer and checksums it — **the
-one suite that links SDL**, though it still needs no display. CTest runs all of
-them.
+one suite that links SDL**, though it still needs no display. The fifteenth is
+`docs_test`, which is not about the engine at all: it asserts this document's
+and the others' checkable numbers — the suite count in this very paragraph
+included — against the code and files they are drawn from, so a number that goes
+stale fails the build rather than surviving until somebody notices. CTest runs
+all of them.
 
 The last three are not simulation, and they are headless for the same reason it
 is: `LightField` produces a plain ARGB buffer, `player_anim` produces a sheet
