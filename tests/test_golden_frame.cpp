@@ -448,7 +448,23 @@ int main() {
     // that is worth expecting rather than reading as a mistake the next time
     // somebody runs it: this file's history is eight moves over seven distinct
     // frames.
-    constexpr uint64_t GOLDEN = 0xcde4dc1a39927fcaull;
+    //
+    // **The ninth move is V22, 2026-08-18, and it is the anchor coming back as
+    // a constant** - `Camera::VERTICAL_ANCHOR` at 0.80, applied inside `follow`
+    // where the fixture and the game cannot disagree about it. The frame is
+    // therefore *not* the pre-V23 frame any more and the value here is a new
+    // number rather than a third return to an old one, which is the thing to
+    // read off it: a return would have meant the framing had not landed.
+    //
+    // **The no-op-half rule could not be taken this time and that is worth
+    // stating rather than quietly skipping.** V23's anchor had an identity
+    // value to ship first; a constant folded into `follow` has none - at 0.5 it
+    // is the old expression and at 0.80 it is the new frame, with nothing in
+    // between to run against the old number. What stands in for it is
+    // `camera_test`, which asserts the framing in *screen* terms before this
+    // hash is consulted at all, so a wrong number here is separable from a
+    // wrong framing.
+    constexpr uint64_t GOLDEN = 0xf29c435ed9d923b1ull;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),
@@ -657,7 +673,15 @@ int main() {
     // There is no earlier value for it to be compared against, which is worth
     // saying plainly: this check cannot yet prove the UI is unchanged, only
     // that from here on it will notice.
-    constexpr uint64_t OVERLAY_GOLDEN = 0x0db76672f5ec3189ull;
+    //
+    // **It moved a second time at V22, 2026-08-18**, and the UI itself did not
+    // change: this hash is taken over the *composed frame with the UI drawn on
+    // top*, so every world pixel the camera anchor moved is inside it. That is
+    // the expected coupling and not a defect - but it is the reason the two
+    // numbers must always be reasoned about in that order. **A moved
+    // `OVERLAY_GOLDEN` beside an unmoved `GOLDEN` is the only combination that
+    // says the UI changed.**
+    constexpr uint64_t OVERLAY_GOLDEN = 0x6527211c3b5d3bb2ull;
     char odetail[128];
     std::snprintf(odetail, sizeof(odetail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(with_overlay),

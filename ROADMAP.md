@@ -134,7 +134,7 @@ point.
 | 6 | **V23 — the camera's vertical anchor, and the dig framing that moves it** | afternoon | ✅ **done 2026-08-17**, and it was **not on this list yesterday** — see the note below |
 | 6a | **V23a — the dig framing was never delivered** | afternoon | ✅ **done 2026-08-17** on playtest session 8. `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR` 0.50 and airborne became a second trigger. **The clamp was swallowing the framing** — 0.30 resolved to 0.51 on screen at the fixture floor and 0.70 deeper, so the camera answered the dig least where there was most to see. **The feel re-test it owed was never run** — session 9 withdrew the whole framing hours later (row 6b) |
 | 6b | **V23b — the camera goes back to centre** | an hour | ✅ **done 2026-08-17** on playtest session 9: *"lets go back to the camera always being centered."* **A deletion, not a retune** — `camera_bias.h`, its suite, `Camera::set_vertical_anchor` and the three TUNING rows are gone, and the golden checksum returned to its pre-V23 value `0xcde4dc1a39927fca`, which is the evidence the revert is complete. Suite count unchanged at 14 (`camera_test` keeps the Camera half). **Nothing is owed to the tester by this.** ⚠️ **It hands V22 back the ~50% cap** the centred camera puts on the plane's visible share |
-| 7 | **V22 — the plane the player is in** | week | **next and unblocked** — the report it waited for arrived. ⚠️ **It answered question 3 "no" for the fourth time**, so the premise V22 was going to spend a week on is weaker than when it was written: the camera framing landed and the plane still does not read as receding. **Read the session 8 note before starting.** Still owed the fixture-scene rewrite, which is the step that costs both `.rec` recordings |
+| 7 | **V22 — the plane the player is in** | week | **in progress, started 2026-08-18.** **Part 1 (the framing) is done**; part 2 is the fixture-scene rewrite and part 3 the world/plane value junction. ⚠️ **It runs in full by decision on 2026-08-18, over a stated concern** — the gate answered "no" a fourth time and the two-thirds target needs the camera V23b deleted, so part 1 reopens that deletion. **Read the session 8 note and the reopening bullet below before touching part 2**, which is the step that costs both `.rec` recordings |
 
 > **Step 6 was not planned and that is the thing to notice about it.** It exists
 > because V22's scene work started with a measurement instead of a redraw, and
@@ -4064,6 +4064,53 @@ simulation's resolution and no amount of asset work changes that.
     for the second. **So the item is no longer about the plane's material at
     all**, which is why it is retitled: leaving the name pointed at the material
     is how an item quietly gets built to its own obsolete premise.
+
+    - **▶️ Started 2026-08-18, in full, and the first thing done was the thing
+      this entry says cannot be reached without.** The item was put up for
+      re-scoping first, because the bullets below add up to a target the
+      shipped constraint set forbids: two thirds needs the player off screen
+      centre, and V23b deleted the mechanism for that by playing. **The answer
+      was to run V22 in full**, which is a decision to reopen V23b, and it is
+      recorded here rather than in the camera's own history because it is V22's
+      premise that spends it.
+
+      **Three parts, and the order is not the one session 8 recommended.**
+      Session 8 said to sequence the fixture-scene rewrite first, and it said so
+      while the camera was gone. With the camera back on the table the cheap
+      thing decides the expensive thing's target, so:
+
+      1. **The framing.** `Camera::VERTICAL_ANCHOR` 0.80 in `Camera::follow`.
+         **Done 2026-08-18.** One constant, no easing, no trigger — the moving
+         anchor is what two playtests rejected and none of it returns. Golden
+         checksum `0xf29c435ed9d923b1`, overlay `0x6527211c3b5d3bb2`, both in
+         the same commit as the change. `camera_test` asserts the framing in
+         *screen* terms, which is what V23a proved a `view_y()` check cannot do.
+      2. **The fixture-scene rewrite.** The load-bearing half, and the one that
+         costs both `.rec` recordings.
+      3. **The world/plane value junction**, which is the deliberately-open
+         TUNING question this item consumed. `Params::world_grade` already
+         exists at identity, so the knob is built and unset.
+
+      **Why part 1 first, stated because it contradicts a written
+      recommendation.** This entry's own arithmetic says no scene edit can move
+      the contact point, because the scene does not decide where on the screen
+      the player is drawn — the camera does. Authoring a scene against a
+      junction position before fixing the junction position is authoring against
+      a target that is about to move, which is the mistake 4c was held back to
+      avoid and the mistake step 6 exists because of. **The same rule, third
+      time: compute the target's reachability before authoring against it.**
+
+      **What part 1 does not do, and it must not be read as having done it.** It
+      moves the contact point from 20.2% to ~65% of the band *arithmetically*.
+      The plane's visible share in front of the player is still **exactly
+      zero**, because the world occludes it — that is part 2's job and no camera
+      constant touches it. **A framing that frames nothing is what V23 already
+      shipped once**, and the fourth "no" is the evidence.
+
+      **What it costs is unpaid.** ~55 cells of world below the player at the
+      surface, against digging as the game's one verb. V23 paid that back with a
+      dig framing and that framing was rejected; this does not pay it back at
+      all. **It is owed to a playtest and it is on `MANUAL_TESTING.md`.**
 
     - **⚠️ The gate answered "no" for the fourth time, on 2026-08-17, and this
       is the first thing to read before spending a week here.**

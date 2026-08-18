@@ -1,7 +1,7 @@
-# Handoff — `V22` is next. Nothing is owed to a human.
+# Handoff — `V22` is in progress. A playtest is owed before part 2.
 
-*Written 2026-08-18, at the close of the session that shipped `W6` and closed
-the W track.*
+*Written 2026-08-18, at the close of the session that started `V22` and shipped
+its part 1.*
 
 You are picking up Toop/Xoco, a from-scratch C++20 / SDL2 cellular-automata
 pixel-physics game. Repo root is `code/`; **run every command from there.** Read
@@ -12,16 +12,12 @@ a summary.
 document, and where the two disagree the other document wins. Its only job is to
 tell you *where to start* and *what a fresh reader would get wrong*; the reason
 it says so little about the work itself is `W4`, which spent a day removing a
-duplicate plan and would be undone by growing one here.
-
-## The one rule that governs everything here
-
-**In this project the reasoning is the deliverable, not a courtesy.** A change
-that is correct but arrives without its argument recorded is half-done. A stated
-rule that has gone false is worse than no rule, because it stops people checking.
-Almost every constant and refusal here has a written argument behind it, usually
-naming the bug that bought it — so **before changing something that looks
-arbitrary, find out whether it is.**
+duplicate plan and would be undone by growing one here. The rule that governs all
+of it: **in this project the reasoning is the deliverable, not a courtesy.** A
+change that is correct but arrives without its argument recorded is half-done,
+and a stated rule that has gone false is worse than no rule, because it stops
+people checking — so **before changing something that looks arbitrary, find out
+whether it is.**
 
 ## Start here
 
@@ -30,16 +26,35 @@ part of that file that has to be re-read to know what to do, and it is the
 authority on both the order and the argument. The rest of `ROADMAP.md` is a
 search target, not a read.
 
-Where it stands: **the W track is closed and `V22` is next**, unblocked. But
-**do not open it by starting work** — open it by reading the session 8 note in
-its entry and forming a view, because its premise is weaker than when it was
-written and the item may be worth less than the week it is budgeted. Two things
-in that entry decide it: the ground plane has now come back **no** four times,
-and the fixture-scene rewrite `V22` still owes costs both `.rec` recordings.
-**`E10` keeps the head of the queue** once the V block closes.
+Where it stands: **`V22` is open and part 1 of three is done.** The previous
+session did what the last handoff asked — read the session 8 note, formed a view,
+and found the item's stated two-thirds target arithmetically unreachable under
+the centred camera `V23b` restored. That was put to the user, who **decided on
+2026-08-18 to run `V22` in full, over the stated concern**, and that decision is
+what reopened the framing. Part 1 is the camera; **parts 2 and 3 are not
+started.**
+
+**Do not open part 2 by starting work.** Read the `▶️ Started 2026-08-18` bullet
+at the top of the `V22` entry and the session 8 note below it first: part 2 is
+the fixture-scene rewrite, it is the load-bearing half, and it is the step that
+invalidates both `.rec` recordings. **A playtest of part 1 is owed, and its
+answer can move what part 2 would be authored against** — which is why part 2 is
+not already underway. **`E10` keeps the head of the queue** once the V block
+closes.
 
 ## What a fresh reader gets wrong
 
+- **The camera is not centred any more, and this is not `V23` coming back.**
+  `V22` part 1 put a *fixed* anchor into `Camera::follow` — one constant, no
+  easing, no dig trigger, and `camera_bias.h` does not return. What sessions 8
+  and 9 rejected by playing was the anchor **moving**; a moving anchor is a
+  rejected feel, a fixed anchor is a composition. **Do not re-derive the easing
+  from the surviving constant.** The argument is at the constant in
+  `src/game/camera.h`, the number is owned by `TUNING.md`, and the history is in
+  `ROADMAP.md` under `V22` and under `V23`/`V23a`/`V23b`. The anchor also states
+  an intent rather than a guarantee: the world-edge clamp still overrides it near
+  the floor, which is what `V23a` shipped past a green suite and what
+  `test_camera` now pins.
 - **`README.md` is a front door and nothing else, as of `W6`.** The engine
   architecture is in `ENGINEERING_NOTES.md` and how to run the bench is in
   `PERFORMANCE.md`; README links out and describes neither. The test for a new
@@ -60,7 +75,10 @@ and the fixture-scene rewrite `V22` still owes costs both `.rec` recordings.
   names. `.claude/rules/assets-and-formats.md` owns the rule.
 - **`golden_frame_test` carries two checksums**, one for the composed world and
   one taken after the UI is drawn over it. Both follow the same rule: a
-  legitimate change puts the new value in the *same commit*.
+  legitimate change puts the new value in the *same commit*. **Both moved on
+  2026-08-18** with the framing. The pairing is itself information — an overlay
+  checksum that moves while the world checksum holds is the only combination that
+  means the **UI** changed.
 - **A checksum covers drawing and is blind to wiring.** The UI look that closed
   on 2026-08-18 was asked for precisely because the second checksum hashes a
   fixture the test builds, not the values `main.cpp` puts into the struct — a
@@ -71,33 +89,34 @@ and the fixture-scene rewrite `V22` still owes costs both `.rec` recordings.
   `Element`'s size and free bytes, the golden checksum quoted in prose, the
   scene's cell count, the checklist's length and the plan-file sizes against the
   code and files they come from. **A failing `docs_test` means a document is
-  wrong, not that the check is** — fix the sentence, never the check.
+  wrong, not that the check is** — fix the sentence, never the check. Part 2 will
+  fail it on the scene's cell count by design; that is the check working.
 - **A line count written from a guess got shipped as a measurement** and
   survived a session before being caught. It is corrected in place in the `W5`
   entry rather than deleted. Measure before writing a number into a document.
-- **The camera work is gone.** `V23`/`V23a` shipped and `V23b` deleted them the
-  same day at the tester's direction — the player is centred again. Do not plan
-  around a moving camera. **The one thing that survived is a constraint on
-  `V22`**, written into the `V22` entry.
 - **`ROADMAP_ITEMS.md` no longer exists.** Older documents cite it by name in
   their own historical entries; those are correct as written. A *live* link to
   it is a defect and `docs_test` fails on one.
 - **Check `git status` before assuming the tree is clean.** Commits here are
-  asked for rather than taken, and work has sat finished-but-uncommitted across
-  a session close more than once.
+  asked for rather than taken, and **`V22` part 1 is finished and uncommitted as
+  this file is written.**
 
 ## Owed to a human
 
-**Nothing, as of 2026-08-18** — the last item came back that day.
+**One item, added 2026-08-18: does the new framing earn what it costs?**
 `MANUAL_TESTING.md` opens with the authoritative list and **that file is the
-authority, not this line**; read it rather than trusting this paragraph.
+authority, not this line**; read it rather than trusting this paragraph. The
+short version is that the player now sits low on screen rather than centred,
+which buys the composition room above and takes most of the world that used to be
+visible below the feet — so the question is a trade, and **"put it back" is a
+fair answer.** It is one number in `TUNING.md`.
 
 You cannot run the Manual Tester Checklist yourself. Put an item on that list the
 moment you ask for one, take it off the moment it comes back, and write it so a
-beginner can act on it without reading the rest of the file. Note that **`V22`
-will owe one** — its fixture-scene rewrite invalidates both recordings, so P4's
-replayed row goes dark until the tester plays and presses `F9`. Flag that cost
-before spending it, not after.
+beginner can act on it without reading the rest of the file. Note that **part 2
+will owe a second one** — the fixture-scene rewrite invalidates both recordings,
+so P4's replayed row goes dark until the tester plays and presses `F9`. Flag that
+cost before spending it, not after.
 
 ## Standing constraints, carried verbatim from the user
 
@@ -134,12 +153,19 @@ this file, since the handoff is rewritten whole at every session close.
 the previous exe. That happened here once, from a **CRLF/LF mismatch in an
 exact-match Python replace** that silently no-op'd on a CRLF file while working
 on an LF one. Check the build line before reading the test line. **The same
-mismatch has now cost four sessions**, most recently this one, where a multi-line
-replace against `ROADMAP.md` failed to match until the read was switched to
-universal newlines. `MANUAL_TESTING.md` and this file are LF; almost everything
-else is CRLF. Read with universal newlines, write CRLF files with
-`newline="\r\n"`, and **verify the edit landed rather than trusting the exit
+mismatch has now cost four sessions.** `MANUAL_TESTING.md` and this file are LF;
+almost everything else is CRLF. Read with universal newlines, write CRLF files
+with `newline="\r\n"`, and **verify the edit landed rather than trusting the exit
 code**.
+
+**A second decoding trap in the same family cost an edit this session, and it is
+worth knowing because the symptom is identical.** A script piped in on stdin is
+decoded as UTF-8 while a file opened without an explicit `encoding=` is decoded
+with the locale codepage, so two byte-identical em dashes compare unequal and an
+exact-match replace fails with nothing to see. Write the script to a file, pass
+`encoding="utf-8"` at every `open`, and prefer index-based slicing to
+exact-match replace. The same shape sank a `bash` heredoc whose terminator
+arrived with a stray carriage return.
 
 **`assets/` is copied next to the exe at build time.** A generator's output shows
 nothing until a rebuild or `python tools/load_sprite.py --stage`. First thing to
@@ -147,6 +173,8 @@ check when a change "didn't show up".
 
 **`main.cpp` prints the launch check** — `World seed: N` and
 `Scene: WxH, N cells placed`. Read those, not the window; a scene count of zero
-once meant a blank world that every suite passed on. **`N` is 334901.** Launch
-after any change to the shell and confirm it still prints, with nothing on
+once meant a blank world that every suite passed on. **`N` is 334901, and part 2
+is expected to change it** — when it does, the new value goes into the same
+change, in `tests/test_scene.cpp` and in every document `docs_test` checks.
+Launch after any change to the shell and confirm it still prints, with nothing on
 stderr.

@@ -28,29 +28,45 @@ public:
     // `frac_x()` and paid out in screen pixels when the texture is drawn.
     void follow(float center_x, float center_y, int viewport_w, int viewport_h, int world_w, int world_h) {
         view_fx_ = clamp_view(center_x - static_cast<float>(viewport_w) / 2.0f, viewport_w, world_w);
-        view_fy_ = clamp_view(center_y - static_cast<float>(viewport_h) / 2.0f, viewport_h, world_h);
+        view_fy_ = clamp_view(center_y - static_cast<float>(viewport_h) * VERTICAL_ANCHOR, viewport_h, world_h);
     }
 
-    // **The vertical framing is centred and there is no setter for it any
-    // more** (V23b, 2026-08-17). V23 made it a settable fraction so the player
-    // could sit low on the ground and rise while digging; session 9 asked for
-    // the centring back, and the whole mechanism - `set_vertical_anchor`, the
-    // `anchor_y_` member and `CameraBias` - went with it rather than being left
-    // as a knob nothing turns. The expression above is character for character
-    // the pre-V23 one, which is why the golden checksum went back to the value
-    // it held before V23 rather than to a third number.
+    // **The vertical framing is not centred, and it is a constant rather than
+    // a knob** (V22, 2026-08-18). The player sits VERTICAL_ANCHOR of the way
+    // down the viewport wherever the view is unclamped; 0.5 would be the
+    // centring V23b restored, and this is deliberately not that.
     //
-    // Two things to carry forward if a non-centred framing is ever asked for
-    // again, both learned rather than guessed. It belongs **here** and not at
-    // the caller, because `follow` is called twice per rendered frame (once on
-    // the stepped position, once re-aimed at the interpolated draw position -
-    // the A1 correction below) and an anchor applied at one call site and not
-    // the other tears the backdrop against the world every frame. And it has to
-    // be a **fraction of the viewport**, not a count of cells: a composition
-    // stated in cells only holds at the one viewport height it was tuned at,
-    // and DISPLAY_MODES has several. The rest of the argument, including why
-    // the framing V23 asked for was not the framing it delivered, is in
-    // ROADMAP.md under V23 / V23a / V23b.
+    // **This reopens V23b at the tester's direction and it is not V23.** V23
+    // made the anchor *move* - 0.80 at the surface easing to 0.50 while
+    // digging - and that mechanism was rejected twice by playing: session 8
+    // called the delivered framing upside down and session 9 asked for plain
+    // centring. None of it comes back. What comes back is only the fixed
+    // offset, because V22 needs one number and not a behaviour: the receding
+    // plane cannot take more than ~50% of the band below a centred player,
+    // and the reference reading V22 is authored against is two thirds
+    // (notes/reference_observations.txt entry 9). **A moving anchor is a
+    // rejected feel; a fixed anchor is a composition.** Do not re-derive the
+    // easing from this constant.
+    //
+    // Both of the things V23b said to carry forward are honoured here, and
+    // they are the reason this is four lines rather than a file. It lives
+    // **here** and not at the caller, because `follow` is called twice per
+    // rendered frame (once on the stepped position, once re-aimed at the
+    // interpolated draw position - the A1 correction below) and an anchor
+    // applied at one call site and not the other tears the backdrop against
+    // the world every frame. And it is a **fraction of the viewport**, not a
+    // count of cells: the ~80 cells the V22 entry computes is the shipped
+    // 270-cell viewport only, and DISPLAY_MODES has several. The rest of the
+    // argument is in ROADMAP.md under V22, and under V23 / V23a / V23b for
+    // what was tried before it.
+    //
+    // **The world's bottom clamp still wins**, which is what V23a was really
+    // about: near the floor `clamp_view` refuses the framing outright and the
+    // player rides up the screen. That is correct - the alternative is
+    // uploading from outside the grid - but it means this constant states an
+    // intent, not a guarantee, and the spawn is close enough to the floor for
+    // the difference to be visible. `test_camera` pins both.
+    static constexpr float VERTICAL_ANCHOR = 0.80f;
 
     // Float in, float out: a world position drawn against a fractional view has
     // a fractional screen position, and rounding it here would put the jitter

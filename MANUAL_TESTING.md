@@ -23,7 +23,37 @@ cmake --build build --config Release
 
 ---
 
-**Nothing is waiting on the tester.** The UI-wiring look asked for by `W5`
+### 1. **The camera is not centred any more. Is that a fair trade?** *(V22 part 1, added 2026-08-18.)*
+
+The player now sits **80% of the way down the screen** instead of at the middle,
+so there is more world above them and less below. Nothing else changed yet.
+
+**Play normally for a few minutes, then dig down for a while**, and tell me:
+
+- **Does digging feel cramped?** This is the one that matters. You can see about
+  **55 cells of world below your feet** at the surface now, where before you saw
+  about 135. Digging is the game's main verb and this change takes room away
+  from it — that cost is known, it is not paid back by anything, and I expect
+  this to be the complaint.
+- **Does it look better standing still?** The point of the change is the
+  backdrop: more of the receding ground plane should now be under you.
+- **Anything jarring near the bottom of the world?** Deep down, the camera runs
+  out of world and quietly stops honouring the new framing, so the player drifts
+  back toward the middle of the screen. That is expected — I want to know if it
+  reads as a glitch.
+
+**Fair answers include "put it back".** You asked for the centred camera two days
+ago and this reopens that at your direction; if it feels worse, say so and it
+comes out again. **One number controls all of it** — `VERTICAL_ANCHOR` in
+[TUNING.md](TUNING.md), 0.80 today, 0.50 is the centring you had.
+
+**What this is *not* asking:** whether the ground plane finally reads as
+receding. It will not yet — the world still hides all of it, and fixing that is
+the next part of V22.
+
+---
+
+**That is the only thing waiting on you.** The UI-wiring look asked for by `W5`
 part 3 came back **good** on 2026-08-18 and is closed below.
 
 The camera questions this list carried for two days were

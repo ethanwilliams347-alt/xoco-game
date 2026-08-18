@@ -204,14 +204,38 @@ has produced. That is the one way to misuse the golden test.
 | ~~`GROUND_HORIZON_FRACTION`~~ | — | **retired 2026-08-16** | Was 0.55, "where the plane's far edge sits as a fraction of window height, where the played frame's terrain skyline already sits". **Not a feel knob and should never have been one** — it is where the ground meets the *mountains*, which is a fact about the mountains, and its justification named the terrain. Stated in window space it was free to contradict the art, and it did at every camera position the world reaches: the plane covered the whole mountain band. Replaced by a derivation from `backdrop_layers::MOUNTAINS_SKYLINE_MAX`, generated from the same seeded walk that draws the silhouette and so **deliberately not tunable**. See `ground_horizon_y` in [frame.cpp](src/render/frame.cpp) and V20 in ROADMAP.md. |
 | `Params::world_grade` | [frame.h](src/render/frame.h) | identity | The world-*wide* multiply — night, underground, fog, per-biome. **Nothing sets it yet**; at identity the quad is not drawn at all. Set it and every world layer dims together while the fire does not, which is why the grade pass is ordered before the light pass and not after. |
 
-## Camera framing — **no knobs, and that is the current answer**
+## Camera framing — **one constant, and it is a composition rather than a feel**
 
-**The camera centres the player and there is nothing here to tune** (V23b,
-2026-08-17). This section held three constants for one day —
-`SURFACE_ANCHOR` 0.80, `COLUMN_ANCHOR` 0.50 and `EASE_PER_SEC` 0.85, in a
-`src/game/camera_bias.h` that no longer exists — and they are gone with the
-mechanism rather than parked at neutral values. The History entries below are
-where they survive.
+[src/game/camera.h](src/game/camera.h)
+
+| Constant | Value | What it does |
+|---|---|---|
+| `Camera::VERTICAL_ANCHOR` | **0.80** | How far down the viewport the followed point sits, as a fraction. 0.5 is centring |
+
+**Set by V22 on 2026-08-18, and it is the reopening of a decision made by
+playing, at the tester's direction.** V23b had deleted every camera knob one day
+earlier; what brings one back is not a feel report but the arithmetic V22 cannot
+get past — a centred player caps the receding plane's visible share at **~50% of
+its band by construction**, and the reference reading V22 is authored against is
+two thirds. 0.80 puts the contact at ~65% and is the same number V23 used for
+`SURFACE_ANCHOR`, for the same reason: it is measured off the reference frames.
+
+**What did *not* come back is the part the tester rejected.** V23's anchor
+*moved* — 0.80 easing to 0.50 while digging — and sessions 8 and 9 rejected that
+twice. There is one constant here, it never changes at runtime, and
+`COLUMN_ANCHOR` and `EASE_PER_SEC` do not exist. **A moving anchor is a rejected
+feel; a fixed anchor is a composition**, and that distinction is the whole
+argument for this section existing again.
+
+**The cost is known and is unpaid until a human looks at it.** 0.80 leaves ~55
+cells of world below the player at the surface, and digging is the game's one
+verb. V23 paid that back with the framing that was rejected; V22 does not, so
+this constant is the most likely thing in this file to move on the next
+playtest. It is one number in one place precisely so that it can.
+
+The two things below were written after V23b as what the next attempt would
+otherwise rediscover. Both were honoured by this one, which is the only evidence
+that keeping them was worth anything.
 
 Two things worth keeping, because they are what the next attempt would otherwise
 rediscover:
@@ -247,6 +271,20 @@ at the result, not whether the number is a speed.
 ## History
 
 Newest first. One line per retune: what moved, and what was being fixed.
+
+- **2026-08-18** — **V22: one camera knob comes back, as a constant.**
+  `Camera::VERTICAL_ANCHOR` 0.80, inside `Camera::follow` where the game and the
+  golden fixture cannot disagree about it. **This reopens V23b at the tester's
+  direction**, on a stated concern that V22's two-thirds target is unreachable
+  with a centred camera and an answer that V22 runs in full anyway. What two
+  playtests rejected was the anchor *moving*, and none of that returns — no
+  easing, no dig or airborne trigger, no `camera_bias.h`. The golden checksum
+  moves to `0xf29c435ed9d923b1` and the overlay's to `0x6527211c3b5d3bb2`; the
+  second moved only because it hashes the world with the UI over it, and **an
+  overlay checksum moving beside an unmoved `GOLDEN` is the only combination
+  that would have meant the UI itself changed.** **Owed to a playtest**, and
+  that is the whole worth of this row: ~55 cells of world below the player is a
+  cost nothing here has paid.
 
 - **2026-08-17** — **V23b: all three camera knobs deleted; the camera centres
   again.** Playtest session 9 asked for the centred framing back, one day after

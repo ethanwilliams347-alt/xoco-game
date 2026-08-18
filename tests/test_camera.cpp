@@ -7,9 +7,15 @@
 // **This file was `test_camera_bias.cpp` until V23b** (2026-08-17), which
 // retired the moving vertical anchor after session 9 asked for the centred
 // framing back. What is kept here is the half that was always about `Camera`
-// itself; the framing checks went with the mechanism they described. The
-// centring check below is the one that matters most now, because it is the
-// whole of the shipped composition rule and nothing else asserts it.
+// itself; the framing checks went with the mechanism they described.
+//
+// **V22 (2026-08-18) put a fixed anchor back and the framing check below is
+// what states it.** It is not V23 returning: the anchor is a constant, there is
+// no easing and no dig trigger, and the two rejected feel reports were about
+// the anchor *moving*. The check is written against `Camera::VERTICAL_ANCHOR`
+// rather than against 0.80 spelled twice, so retuning the composition is one
+// edit; what is pinned here is that the constant reaches the screen at all,
+// which is precisely what V23a found it had not.
 
 #include "game/camera.h"
 #include "test_util.h"
@@ -45,7 +51,11 @@ int main() {
     {
         Camera camera;
         camera.follow(960.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
-        check("the player is drawn at mid screen", near(on_screen_fraction(camera, cy), 0.5f), "");
+        check("the player is drawn at the vertical anchor, not at mid screen",
+              near(on_screen_fraction(camera, cy), Camera::VERTICAL_ANCHOR),
+              std::to_string(on_screen_fraction(camera, cy)));
+        check("and the anchor is not the centring V23b restored",
+              Camera::VERTICAL_ANCHOR != 0.5f, "");
         check("and centred horizontally too",
               near((960.0f - (static_cast<float>(camera.view_x()) + camera.frac_x())) /
                        static_cast<float>(VIEWPORT_W),
@@ -62,6 +72,15 @@ int main() {
         at_floor.follow(960.0f, 1075.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
         check("the view clamps at the world's bottom edge",
               at_floor.view_y() == WORLD_H - VIEWPORT_H, std::to_string(at_floor.view_y()));
+        // **The clamp beats the anchor, and this is the check V23a's defect
+        // would have failed.** Near the floor the framing cannot be honoured,
+        // so the player rides *below* the anchor rather than sitting at it -
+        // the constant states an intent, not a guarantee. V22's spawn is close
+        // enough to the floor for this to be visible, which is why it is
+        // asserted rather than left as a comment on `follow`.
+        check("near the floor the clamp overrides the framing",
+              on_screen_fraction(at_floor, 1075.0f) > Camera::VERTICAL_ANCHOR,
+              std::to_string(on_screen_fraction(at_floor, 1075.0f)));
 
         Camera at_ceiling;
         at_ceiling.follow(960.0f, 4.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
