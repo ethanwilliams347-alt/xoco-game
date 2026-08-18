@@ -64,7 +64,7 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-fifteen suites, one per concern — `grid_test` for the cellular automata,
+seventeen suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
@@ -77,7 +77,19 @@ written where the keys are bound. Three more cover the renderer's arithmetic:
 `backdrop_test` for the wrapping-layer maths, `camera_test` for the view's
 framing and its world-edge clamps, and `golden_frame_test`,
 which composes a fixed scene through the real renderer and checksums it — **the
-one suite that links SDL**, though it still needs no display. The fifteenth is
+one suite that links SDL**, though it still needs no display. It carries two
+checksums as of 2026-08-18: one for the world the composition draws, and a
+second taken after the screen-space layer — the HUD, the reticle, the hotbar,
+the run-over wash and the settings screen — is drawn on top of it. They are
+separate numbers so that a change to the UI and a change to the sky cannot be
+confused for each other. `boot_test` covers
+what the game decides before its first frame — where the objective and each prop
+are planted on the terrain actually under them, and which display mode to open
+at — and it runs the *shipped* scene, so the two lines a launch used to be
+checked by are assertions instead. `shell_test` covers the decisions the shell
+takes every frame and every keypress — how much simulated time a frame buys,
+what freezing the world means, where between two steps the picture falls, and
+the settings menu's navigation and selection. The seventeenth is
 `docs_test`, which is not about the engine at all: it asserts this document's
 and the others' checkable numbers — the suite count in this very paragraph
 included — against the code and files they are drawn from, so a number that goes

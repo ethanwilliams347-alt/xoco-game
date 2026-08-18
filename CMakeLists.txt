@@ -64,23 +64,39 @@ set(SCENE_PROP_SOURCES
 
 # V17's frame composition. **A fifth variable rather than a line in
 # RENDER_SOURCES, and the difference is SDL.** Everything in RENDER_SOURCES is
-# SDL-free by rule - that is what lets nine headless suites link it - and
-# frame.cpp is nothing but SDL draw calls. Folding it in there would quietly
-# make every one of those suites link SDL2, and the day one of them wants to be
-# run somewhere without it, nobody would be able to say when that started.
+# SDL-free by rule, and frame.cpp is nothing but SDL draw calls. Folding it in
+# there would quietly make everything that links RENDER_SOURCES link SDL2 -
+# today light_test, anim_test, grid_bench and preview_light, all four of which
+# are headless and must stay so - and the day one of them wants to be run
+# somewhere without SDL, nobody would be able to say when that started. **This
+# comment said "nine headless suites" until 2026-08-18 and that was never a
+# number anything counted**; it is written as the set now, because a set is what
+# a grep can check and a count is what goes stale.
 #
 # It is not ENGINE_SOURCES for the reason light.cpp is not: this is rendering,
 # and rendering must never become a simulation input. The guard the other four
 # variables enforce is exactly this one - keep it separate, and the day
 # something under src/physics/ reaches for the frame, the mistake has to be
 # written into this file to compile.
+#
+# **src/ui joined this variable at W5 part 3 (2026-08-18), and so did
+# render/overlay.cpp.** They were built only into the game executable, which
+# meant the ~250 lines of HUD, reticle, wash and settings drawing were the
+# largest block in the project that no test linked. They belong here on this
+# variable's own test - SDL draw calls and nothing else - and putting them here
+# is what puts them inside golden_frame_test. The name is now slightly narrower
+# than the contents; the test the contents pass is the one in the paragraph
+# above, not the word "frame".
 set(FRAME_SOURCES
     src/render/frame.cpp
+    src/render/overlay.cpp
+    src/ui/text.cpp
+    src/ui/hotbar.cpp
 )
 
 # src/ui is SDL-side, like main.cpp - built only into the game executable,
 # not ENGINE_SOURCES, which stays what the headless test suites link against.
-add_executable(SlopPhysics src/main.cpp src/ui/text.cpp src/ui/hotbar.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES} ${FRAME_SOURCES})
+add_executable(SlopPhysics src/main.cpp ${ENGINE_SOURCES} ${RENDER_SOURCES} ${SCENE_PROP_SOURCES} ${FRAME_SOURCES})
 
 # Include local src directory
 target_include_directories(SlopPhysics PRIVATE src)
@@ -211,6 +227,41 @@ if(BUILD_TESTING)
     target_include_directories(golden_frame_test PRIVATE src tests)
     target_link_libraries(golden_frame_test PRIVATE SDL2-static)
     add_test(NAME golden_frame_test COMMAND golden_frame_test)
+
+    # W5's startup decisions - the terrain scans that plant the objective and
+    # the props, and which display mode to open at. **This is the suite the item
+    # was admitted on**: every check in it used to run inside `main()`, print a
+    # line to stdout, and be verifiable only by a person reading that line.
+    #
+    # `game/boot.h` is a header for the same reason `game/debug_view.h` is - a
+    # sixth source-set variable is a sixth chance to blur the guard the other
+    # five enforce - so this links the two existing sets it needs and adds
+    # nothing to the build graph. SCENE_PROP_SOURCES is here, and
+    # WORKING_DIRECTORY with it, because half the suite runs the *shipped*
+    # fixture: the scene BMPs, the prop list and the prop sprites, which is what
+    # turns the launch check into an assertion rather than a re-statement of it.
+    #
+    # One suite rather than two, with `choose_display_mode` in it, because the
+    # two are one extraction: they are the decisions startup takes before the
+    # first frame, split from the SDL that answers questions for them.
+    add_executable(boot_test tests/test_boot.cpp ${ENGINE_SOURCES} ${SCENE_PROP_SOURCES})
+    target_include_directories(boot_test PRIVATE src tests)
+    add_test(NAME boot_test COMMAND boot_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+    # W5 part 2's shell decisions - the frame pacer's freeze rule, its step
+    # count and interpolation alpha, and the settings menu's navigation and
+    # selection. All of it used to live inside `main()`'s frame loop or inside
+    # an SDL event switch, which is the definition of unreachable here.
+    #
+    # `game/pacer.h` and `game/settings_menu.h` are headers for `debug_view.h`'s
+    # reason, so again nothing is added to the build graph. No WORKING_DIRECTORY
+    # and no SCENE_PROP_SOURCES: unlike boot_test this suite opens no files, and
+    # ENGINE_SOURCES is here only because pacer.h states its step against
+    # `Run::FIXED_DT` - which is the point, the pacer and the physics must not be
+    # able to disagree about how long a step is.
+    add_executable(shell_test tests/test_shell.cpp ${ENGINE_SOURCES})
+    target_include_directories(shell_test PRIVATE src tests)
+    add_test(NAME shell_test COMMAND shell_test)
 
     # W3's doc-truth suite. Links no sources - it includes `element.h` for a
     # `sizeof` and otherwise reads files - and it is registered *last* on

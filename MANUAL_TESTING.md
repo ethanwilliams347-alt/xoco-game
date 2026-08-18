@@ -23,11 +23,30 @@ cmake --build build --config Release
 
 ---
 
-**Nothing is owed.** The camera questions this list carried for two days were
+**One look, at the UI (`W5` part 3, added 2026-08-18).** *(Part 2's three
+looks — speed, settings menu, pause — all came back clean on 2026-08-18 and are
+closed; part 1's tree check closed the day before.)* The HUD, the reticle, the
+hotbar, the run-over wash and the settings screen moved out of `main.cpp` into
+`render/overlay.cpp`, and `golden_frame_test` now hashes them, so the *drawing*
+is covered by a number for the first time. **What the checksum cannot see is the
+wiring**: it draws a fixture the test builds, not the values `main.cpp` puts
+into the struct. So the one thing worth a minute is whether each part of the UI
+is still saying something true —
+
+- the HUD line reads a live FPS, the brush you actually have selected and a
+  chunk count that moves;
+- the reticle sits on the cursor and dims when you aim out of reach;
+- the hotbar highlight follows the number keys;
+- and the settings screen still marks the mode in use with `*` and greys any
+  mode too large for the display.
+
+A field wired to the wrong variable draws perfectly and says the wrong thing,
+which is exactly the failure a checksum passes.
+
+The camera questions this list carried for two days were
 withdrawn on 2026-08-17 rather than answered: session 9 asked for the centred
 camera back, so the framing, the airborne trigger and the ease speed are no
-longer things anybody has to look at — there is nothing left to tune. The next
-thing that goes here will be whatever V22's fixture-scene work needs looking at.
+longer things anybody has to look at — there is nothing left to tune.
 
 *Closed and off this list:* **the camera framing, all of it, closed 2026-08-17
 by removal** — session 8 reported it "upside down" (the clamp; see step 13),
@@ -88,7 +107,7 @@ has ever had.*
 
 ## The steps
 
-1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 1920x1080, 334901 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart.
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 1920x1080, 334901 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart. **The two lines under it are no longer yours to read (`W5`, 2026-08-17).** `Objective: (1700, 932)` and `Props: 9 of 9 placed` were the other half of this step, and both were a number a person had to notice was missing — the objective's absence makes a run unwinnable, and a dropped prop is the buried-trees bug, which hid for a whole feature because the trees sit off-screen at spawn. The scans behind both moved to `game/boot.h` and `boot_test` asserts them **against this same shipped scene**, so a regression in either now fails `ctest` before anybody launches. What is left for you here is the part a checksum cannot have: the window opens, the seed prints, and there is terrain in front of you.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. **The sprite is 14x26 over an 8x20 collision box, so "flush" is a claim about the sprite's *feet*, not its bounding rect** — the mask overhangs above the box and the sleeves outside it, both by design. A figure that hovers one cell above every floor means some frame's bottom row went empty — `python tools/player_sheet.py --validate` checks exactly that, per frame, and is the first thing to run; a figure sunk into the floor means `src/render/player_sprite.h` is stale and needs `--header` re-run. Also confirm the figure turns to face the direction you walk, and keeps facing that way after you stop.
 

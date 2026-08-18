@@ -41,7 +41,9 @@
 #include "game/camera.h"
 #include "physics/grid.h"
 #include "render/frame.h"
+#include "game/display.h"
 #include "render/light.h"
+#include "render/overlay.h"
 #include "test_util.h"
 
 namespace {
@@ -307,7 +309,8 @@ int main() {
     check("at most one world-wide grade", graded <= 1,
           "two full-screen multiplies compose into a third grade nothing declares");
     check("every world layer is lit", lit == frame::LAYER_COUNT - 1 - graded && unlit == 0,
-          "UI belongs in main.cpp, after the light pass - a layer arriving here "
+          "UI belongs in render/overlay.cpp, after the light pass - a layer arriving "
+          "here "
           "unlit means the world/UI boundary has moved and B1 is reachable again");
 
     // **Step 3's grade pass is exercised by this frame only through the
@@ -567,6 +570,149 @@ int main() {
           plain_contribution > 0.05, graded_detail);
     check("the light pass is not dimmed by the grade",
           graded_contribution > plain_contribution * 0.8, graded_detail);
+
+    // --- W5 part 3: the screen-space layer -----------------------------------
+    //
+    // **This is a second checksum, not a change to the one above.** The
+    // composition and the overlay are two calls with a hard boundary between
+    // them - frame.h's rule is that everything in the world gets lit and
+    // everything after it must not - and one number over both would make a
+    // change to the HUD indistinguishable from a change to the sky. `GOLDEN`
+    // stays a hash of `frame::compose` alone and is taken before this section
+    // runs; `OVERLAY_GOLDEN` is the hash after `overlay::draw` has run on top
+    // of that same frame, so the step between them is the UI and nothing else.
+    //
+    // Before W5 part 3 these ~250 lines were the largest block in the project
+    // that no test linked at all - the HUD backing, the reticle's outline, the
+    // wash under the menu and the greyed row were only ever checkable by
+    // looking at a window. That is what this buys.
+    //
+    // The state must be back at the golden configuration first, or the second
+    // number is a hash of the sensitivity checks above rather than of the
+    // shipped frame; the check immediately below is what says it is.
+    camera.follow(CAM_X, CAM_Y, PADDED_W, PADDED_H, WORLD_W, WORLD_H);
+    frame::compose(renderer, p);
+    check("the world is back at the golden frame before the overlay is drawn",
+          hash_surface(surface) == first,
+          "the checks above left state behind, so the overlay checksum would be "
+          "taken over a frame the game never composes");
+
+    // Every field set to something the game actually produces, and every
+    // optional block switched on, so one checksum covers all four of them. The
+    // per-block sensitivity checks after it are what say that is true rather
+    // than assumed.
+    overlay::Params op;
+    op.window_w = PADDED_W * Camera::SCALE;
+    op.window_h = PADDED_H * Camera::SCALE;
+    // **2 rather than this surface's own `window_h / 270`, which is 1.** No
+    // shipped mode produces a UI scale of 1 - the smallest is 720 high, giving
+    // 2 - and a checksum over a scale that never ships is the null-texture
+    // lesson again in its third form. Every glyph, backing rect and gap in the
+    // overlay is a multiple of this, so it is the single number that decides
+    // whether the layout arithmetic is exercised at all.
+    op.ui_scale = 2;
+
+    op.show_reticle = true;
+    op.mouse_x = op.window_w / 2 + 37;   // off both centre lines, so the four
+    op.mouse_y = op.window_h / 2 - 21;   // arms land on four distinct rects
+    op.in_range = true;
+
+    op.hud_text = "HP:100  GOAL:740E  FPS:60 BRUSH:SAND(3) CHUNKS:12+FALLING";
+    op.hud_lines.push_back({"SAVED session.rec  1200 FRAMES", 0xFFFFC080});
+    op.hud_lines.push_back({"PAUSED  STEP", 0xFF80D0FF});
+    op.hud_lines.push_back({"(183, 96) SAND  T:0", 0xFFE0E0E0});
+    op.hotbar_selected = 1;
+
+    op.run_over = true;
+    op.won = false;
+
+    // One unavailable mode, so the greyed branch and its "(TOO LARGE)" suffix
+    // are inside the number; the cursor sits on a mode rather than on Quit, and
+    // the mode in use is a different one, so the `*` marker and the `>` marker
+    // are on separate rows and cannot be confused for each other.
+    bool available[DISPLAY_MODE_COUNT];
+    for (int i = 0; i < DISPLAY_MODE_COUNT; ++i) available[i] = true;
+    available[DISPLAY_MODE_COUNT - 1] = false;
+
+    op.settings_open = true;
+    op.cursor = 1;
+    op.mode_count = DISPLAY_MODE_COUNT;
+    op.current_mode = 0;
+    op.modes = DISPLAY_MODES;
+    op.available = available;
+    op.notice = "MODE CHANGED, BUT SETTINGS.TXT COULD NOT BE WRITTEN.";
+
+    overlay::draw(renderer, op);
+    const uint64_t with_overlay = hash_surface(surface);
+
+    // **The overlay checksum.** Same rule as `GOLDEN` above and for the same
+    // reason: update it in the *same commit* as the change that moved it, so
+    // `git log -S` on this line lists every UI the game has ever drawn.
+    //
+    // It moved once, at W5 part 3 on 2026-08-18, from "no checksum" to this
+    // one. The lines it hashes came out of main.cpp unchanged, comments
+    // included, and were run against the unmoved `GOLDEN` first - so the move
+    // itself is known not to have touched a pixel of the world, and this number
+    // is the first statement anybody has made about the UI's pixels at all.
+    // There is no earlier value for it to be compared against, which is worth
+    // saying plainly: this check cannot yet prove the UI is unchanged, only
+    // that from here on it will notice.
+    constexpr uint64_t OVERLAY_GOLDEN = 0x0db76672f5ec3189ull;
+    char odetail[128];
+    std::snprintf(odetail, sizeof(odetail), "got 0x%016llx, expected 0x%016llx",
+                  static_cast<unsigned long long>(with_overlay),
+                  static_cast<unsigned long long>(OVERLAY_GOLDEN));
+    check("the overlay matches its golden checksum", with_overlay == OVERLAY_GOLDEN,
+          odetail);
+
+    check("the overlay actually draws over the composed frame",
+          with_overlay != first,
+          "drawing the UI changed no pixel, so the number above is a hash of the "
+          "world and covers none of it");
+
+    // **Each block, switched off on its own.** The single checksum above says
+    // the four blocks together produce a frame; it does not say all four are in
+    // it. A hotbar drawn off-screen, a wash of zero alpha or a settings loop
+    // that never enters its body would all pass it. This is the same instrument
+    // the ground plane's presence check uses, applied four times.
+    auto without = [&](const char* name, auto&& mutate) {
+        overlay::Params q = op;
+        mutate(q);
+        frame::compose(renderer, p);
+        overlay::draw(renderer, q);
+        const uint64_t h = hash_surface(surface);
+        check(name, h != with_overlay,
+              "switching this block off changed no pixel, so the overlay checksum "
+              "is not covering it");
+    };
+    without("the reticle reaches the frame", [](overlay::Params& q) { q.show_reticle = false; });
+    without("the HUD stack reaches the frame", [](overlay::Params& q) { q.hud_lines.clear(); });
+    without("the hotbar reaches the frame", [](overlay::Params& q) { q.hotbar_selected = -1; });
+    without("the run-over wash reaches the frame", [](overlay::Params& q) { q.run_over = false; });
+    without("the settings screen reaches the frame",
+            [](overlay::Params& q) { q.settings_open = false; });
+    // The notice is the one part of the settings screen with a live timer
+    // behind it, and an empty string is how an expired one arrives - so "draws
+    // nothing when empty" is a claim with a caller, not a defensive branch.
+    without("the settings notice reaches the frame",
+            [](overlay::Params& q) { q.notice.clear(); });
+    // The greyed row is a branch, not a layer, and it is the one the fixture
+    // exists to reach: a mode list where everything fits would never enter it.
+    without("the unavailable-mode branch reaches the frame",
+            [&](overlay::Params& q) {
+                static bool all_fit[DISPLAY_MODE_COUNT];
+                for (int i = 0; i < DISPLAY_MODE_COUNT; ++i) all_fit[i] = true;
+                q.available = all_fit;
+            });
+
+    // Drawing the same overlay twice over the same frame must give the same
+    // pixels, for the reason the composition's repeatability check exists: it
+    // separates "the UI changed" from "this suite is reading uninitialised
+    // memory".
+    frame::compose(renderer, p);
+    overlay::draw(renderer, op);
+    check("the overlay is repeatable", hash_surface(surface) == with_overlay,
+          "the same inputs produced two different overlays");
 
     SDL_DestroyTexture(p.player_tex);
     SDL_DestroyTexture(prop_tex);

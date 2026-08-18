@@ -5,14 +5,18 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "game/boot.h"
 #include "game/camera.h"
 #include "game/debug_view.h"
 #include "game/display.h"
 #include "game/input_log.h"
+#include "game/pacer.h"
 #include "game/run.h"
+#include "game/settings_menu.h"
 #include "render/backdrop_layers.h"
 #include "render/frame.h"
 #include "render/light.h"
+#include "render/overlay.h"
 #include "render/player_anim.h"
 #include "scene/bmp.h"
 #include "scene/props.h"
@@ -21,19 +25,16 @@
 #include "ui/text.h"
 #include "ui/hotbar.h"
 
-// The simulated world's size, in cells - independent of the window since F3.1.
-// Not equal to any window size divided by Camera::SCALE: that was only ever a
-// coincidence of nothing having needed them to differ yet, and F4's scene is
-// authored at 1920x1080 cells (the fixture's original 640x400 rescaled with
-// the player body - see generate_test_scene.py), bigger than every viewport in
-// the display table. That is deliberate, not a mismatch to fix - it exercises the
-// panning half of the camera (F3.4) rather than just the decoupling half
-// (F3.1-F3.3), which a world equal to the viewport never did.
-//
-// It also has to clear the *largest* viewport, not the one the game happens to
-// launch at: 3440x1440 sees 861x361 padded cells, so a world sized to the
-// smallest mode would leave the widest one with nothing to pan across.
-//
+// **The world's size, S0's objective column and the terrain scans that plant
+// things on the ground all moved to `game/boot.h` (W5, 2026-08-17)**, which is
+// SDL-free and has a suite. What is left in this file is the SDL half: a
+// window, a renderer, textures, the pump and the draw. Aliased here because
+// eighteen lines below read better as `GRID_WIDTH` than as a qualified name,
+// and because these two are what every camera and upload call is stated
+// against.
+constexpr int GRID_WIDTH = boot::GRID_WIDTH;
+constexpr int GRID_HEIGHT = boot::GRID_HEIGHT;
+
 // SDL_RenderCopy below stretches the whole viewport-sized texture across the
 // whole window (two null rects). **This used to warn that a grid not matching
 // the window's proportions renders squashed or cropped, and that stopped being
@@ -49,42 +50,7 @@
 // and the viewport now follows the player and clamps at the world's edges
 // (F3.4) rather than staying pinned at the origin - the two together are what
 // turn "the whole world, squashed" into a real view of part of a larger one.
-const int GRID_WIDTH = 1920;
-const int GRID_HEIGHT = 1080;
-
-const double MAX_FRAME_TIME = 0.25; // clamp after a stall so we don't spiral
-
-// S0's objective, and it is a column rather than a point because the row it
-// sits at is scanned off the terrain below it (see `terrain_surface`). Placing
-// a y here would be the mistake the prop format refuses by construction - a
-// number an author tunes for an afternoon while the loader ignores it - and it
-// is the same mistake that buried three trees in the snowbank.
-//
-// 1700 is chosen for what stands between it and the spawn, not for where it is.
-// The player starts at GRID_WIDTH / 2, so this is ~740 cells east: past the
-// jump ledges, across F4's water channel (cells 1000-1402, walled on both sides
-// and full to within 175 cells of the top), and out onto the sleeper run. That
-// is a traverse the character cannot walk, which makes flight the thing the run
-// is actually about - and flight was a shipped feature nothing in the built game
-// had ever asked for.
-//
-// **It is hard-coded, and that is S0's stated limit rather than an oversight.**
-// A real objective is placed by a generator into a level format with a slot for
-// it; both of those are the full "Objective + Extraction" item in ROADMAP.md and
-// neither is started here.
-const int OBJECTIVE_X = 1700;
-
-// The first solid row in a column, or -1 if the column is open all the way
-// down. The same scan the prop planter does over a footprint, kept separate
-// rather than shared with it: that one takes the *lowest* surface across a
-// sprite's width so a tree leans into a hill, and this one is a single column,
-// so a shared helper would have to be told which of the two it was being.
-int terrain_surface(const Grid& grid, int x) {
-    if (x < 0 || x >= grid.get_width()) return -1;
-    for (int y = 0; y < grid.get_height(); ++y)
-        if (is_solid(grid.get_element(x, y).type)) return y;
-    return -1;
-}
+// The stall clamp moved to `game/pacer.h` with the rest of the pacer (W5).
 
 // **The scene loader moved to `src/scene/bmp.cpp` (P4) and this is all that is
 // left of it here.** It used to be 90 lines of `SDL_LoadBMP` and surface
@@ -265,34 +231,32 @@ int main(int argc, char* argv[]) {
     }
 
     // Which modes this display can actually show, and which of them to open at.
-    //
-    // The stored setting wins if it is still valid *and* still fits - a monitor
-    // can change between runs, and a saved 3440x1440 on a laptop screen would
-    // otherwise open a window nobody can reach the settings menu inside. Failing
-    // that, the largest mode that fits, which is the one that shows the most
-    // world.
+    // **Only the first of those two needs SDL, and W5 split them on that line:**
+    // `mode_fits` asks the display, `choose_display_mode` decides, and the
+    // deciding is the half with the wrong answers in it - a stored mode that no
+    // longer fits, and a desktop smaller than every mode in the table. Both are
+    // now in `display_test` rather than in a checklist step nobody can run
+    // without two monitors.
     bool mode_available[DISPLAY_MODE_COUNT];
-    int mode_index = -1;
-    for (int i = 0; i < DISPLAY_MODE_COUNT; ++i) {
+    for (int i = 0; i < DISPLAY_MODE_COUNT; ++i)
         mode_available[i] = mode_fits(DISPLAY_MODES[i], 0);
-        if (mode_available[i]) mode_index = i;
-    }
-    if (mode_index < 0) {
-        // Every mode is larger than the desktop. Open at the smallest anyway
-        // rather than refusing to start: an oversized window is a bad session,
-        // and no window at all is no session.
-        std::fprintf(stderr, "No display mode fits this desktop; opening at %dx%d anyway.\n",
-                     DISPLAY_MODES[0].window_w, DISPLAY_MODES[0].window_h);
-        mode_index = 0;
-    }
-    {
-        const int stored = load_display_mode();
-        if (stored >= 0 && mode_available[stored]) {
-            mode_index = stored;
-        } else if (stored >= 0) {
+
+    const int stored_mode = load_display_mode();
+    const ModeChoice choice =
+        choose_display_mode(mode_available, DISPLAY_MODE_COUNT, stored_mode);
+    int mode_index = choice.index;
+    switch (choice.why) {
+        case ModeChoice::Why::NothingFits:
+            std::fprintf(stderr, "No display mode fits this desktop; opening at %dx%d anyway.\n",
+                         DISPLAY_MODES[mode_index].window_w, DISPLAY_MODES[mode_index].window_h);
+            break;
+        case ModeChoice::Why::StoredTooBig:
             std::fprintf(stderr, "Stored mode %dx%d does not fit this display; ignoring it.\n",
-                         DISPLAY_MODES[stored].window_w, DISPLAY_MODES[stored].window_h);
-        }
+                         DISPLAY_MODES[stored_mode].window_w, DISPLAY_MODES[stored_mode].window_h);
+            break;
+        case ModeChoice::Why::Stored:
+        case ModeChoice::Why::Largest:
+            break;
     }
     DisplayMode mode = DISPLAY_MODES[mode_index];
 
@@ -535,19 +499,25 @@ int main(int argc, char* argv[]) {
         std::fprintf(stderr, "       No props are drawn. Fix the line above and re-run.\n");
     }
 
-    std::vector<Prop> props;
-    props.reserve(prop_defs.size());
-    for (const PropDef& def : prop_defs) {
-        SDL_Texture* tex = prop_texture(def.sprite);
+    // One entry per record, parallel to `prop_defs`, holding what only a window
+    // can answer: the sprite's texture and its native size in world cells. A
+    // record whose sprite did not load keeps its slot with a null texture and a
+    // width of 0, which is how `boot::plant_props` - which knows no SDL - is
+    // told about it without being handed one.
+    std::vector<SDL_Texture*> prop_tex(prop_defs.size(), nullptr);
+    std::vector<int> prop_w(prop_defs.size(), 0);
+    std::vector<int> prop_h(prop_defs.size(), 0);
+    for (size_t i = 0; i < prop_defs.size(); ++i) {
+        SDL_Texture* tex = prop_texture(prop_defs[i].sprite);
         if (!tex) continue; // already warned by prop_texture, once per name
-        int w = 0, h = 0;
-        SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
-        props.push_back(Prop{ tex, w, h, def.x, 0.0f });
+        prop_tex[i] = tex;
+        SDL_QueryTexture(tex, nullptr, nullptr, &prop_w[i], &prop_h[i]);
     }
     // The count is NOT printed here. A prop that has a texture is not yet a prop
     // that got placed - the terrain scan below drops any with no ground under
     // them - so a count taken at this point reports texture loads while saying
     // "placed". It read `9 of 9` on a run that drew 8. See below.
+    std::vector<Prop> props;
 
     // The reticle *is* the cursor now, so the OS one would be a second pointer
     // sitting on top of it. SDL scopes this to its own window rather than
@@ -584,25 +554,17 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // S0's objective, planted on whatever terrain is actually at OBJECTIVE_X the
-    // same way a prop is. Its row is the centre of a body standing on that
-    // surface, so "reach the objective" means "stand where the marker is" rather
-    // than something the player has to work out from a floating icon.
-    //
-    // **A column with no ground under it drops the objective rather than
-    // defaulting it**, which is the prop planter's rule and it is here for the
-    // same reason: the only fallback available is the top of the world, and an
-    // objective hanging in the sky is exactly as wrong as one buried. A run with
-    // no objective is still playable - you can still die - so this is a warning
-    // and not a refusal to start.
+    // S0's objective, planted on whatever terrain is actually at
+    // `boot::OBJECTIVE_X` the same way a prop is. The decision moved to
+    // `game/boot.h` with W5; what is left here is the warning, because a run
+    // that cannot be won is a thing the *player* has to be told about and
+    // stderr is where this shell says such things.
     auto place_objective = [&]() {
-        const int surface = terrain_surface(run.grid, OBJECTIVE_X);
-        if (surface < 0) {
+        if (!boot::place_objective(run).placed) {
             std::fprintf(stderr, "WARNING: no ground under the objective column x=%d; "
-                                 "this run has no objective and cannot be won.\n", OBJECTIVE_X);
-            return;
+                                 "this run has no objective and cannot be won.\n",
+                         boot::OBJECTIVE_X);
         }
-        run.set_objective(OBJECTIVE_X, surface - Player::HEIGHT / 2);
     };
     place_objective();
 
@@ -646,55 +608,25 @@ int main(int argc, char* argv[]) {
     int saved_logs = 0;
 
     // Plant each prop on the terrain that is actually under it, rather than on
-    // a hardcoded ground line. **This is a fix for a class of bug, not for the
-    // three trees that had it:** props were authored at `FLOOR_TOP`, which is
-    // true of the floor slab and false of everything standing on it, so the
-    // three trees over the authored sand slope were 26%, 43% and 83% buried -
-    // invisibly, because they sit off-screen at spawn and the screenshot that
-    // "confirmed" the feature was of the other side of the world.
+    // a hardcoded ground line. **The scan moved to `boot::plant_props` with W5
+    // and its argument went with it**; it runs here, after the scene is stamped
+    // and before the first frame, because props are not simulated and terrain
+    // that moves later must not drag them with it.
     //
-    // Scans the prop's own footprint rather than its centre column and takes
-    // the *lowest* surface found, so a tree on a slope is planted at its
-    // downhill edge and leans into the hill instead of floating off its uphill
-    // one. Runs once, after the scene is stamped and before the first frame:
-    // props are not simulated, so terrain that moves later does not drag them
-    // with it - which is correct for a tree and is the same "exercises no
-    // system" line that put them in this layer at all.
-    //
-    // **A prop with no ground under it is now dropped rather than left at a
-    // fallback**, which the authored-y version could not do: it had a y to fall
-    // back to, and falling back to it is exactly how the buried trees hid. With
-    // no authored y the only fallback available is 0 - the top of the world -
-    // so an unplantable prop would hang in the sky. Removing it and saying so
-    // is the honest version of the same warning.
-    std::vector<Prop> planted;
-    planted.reserve(props.size());
-    for (Prop& prop : props) {
-        if (!prop.texture) continue;
-        const int x0 = static_cast<int>(prop.anchor_x - prop.w / 2.0f);
-        int lowest_surface = -1;
-        for (int x = x0; x < x0 + prop.w; ++x) {
-            if (x < 0 || x >= GRID_WIDTH) continue;
-            for (int y = 0; y < GRID_HEIGHT; ++y) {
-                if (is_solid(run.grid.get_element(x, y).type)) {
-                    if (y > lowest_surface) lowest_surface = y;
-                    break;
-                }
-            }
-        }
-        // No solid ground anywhere under it is a scene-authoring mistake, not
-        // something to paper over with a default - a prop hanging in the air
-        // is exactly as wrong as one buried, and silently placing it at the
-        // fallback is how the first version of this hid its own bug.
-        if (lowest_surface < 0) {
-            std::fprintf(stderr, "WARNING: assets/test_props.txt: prop at x=%.1f has no ground "
-                                 "under it and is not drawn.\n", prop.anchor_x);
-            continue;
-        }
-        prop.anchor_y = static_cast<float>(lowest_surface);
-        planted.push_back(prop);
+    // What is left in this file is turning the report into draw records and
+    // saying out loud what was dropped - the two things that need a texture and
+    // a stderr respectively.
+    const boot::PlantingReport planting =
+        boot::plant_props(run.grid, prop_defs, prop_w);
+    for (int i : planting.no_ground) {
+        std::fprintf(stderr, "WARNING: assets/test_props.txt: prop at x=%.1f has no ground "
+                             "under it and is not drawn.\n", prop_defs[i].x);
     }
-    props = std::move(planted);
+    props.reserve(planting.planted.size());
+    for (const boot::Planted& p : planting.planted) {
+        props.push_back(Prop{ prop_tex[p.def_index], prop_w[p.def_index], prop_h[p.def_index],
+                              prop_defs[p.def_index].x, static_cast<float>(p.anchor_y) });
+    }
 
     // Printed *after* planting, because this is the line README's launch check
     // reads and it has to count props that will actually be drawn. It used to
@@ -734,11 +666,14 @@ int main(int argc, char* argv[]) {
     enum class Screen { Playing, Settings };
     Screen screen = Screen::Playing;
 
-    // Menu items: one per display mode, then Quit. The index is into this
-    // combined list rather than into DISPLAY_MODES, so navigation does not need
-    // to know that the last row is special.
-    const int MENU_QUIT = DISPLAY_MODE_COUNT;
-    int menu_cursor = mode_index;
+    // **The navigation and selection moved to `game/settings_menu.h` (W5,
+    // 2026-08-17)** and has a suite. What is left here is the keysyms and the
+    // two calls that need a window. The cursor still lives in a local because
+    // the drawing code below reads it.
+    const int MENU_QUIT = menu::quit_index(DISPLAY_MODE_COUNT);
+    menu::State menu_state;
+    menu::open(menu_state, mode_index);
+    int& menu_cursor = menu_state.cursor;
 
     // Shown under the menu for a few seconds after a switch is attempted, so a
     // refused mode says so instead of looking like a dead key.
@@ -747,7 +682,11 @@ int main(int argc, char* argv[]) {
 
     uint64_t prev_counter = SDL_GetPerformanceCounter();
     const double counter_freq = static_cast<double>(SDL_GetPerformanceFrequency());
-    double accumulator = 0.0;
+
+    // The accumulator, the freeze rule and the interpolation alpha moved to
+    // `game/pacer.h` (W5, 2026-08-17). Reading the clock stays here; deciding
+    // what the elapsed seconds *mean* does not.
+    pacer::Pacer frame_pacer;
 
     int frames_this_second = 0;
     double title_timer = 0.0;
@@ -816,7 +755,7 @@ int main(int argc, char* argv[]) {
         prev_player_x = run.player.visual_x();
         prev_player_y = run.player.visual_y();
         anim_state = player_anim::State{};
-        accumulator = 0.0;
+        frame_pacer.accumulator = 0.0;
     };
 
     // --- T1: the debug tooling ---------------------------------------------
@@ -899,52 +838,52 @@ int main(int argc, char* argv[]) {
                 // widget layer, no hit-testing and no focus model, and adding
                 // three of them to change a resolution would be a larger
                 // feature than the one being built. Arrow keys need none of it.
+                //
+                // **This switch is now only the binding** - which keysyms mean
+                // which of the menu's four verbs. Every branch that used to
+                // follow (what a confirm does on a mode that does not fit, what
+                // the cursor does when a switch fails, whether a failed *save*
+                // still closes the screen) is `menu::key` in
+                // game/settings_menu.h, where `shell_test` can reach it.
+                menu::Key mk = menu::Key::Back;
+                bool bound = true;
                 switch (e.key.keysym.sym) {
                     case SDLK_UP:
-                    case SDLK_w:
-                        menu_cursor = (menu_cursor + MENU_QUIT) % (MENU_QUIT + 1);
-                        break;
+                    case SDLK_w: mk = menu::Key::Prev; break;
                     case SDLK_DOWN:
-                    case SDLK_s:
-                        menu_cursor = (menu_cursor + 1) % (MENU_QUIT + 1);
-                        break;
+                    case SDLK_s: mk = menu::Key::Next; break;
                     case SDLK_RETURN:
                     case SDLK_KP_ENTER:
-                    case SDLK_SPACE:
-                        if (menu_cursor == MENU_QUIT) {
-                            running = false;
-                        } else if (!mode_available[menu_cursor]) {
-                            menu_notice = "That mode is larger than this display.";
-                            menu_notice_timer = 4.0;
-                        } else if (menu_cursor == mode_index) {
-                            screen = Screen::Playing;
+                    case SDLK_SPACE: mk = menu::Key::Confirm; break;
+                    case SDLK_ESCAPE: mk = menu::Key::Back; break;
+                    default: bound = false; break;
+                }
+                if (bound) {
+                    menu::Outcome out = menu::key(menu_state, mk, mode_available,
+                                                  DISPLAY_MODE_COUNT, mode_index);
+                    // The one thing the state machine cannot do for itself: try
+                    // the switch, on a window, and report which way it went.
+                    if (out.act == menu::Act::ApplyMode) {
+                        const DisplayMode& wanted = DISPLAY_MODES[out.mode];
+                        if (apply_mode(window, renderer, wanted, targets)) {
+                            mode = wanted;
+                            mode_index = out.mode;
+                            // Persisted at the point it takes effect, not on the
+                            // way out of the menu: a crash between the two would
+                            // otherwise lose a setting the player watched
+                            // succeed.
+                            out = menu::mode_applied(menu_state, out.mode,
+                                                     save_display_mode(mode));
                         } else {
-                            const DisplayMode& wanted = DISPLAY_MODES[menu_cursor];
-                            if (apply_mode(window, renderer, wanted, targets)) {
-                                mode = wanted;
-                                mode_index = menu_cursor;
-                                // Persisted at the point it takes effect, not
-                                // on the way out of the menu: a crash between
-                                // the two would otherwise lose a setting the
-                                // player watched succeed.
-                                if (!save_display_mode(mode)) {
-                                    menu_notice = "Mode changed, but settings.txt could not be written.";
-                                    menu_notice_timer = 6.0;
-                                } else {
-                                    screen = Screen::Playing;
-                                }
-                            } else {
-                                // apply_mode left everything as it was, so
-                                // there is nothing to roll back - only to say.
-                                menu_cursor = mode_index;
-                                menu_notice = "Could not create render targets at that size; mode unchanged.";
-                                menu_notice_timer = 6.0;
-                            }
+                            out = menu::mode_refused(menu_state, mode_index);
                         }
-                        break;
-                    case SDLK_ESCAPE:
-                        screen = Screen::Playing;
-                        break;
+                    }
+                    if (out.notice) {
+                        menu_notice = out.notice;
+                        menu_notice_timer = out.notice_seconds;
+                    }
+                    if (out.act == menu::Act::Close) screen = Screen::Playing;
+                    else if (out.act == menu::Act::Quit) running = false;
                 }
             }
             else if (e.type == SDL_MOUSEWHEEL) {
@@ -966,7 +905,7 @@ int main(int argc, char* argv[]) {
                 }
                 if (e.key.keysym.sym == SDLK_ESCAPE) {
                     screen = Screen::Settings;
-                    menu_cursor = mode_index;
+                    menu::open(menu_state, mode_index);
                 }
                 // S0. **Only while the run is over**, so `R` is inert during
                 // play rather than a key that throws a session away by
@@ -1079,7 +1018,7 @@ int main(int argc, char* argv[]) {
         const uint64_t now_counter = SDL_GetPerformanceCounter();
         double frame_time = static_cast<double>(now_counter - prev_counter) / counter_freq;
         prev_counter = now_counter;
-        if (frame_time > MAX_FRAME_TIME) frame_time = MAX_FRAME_TIME;
+        frame_time = pacer::clamp_frame_time(frame_time);
 
         if (menu_notice_timer > 0.0) menu_notice_timer -= frame_time;
         if (record_notice_timer > 0.0) record_notice_timer -= frame_time;
@@ -1184,58 +1123,39 @@ int main(int argc, char* argv[]) {
         // problem and the positive feedback loop behind it - the argument is in
         // ROADMAP.md's V23 entry, which is the only place it survives now.
 
-        // The menu freezes the simulation by not accumulating time, rather than
-        // by skipping the step loop with the accumulator still filling: the
-        // second version banks every second spent in the menu and spends it in
-        // one burst of catch-up steps on the way out, which at MAX_FRAME_TIME's
-        // quarter-second clamp is a visible lurch. Not accumulating means the
-        // world is exactly where it was left.
-        // A finished run freezes the same way the settings menu does, and by the
-        // same mechanism rather than by a second one: time stops accumulating,
-        // so the world is exactly where the run left it instead of banking
-        // seconds and spending them in one lurch when the next run starts. It
-        // matters more here than it does for the menu - the last thing that
-        // happened is the thing the player has to be able to look at.
-        // T1's pause is the third user of that one mechanism rather than a
-        // second mechanism, and that is the whole of why it is one clause here.
+        // **The freeze rule is `pacer::world_advances` now (W5), and it is one
+        // function because it is one mechanism.** The menu froze the world
+        // first, a finished run followed it in S0, T1's pause was the third, and
+        // the whole argument - that freezing means *not accumulating time*,
+        // never skipping the step loop with the accumulator still filling - is
+        // written at the function rather than here, because that is where the
+        // fourth caller will read it. The rejected version banks every frozen
+        // second and spends it in one catch-up burst at the stall clamp, which
+        // is a visible lurch; it matters most for a finished run, where the last
+        // thing that happened is the thing the player has to be able to look at.
         const bool run_over = run.outcome() != Run::Outcome::Playing;
-        if (screen == Screen::Playing && !run_over && !debug.paused) accumulator += frame_time;
-        while (accumulator >= Run::FIXED_DT) {
-            advance_one_step(input);
-            accumulator -= Run::FIXED_DT;
-        }
+        const int steps = frame_pacer.steps(
+            frame_time,
+            pacer::world_advances(screen == Screen::Settings, run_over, debug.paused));
+        for (int i = 0; i < steps; ++i) advance_one_step(input);
 
         // T1's single-step. Outside the pacer's loop and spending none of its
         // time, which is what makes `.` advance the world by exactly one step
         // and leave the accumulator where the pause left it.
         while (debug.consume_single_step()) advance_one_step(input);
 
-        // How far between the last simulated state and the current one this
-        // frame falls. Zero steps this frame is the normal case at 165 Hz, and
-        // it is why `prev_*` lives outside the loop: alpha keeps climbing
-        // towards 1 and the draw keeps easing towards the state already
-        // computed, rather than freezing until the next step lands.
-        //
-        // **Pinned to 1 while paused**, so what is on screen is the state that
-        // was actually simulated rather than a fraction of the way towards it.
-        // A single-step debugger whose picture is 40% of the way between two
-        // steps is showing a world that never existed, which is the one thing it
-        // must not do - the whole reason to stop the world is to look at it.
-        const float alpha =
-            debug.paused ? 1.0f : static_cast<float>(accumulator / Run::FIXED_DT);
-        float draw_player_x = prev_player_x + (run.player.visual_x() - prev_player_x) * alpha;
-        float draw_player_y = prev_player_y + (run.player.visual_y() - prev_player_y) * alpha;
-
-        // Teleports must not be interpolated. `resolve_overlap` can shift the
-        // body several cells at once to push it out of terrain, and easing
-        // across that draws the player skating through the wall it was just
-        // rescued from. Anything larger than a stride is a jump, not motion.
-        constexpr float MAX_INTERPOLATED_CELLS = 4.0f;
-        if (std::abs(run.player.visual_x() - prev_player_x) > MAX_INTERPOLATED_CELLS ||
-            std::abs(run.player.visual_y() - prev_player_y) > MAX_INTERPOLATED_CELLS) {
-            draw_player_x = run.player.visual_x();
-            draw_player_y = run.player.visual_y();
-        }
+        // Where between the last two simulated states this frame falls, and the
+        // teleport clamp that stops `resolve_overlap`'s several-cell shove being
+        // eased across. Both are `game/pacer.h` (W5) - the reasoning for the
+        // pin-to-1-while-paused and for the clamp is at each of them there.
+        // `prev_*` still lives outside the loop, which is what lets alpha keep
+        // climbing on the frames that buy no step at all.
+        const float alpha = frame_pacer.alpha(debug.paused);
+        const pacer::Interpolated draw_player =
+            pacer::interpolate(prev_player_x, prev_player_y,
+                               run.player.visual_x(), run.player.visual_y(), alpha);
+        float draw_player_x = draw_player.x;
+        float draw_player_y = draw_player.y;
 
         // Re-aimed at the interpolated position before drawing. The call above
         // is what the mouse-to-world conversion needed and runs before the
@@ -1314,65 +1234,34 @@ int main(int argc, char* argv[]) {
         fp.light_texture = targets.light_texture;
         frame::compose(renderer, fp);
 
-        // The reticle (V10/B1). Three things it has to do, and the old one-cell
-        // filled square did none of them well enough to survive a playtest.
+        // --- the screen-space layer (W5 part 3) ---
         //
-        // **It is drawn in screen pixels, not cells.** A cell is 4 screen pixels
-        // at the current scale, so a cell-sized marker is four pixels across and
-        // any shape drawn inside one is not a shape. Screen-space also means it
-        // keeps its size and legibility if the scale is ever changed.
-        //
-        // **It is not orange any more.** The defect behind this item was that the
-        // marker sat in the same colour family as Fire and disappeared against
-        // the one thing you most want to aim at. Colour now carries range only -
-        // full white in reach, dim white out of it - and the outline below is
-        // what carries legibility, so neither job depends on the background.
-        //
-        // **Each arm is drawn over a dark outline.** A white reticle would vanish
-        // against snow and steam exactly as the orange one vanished against fire;
-        // an outlined one cannot vanish against anything, because whatever the
-        // background is, one of the two contrasts with it.
+        // Everything drawn after `frame::compose` is UI, and all of it now
+        // lives in render/overlay.cpp behind one call. What stays here is the
+        // half that reads simulation state - whether the cursor is in reach,
+        // what the readout says, which lines T1 wants under it, which hotbar
+        // slot the brush is in - because nothing under src/render/ may ask a
+        // Run or a Grid anything. overlay.h says why the split is drawn there
+        // and why this is a second file rather than rows in the layer table.
         const int dx_cells = gridX - run.player.center_x();
         const int dy_cells = gridY - run.player.center_y();
-        const bool in_range = (dx_cells * dx_cells + dy_cells * dy_cells) <= DigTool::RANGE * DigTool::RANGE;
 
-        // A gap wider than the arms are long would read as four separate marks
-        // rather than one reticle; the point of leaving the centre open is that
-        // the cell being aimed at stays visible, so the gap is sized to the cell.
-        constexpr int TICK_GAP = 4;
-        constexpr int TICK_LEN = 7;
-        constexpr int TICK_THICK = 2;
+        overlay::Params op;
+        op.window_w = mode.window_w;
+        op.window_h = mode.window_h;
+        op.ui_scale = mode.ui_scale();
 
-        const SDL_Rect arms[4] = {
-            { mouseX - TICK_THICK / 2, mouseY - TICK_GAP - TICK_LEN, TICK_THICK, TICK_LEN }, // N
-            { mouseX - TICK_THICK / 2, mouseY + TICK_GAP,            TICK_THICK, TICK_LEN }, // S
-            { mouseX - TICK_GAP - TICK_LEN, mouseY - TICK_THICK / 2, TICK_LEN, TICK_THICK }, // W
-            { mouseX + TICK_GAP,            mouseY - TICK_THICK / 2, TICK_LEN, TICK_THICK }, // E
-        };
+        // Only while the pointer is actually over this window.
+        // `SDL_GetMouseState` keeps reporting the last position inside the
+        // window after the mouse leaves, so without this the reticle sticks to
+        // the edge and reads as a frozen UI element rather than as a cursor
+        // that has gone elsewhere.
+        op.show_reticle = (SDL_GetMouseFocus() == window);
+        op.mouse_x = mouseX;
+        op.mouse_y = mouseY;
+        op.in_range =
+            (dx_cells * dx_cells + dy_cells * dy_cells) <= DigTool::RANGE * DigTool::RANGE;
 
-        // Only while the pointer is actually over this window. `SDL_GetMouseState`
-        // keeps reporting the last position inside the window after the mouse
-        // leaves, so without this the reticle sticks to the edge and reads as a
-        // frozen UI element rather than as a cursor that has gone elsewhere.
-        if (SDL_GetMouseFocus() == window) {
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, in_range ? 170 : 120);
-            for (const SDL_Rect& arm : arms) {
-                const SDL_Rect outline{arm.x - 1, arm.y - 1, arm.w + 2, arm.h + 2};
-                SDL_RenderFillRect(renderer, &outline);
-            }
-
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, in_range ? 255 : 115);
-            for (const SDL_Rect& arm : arms) SDL_RenderFillRect(renderer, &arm);
-
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        }
-
-        // The UI layer decision (ENGINEERING_NOTES.md): drawn here, in the
-        // game window, rather than left to the OS title bar - a solid backing
-        // rect first so the text stays readable over whatever the simulation
-        // is doing underneath it.
         hud_text = "FPS:" + std::to_string(fps_display) +
                    " BRUSH:" + material_of(current_brush).name + "(" + std::to_string(brush_size) + ")" +
                    " CHUNKS:" + std::to_string(run.grid.active_chunk_count());
@@ -1408,49 +1297,20 @@ int main(int argc, char* argv[]) {
                 static_cast<double>(gdx) * gdx + static_cast<double>(gdy) * gdy));
             status += "  GOAL:" + std::to_string(gdist) + (gdx < 0 ? "W" : "E");
         }
-        hud_text = status + "  " + hud_text;
+        op.hud_text = status + "  " + hud_text;
 
-        // Scaled with the window rather than fixed at 2 (see
-        // DisplayMode::ui_scale): a HUD that keeps its pixel size keeps
-        // shrinking as a fraction of the screen every time a wider mode is
-        // added, and this one is an instrument - defect A2 is about it being
-        // trusted to answer "what did that key just do".
-        const int hud_scale = mode.ui_scale();
-        const int hud_x = 8, hud_y = 8;
-        const SDL_Rect hud_backing{
-            hud_x - 4, hud_y - 4,
-            ui::text_width(hud_text, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
-        };
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_RenderFillRect(renderer, &hud_backing);
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        ui::draw_text(renderer, hud_x, hud_y, hud_scale, hud_text, 0xFFE0E0E0);
-
-        // The lines under the HUD, stacked in the order they are drawn. A cursor
-        // rather than a y computed per line, because T1 makes three of them
-        // conditional and a set of independently-computed offsets is how two end
-        // up drawn on top of each other in whichever combination nobody tried.
-        int next_line_y = hud_y + ui::GLYPH_HEIGHT * hud_scale + 8;
-        auto draw_hud_line = [&](const std::string& line, uint32_t colour) {
-            const SDL_Rect backing{
-                hud_x - 4, next_line_y - 4,
-                ui::text_width(line, hud_scale) + 8, ui::GLYPH_HEIGHT * hud_scale + 8
-            };
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_RenderFillRect(renderer, &backing);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            ui::draw_text(renderer, hud_x, next_line_y, hud_scale, line, colour);
-            next_line_y += ui::GLYPH_HEIGHT * hud_scale + 8;
-        };
+        // The lines under the readout, pushed in the order they are drawn.
+        // A list rather than three calls at three sites, for the reason the
+        // cursor in overlay.cpp exists: T1 makes all of these conditional, and
+        // independently-computed offsets are how two end up drawn on top of
+        // each other in whichever combination nobody tried.
 
         // The recorder's line, drawn only while it has something to say (P4).
         // A permanent "REC" indicator was the other option and is worse: this
         // records every session, so an always-on marker would be furniture
         // within a minute and invisible by the time it mattered.
         if (record_notice_timer > 0.0 && !record_notice.empty()) {
-            draw_hud_line(record_notice, 0xFFFFC080);
+            op.hud_lines.push_back({record_notice, 0xFFFFC080});
         }
 
         // --- T1's two lines ---
@@ -1460,7 +1320,7 @@ int main(int argc, char* argv[]) {
         // `P` by accident has to be told before anything else.
         {
             const std::string modes = debug_status(debug);
-            if (!modes.empty()) draw_hud_line(modes, 0xFF80D0FF);
+            if (!modes.empty()) op.hud_lines.push_back({modes, 0xFF80D0FF});
         }
         if (debug.inspector) {
             // Reads the cell the cursor names, which the free camera can now put
@@ -1469,7 +1329,7 @@ int main(int argc, char* argv[]) {
             // there" are different answers and a debug tool that conflates them
             // is the same failure as a legend resolving an unknown colour to
             // Empty.
-            draw_hud_line(describe_cell(run.grid, gridX, gridY), 0xFFE0E0E0);
+            op.hud_lines.push_back({describe_cell(run.grid, gridX, gridY), 0xFFE0E0E0});
         }
 
         // --- the material hotbar (V10) ---
@@ -1478,116 +1338,26 @@ int main(int argc, char* argv[]) {
         // stays the single fact about what is selected. A second index kept
         // beside it is exactly how a highlight ends up on the wrong box after
         // some later code path sets the brush without going through a key.
-        int hotbar_selected = -1;
+        op.hotbar_selected = -1;
         for (int i = 0; i < ui::HOTBAR_COUNT; ++i) {
-            if (ui::HOTBAR[i].type == current_brush) hotbar_selected = i;
-        }
-        ui::draw_hotbar(renderer, mode.window_w, mode.window_h, mode.ui_scale(), hotbar_selected);
-
-        // --- S0: how a finished run says so ---
-        //
-        // Two lines over a dimming wash, drawn after the hotbar and before the
-        // settings menu, so ESC still opens a menu that sits on top of this.
-        //
-        // **Over a wash rather than a solid panel, for the same reason the
-        // settings screen is**: the world behind it is the thing the player has
-        // to be able to look at - the fire they walked into, the drop they
-        // misjudged - and a panel that covered it would hide the whole content
-        // of the ending. The simulation is frozen behind this, not running.
-        //
-        // Deliberately not a menu. A run that has ended offers exactly one
-        // choice and a cursor over one item is furniture.
-        if (run_over) {
-            const int scale = mode.ui_scale();
-            const bool won = run.outcome() == Run::Outcome::Won;
-            const std::string headline = won ? "OBJECTIVE REACHED" : "YOU DIED";
-            const std::string prompt = "PRESS R FOR A NEW RUN";
-
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 140);
-            const SDL_Rect wash{0, 0, mode.window_w, mode.window_h};
-            SDL_RenderFillRect(renderer, &wash);
-
-            // The headline is drawn at twice the HUD's scale, which is the only
-            // place in the game anything is - it is the one string that has to
-            // read from across a room rather than be looked at.
-            const int head_scale = scale * 2;
-            const int head_y = mode.window_h / 2 - (ui::GLYPH_HEIGHT * head_scale) / 2;
-            ui::draw_text(renderer,
-                          mode.window_w / 2 - ui::text_width(headline, head_scale) / 2,
-                          head_y, head_scale, headline,
-                          won ? 0xFFF0C040 : 0xFFD05050);
-            ui::draw_text(renderer,
-                          mode.window_w / 2 - ui::text_width(prompt, scale) / 2,
-                          head_y + ui::GLYPH_HEIGHT * head_scale + 6 * scale, scale, prompt,
-                          0xFFC0C0C0);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+            if (ui::HOTBAR[i].type == current_brush) op.hotbar_selected = i;
         }
 
-        // --- the settings menu ---
-        //
-        // Drawn last, over a dimming wash rather than over a solid panel, so
-        // the world stays visible behind it. That is not decoration: the only
-        // way to judge "is this the resolution I want" is to see how much of
-        // the world it shows, and a menu that hides the world hides the thing
-        // the setting changes.
-        if (screen == Screen::Settings) {
-            const int scale = mode.ui_scale();
-            const int line_h = (ui::GLYPH_HEIGHT + 3) * scale;
+        op.run_over = run_over;
+        op.won = run.outcome() == Run::Outcome::Won;
 
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 170);
-            const SDL_Rect wash{0, 0, mode.window_w, mode.window_h};
-            SDL_RenderFillRect(renderer, &wash);
+        op.settings_open = (screen == Screen::Settings);
+        op.cursor = menu_cursor;
+        op.mode_count = DISPLAY_MODE_COUNT;
+        op.current_mode = mode_index;
+        op.modes = DISPLAY_MODES;
+        op.available = mode_available;
+        // An expired notice is handed over as no notice at all. The timer is a
+        // fact about this loop, not about the drawing, and passing it would put
+        // a second copy of "is it still showing" on the far side of the seam.
+        if (menu_notice_timer > 0.0) op.notice = menu_notice;
 
-            const int menu_x = mode.window_w / 2 - 30 * ui::GLYPH_WIDTH * scale / 2;
-            int y = mode.window_h / 2 - (MENU_QUIT + 4) * line_h / 2;
-
-            ui::draw_text(renderer, menu_x, y, scale, "SETTINGS", 0xFFFFFFFF);
-            y += line_h * 2;
-
-            for (int i = 0; i <= MENU_QUIT; ++i) {
-                const bool selected = (i == menu_cursor);
-                std::string label;
-                uint32_t colour;
-
-                if (i == MENU_QUIT) {
-                    label = "QUIT";
-                    colour = selected ? 0xFFFFFFFF : 0xFFA0A0A0;
-                } else {
-                    const DisplayMode& m = DISPLAY_MODES[i];
-                    label = std::to_string(m.window_w) + "X" + std::to_string(m.window_h) +
-                            "  " + std::to_string(m.viewport_w()) + "X" +
-                            std::to_string(m.viewport_h()) + " CELLS";
-                    if (i == mode_index) label += "  *";
-                    // Unavailable modes are shown greyed rather than hidden.
-                    // A menu that silently omits a mode on one machine and
-                    // lists it on another is a menu a player cannot learn.
-                    if (!mode_available[i]) {
-                        label += "  (TOO LARGE)";
-                        colour = selected ? 0xFF806060 : 0xFF605050;
-                    } else {
-                        colour = selected ? 0xFFFFFFFF : 0xFFA0A0A0;
-                    }
-                }
-
-                if (selected) {
-                    ui::draw_text(renderer, menu_x - 2 * ui::GLYPH_WIDTH * scale, y, scale, ">",
-                                  colour);
-                }
-                ui::draw_text(renderer, menu_x, y, scale, label, colour);
-                y += line_h;
-            }
-
-            y += line_h;
-            ui::draw_text(renderer, menu_x, y, scale,
-                          "ARROWS  ENTER  ESC RESUMES", 0xFF808080);
-            if (menu_notice_timer > 0.0 && !menu_notice.empty()) {
-                y += line_h;
-                ui::draw_text(renderer, menu_x, y, scale, menu_notice, 0xFFFFC080);
-            }
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-        }
+        overlay::draw(renderer, op);
 
         SDL_RenderPresent(renderer);
 

@@ -90,6 +90,56 @@ inline int load_display_mode(const char* path = SETTINGS_PATH) {
     return found;
 }
 
+// Which mode to open at, given which of them fit this desktop and what the last
+// session stored. **Pure, and separated from the SDL that answers "does it
+// fit" (W5, 2026-08-17)** - the fitting test needs a display and this decision
+// does not, and it is the decision that has the wrong answers in it.
+//
+// The stored setting wins if it is still valid *and* still fits - a monitor can
+// change between runs, and a saved 3440x1440 on a laptop screen would otherwise
+// open a window nobody can reach the settings menu inside. Failing that, the
+// largest mode that fits, which is the one that shows the most world. And if
+// nothing fits, the smallest anyway rather than refusing to start: an oversized
+// window is a bad session, and no window at all is no session.
+struct ModeChoice {
+    int index = 0;
+    // Each of these is a line the caller prints, and each names a path that is
+    // invisible from the window alone - "it opened smaller than I asked for" is
+    // not something a player can debug by looking.
+    enum class Why {
+        Stored,        // the stored mode was valid and fits
+        StoredTooBig,  // a stored mode was found and does not fit; ignored
+        Largest,       // nothing stored; the largest fitting mode
+        NothingFits,   // every mode is larger than the desktop
+    } why = Why::Largest;
+};
+
+inline ModeChoice choose_display_mode(const bool* fits, int count, int stored) {
+    ModeChoice choice;
+    choice.index = -1;
+    for (int i = 0; i < count; ++i)
+        if (fits[i]) choice.index = i;
+
+    if (choice.index < 0) {
+        choice.index = 0;
+        choice.why = ModeChoice::Why::NothingFits;
+        // A stored mode cannot be honoured when nothing fits, and saying
+        // "ignoring your setting" on top of "nothing fits at all" would bury
+        // the sharper of the two lines under the vaguer one.
+        return choice;
+    }
+
+    if (stored >= 0 && stored < count) {
+        if (fits[stored]) {
+            choice.index = stored;
+            choice.why = ModeChoice::Why::Stored;
+        } else {
+            choice.why = ModeChoice::Why::StoredTooBig;
+        }
+    }
+    return choice;
+}
+
 // Writes the chosen mode. Failure is reported to the caller rather than
 // swallowed: a setting that silently does not persist is worse than one that
 // says it could not, because the player's only evidence either way is what

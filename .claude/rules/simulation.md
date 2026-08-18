@@ -39,6 +39,36 @@ shell feature has a decision in it, the decision goes in an SDL-free header unde
 on purpose and deliberately did **not** become a fourth source-set variable,
 which is what leaves the guard below intact.
 
+**`W5` applied that rule backwards, to code that was already written, and that
+is the shape to reuse.** `src/game/boot.h` (2026-08-17) holds what `main()`
+decided before its first frame — where the objective and each prop are planted
+on the terrain actually under them, and, with `choose_display_mode` in
+`game/display.h`, which display mode to open at. Every one of those decisions
+had run once at startup, printed a line to stdout, and been checkable only by a
+person reading that line. Two things about the seam are worth copying:
+- **The SDL half is passed in as data, not reached for.** A prop's width comes
+  from its texture, so `plant_props` takes a `widths` vector and `main.cpp`
+  fills it from `SDL_QueryTexture`. That one argument is the whole reason the
+  scan is testable, and it is what a later extraction should look for first —
+  *what does this need a window for, and can it be told instead of asking?*
+- **`boot.h` is a header too, for `debug_view.h`'s reason**, so the build graph
+  is unchanged and `boot_test` links two existing source sets. A sixth variable
+  would be a sixth chance to blur the guard the other five enforce.
+
+**Part 2 did the same to the frame loop, and it is worth naming what made those
+decisions findable.** `game/pacer.h` and `game/settings_menu.h` (2026-08-17,
+`shell_test`) hold the freeze rule, the step count, the interpolation alpha and
+its teleport clamp, and the menu's navigation and selection. The thing they had
+in common is the test to reuse: **a decision whose wrong answer is invisible in a
+screenshot, sitting in code no suite links.** A pacer that banks time while
+frozen, an alpha that keeps running while paused, a menu that closes on a save it
+could not perform — each looks fine for a while, each is a handful of lines, and
+each is the cheapest possible thing to assert once it is reachable. The menu adds
+one shape to `boot.h`'s: **when the SDL half must happen in the middle, return
+what to attempt and take the answer back** (`Act::ApplyMode`, then
+`mode_applied` / `mode_refused`), rather than handing the state machine a
+callback that drags a window into it.
+
 **Write the failing test before the fix, and verify it against the unfixed
 code.** A test written after the fix passes for reasons nobody has checked. Six
 of session 1's eight defects lived in code the existing suites could already
@@ -63,7 +93,12 @@ added the fifth on 2026-08-16**:
   records out. Nothing in `src/physics/` may read these.
 - `FRAME_SOURCES` — `frame.cpp`, the world layers of one frame. **Kept out of
   `RENDER_SOURCES` because it is the only rendering source that calls SDL**, and
-  folding it in would silently make nine headless suites link SDL2.
+  folding it in would silently make everything that links `RENDER_SOURCES` link
+  SDL2 — today `light_test` and `anim_test`, plus the `grid_bench` and
+  `preview_light` tools, all four of which are headless and must stay so. **This
+  bullet said "nine headless suites" until 2026-08-17 and that was never a
+  number anything counted**; it is written as the set rather than as a count now,
+  because the set is what a `grep` can check and the count is what goes stale.
 - Everything else (`main.cpp`, `src/ui/`) is SDL-side and builds only into the game.
 
 The point is that the day something in the simulation reaches for light or a

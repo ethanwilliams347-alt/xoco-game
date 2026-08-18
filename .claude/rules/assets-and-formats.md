@@ -268,6 +268,19 @@ because they are not sprites: `assets/test_material.bmp` and `test_albedo.bmp`
 - Terrain is the **floor** of visual density, because its resolution is the
   simulation's. Mixed-resolution scenes have everything else denser than the
   ground and never the reverse.
+- **The UI's draw calls are `src/render/overlay.cpp`, and it is a separate
+  translation unit from `frame.cpp` on purpose.** `frame.h`'s rule is that
+  everything in the composition is in the world and gets lit; the overlay is
+  drawn by its own call after `compose` returns and is never a row in the layer
+  table. **Do not merge them to save a call** — a reticle that goes orange near a
+  flame is defect B1, and that is the shape it comes back in. `golden_frame_test`
+  carries a second checksum, `OVERLAY_GOLDEN`, taken after the overlay is drawn
+  on top of the golden frame — so the *step* between the two numbers is the UI,
+  and a UI change and a sky change cannot move the same one.
+- **`overlay::Params` takes strings and flags, never a `Run` or a `Grid`.** What
+  the readout *says* is the caller's decision and what it *looks like* is this
+  file's; the split is the same one `frame::Params` draws, and it is what lets a
+  test build a frame with no window and no simulation.
 - `src/ui/` is immediate-mode against `SDL_Renderer` with a hand-authored bitmap
   font covering only the glyphs actually needed. No Dear ImGui, no `SDL_ttf`.
   Hotbar icons take their colours from `MATERIALS` so an icon cannot drift from

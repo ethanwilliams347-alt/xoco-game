@@ -20,7 +20,8 @@
 //
 // **There is no y coordinate here and that is the format's one real opinion.**
 // Props are planted by scanning the terrain actually underneath them (see
-// `snap_prop_to_terrain` in main.cpp) rather than by an authored ground line,
+// `boot::plant_props` in game/boot.h, which had no such name and was inline in
+// `main.cpp` until W5) rather than by an authored ground line,
 // because "the ground" is not one number - the fixture's floor slab is at
 // FLOOR_TOP and the authored sand slope rises 150 cells above it, which is how
 // three trees shipped 26%, 43% and 83% buried. A y in the file would be a

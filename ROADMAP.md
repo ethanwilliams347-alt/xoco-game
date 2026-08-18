@@ -112,7 +112,7 @@ has to be re-read to know what to do.***
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
 | 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
-| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1`, `W2`, `W3` and `W4` all shipped 2026-08-17. **`W5` is next** (the one item here that needs the tester afterwards), then `W6`. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
+| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1`, `W2`, `W3` and `W4` all shipped 2026-08-17. **`W5`'s three parts all shipped** (2026-08-17/18); **`W6` is next**. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -464,7 +464,7 @@ is next**, and it is the one item in the track that needs the tester afterwards.
 | W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | **shipped 2026-08-17** — 40 rules, because every entry is written once per shell and `git` had to be split verb by verb; no `deny` list, on purpose |
 | W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | **shipped 2026-08-17** as `docs_test`, seven checks, plus the checklist length and the two `W4` sizes; every check was verified against a mutated doc before being kept |
 | W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | **shipped 2026-08-17**, in two commits — a verified-lossless relocation, then the merge and the per-entry sweep. Boundary chosen: *finished **and** nothing open depends on the reasoning* |
-| W5 | **Extract `main()`** — a `boot` unit, the per-frame composition into `render/frame.cpp`, and a `main()` of ~150 lines | days | queued; **the one item here that needs the tester afterwards** |
+| W5 | **Extract `main()`** — a `boot` unit, the shell's decisions, the UI composition, and a `main()` of ~150 lines | days | **parts 1–3 shipped 2026-08-17/18**: `game/boot.h` + `boot_test`; `game/pacer.h` and `game/settings_menu.h` + `shell_test`; `render/overlay.cpp` + a second golden checksum. **The acceptance check is met** — two of checklist step 1's launch lines are assertions now. `main.cpp` 1,625 → **1,395**. **The ~150-line target is not met and is all that is left**; what remains is the frame's wiring and the input handling, and whether that is worth a part 4 is an open decision, not a scheduled one |
 | W6 | **Trim `README.md` to a front door** — architecture to `ENGINEERING_NOTES.md`, benchmark procedure to `PERFORMANCE.md`, `## General Testing` untouched | afternoon | queued |
 
 > **Why this goes ahead of V22, since V22 was "next" as of yesterday.** **V22 is
@@ -1572,6 +1572,133 @@ pump. *Verify:* the launch line still prints `Scene: WxH, N cells placed` with
 demoted to a headless assertion, because if none can be, the item did not buy
 what it was admitted on.** **This is the one item in the track that needs the
 tester afterwards.**
+
+**Part 1 shipped 2026-08-17: the `boot` unit, and the acceptance check is
+already met.** `src/game/boot.h` now holds the world size, `OBJECTIVE_X`, the
+two terrain scans, `place_objective` and `plant_props`; `choose_display_mode`
+joined `game/display.h`; `boot_test` is the sixteenth suite, links
+`ENGINE_SOURCES` + `SCENE_PROP_SOURCES`, and runs from the repo root.
+
+- **What was actually demoted, which is the number the item is judged on.**
+  Checklist step 1 carried three printed lines. `scene_test` already pinned the
+  cell count; the other two — `Objective: (1700, 932)` and `Props: 9 of 9
+  placed` — were a person noticing a number was absent. Both are now asserted
+  **against the shipped fixture**, which is what makes them the same check the
+  tester was running rather than a weaker one beside it. The regression class
+  behind the second is the buried trees, which hid through a whole feature
+  because the props sit off-screen at spawn.
+- **The seam is that SDL gets *told*, not asked.** A prop's width comes from its
+  texture, which is the only thing in startup that genuinely needs a window — so
+  `plant_props` takes a `widths` vector and `main.cpp` fills it from
+  `SDL_QueryTexture`. The test fills it from `bmp::read` on the same BMPs, and
+  one BMP pixel is one world cell, so it is the same number. **That question —
+  *what does this need a window for, and can it be told instead?* — is the
+  reusable part**, and it is what parts 2 and 3 should be pointed at first.
+- **A header, not a sixth source-set variable**, following `debug_view.h`. The
+  build graph is unchanged, which is the property that keeps `CMakeLists.txt`'s
+  guard meaning what it says.
+- *Verified:* all 16 suites pass; `golden_frame_test`'s checksum did not move;
+  the exe was launched and printed `Display: 3440x1440`, the seed, `Scene:
+  1920x1080, 334901 cells placed`, `Objective: (1700, 932)` and `Props: 9 of 9
+  placed`, with nothing on stderr. `main.cpp` went 1,625 → 1,554 lines, and
+  **that is reported rather than claimed as progress** — the line count is not
+  the argument and part 1 was never going to move it much, since what left was
+  ~70 lines of scan and the reasoning went with it.
+
+**Part 2 shipped 2026-08-17: the shell's decisions, same treatment.** All three
+candidates went, into two headers with one suite. `src/game/pacer.h` holds the
+freeze rule, the step count, the interpolation alpha and the teleport clamp;
+`src/game/settings_menu.h` holds the menu's navigation and selection;
+`shell_test` is the seventeenth suite and links `ENGINE_SOURCES` only.
+
+- **The freeze rule is one function now, which is the thing part 2 was told to
+  get right.** `pacer::world_advances(menu_open, run_over, paused)` — three
+  reasons, one mechanism, and the argument for the mechanism (freezing means
+  *not accumulating*, never skipping the step loop with the accumulator still
+  filling) is written at the function, where the fourth caller will read it,
+  instead of in a comment at the one call site. It is stated as three named
+  bools rather than one `frozen` so that a caller has to say which of the three
+  it means and cannot freeze for a fourth reason nobody wrote down.
+- **The menu adds a shape `boot.h` did not have: the SDL half in the middle.**
+  Applying a display mode needs a window, and it happens *between* the decision
+  and its consequence. So `menu::key` returns `Act::ApplyMode` and the caller
+  reports back through `mode_applied` / `mode_refused` — a round trip, rather
+  than a callback that would drag the window back into the state machine. That
+  is the only shape in which "try it, and if it fails say so and change nothing"
+  is expressible in here. **The asymmetry worth keeping**: a switch that applied
+  but could not be *saved* leaves the menu open, because the mode did change and
+  the unkeepable promise is about next launch — the only place to say so is the
+  screen still open.
+- **What `shell_test` catches that a look at the screen cannot.** Sixty frozen
+  frames bank nothing and the frame after runs one step, not sixty; one second
+  buys sixty steps however it is cut up; a ten-second stall is clamped; a
+  negative or NaN frame time never reaches the accumulator (a NaN there is
+  permanent — every later comparison against `FIXED_DT` is false, so the world
+  stops stepping and nothing says why); alpha is pinned to 1 while paused; and
+  the teleport clamp snaps **both** axes when either exceeds the limit, since
+  easing one while snapping the other draws a diagonal that never happened.
+- *Verified:* all 17 suites pass; `golden_frame_test`'s checksum did not move,
+  which is the evidence that a rewritten frame loop draws the same frame; the exe
+  was launched, printed the five launch lines with nothing on stderr, and closed
+  cleanly through `SDL_QUIT`, so the loop ran. `main.cpp` is 1,544 lines, down
+  from 1,554 — reported, not claimed, for the reason part 1's line is. **This
+  entry said 1,436 until 2026-08-18, which was a guess written as a
+  measurement**; part 2 moved code sideways into two headers and replaced it
+  with glue, so ten net lines is what that actually costs, and the misprint made
+  the extraction look four times more productive than it was.
+- **`main.cpp` is not near 150 lines and part 3 is what closes that**, so the
+  target in the item head above is still open, not quietly dropped.
+
+**Part 3 — the composition. Shipped 2026-08-18.** The HUD, the reticle, the
+run-over wash and the settings screen were ~250 lines of draw calls after
+`frame::compose`, and they are now `render/overlay.cpp` behind one call taking
+one struct — which puts them under `golden_frame_test` for the first time.
+
+- **They did *not* join `render/frame.cpp`, and this entry said they would.**
+  `frame.h` carries a rule in bold — *UI is not here and does not become here* —
+  whose argument is the light pass: everything in that file is in the world and
+  gets lit, everything after it is not, and defect B1 is a reticle that goes
+  orange near a flame. The goal part 3 was written for is **reach**, not one
+  file, so the UI got its own translation unit called after `compose` returns,
+  and the composition never learns it exists. Correcting the plan rather than
+  the rule is the point: the rule had its reason written down and the plan did
+  not.
+- **Two checksums, not one.** `GOLDEN` still hashes `frame::compose` alone and
+  is taken before the overlay runs; `OVERLAY_GOLDEN` (`0x0db76672f5ec3189`)
+  hashes the surface after `overlay::draw` has run on top of it. One number over
+  both would make a change to the HUD indistinguishable from a change to the
+  sky, which is the whole reason the boundary exists.
+- **The no-op half was shipped first, as the house style requires, and it
+  read clean.** The move was built and the full suite run with
+  `golden_frame_test` still calling only `compose`: 17/17, `GOLDEN` unmoved at
+  `0xcde4dc1a39927fca`. So the ~250 lines are known not to have touched a pixel
+  of the world *before* any of them were hashed, and `OVERLAY_GOLDEN` is a
+  first statement about the UI's pixels rather than a mixture of two causes.
+  **It has no earlier value to be compared against**, and the comment at the
+  constant says so plainly: this check cannot yet prove the UI is unchanged,
+  only that from here on it notices.
+- **A checksum over four blocks does not say four blocks are in it**, which is
+  the null-texture lesson `simulation.md` names, so each is switched off on its
+  own and required to move the frame: the reticle, the HUD stack, the hotbar,
+  the wash, the settings screen, the notice, and the greyed *(TOO LARGE)* row.
+  All eight passed. The fixture also runs at `ui_scale` **2 rather than this
+  surface's own `window_h / 270`, which is 1** — no shipped mode produces 1, and
+  every backing rect and gap in the overlay is a multiple of that number.
+- **`src/ui/` and `overlay.cpp` joined `FRAME_SOURCES`**, which is what actually
+  buys the reach: `text.cpp` and `hotbar.cpp` were built only into the game
+  executable, so nothing linked them. No sixth source-set variable — the guard
+  in `CMakeLists.txt` still means what it says, and the comment there now names
+  the test the contents pass rather than leaning on the word "frame".
+- *Verified:* 17/17; `GOLDEN` unmoved across the move and again after; the exe
+  launched, printed all five launch lines with nothing on stderr and exited
+  through `SDL_QUIT`. `main.cpp` is **1,395 lines**, down from 1,544.
+- **The ~150-line target is still open and is now the only thing W5 has left.**
+  What remains in `main()` is the frame's *wiring* — building `frame::Params`
+  and `overlay::Params` from a `Run`, a `Camera` and a `DisplayMode` — plus the
+  input handling. Those are the two blocks a fourth part would take, and
+  whether that part is worth its own sitting is a decision rather than a
+  foregone conclusion: the reach argument that justified parts 1 to 3 is spent,
+  and what is left is length.
 
 **`W6` — Trim `README.md` to a front door.** *(afternoon)* It is 901 lines doing
 four jobs: build/run/test, 153 lines of benchmark procedure, 534 lines of engine

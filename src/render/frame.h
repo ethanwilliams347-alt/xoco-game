@@ -10,8 +10,11 @@
 // frame test exists to say so in a number rather than in this sentence.
 //
 // **UI is not here and does not become here.** The reticle, the HUD, the
-// hotbar, the run-over wash and the settings menu stay in main.cpp, and the
-// boundary is the one V7 already drew when it put the light pass before them:
+// hotbar, the run-over wash and the settings menu live in render/overlay.cpp
+// **and are drawn by a separate call after this one returns** - they were in
+// main.cpp until W5 part 3 on 2026-08-18, and this sentence said so; moving
+// them changed which file they sit in and nothing about the rule. The boundary
+// is the one V7 already drew when it put the light pass before them:
 // everything in this file is *in the world* and gets lit, everything after it
 // is not and must not be. A reticle that goes orange near a flame is defect B1,
 // and moving UI in here is how it comes back.
