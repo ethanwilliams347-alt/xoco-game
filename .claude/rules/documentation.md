@@ -126,11 +126,24 @@ means **a row updated *and* a dated line in History, newest first.**
 **PERFORMANCE.md** — numbers plus the methodology they are only meaningful
 under. Stale tables are replaced wholesale rather than appended to. Every number
 needs its measurement conditions; an unbracketed reading is not evidence.
+- **It also owns how to run the bench**, since `W6` moved that procedure in from
+  README on 2026-08-18. It was 153 lines of README restating this file in a
+  fraction of its vocabulary — `churning` 5 uses against 69, `p99` 1 against 19 —
+  which is the shape a lossy restatement takes. **A new block in `grid_bench` is
+  described here and pointed at from README, never described twice.**
 
 **ENGINEERING_NOTES.md** — decisions deliberately made and then deferred, or
 refused, so they are not rediscovered or reversed by accident. Reference
 material, not a task list. A refusal belongs here **with its reasoning**; "we
 don't do that" without an argument will not survive the next session that wants it.
+- **It also carries `## Engine Architecture`**, moved in from README by `W6` on
+  2026-08-18: how the simulation works, section by section. It reads as the same
+  kind of material — each section argues its shape against the one that was tried
+  first — and a decision taken now sits beside the decisions deferred.
+- **The section anchors are linked from `MANUAL_TESTING.md` and the roadmaps**
+  (`#chunked-updates`, `#liquids-find-their-level`, `#heat`, `#reactions`,
+  `#the-player`, `#structures-and-falling`). Renaming one of those headings
+  breaks those links, so rename it in the callers in the same commit.
 
 **VISION.md** — goals, scope discipline, the Long Term wish list. The wish list is
 for adding to freely; the discipline is only ever about what gets *built*. If
@@ -138,11 +151,20 @@ something needs to happen sooner, the move is to argue it into a different
 section **in writing** — never to build it while it is still filed under "do not
 start this yet."
 
-**README.md** — build, run, test, and `## General Testing`: a **public-facing**
-fundamentals checklist, one or two lines per item, for someone looking at the
-project who wants to see whether it works. Keep it that way — **no reasoning, no
-regression history, no roadmap IDs.** Anything that needs a paragraph belongs in
-MANUAL_TESTING.md.
+**README.md** — build, run, test, controls, and `## General Testing`: a
+**public-facing** fundamentals checklist, one or two lines per item, for someone
+looking at the project who wants to see whether it works. Keep it that way —
+**no reasoning, no regression history, no roadmap IDs.** Anything that needs a
+paragraph belongs in MANUAL_TESTING.md.
+- **It is a front door, and `W6` made it one on 2026-08-18**: 917 lines down to
+  259, with 536 lines of engine architecture to `ENGINEERING_NOTES.md` and 153
+  lines of benchmark procedure to `PERFORMANCE.md`. **The test to apply to a new
+  paragraph here is whether another document already owns the topic** — if one
+  does, this file links to it and says nothing else. That is the failure the item
+  was spent on: the benchmark section was a restatement of `PERFORMANCE.md` and
+  drifted from it.
+- **`## General Testing` stays and stays short.** `W6` was not licence to move it,
+  and neither is the next trim.
 
 **MANUAL_TESTING.md** — the Manual Tester Checklist in full, **thirteen steps as
 of 2026-08-17** (split out

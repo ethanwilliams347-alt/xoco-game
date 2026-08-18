@@ -4,8 +4,169 @@ Benchmark numbers, the method behind them, and the mistakes that method exists
 to prevent. Extracted out of [ROADMAP.md](ROADMAP.md) so a roadmap item that
 makes or corrects a performance claim can point here instead of carrying the
 methodology inline. See `tests/bench_grid.cpp` / [Running the
-Benchmark](README.md#running-the-benchmark) for how to reproduce these numbers
+Benchmark](#running-the-benchmark) for how to reproduce these numbers
 yourself.
+
+## Running the Benchmark
+
+*Moved here from `README.md` by `W6` on 2026-08-18. It used to be 153 lines of
+README restating this file in a fraction of its vocabulary; the procedure and
+the numbers it produces now sit in one document.*
+
+
+Timings are not part of the test suite — a slow machine should not fail the
+build. The benchmark is a separate executable, run it by hand:
+
+```bash
+.\build\Release\grid_bench.exe
+```
+
+It runs seven scenarios at **two** world sizes — 960x540 and the 1920x1080 the
+game actually simulates — and reports milliseconds per step against the 16.67 ms
+budget of a 60 Hz frame, then measures the light field separately at the
+**widest** display mode's viewport (861x361 cells, 3440x1440) — the mode that
+costs the most, so the number is a ceiling rather than a sample. Run it before
+and after any change that claims to make the simulation faster.
+
+**Read the 1920x1080 block; the 960x540 block is there to be checked against.**
+Every number in `PERFORMANCE.md` before P2 was measured at 960x540, which is a
+quarter of the played world, so the small block is kept as the historical series
+and as a control: the scenario constants are written to reproduce their old
+values exactly at 960x540, and if that block stops matching the numbers on
+record, the refactor is what broke rather than the engine.
+
+**Corrected 2026-08-13 — that last sentence asks for the wrong comparison, and
+it is the one this page's own next paragraph forbids.** Absolute times are not
+portable across sittings, so "matches the numbers on record" cannot be the
+control. **What the small block controls is its awake-chunk and peak-fracture
+counts**, which are deterministic on a fixed seed: `churning` 105 → 0,
+`cascading` 75 → 105, 2,384 peak fractured cells, and at 1920x1080 360 → 90, 270
+→ 300, 2,348. Those have now reproduced across four sittings and two different
+builds of the engine — including one pair whose `churning` times differ by 32% —
+while no timing in these documents has ever reproduced across sittings at all.
+If a count moves, the engine's behaviour changed; if a time moves, that may be
+nothing but the afternoon.
+
+The light section is run once rather than once per size, and deliberately: the
+field is sized to the viewport, not to the world, so a second size would produce
+a second identical number that invited being read as evidence about world size.
+
+**The last block is the `VENT_RADIUS` sweep**, which runs `churning` and the
+recorded session at r=0/2/3/4 — four radii inside one process, so the four rows
+are comparable to each other in a way that four builds would not be. Two things
+to know before reading it: **every row but r=3 reports a diverged end state and
+that is the measurement, not a failure** (a different radius is a different
+simulation, so the same inputs are supposed to end somewhere else), and **the
+r=3 row reading `exact` is the actual check** — it is what says the shipped
+simulation is unchanged. It costs about a minute of extra runtime.
+
+**After it comes the fluid breakdown**, which removes one displacement rule at a
+time — `vent_fluid`, `seek_level` and `make_room_above`, the three E5b would
+retire — and prices each on `churning` and on the recorded session. Read it with
+two things in mind: **the rows are separate simulations rather than a partition
+of a step** (removing a rule changes what the world does, so a row's gap from
+`all` is that rule's share of *that scenario*), and **`no lift` on `churning` is
+a null control** — nothing paints there, so that row prices the instrument and
+tells you the table's noise floor. Another minute or so of runtime; the whole
+benchmark is now around three minutes.
+
+Read the rest of this document before trusting a number out of it. Timings from
+different sittings on the same machine have been seen to differ by more than 2x
+on identical code, so a comparison is only worth anything if both sides were
+measured back to back — and that document explains how a claim in these docs got
+that wrong once already.
+
+### The replayed row, and recording one (P4)
+
+The seven scenarios above are all hand-built, and the plan has twice had to
+argue about which of them counts as a realistic frame. The last row of the
+benchmark ends that argument by not being hand-built: it replays a **recorded
+session** — what someone actually did, one input per fixed step — so it is a
+played frame by construction. **It is the row the frame-budget rule in
+`ROADMAP.md` is aimed at.**
+
+```bash
+.\build\Release\SlopPhysics.exe      # play for a minute or two, then press F9
+.\build\Release\grid_bench.exe       # reads session.rec from the current directory
+.\build\Release\grid_bench.exe other_session.rec   # or name one
+```
+
+**Recording is always on and F9 writes what you have played so far**, from the
+first step of the session — not from when you pressed the key. A log has to
+begin at a world the replay can rebuild, and that world is the fixture scene
+before the first step; there is no way to start one in the middle. Press F9
+again later in the same session and you get `session_2.rec`, a longer take, not
+an overwrite.
+
+**That protection ends when the game does, and it has already cost a
+recording.** The counter behind it lives in the running process, so the *first*
+F9 of the next launch writes `session.rec` again and overwrites whatever is
+there. Session 1 survived on 2026-08-13 only because it had been committed to
+git; session 2 landed on top of it a day later. **Copy a recording you care
+about to a name that says what is in it** — `session_1_painting.rec`,
+`session_2_digging_fluids_steam.rec` — before launching the game again. A
+session is several minutes of a person's time and is the only benchmark input in
+this project that cannot be regenerated on demand. `grid_bench` takes the path
+as an argument (`grid_bench.exe session_2_digging_fluids_steam.rec`), so a
+renamed recording is not a less convenient one.
+
+**Play the session you want measured.** A minute of standing still measures a
+sleeping world and is a worse row than no row. Dig, pour water into the channel,
+set something alight, walk somewhere — the kinds of thing step 9 of the manual
+checklist asks for.
+
+**The row prints a `contents` census under the timing, and you should read it
+first.** It counts what you did (exact, from the log) and samples what was in
+the world once a second, in a second untimed pass. It exists because the first
+recorded session read **0 of 24,437 steps over budget** and nobody could tell
+whether that meant the engine was fast or the session was quiet. The census
+answered it: **that session never dug once, never moved a single grain of sand
+or cell of water, and peaked at 16 of 510 chunks awake.** A real session, and
+not a representative one — see the played-session sections below.
+
+**So: play the expensive cases on purpose, and check the census afterwards.**
+The row cannot be quoted as a budget for ordinary play until a session exists
+that contains ordinary play. Worth covering, because the first one covered none
+of them: **digging** (0 steps last time), **sand falling into water**
+(untouched), **steam under a ceiling** (never seen — this is the one E9 has been
+waiting on), and **moving around** (the player stood still for 98.4% of it). The
+census line `Fire+Water+Sand all present in N of M samples, digging in N of
+those` is checklist step 9 asked as one question.
+
+**Session 2 covered them, on 2026-08-13** — 479 dig steps, sand into the
+channel, fire under a ceiling, 20,415 steps replayed byte-exact and **0 of them
+over budget**. The paragraph above is kept because it is still the instruction
+for recording a *new* session, and because the gap it describes is the reason
+the project has two recordings instead of one. **A third session is not owed.**
+If you record one anyway, the case none of them has covered yet is **movement
+held through a collapse** — the one clause of step 9 the census cannot see,
+since a collapse is not a material and does not appear in any column.
+
+**Sampled means presence, not absence.** A fire that lit and burned out between
+two samples reads as never seen. Do not read a `never seen` row as proof the
+session lacked something — read it as the instrument not having caught it.
+
+**Three things invalidate a log**, and the first two are refused rather than
+measured:
+
+- **the fixture scene changed** — the replay would start in a different world.
+  `scene_test` fails first, on the pinned cell count, which is the cheap
+  warning;
+- **the log format changed** — a version mismatch, refused by name;
+- **the simulation changed** — which is *not* a failure. The replay reports that
+  the end state differs and keeps the timing, because an E-track item that
+  changes physics legitimately changes where the session ends up. Only you can
+  tell that apart from a stale log, so the bench says what it saw rather than
+  guessing.
+
+The row reports a mean, a p99 and a worst step, and how many steps went over
+budget. **The mean is the least useful of the four**: a session that sleeps
+through 95% of its steps and spends the rest at 40 ms stutters badly and has an
+excellent mean. Note also that this row times a whole `Run::step` — grid,
+player, dig tool and brush — where every row above it times `Grid::update`
+alone, so the two are not directly comparable.
+
+## The numbers
 
 Numbers from `grid_bench` on the dev machine, minimum of 5 runs in one sitting,
 against a 16.67 ms frame.
@@ -162,21 +323,21 @@ and its interior asleep — is **unknown**, and nothing in this file can current
 produce it. That is a concrete requirement for **P4**: a replayed session that
 includes putting a fire out near a ceiling is the row that would answer it.
 
-> **Updated 2026-08-13 by session 2, and the requirement above was
-> mis-specified.** A session *was* played with fire under a ceiling, and steam
-> reached 10,731 cells across 28 of 341 samples — so the material is confirmed
-> to occur in play at scale. **It still does not answer this question, and a
-> replayed session never can:** pricing a branch needs two readings and the
-> replayed row is a single baseline with no A/B in it, so "the row that would
-> answer it" was never the right shape of instrument. What session 2 actually
-> buys is the **size** — a synthetic steam row built to ~10.7k cells collecting
-> against a ceiling now has a played number behind its dimensions rather than a
-> guess, which is the missing piece that made this scenario unbuildable before.
-> The census also cannot separate painted steam from boiled steam (`painted
-> 484`), so it sizes the load without isolating its cause. Until then the claim
-> about this feature's cost is bounded to "the branch is under 10% in scenarios
-> that never take it", which is a much weaker statement than a row in this table
-> usually makes, and is written that way on purpose.
+> **Updated 2026-08-13 by session 2, and the requirement above was >
+mis-specified.** A session *was* played with fire under a ceiling, and steam >
+reached 10,731 cells across 28 of 341 samples — so the material is confirmed >
+to occur in play at scale. **It still does not answer this question, and a >
+replayed session never can:** pricing a branch needs two readings and the >
+replayed row is a single baseline with no A/B in it, so "the row that would >
+answer it" was never the right shape of instrument. What session 2 actually >
+buys is the **size** — a synthetic steam row built to ~10.7k cells collecting >
+against a ceiling now has a played number behind its dimensions rather than a >
+guess, which is the missing piece that made this scenario unbuildable before. >
+The census also cannot separate painted steam from boiled steam (`painted >
+484`), so it sizes the load without isolating its cause. Until then the claim >
+about this feature's cost is bounded to "the branch is under 10% in scenarios >
+that never take it", which is a much weaker statement than a row in this table >
+usually makes, and is written that way on purpose.
 
 ### A 16-byte `Element` is 10% *faster* than the 12-byte one, and the free bytes are free
 
@@ -543,22 +704,22 @@ per-step statistic support the same sentence, write the sentence against the
 per-step one** — the census is for saying what a session *contained*, not for
 bounding how busy it got.
 
-> **Corrected the same day by the `VENT_RADIUS` sitting, and the correction is
-> about `worst`, not about the conclusion.** Replaying this session four times
-> in one process on identical code gave means within **0.3%** and p99s within
-> **1.2%** — and worsts of **4.8212, 4.8360, 4.8608 and 8.2937 ms, a 72%
-> spread.** `worst` is one observation out of 20,415 and it catches whatever the
-> operating system was doing at that instant, which is exactly the failure mode
-> "read p99, never the mean" was written to avoid at the other end of the
-> distribution. **The paragraph above reached past the two statistics the budget
-> rule already names for a more dramatic one.** The `churning` conclusion is
-> unaffected — 4.83 against 37.25 ms/step *sustained* is a factor of eight, far
-> outside a 72% band, and p99 at 1.19 ms carries it just as well — but the
-> sentence should have been built on **p99 and 0 of 20,415 steps over budget**,
-> which are stable to about 1% and exact respectively. Both remain true. The
-> general rule stands with a clause added: prefer the per-step statistic over
-> the sampled one, **and prefer the distribution over its single largest
-> sample.**
+> **Corrected the same day by the `VENT_RADIUS` sitting, and the correction is >
+about `worst`, not about the conclusion.** Replaying this session four times >
+in one process on identical code gave means within **0.3%** and p99s within >
+**1.2%** — and worsts of **4.8212, 4.8360, 4.8608 and 8.2937 ms, a 72% >
+spread.** `worst` is one observation out of 20,415 and it catches whatever the >
+operating system was doing at that instant, which is exactly the failure mode >
+"read p99, never the mean" was written to avoid at the other end of the >
+distribution. **The paragraph above reached past the two statistics the budget >
+rule already names for a more dramatic one.** The `churning` conclusion is >
+unaffected — 4.83 against 37.25 ms/step *sustained* is a factor of eight, far >
+outside a 72% band, and p99 at 1.19 ms carries it just as well — but the >
+sentence should have been built on **p99 and 0 of 20,415 steps over budget**, >
+which are stable to about 1% and exact respectively. Both remain true. The >
+general rule stands with a clause added: prefer the per-step statistic over >
+the sampled one, **and prefer the distribution over its single largest >
+sample.**
 
 **What this does not do is price anything**, and the two-part rule above is
 unchanged: p99 and steps-over-budget here, the bracketed synthetic rows for
@@ -575,27 +736,23 @@ at the end against 8 — and that is a plausibility check, not a measurement.
 **What is measured is that each session is far under budget on its own worst
 step.**
 
-> **The comparison became admissible at the `VENT_RADIUS` sitting, and it says
-> something the means alone did not.** Both sessions were replayed on one binary
-> minutes apart, and the synthetic `churning` rows in the two processes agree to
-> **0.3%** — which is the control this document asks for, and its absence was
-> the whole reason the paragraph above refused. Read against each other:
->
-> | | session 1 (painting) | session 2 (digging, fluids, steam) |
-> |---|---|---|
-> | mean | 0.1247 ms | **0.2082 ms** — +67% |
-> | p99 | **1.5042 ms** | 1.2189 ms — **-19%** |
-> | over budget | 0 of 24,437 | 0 of 20,415 |
->
-> **The busier session costs two thirds more per step on average and has a
-> *quieter* tail.** That is the opposite of the shape a budget worries about,
-> and it is the more useful reading of the two: terrain work shows up as
-> **steady throughput**, in more chunks awake on more steps, rather than as
-> spikes. Nothing here is a fluid *stall*. **Do not turn this into a rule about
-> fluids being cheap** — it is one reading of each of two sessions, and the p99
-> repeat band is 1.2% while these differ by 19%, which makes the direction
-> trustworthy and the magnitude not. What it does retire is the guess that
-> session 2's higher mean implied a worse frame anywhere.
+> **The comparison became admissible at the `VENT_RADIUS` sitting, and it says >
+something the means alone did not.** Both sessions were replayed on one binary >
+minutes apart, and the synthetic `churning` rows in the two processes agree to >
+**0.3%** — which is the control this document asks for, and its absence was >
+the whole reason the paragraph above refused. Read against each other: > > | |
+session 1 (painting) | session 2 (digging, fluids, steam) | > |---|---|---| > |
+mean | 0.1247 ms | **0.2082 ms** — +67% | > | p99 | **1.5042 ms** | 1.2189 ms —
+**-19%** | > | over budget | 0 of 24,437 | 0 of 20,415 | > > **The busier
+session costs two thirds more per step on average and has a > *quieter* tail.**
+That is the opposite of the shape a budget worries about, > and it is the more
+useful reading of the two: terrain work shows up as > **steady throughput**, in
+more chunks awake on more steps, rather than as > spikes. Nothing here is a
+fluid *stall*. **Do not turn this into a rule about > fluids being cheap** — it
+is one reading of each of two sessions, and the p99 > repeat band is 1.2% while
+these differ by 19%, which makes the direction > trustworthy and the magnitude
+not. What it does retire is the guess that > session 2's higher mean implied a
+worse frame anywhere.
 
 **E9's steam question is still open, and the census is now precise about why.**
 Steam reached **10,731 cells and appears in 28 of 341 samples**, so the material

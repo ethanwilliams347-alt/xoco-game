@@ -8,11 +8,15 @@ live in their own documents:
 - **[VISION.md](VISION.md)** — project goals, scope discipline (why the plan is
   sized the way it is), and the Long Term wish list.
 - **[PERFORMANCE.md](PERFORMANCE.md)** — `grid_bench` numbers, measurement
-  methodology, and the mistakes that methodology exists to prevent.
+  methodology, and the mistakes that methodology exists to prevent. **Also how
+  to run the bench**, since `W6` moved that procedure in from README.
 - **[ENGINEERING_NOTES.md](ENGINEERING_NOTES.md)** — deferred technical
-  decisions and the reasoning behind them.
-- **[README.md](README.md)** — how to build, run, and test the game, including
-  the short `## General Testing` fundamentals pass.
+  decisions and the reasoning behind them, and — since `W6` —
+  **[Engine Architecture](ENGINEERING_NOTES.md#engine-architecture)**, how the
+  simulation works.
+- **[README.md](README.md)** — how to build, run, and test the game, the
+  controls, and the short `## General Testing` fundamentals pass. **A front door
+  since `W6`**: everything longer links out.
 - **[MANUAL_TESTING.md](MANUAL_TESTING.md)** — the Manual Tester Checklist in
   full (**thirteen steps as of 2026-08-17**), and the list of what is currently
   owed to the tester.
@@ -112,7 +116,7 @@ has to be re-read to know what to do.***
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
 | 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
-| 9 | **W-track: the workbench** | ~3 days | **in progress** — `W1`, `W2`, `W3` and `W4` all shipped 2026-08-17. **`W5`'s three parts all shipped** (2026-08-17/18); **`W6` is next**. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
+| 9 | **W-track: the workbench** | ~3 days | ✅ **closed 2026-08-18** — `W1`–`W4` shipped 2026-08-17, `W5`'s three parts 2026-08-17/18, **`W6` 2026-08-18**. **The one thing left open in it was closed as a decision on 2026-08-18: `W5` gets no part 4** — see the end of that entry. **`V22` is next**, and the tester's UI look came back good the same day, so it is unblocked. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -456,7 +460,9 @@ table is the order and the sizes only. **`W1`, `W2` and `W4` all shipped
 purpose — it pins doc numbers to their sources and `W4` moved the very lines it
 would pin — and with that dependency discharged it pinned numbers that will
 hold, including the two `W4` produced: the live-plan and archive sizes. **`W5`
-is next**, and it is the one item in the track that needs the tester afterwards.
+was the one item in the track that needed the tester afterwards, and `W6` closed
+the track on 2026-08-18.** The table is kept as the record of what the track
+bought; nothing in it is queued.
 
 | # | what | size | state |
 |---|---|---|---|
@@ -464,8 +470,8 @@ is next**, and it is the one item in the track that needs the tester afterwards.
 | W2 | **`.claude/settings.json`** — a permission allowlist for `cmake`, `ctest`, `git`, `python tools/*`. The repo has no settings file at all today | afternoon | **shipped 2026-08-17** — 40 rules, because every entry is written once per shell and `git` had to be split verb by verb; no `deny` list, on purpose |
 | W3 | **The doc-truth suite** — a fifteenth `ctest` asserting the docs' checkable numbers against their sources (suite count, `Element` size, golden checksum, `FIXTURE_SCENE_CELLS`) | afternoon | **shipped 2026-08-17** as `docs_test`, seven checks, plus the checklist length and the two `W4` sizes; every check was verified against a mutated doc before being kept |
 | W4 | **One live plan file; shipped rationale to a dated `ROADMAP_ARCHIVE.md`.** Includes the `CLAUDE.md` routing-table row that causes the split — that is part of the item, not a follow-up | days | **shipped 2026-08-17**, in two commits — a verified-lossless relocation, then the merge and the per-entry sweep. Boundary chosen: *finished **and** nothing open depends on the reasoning* |
-| W5 | **Extract `main()`** — a `boot` unit, the shell's decisions, the UI composition, and a `main()` of ~150 lines | days | **parts 1–3 shipped 2026-08-17/18**: `game/boot.h` + `boot_test`; `game/pacer.h` and `game/settings_menu.h` + `shell_test`; `render/overlay.cpp` + a second golden checksum. **The acceptance check is met** — two of checklist step 1's launch lines are assertions now. `main.cpp` 1,625 → **1,395**. **The ~150-line target is not met and is all that is left**; what remains is the frame's wiring and the input handling, and whether that is worth a part 4 is an open decision, not a scheduled one |
-| W6 | **Trim `README.md` to a front door** — architecture to `ENGINEERING_NOTES.md`, benchmark procedure to `PERFORMANCE.md`, `## General Testing` untouched | afternoon | queued |
+| W5 | **Extract `main()`** — a `boot` unit, the shell's decisions, the UI composition, and a `main()` of ~150 lines | days | **parts 1–3 shipped 2026-08-17/18**: `game/boot.h` + `boot_test`; `game/pacer.h` and `game/settings_menu.h` + `shell_test`; `render/overlay.cpp` + a second golden checksum. **The acceptance check is met** — two of checklist step 1's launch lines are assertions now. `main.cpp` 1,625 → **1,395**. **The ~150-line target is not met and, on 2026-08-18, will not be**: there is no part 4. What remains in `main()` is the frame's wiring and the input handling, and the case for moving them was length alone |
+| W6 | **Trim `README.md` to a front door** — architecture to `ENGINEERING_NOTES.md`, benchmark procedure to `PERFORMANCE.md`, `## General Testing` untouched | afternoon | **shipped 2026-08-18** — 917 lines → **259**. 536 lines of architecture and 153 of benchmark procedure relocated verbatim; the anchors moved with them and every inbound link was repointed. **`W6` closes the W track** |
 
 > **Why this goes ahead of V22, since V22 was "next" as of yesterday.** **V22 is
 > blocked on a human and none of W1–W6 are blocked on anything.** The V23 feel
@@ -761,7 +767,7 @@ not known and the evidence that would settle it does not exist yet.
 | ~~**Does the renderer stay `SDL_Renderer`?**~~ *(V7 required this be decided deliberately if ever)* | ~~before V15 is scoped~~ | ✅ **Decided 2026-08-11: yes, it stays.** V7's entry says the shader path is *"a genuinely large decision about what this project's renderer is"* and must not be discovered halfway through a CPU implementation. **Every item now scheduled has a route without one**, and the routes are named so this can be checked rather than believed: `SDL_ComposeCustomBlendMode` for V11's multiply term, `SDL_RenderGeometry` for textured triangles, `SDL_TEXTUREACCESS_TARGET` for S1's masked body — all present in the pinned SDL 2.30.0, none used anywhere today. **Reopen trigger: the first scheduled item with no such route**, and the one candidate on the horizon is sub-cell terrain detail, because the terrain's resolution *is* the simulation's and no asset work reaches it. Whoever hits that writes the fork here rather than starting it. |
 | **Does a body displace material — re-asked, for a body that sheds matter?** *(new — S1)* | at S1 scoping | E4 closed **"no"** on 2026-08-10, on evidence from a session where **nothing in the game depended on the answer**. `S1` is a body that spawns `Grit` out of itself, and [notes/granulating_enemies.md](notes/granulating_enemies.md) predicted the failure that "no" now permits: the grit falls through the enemy producing it, so the effect fails exactly at the moment it exists to be looked at. `ENGINEERING_NOTES.md` already says re-ask at E5a; this is a second and stronger reason, with a named consumer rather than a schedule position. **A narrow yes — bodies that shed matter displace it, the player still does not — is a legitimate answer** and is the one to consider first, since it is the only case with evidence behind it. |
 | ~~**What does the frame-budget rule trigger on, now that the budget is measured at the played size?**~~ *(P2 — reframed 2026-08-11)* | ~~at the instrumentation sitting (item 4)~~ | ✅ **The rule is decided; the `churning` question bundled with it is not — see (3).** Closed 2026-08-13 on the first recorded session, and the answer is not the one this entry argued for. The session: 24,437 steps, 407 s of play, **mean 0.1212 ms/step (0.7% of a frame), p99 1.4745 ms (8.8%), worst step 4.8193 ms (28.9%), 0 of 24,437 steps over budget** — and that is a whole `Run::step`, so it already includes the player, dig tool and brush the synthetic rows leave out. **(1) The rule triggers on p99 and on steps-over-budget, never on the mean**, which this entry got right in advance. **(2) But "decide it against that row, not against a taxonomy of the synthetic ones" is half backwards, and the number is what showed it.** A merge test of "under 10% on the replayed row" is 10% of 0.12 ms — twelve microseconds, well under this benchmark's noise — on a row with three times the budget in headroom. A per-awake-cell cost that only bites under load would pass it while being invisible to it. **So both kinds of row are kept and given different jobs: the replayed row is the authority on whether the budget is broken, the synthetic rows on whether a change costs anything at all.** The restated rule is in the [P track](#p--performance). **(3) Whether `churning` is representative is still open, and the same-day census is why.** The row now reports what a session contained, and the first session contained **no digging, no moving sand and no moving water at all** — peak 16 of 510 chunks awake. It cannot be compared against a liquid scenario because it has no liquid in it. **The half of the question worth keeping is that "representative" needed a completing phrase**: `churning` measures the engine under sustained liquid churn, which is a real thing a player does and not a synthetic one, and the argument was never going to be settled by classifying scenarios. **It is settled by a session that actually pours sand into water, and that session is item 4's remaining work.** Numbers, and the correction in full, in [PERFORMANCE.md](PERFORMANCE.md). |
-| *The original entry, kept because its reasoning was right where its conclusion was not:* | ~~at the instrumentation sitting (item 4)~~ | The standing rule is "if one item alone breaks the frame budget, P1 gets pulled forward". P2 found `churning` at 211% and `cascading` at 241% at 1920x1080 with nothing having got slower, so the rule as written does not fire. **The previous recommendation was to re-aim the rule away from those rows as synthetic, and the review pushed back on half of it, correctly.** `cascading` is genuinely synthetic — a row is scraped off the floor and poured back at the ceiling every step, which nothing produces. **`churning` is sand sinking through water, and that is the most ordinary thing a player does in a falling-sand game** — F4.4 put a water channel in the fixture scene precisely so it would happen. Calling it synthetic to keep the rule quiet is the failure `PERFORMANCE.md` is otherwise entirely about. **This is not settled by arguing about which rows are realistic, because there is an instrument that ends the argument: `P4` replays a recorded session and produces a row that *is* a played frame, by construction.** Decide the rule against that row, not against a taxonomy of the synthetic ones. **`P4` shipped 2026-08-13 and this decision now has exactly one thing standing in front of it: a session someone has actually played** (`F9` writes it; [README](README.md#the-replayed-row-and-recording-one-p4)). The row reports mean, p99, worst step and steps-over-budget, so the rule can be written against a statistic rather than against an average — **and the average is the one to avoid**, since a session that stutters for 5% of its steps has an excellent one. |
+| *The original entry, kept because its reasoning was right where its conclusion was not:* | ~~at the instrumentation sitting (item 4)~~ | The standing rule is "if one item alone breaks the frame budget, P1 gets pulled forward". P2 found `churning` at 211% and `cascading` at 241% at 1920x1080 with nothing having got slower, so the rule as written does not fire. **The previous recommendation was to re-aim the rule away from those rows as synthetic, and the review pushed back on half of it, correctly.** `cascading` is genuinely synthetic — a row is scraped off the floor and poured back at the ceiling every step, which nothing produces. **`churning` is sand sinking through water, and that is the most ordinary thing a player does in a falling-sand game** — F4.4 put a water channel in the fixture scene precisely so it would happen. Calling it synthetic to keep the rule quiet is the failure `PERFORMANCE.md` is otherwise entirely about. **This is not settled by arguing about which rows are realistic, because there is an instrument that ends the argument: `P4` replays a recorded session and produces a row that *is* a played frame, by construction.** Decide the rule against that row, not against a taxonomy of the synthetic ones. **`P4` shipped 2026-08-13 and this decision now has exactly one thing standing in front of it: a session someone has actually played** (`F9` writes it; [README](PERFORMANCE.md#the-replayed-row-and-recording-one-p4)). The row reports mean, p99, worst step and steps-over-budget, so the rule can be written against a statistic rather than against an average — **and the average is the one to avoid**, since a session that stutters for 5% of its steps has an excellent one. |
 | ~~**What can `Element::ticks` actually represent, and does E5a fit in it?**~~ *(E10 / E5a)* | ~~at the instrumentation sitting (item 4)~~ | ✅ **Closed 2026-08-13: it cannot represent a velocity, and E5a does not go in it. The answer is none of the three candidates — the bytes were already there.** Measured with `velocity_probe` (`tests/velocity_probe.cpp`), built for this and kept. **(1) The packed 4+4 integer cannot carry gravity, confirmed rather than argued.** One step of `Player::GRAVITY` is 5/36 of a cell per step; added to a whole-cell integer it truncates to zero every step forever, so the probe's thrown grain **never comes back down in 600 steps** — a raycast, exactly as the entry predicted. Its slowest non-zero speed is 1 cell/step = 60 cells/s, 15% of the player's own terminal velocity, so nothing can be nudged, only launched: E4's shove is 0 cells/step under this representation. **(2) `Element` has three free bytes and always did**, at offsets 1–3, in the alignment hole between `type` and `color` — measured with `sizeof`/`offsetof`, not counted. `element.h`'s "that was the last free byte" counted the *tail* hole only, and the correction is recorded beside it there. **A signed 4.4 velocity byte per axis plus a nibble per axis of sub-cell remainder is exactly three bytes, and the struct stays at 12.** `grid_bench` with those three fields present is inside the noise band on every row (PERFORMANCE.md). **(3) The sub-cell remainder is the quantity this entry never named**, and it is half the requirement: a cell's position is a cell index, so a velocity with a fraction needs somewhere to spend the fraction, exactly as `Player` carries `rem_x` alongside `vel_x`. Any answer that budgeted for velocity alone was budgeting for half the problem. **(4) Gravity is applied by differencing a running total off the global step counter** — Bresenham on an acceleration — because 5/36 of a cell is 2.222 sixteenths and a truncated 2 makes gravity 10% light on every thrown thing forever. Flown at all nine phases of the pattern: range 224–228 cells against the `fx` 16.16 reference's 228, worst deviation **2 cells**, versus 25 for the truncated version and a 156%-of-the-mean spread for the stochastic one. **`P1` does not move** — no byte is spent, so the trigger written into its entry never fires. **E10 is unblocked and its "costs no memory" claim survives**, but for a different reason than it gave: it does not need the byte either, since "is this cell moving" is `vel != 0`. |
 | *The original entry, kept because its two problems were both real and one of them was found by taking it seriously:* | at the instrumentation sitting (item 4), and before E10 writes to the byte | E10 claims the byte and E5a redefines it as 4 bits of signed dx plus 4 of signed dy. **Two problems, and the second is the one that costs weeks if it is found during E5a.** *(a)* Integer cells-per-tick has no sub-cell fraction, so the only representable speeds are 0 through 7 and **gravity cannot be integrated onto a moving cell at all** — a thrown grain travels a straight line at constant speed and stops. That is a raycast, not the throw/splash/spray E5a exists to buy, and it is the one thing every engine this is measured against uses a fraction for. *(b)* [element.h](src/physics/element.h) already gives the byte two mutually exclusive roles guarded by a `static_assert`, and E5a's is a third — so **structural and Fire cells are excluded, which means E6 cannot throw wall debris or fire, and that is written nowhere.** Settled by prototyping the representation against `cascading` at the sitting, not from the desk. **The candidate answers are: accept the coarse integer and write the restriction down; spend a second byte and pull `P1` in front of `E5a` rather than after it; or split speed across `ticks` plus reclaimed bits elsewhere.** Whichever wins, E10 must not write to the byte before it is chosen, because E10's whole claim is that it is not a rewrite of E5a's representation. **What changed on 2026-08-12, and it moves the ground without answering the question.** E9's steam half made `Steam` the second material to spend the byte as a *lifetime*, so problem *(b)* above is now measurably worse and measurably better at the same time. Worse: **two Gases are excluded from carrying a velocity, not one**, so E6 cannot hand an impulse to steam either — though that widens an exclusion E6's entry already states rather than creating a new one. Better: the roles are no longer a belief. [element.h](src/physics/element.h) has `tick_role()` and an assertion over every row that nothing carrying a lifetime is structural — **the `constexpr` role lookup E10's entry asks for, built early and by a different item** — so whatever representation wins, adding it is an edit to one function that fails the build if the roles collide, instead of a byte three systems each believe they own. **Problem *(a)*, the sub-cell fraction, is untouched and is still the one that costs weeks if it is found during E5a.** |
 
@@ -941,7 +947,7 @@ in their own tracks because they belong to those tracks' running orders.*
        it cannot answer the `churning` question, and the two items below cannot
        be judged against it either. **This is the batch's remaining blocker and
        it is two minutes of play**, listing the cases to cover in
-       [README](README.md#the-replayed-row-and-recording-one-p4).
+       [README](PERFORMANCE.md#the-replayed-row-and-recording-one-p4).
         - **`churning` is settled and the answer is no** — it is not
           representative of played work. Session 2 deliberately drove sand into
           water and its **worst single step of 20,415 was 4.83 ms**, against
@@ -1692,15 +1698,24 @@ one struct — which puts them under `golden_frame_test` for the first time.
 - *Verified:* 17/17; `GOLDEN` unmoved across the move and again after; the exe
   launched, printed all five launch lines with nothing on stderr and exited
   through `SDL_QUIT`. `main.cpp` is **1,395 lines**, down from 1,544.
-- **The ~150-line target is still open and is now the only thing W5 has left.**
+- **The ~150-line target is closed unmet, 2026-08-18: there is no part 4.**
   What remains in `main()` is the frame's *wiring* — building `frame::Params`
   and `overlay::Params` from a `Run`, a `Camera` and a `DisplayMode` — plus the
-  input handling. Those are the two blocks a fourth part would take, and
-  whether that part is worth its own sitting is a decision rather than a
-  foregone conclusion: the reach argument that justified parts 1 to 3 is spent,
-  and what is left is length.
+  input handling. Those are the two blocks a fourth part would have taken, and
+  the decision went against it: the reach argument that justified parts 1 to 3
+  is spent. Each of those parts moved a *decision* behind a seam a test could
+  then hold — boot order, the pacer, the settings menu, the overlay's drawing.
+  The wiring and the input handling are neither: they are `main()` reading its
+  own locals, and a unit that took them would need every one of those locals
+  passed in, which is the shape of a move that buys nothing. **What was left
+  was length, and length is not a defect.** 1,395 lines is the number; the
+  target was written before parts 1 to 3 showed what was actually separable,
+  and it is the target that was wrong, not the file. Reopen this only if a
+  concrete change is made hard by the wiring living in `main()` — that is a
+  symptom the target never had.
 
-**`W6` — Trim `README.md` to a front door.** *(afternoon)* It is 901 lines doing
+**`W6` — Trim `README.md` to a front door.** *(afternoon)* **Shipped
+2026-08-18.** It was 917 lines doing
 four jobs: build/run/test, 153 lines of benchmark procedure, 534 lines of engine
 architecture, and the public fundamentals pass. The benchmark section is a
 **lossy restatement** of a file that owns the topic — it shares
@@ -1710,6 +1725,39 @@ architecture, and the public fundamentals pass. The benchmark section is a
 keeps build, run, test, controls, `## General Testing` and links out. **`##
 General Testing` stays public and stays short** — that is already a written rule
 and this item must not be read as licence to move it.
+
+- *Done:* **917 lines → 259.** `## Engine Architecture` and its eight
+  subsections (536 lines) are at the end of `ENGINEERING_NOTES.md`; `## Running
+  the Benchmark` and `### The replayed row, and recording one (P4)` (153 lines)
+  are at the top of `PERFORMANCE.md`, above a new `## The numbers` heading that
+  the existing series needed anyway. **Both moved verbatim**, so the section
+  anchors are unchanged and only the file in front of the `#` moved.
+- **The links were the actual work, and they were the risk.** Nine anchors were
+  linked from `MANUAL_TESTING.md` (six checklist steps), `PERFORMANCE.md`,
+  `ROADMAP.md` and `ROADMAP_ARCHIVE.md`; all were repointed, and README's own
+  four internal links now cross files. `docs_test` does not check these — it
+  checks for a live link to the deleted `ROADMAP_ITEMS.md`, which is a different
+  question — so a moved heading is checked by nobody. **That is now a written
+  rule in `.claude/rules/documentation.md`: rename one of those headings and
+  fix the callers in the same commit.**
+- *Not done, deliberately:* README keeps its `## Running the Benchmark` heading
+  as a seventeen-line pointer with the command in it. Deleting it outright would
+  have made "how do I run the bench" unanswerable from the front door, which is
+  the opposite of the item. **A pointer that names the owning document is not
+  the restatement this item was spent on** — the restatement was 153 lines
+  sharing `PERFORMANCE.md`'s whole vocabulary at a fraction of its content.
+- *Also updated, because the boundary moved:* `CLAUDE.md`'s routing table (three
+  rows), `.claude/rules/documentation.md` (the three per-file sections), and
+  `ENGINEERING_NOTES.md`'s opening paragraph, which described a file that no
+  longer held only deferred decisions.
+- *Verified:* 17/17, and the build line read before the test line. No prose
+  change to any moved paragraph beyond three self-references that the move had
+  turned circular (`README` telling the reader to go and read `PERFORMANCE.md`,
+  from inside `PERFORMANCE.md`; the same for the RNG entry).
+- **The W track closes here, and as of 2026-08-18 it closes entirely** — the
+  one thing left open in it, `W5`'s ~150-line `main()` target, was closed unmet
+  by decision the same day; the argument is at the end of the `W5` entry. Next
+  is the V track at `V22`, which the tester's UI look unblocked that day.
 
 ### Refused, or deferred with the reason
 

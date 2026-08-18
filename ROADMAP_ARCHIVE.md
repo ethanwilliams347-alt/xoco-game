@@ -1005,7 +1005,7 @@ make them again. Nothing here is a task.*
   wall on solid ground sheds chunks of itself; and a falling piece **accelerates
   by falling repeatedly rather than further**, which is what makes it
   structurally unable to step over a floor thinner than its speed. Full
-  reasoning for all four is in [README](README.md#structures-and-falling).
+  reasoning for all four is in [README](ENGINEERING_NOTES.md#structures-and-falling).
   Covered by 31 tests in `tests/test_collapse.cpp` — including a disc whose
   exact shape is compared before and after landing (a rectangle still looks like
   a rectangle after a row of it slips, so rectangles alone were not catching
@@ -2874,7 +2874,7 @@ replacing the original wording.
       construction, not by assertion, and it is the row the frame-budget rule
       above is aimed at. **Recording is always on and `F9` writes what has been
       played so far** — see
-      [README](README.md#the-replayed-row-and-recording-one-p4). A recording
+      [README](PERFORMANCE.md#the-replayed-row-and-recording-one-p4). A recording
       that *started* on a keypress was the obvious design and does not work: a
       log has to begin at a world the replay can rebuild, and the only such
       world is the fixture scene before the first step.
@@ -4334,7 +4334,7 @@ pointing here.*
 - [x] **P4 — A benchmark scenario that is a real frame.** *(built and first
   session recorded 2026-08-13 — numbers and method in
   [PERFORMANCE.md](PERFORMANCE.md), how to record one in
-  [README](README.md#the-replayed-row-and-recording-one-p4))* **This item
+  [README](PERFORMANCE.md#the-replayed-row-and-recording-one-p4))* **This item
   retires an argument rather than a defect.** All seven scenarios in
   `grid_bench` are hand-built, and the plan has twice had to decide which of
   them counts as a realistic frame — most recently over `churning` at 211%,

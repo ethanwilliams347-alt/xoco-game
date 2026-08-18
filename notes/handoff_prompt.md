@@ -1,6 +1,6 @@
-# Handoff — W5 is next. Nothing is owed to the tester *yet*.
+# Handoff — `W6` is next. One look is owed to the tester.
 
-*Written 2026-08-17, at the close of the session that shipped `W3`.*
+*Written 2026-08-18, at the close of the session that shipped `W5`.*
 
 You are picking up Toop/Xoco, a from-scratch C++20 / SDL2 cellular-automata
 pixel-physics game. Repo root is `code/`; **run every command from there.** Read
@@ -29,57 +29,73 @@ part of that file that has to be re-read to know what to do, and it is the
 authority on both the order and the argument — as of `W4` there is no second
 plan file. The rest of `ROADMAP.md` is a search target, not a read.
 
-Where it stands: **`W5` is next** and unblocked — extract `main()`. It is the
-largest item in the track by some way and **the only one that needs the tester
-afterwards**, so read its entry in full before starting: it names the shape to
-aim for, and its acceptance is not the line count. **The item is admitted on
-converting human-checkable work into machine-checkable work**, so the check that
-matters is its last one — *at least one Manual Tester Checklist step demoted to
-a headless assertion*. If none can be, the item did not buy what it was sold on,
-and that is a finding to record rather than a bar to lower.
+Where it stands: **`W6` is next** — trim `README.md` to a front door. Read its
+entry for the boundary it draws; the one thing to know going in is that `##
+General Testing` stays public and stays short, and that is a written rule rather
+than a preference.
 
-Then `W6`. After the W block, the V track resumes at **V22**, and **`E10` keeps
-the head of the queue** when the V and W blocks both close.
+`W5` closed its three parts but **left one thing open on purpose, and it is a
+decision rather than a task**: its `main()` line-count target is not met, and
+whether a fourth part is worth a sitting is argued at the end of the `W5` entry.
+The reach argument that justified parts 1 to 3 is spent. Do not start a part 4
+without reading that paragraph and forming a view.
+
+After the W block, the V track resumes at **V22**, and **`E10` keeps the head of
+the queue** when the V and W blocks both close.
 
 ## What a fresh reader gets wrong
 
-- **Some of the docs' numbers are a test now.** `W3` shipped 2026-08-17 as
-  `docs_test`, the fifteenth suite: the suite count, `Element`'s size and free
-  bytes, the golden checksum quoted in prose, the scene's cell count, the
-  checklist's length and the two plan-file sizes are asserted against the code
-  and files they come from. **A failing `docs_test` means a document is wrong,
-  not that the check is** — fix the sentence, never the check.
-  `.claude/rules/documentation.md` owns the rules for writing under it. `W5`
-  will trip it the moment it changes which files exist, and that is the suite
-  working.
-- **The camera work is gone.** `V23` and `V23a` shipped on 2026-08-17 and `V23b`
-  deleted them the same day at the tester's direction — the player is centred
-  again, `camera_bias.h` and its suite no longer exist, and the golden checksum
-  is back to its pre-V23 value. Do not plan around a moving camera. **The one
-  thing that survived is a constraint on `V22`**, and it is written into the
-  `V22` entry: centring caps the receding plane's visible band at ~50% by
-  construction, and it measured 20.2% at the spawn.
+- **The UI is not in `frame.cpp` and must not go there.** `W5` part 3 moved the
+  HUD, reticle, hotbar, run-over wash and settings screen out of `main.cpp` into
+  their own translation unit, drawn by its own call after the composition
+  returns. The plan said they would join `render/frame.cpp` and **the plan was
+  wrong** — `frame.h`'s rule is about the light pass, and a reticle that goes
+  orange near a flame is the defect it names. `.claude/rules/assets-and-formats.md`
+  owns the rule; `frame.h` carries the argument.
+- **`golden_frame_test` now carries two checksums.** One for the composed world,
+  one taken after the UI is drawn on top of it, so a UI change and a sky change
+  move different numbers. Both follow the same rule as before: a legitimate
+  change puts the new value in the *same commit*. The second has no earlier value
+  to be compared against yet, and the comment at the constant says so.
+- **Some of the docs' numbers are a test.** `docs_test` asserts the suite count,
+  `Element`'s size and free bytes, the golden checksum quoted in prose, the
+  scene's cell count, the checklist's length and the plan-file sizes against the
+  code and files they come from. **A failing `docs_test` means a document is
+  wrong, not that the check is** — fix the sentence, never the check.
+  `.claude/rules/documentation.md` owns the rules for writing under it.
+- **A line count written from a guess got shipped as a measurement**, and it
+  survived a session before being caught. It is corrected in place in the `W5`
+  entry rather than deleted. Measure before writing a number into a document;
+  `docs_test` cannot check a claim about a file it does not know to look at.
+- **The camera work is gone.** `V23`/`V23a` shipped and `V23b` deleted them the
+  same day at the tester's direction — the player is centred again. Do not plan
+  around a moving camera. **The one thing that survived is a constraint on
+  `V22`**, written into the `V22` entry.
 - **The ground plane has come back "no" four times.** `V22` is next in the V
   track and its premise is weaker than when it was written. Read the session 8
   note in its entry before spending a week on it.
 - **`V22`'s fixture-scene rewrite costs both `.rec` recordings**, which darkens
   P4's replayed row until the tester plays and presses `F9`. Flag it before
   spending it.
-- **`ROADMAP_ITEMS.md` no longer exists** (`W4`, 2026-08-17). Older documents
-  cite it by name in their own historical entries; those are records of what was
-  true then and are correct as written. A *live* link to it is a defect, and
-  `docs_test` now fails on one.
-- **Check `git status` before assuming the tree is clean.** `W3` was finished
-  but not committed at this session's close, because commits here are asked for
-  rather than taken.
+- **`ROADMAP_ITEMS.md` no longer exists.** Older documents cite it by name in
+  their own historical entries; those are correct as written. A *live* link to it
+  is a defect and `docs_test` fails on one.
+- **Check `git status` before assuming the tree is clean.** Commits here are
+  asked for rather than taken, and work has sat finished-but-uncommitted across a
+  session close more than once.
 
 ## Owed to a human
 
-**Nothing yet, and `W5` is where that changes.** `MANUAL_TESTING.md` opens with
-the authoritative list and it is currently empty. **That file is the authority,
-not this line** — check it rather than trusting this paragraph. Expect to add to
-it when `W5` lands, and to say which steps matter rather than asking for the
-whole pass.
+**One look, and it is about the UI's wiring rather than its drawing.**
+`MANUAL_TESTING.md` opens with the authoritative list and describes what to
+check. **That file is the authority, not this line** — read it rather than
+trusting this paragraph.
+
+The shape of it is worth carrying, because it will recur: the new checksum covers
+a fixture the test builds, not the values the game puts into the struct, so a
+field wired to the wrong variable draws perfectly and says something false. **A
+checksum passes that.** When an extraction moves a decision behind a seam, ask
+what the number on the far side of it cannot see.
 
 You cannot run the Manual Tester Checklist yourself. Put an item on that list the
 moment you ask for one, take it off the moment it comes back, and write it so a
@@ -107,23 +123,24 @@ beginner can act on it without reading the rest of the file.
 
 ```bash
 cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure    # 15 suites, ~0.8s, all of them
+ctest --test-dir build -C Release --output-on-failure    # all of them, ~1s
 ```
 
-There is no reason to run a subset. **The suite is 15** — `golden_frame_test` is
-the only one that links SDL2-static; it needs no display. **It hashes software
-rasterisation and is blind to a GPU-only defect — do not quote it as covering
-the shipped frame.** `docs_test` checks that count and does **not** check this
-file, on purpose, since the handoff is rewritten whole at every session close.
+There is no reason to run a subset. **`golden_frame_test` is the only suite that
+links SDL2-static**; it needs no display. **It hashes software rasterisation and
+is blind to a GPU-only defect — do not quote it as covering the shipped frame.**
+The suite count is checked by `docs_test`, which deliberately does **not** check
+this file, since the handoff is rewritten whole at every session close.
 
 **A green `ctest` in the same command as a failed build is meaningless** — it ran
 the previous exe. That happened here once, from a **CRLF/LF mismatch in an
 exact-match Python replace** that silently no-op'd on a CRLF file while working
 on an LF one. Check the build line before reading the test line. **The same
-mismatch cost a session an hour**, in `W4`'s merge script, and the second
-occurrence is why it is still here: the roadmap files are CRLF on disk, so a
-script that reads them must read with universal newlines and write with
-`newline="\r\n"`.
+mismatch cost a session an hour**, in `W4`'s merge script, and it recurred a
+third time this session in a script that aborted between its edit and its write,
+leaving a document unchanged while reporting success. Read with universal
+newlines, write with `newline="\r\n"`, and **verify the edit landed rather than
+trusting the exit code**.
 
 **`assets/` is copied next to the exe at build time.** A generator's output shows
 nothing until a rebuild or `python tools/load_sprite.py --stage`. First thing to
@@ -131,6 +148,6 @@ check when a change "didn't show up".
 
 **`main.cpp` prints the launch check** — `World seed: N` and
 `Scene: WxH, N cells placed`. Read those, not the window; a scene count of zero
-once meant a blank world that every suite passed on. **`N` is 334901.** `W5`
-moves this code; the line must still print, and that is one of its stated
-verifications.
+once meant a blank world that every suite passed on. **`N` is 334901.** Launch
+after any change to the shell and confirm it still prints, with nothing on
+stderr.

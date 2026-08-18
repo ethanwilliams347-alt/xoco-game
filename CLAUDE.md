@@ -228,12 +228,12 @@ Putting it in the wrong file is the failure mode; the split is deliberate.
 |---|---|
 | Sequenced work, and why it is ordered that way | ROADMAP.md — **one file, both halves.** An item's order and its argument go in the same entry |
 | A finished item's reasoning, once nothing open depends on it | ROADMAP_ARCHIVE.md — **nothing is ever required to read it** |
-| A technical decision made and then deferred, or refused | ENGINEERING_NOTES.md |
+| A technical decision made and then deferred, or refused | ENGINEERING_NOTES.md — **and, since `W6`, how the engine works**: the architecture sections moved there out of README |
 | A feel constant you retuned | TUNING.md — a row **and** a dated History line |
-| A benchmark number or a measurement method | PERFORMANCE.md |
+| A benchmark number or a measurement method, or how to run the bench | PERFORMANCE.md — `W6` moved the running procedure in from README |
 | What a playtest asked and what came back | PLAYTEST_LOG.md — **symptoms only**, no fixes |
 | Goals, scope, the wish list | VISION.md |
-| How to build/run/test; the manual checklist | README.md |
+| How to build/run/test; the short public `## General Testing` pass | README.md — **a front door since `W6`**: it links out and carries no architecture and no benchmark procedure |
 | How to get art in | ASSETS.md, and `../drawing_to_sprite.md` for the player |
 | Raw lore, brainstorming, reference observations | `notes/` |
 

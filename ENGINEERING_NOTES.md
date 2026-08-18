@@ -4,6 +4,12 @@ Technical decisions that were deliberately made and then deferred, recorded so
 they are not rediscovered — or reversed by accident — later. This is reference
 material, not a task list; for sequenced work, see [ROADMAP.md](ROADMAP.md).
 
+**Since `W6` (2026-08-18) it also carries [Engine
+Architecture](#engine-architecture)** — how the simulation actually works,
+moved here from `README.md` because the two are the same kind of reading: why a
+shape was chosen over the one tried first. A decision deferred and a decision
+taken now sit in one file.
+
 ### Not foundations — resist these
 *Recorded so they are not mistaken for pillars when the next architectural itch
 arrives. Each one is a real technique that this project does not need.*
@@ -782,3 +788,545 @@ worth being able to recognise again.
   "Objective + Extraction" item in ROADMAP.md is where that gets chosen
   deliberately, and it should read this entry rather than inherit the point by
   default — the point is a spike's answer, not a recommendation.
+
+---
+
+*Moved here from `README.md` by `W6` on 2026-08-18, unchanged apart from the
+links. It is reference material like the rest of this file — how the engine
+works, section by section, and why each shape was chosen over the one that was
+tried first. `README.md` keeps build, run, test and controls, and links here.*
+
+## Engine Architecture
+
+The simulation lives in `src/physics/` and knows nothing about SDL — `main.cpp`
+is the only file that opens a window or reads input.
+
+Materials are **data, not code**. Each one is a row in the `MATERIALS` table in
+[material.h](src/physics/material.h) describing its colour, density, thermal
+properties (see [Heat](#heat)), and which of four generic behaviours it follows:
+
+| Behaviour | Movement |
+|-----------|----------|
+| `Static`  | holds its shape; falls as a rigid piece if unsupported (Wall, Wood) |
+| `Powder`  | falls, then slides diagonally into a pile (Sand) |
+| `Liquid`  | falls, then spreads sideways to find its level (Water, Oil) |
+| `Gas`     | rises, then spreads (Steam) |
+
+Density decides what sinks through what, so sand sinking in water and oil
+floating on water both fall out of the same rule rather than being
+special-cased. Adding a material means adding a table row, not editing the
+update loop.
+
+### Liquids find their level
+
+Falling and spreading sideways is not enough to make something read as a fluid.
+The density rule refuses every upward move unless the mover is lighter than its
+target, and `Empty` has density 0, so a liquid can never rise under any
+circumstances — which means a U-bend can never equalize. The short arm has no
+way to gain a cell. Water ends up behaving like a powder that happens to flow.
+
+So a liquid cell that has run out of ordinary moves, and has `Empty` directly
+above it, searches its own connected body for **another surface at least two
+rows lower**, and moves there. It is not a pressure field: a real solve is a
+second simulation with its own convergence behaviour and its own state to save,
+and this buys the same visible result for a bounded search — 64 cells,
+orthogonally connected, same material only.
+
+**The tall side moves down; the short side does not rise.** That direction is
+the whole design, and the other one was tried first. Rising is a swap, so it
+leaves a bubble of `Empty` *inside* the body, and the transfer is not finished
+until the ordinary fall and spread rules have walked that bubble back down the
+arm, across the join and up the far side — twenty-odd steps, during which the
+bubble cuts the body in two, the search transiently answers "no", the cells stop
+marking themselves dirty, and the chunk sleeps with the world still out of
+level. Every fix for that amounts to keeping unlevel bodies awake, which charges
+every pool in the world for the one that needs it. Moving the tall cell instead
+makes each transfer a single atomic swap, so there is no journey to stay awake
+for, and the wake-up is automatic: the vacated cell's 3x3 mark is exactly the
+cell below it, which is the next surface cell and the next one to move. A body
+equalizes at one cell per step and then sleeps, with no self-wake rule of its
+own.
+
+Two consequences worth knowing:
+
+- **Level means level to within one cell.** The two-row threshold is hysteresis,
+  not a tuning preference. Each transfer moves the two surfaces one cell towards
+  each other, so a one-row threshold would flip which side was high, forever —
+  level on average, awake and costing full price the whole time.
+- **A cell can travel further than one cell in a step.** Bounded by the search,
+  and only ever between two points of one connected body of the same liquid.
+  What it looks like is one side dropping while the other rises, which is what a
+  U-tube does.
+
+Conservation is what keeps the whole thing honest, because the obvious way to
+make water level is to invent some: the move is a swap with the `Empty` above
+the receiving surface, so nothing is created and nothing is deleted, and there
+is a test that says so alongside the one that says it levels.
+
+### Chunked updates
+
+The world is divided into 64x64 chunks. Each chunk stores the bounding box of
+the cells inside it that might still move; a chunk with nothing moving is
+skipped entirely, so a settled world costs almost nothing to simulate.
+
+The rule that keeps this correct: **every write wakes its 3x3 neighbourhood**,
+not just the cell that changed. Digging a grain out from under a pile has to
+wake the grains above it or they hang in mid-air over the hole. Because the
+neighbourhood is resolved per cell it crosses chunk borders naturally, which is
+what stops the same bug reappearing as seams along the invisible chunk lines.
+
+All writes go through `set_element` and `swap_elements`, and both call
+`mark_dirty`. Any new code that mutates cells must go through them too.
+
+The HUD (top-left corner of the window) shows how many chunks are awake. In an
+idle world it should sit at or near zero.
+
+### Reactions
+
+Movement is data-driven; transformation is the second axis. Each row in the
+`REACTIONS` table in [reaction.h](src/physics/reaction.h) is a rule of the shape
+`catalyst + target -> result`, gated on the target's temperature and rolled once
+per eligible cell per step:
+
+| Catalyst | Target  | Temperature | Chance | Result  |
+|----------|---------|-------------|--------|---------|
+| Water    | Fire    | any         | 90%    | Steam   |
+| *(none)* | Wood    | ≥ 120       | 100%   | Charred |
+| *(none)* | Oil     | ≥ 90        | 100%   | Fire    |
+| *(none)* | Water   | ≥ 100       | 100%   | Steam   |
+| *(none)* | Steam   | ≤ 26        | 100%   | Water   |
+| *(none)* | Charred | any         | 0.6%   | Empty   |
+
+A catalyst of `Count` means "no neighbour required". Rows are checked in order;
+the first row whose target, catalyst and temperature conditions all match is the
+only one considered that cell that step, which is what makes dousing (row 1)
+take priority over anything below it without any special-casing.
+
+Chances are stored per *mille*, not per cent, and row 6 is why: it is a burn
+duration in disguise. A spontaneous decay row is a lifetime — mean steps is
+1000/chance — so 6 per mille is about 167 steps, near three seconds at 60 Hz.
+Whole percents bottom out at a hundred-step mean, which is not long enough for
+wood, and that is the whole reason the column is wider than it looks like it
+needs to be.
+
+**Fire is not in this table as something that burns out, and that is the
+important change.** Wood does not become Fire; it becomes **Charred** — still
+solid, still structural, still holding up whatever it was holding up, and hot
+enough (a declared 200° heat source) to bring its neighbours to their own
+ignition point. That is what spreads a fire. The flame you see is thrown off it
+by the `emits` column in `MATERIALS`, into a randomly chosen *empty* neighbour,
+and lives twelve steps on a countdown in `Element::ticks` before it disappears.
+
+Three things fall out of that shape rather than being written as rules:
+
+- **Fire hugs surfaces and never fills a volume**, because a buried cell has no
+  empty neighbour to emit into and so does not visibly burn at all.
+- **Fire spreads sideways as readily as upwards**, because what spreads it is
+  conduction from a cell that cannot move, not a rising gas that has to stay in
+  contact with its fuel.
+- **Flames ramp from white-hot to dim red**, because the countdown gives every
+  flame cell an age, and age is the only thing that differs between two cells
+  sharing one `MATERIALS` row.
+
+Oil is the exception and it is deliberate: it flashes straight to Fire with no
+smouldering state, because it is a Liquid, and a burning state on something that
+moves would have to survive `swap_elements` and every fluid rule. Only static
+materials smoulder.
+
+**Only one row still rolls dice, and that is the point of the table above.**
+Ignition used to be a 12%-per-step chance for Wood touching Fire, which is why
+fire spread by luck rather than by heat and never looked like it was burning
+*through* anything — there was no state between "wood" and "on fire" for the eye
+to follow. Wood now ignites because it got hot, and how long that takes is set
+by its conductivity. Dousing keeps its chance and is deliberately *not*
+temperature-gated: water puts a flame out because it is water, and a cold splash
+should not be less effective than a warm one. Burnout keeps a chance rather than
+a threshold, because a lifetime is not a threshold and has nothing to gate on —
+and after E9 that row is Charred's, not Fire's, since the thing with a lifetime
+is the fuel.
+
+**A second wake rule, alongside chunking's.** A cell that stops moving stops
+generating `mark_dirty` calls and its chunk goes back to sleep — that's the
+whole point of chunking. But a spontaneous decay doesn't need movement to
+happen; a burning cell boxed in with nowhere to go would take its one shot at
+the roll on the frame it was created and then freeze forever, un-woken, never
+given another chance to decay or to ignite what it's touching. So a cell that is
+a *spontaneous* reaction target **and is currently inside that row's temperature
+window** marks its own 3x3 neighbourhood dirty every step, movement or not. Both
+halves of that are load-bearing: without the first, Fire freezes; without the
+second, every wooden beam and every pool in the world would self-mark forever,
+since they are spontaneous targets too, and chunking would be handed back its
+entire saving. Cold Wood, cold Water and cold Steam stay fully sleep-eligible.
+
+### Heat
+
+Every cell carries a `uint8_t temperature`, ambient (20) unless something has
+heated it. It rides in padding `Element` already had, so it cost no memory —
+`sizeof(Element)` is still 12, asserted at compile time rather than counted. The
+scale is read as degrees Celsius so the constants mean something: water boils at
+100, wood catches at 120, a flame holds 250.
+
+Three columns in `MATERIALS` drive it. `conductivity` sets both how fast a
+material takes heat on and how fast it sheds it; a pair of neighbours exchanges
+at the *lower* of the two, so an insulator between two conductors stops the heat
+rather than averaging with it. `spawn_temperature` is what a freshly placed cell
+gets, and defaults to "whatever the spot was already at" — heat belongs to the
+place, so material dug out of a hot wall arrives hot, and an ignited Wood cell
+becomes Fire that is already burning rather than a flame starting from room
+temperature. `heat_source` is the temperature a material holds itself at
+regardless of its surroundings, and Fire is the only row in the table that has
+one.
+
+`Empty` has conductivity zero: air is not simulated, so heat travels through
+matter in contact and nowhere else. That is a deliberate simplification and it
+is most of why the pass is affordable — a settled pool is hundreds of cells, the
+air above it is tens of thousands.
+
+**Integer arithmetic only**, because floating-point diffusion would put
+cross-platform nondeterminism straight back into `Grid`. Three properties fall
+out of the integer form and each one is doing a job:
+
+- **A dead band.** Two cells within one degree exchange nothing. Without it a
+  pair would trade a unit back and forth forever and no chunk containing
+  anything warm could ever sleep. The cost is that "ambient" means ambient to
+  within a degree — the same trade [Liquids find their
+  level](#liquids-find-their-level) makes for "level".
+- **A floor of one unit**, so a slow conductor across a small difference does
+  not truncate to zero and stall partway.
+- **A ceiling of half the difference**, so an exchange never overshoots and
+  turns into an oscillation.
+
+Heat conducts across all **eight** neighbours, unlike the pressure search, which
+is orthogonal only. The difference is not inconsistency: a diagonal step there
+would move *matter* through a seam with no contact area, whereas heat through a
+corner is harmless — and refusing it breaks the feature outright. An ignited
+Wood cell becomes Fire, Fire is a gas, so it rises out of the beam on the next
+step, leaving the flame that should light the next cell along sitting diagonally
+above it and nowhere else. With four neighbours the fire front stalls after
+exactly one cell, and no conductivity fixes it.
+
+That argument was written when Wood ignited straight into Fire, and E9 has since
+replaced its subject: the cell that stays put and conducts is `Charred`, which
+is Static and never had anywhere to rise to. **The eight neighbours matter more
+now, not less.** The whole propagation story is "the burning cell holds its
+place and heats what it touches", so the set of cells it can reach is the only
+thing deciding where fire goes — and a four-neighbour version would refuse to
+carry a fire diagonally across a gap that is plainly touching on screen.
+
+**A cell sitting at exactly ambient does no thermal work at all.** This is the
+difference between heat costing 18% of the worst-case frame and costing 2%, and
+it is exact rather than an approximation: conduction writes both ends of an
+exchange by the same amount, so it does not matter which of a pair initiates it,
+and a cell cannot be off ambient and asleep. Heat is also the only thing in the
+engine that *leaves* — every cell bleeds slowly back towards ambient, which is
+what stops a single candle eventually cooking the map, and what lets a burnt-out
+scene go back to sleep. See [PERFORMANCE.md](PERFORMANCE.md) for the bracketed
+numbers.
+
+### Determinism
+
+`Grid` is a pure function of its seed. There is no random generator anywhere in
+the simulation — `src/physics/random.h` holds a stateless hash instead, and
+every random value is a pure function of `(seed, step, index, stream)`. Nothing
+carries state between draws, so two grids built with the same seed and stepped
+the same number of times are byte-identical, and a save file only ever needs to
+record the seed and the step count to say where a run had got to.
+
+**The write rule has a counterpart for randomness: every random draw goes
+through `Grid::coin` / `Grid::chance`, and no other code calls the hash
+directly.** That is what keeps the invariant checkable rather than assumed — a
+stray call reaching for its own randomness would not look wrong at the call
+site, only in a diverged replay much later.
+
+Each call site is tagged with its own `Stream` (colour jitter, sweep direction,
+powder/fluid direction, reactions), so two decisions about the same cell on the
+same step never draw the same number — without that, a cell that rolled to move
+left would always roll the same side of its reaction check too, a permanent
+correlation rather than a one-off coincidence. World generation, when it exists,
+gets its own separate range of streams reserved for exactly this reason:
+generating one extra cave must never change how sand falls somewhere that cave
+doesn't touch.
+
+One deliberate exception: colour jitter hashes on position only, with no step in
+the input, because it's a one-time authored value rather than a per-step
+decision — a cell erased and repainted in the same spot comes back the same
+shade instead of a new one.
+
+**This used to say "covers the simulation, not yet the game"**, on the grounds
+that the brush painted once per rendered frame and a held key was sampled once
+per frame and replayed into every fixed step inside it. **F2.3 closed that** —
+one `Input` now drives exactly one fixed step, brush included
+(`src/game/run.h`), so a recorded sequence replays the same however the original
+session was paced. The old wording is kept here rather than deleted because it
+was true for several revisions and the same sentence would otherwise be written
+again from memory.
+
+**What it covers now, stated exactly, because two later items spend this
+sentence as a guarantee.** The grid, the input path and — since F5, 2026-08-12 —
+the player's motion are integer arithmetic end to end and reproduce on any
+conforming compiler. **`DigTool::march` was the one remaining exception and is
+not one since F6, 2026-08-13** — it picked which cells a dig removes using a
+`float` `sqrt` and two `lround`s, and digging writes to the grid, so a replay
+containing a dig reproduced within one binary and not across toolchains. It is
+now a squared range comparison and an integer rounded division, and **no float
+under `src/physics/` reaches the grid.** (Two floats remain there and are
+renderer boundaries rather than exceptions: the player's
+`visual_x()`/`visual_y()` and the dig tool's `swing_progress()`, which only the
+animation reads.)
+
+**The claim that follows from that is narrower than it sounds, and the
+distinction is deliberate.** The simulation is integer arithmetic end to end, so
+it reproduces on any conforming compiler *in principle* — and the project has
+still only ever been built on one machine, so that is a reasonable expectation
+rather than a verified fact. "Build on macOS and Linux at least once" is a
+release-gate prerequisite for exactly this reason, and it is the only thing that
+can turn the one claim into the other.
+
+Replacing the generator with the hash cost a small amount rather than saving one
+— see the RNG entry in [Deferred decisions](#deferred-decisions) for the
+measured number and why it was recorded rather than assumed.
+
+### The player
+
+The player is the one thing in the engine that is **not** a cell. It is a 8x20
+axis-aligned box in [player.h](src/physics/player.h) with its own position and
+velocity, and it only ever *reads* the grid — it never writes a cell, so it
+cannot break the "all writes go through `set_element`" rule.
+
+That split is deliberate. A cell moves at most one step per frame in one of
+eight directions, which is right for sand and useless for a character that needs
+sub-cell speed, a jump arc, and a body several cells tall that has to stay in
+one piece.
+
+Position is an **integer cell plus a sub-cell remainder**, not a float.
+Collision then only ever compares whole cells, so a resting player sits at an
+exact cell rather than a hair inside the floor, and the whole class of "the box
+is 0.0001 into the wall" bugs never comes up. The remainder carries the
+fractional part of a move into the next step, which is what keeps motion smooth
+below one cell per step.
+
+**The remainder and the velocities are fixed point** — `fx`, signed 16.16, in
+`src/physics/fixed.h` — and were `float` until 2026-08-12. Nothing about the
+character's motion changed; what changed is that it is now the same motion on
+every machine, since float arithmetic is not reproducible across compilers,
+optimisation levels or architectures and the sub-cell remainder is precisely
+where a last-bit difference grows into a whole cell. Speeds are stated in cells
+per *second* and converted to a per-step amount by `fx::per_step()`; the
+timestep is not a parameter anywhere, because it is fixed and a parameter nobody
+varies is an invitation to vary it. `visual_x()`/`visual_y()` are still float
+and are the only ones: they exist so the renderer can interpolate between steps,
+and nothing in `src/physics/` may read them.
+
+Movement resolves one cell at a time, each axis separately. Sub-stepping makes
+tunnelling impossible by construction rather than by being fast enough — a
+player falling at terminal velocity still tests every cell it passes through.
+Resolving the axes separately is what lets the player slide along a surface
+instead of sticking to it.
+
+**What counts as solid** is derived from the material table, not listed
+separately: `Static` and `Powder` are solid, `Liquid` and `Gas` are not. So the
+player stands on sand and falls through water, and a new material gets correct
+collision the moment its row is added.
+
+Two rules do the rest:
+
+- **Step-up.** A blocked horizontal move retries with the body lifted up to
+  `MAX_STEP_HEIGHT` cells — the number lives in [TUNING.md](TUNING.md), and this
+  line said "2" long after it stopped being 2, which is why it now says the
+  name. That is the whole of "walking over uneven powder" — a settled sand slope
+  is a staircase of one-cell steps, and without this the player would have to
+  jump over every grain. Grounded only, so you cannot climb a shaft by nudging
+  into the wall mid-air.
+- **Unstuck.** The grid does not know the player exists and will drop sand into
+  the cells the body occupies, so "body overlaps terrain" is a state that occurs
+  in normal play, not just through a bug — and every direction being blocked
+  would freeze the player permanently. When it happens, the body searches
+  outward for the nearest position it fits in and takes it, preferring straight
+  up. Buried deeper than the search radius, it grinds upward a cell per step
+  until it reaches open air.
+
+### Interaction
+
+Digging lives in [tool.h](src/physics/tool.h), **not** on `Player`. The body and
+the verb are separate concerns, and the split has a concrete payoff: `Player`
+holds only a `const Grid&`, so it cannot break the "all writes go through
+`set_element`" rule even by accident. Tools take a mutable `Grid&` and are the
+only player-side code that does.
+
+A dig is a **ray marched one cell at a time** from the player's centre toward
+the cursor, stopping at the first solid cell, which is then blown out to a small
+radius. One cell per step for the same reason the player's movement sub-steps: a
+ray that samples every Nth cell can pass straight through a thin wall and dig
+the terrain behind it — and that wall is exactly the one the player was
+sheltering behind. What stops the ray is the same `is_solid` the player collides
+against, so terrain and powder block a shot while water and fire do not. One
+definition, used twice.
+
+Range is measured as real distance rather than as a step count, so a diagonal
+dig does not reach 1.4x as far as a straight one.
+
+**Digging is a swing, not a rate limit**, and the difference is what session 5's
+D1 bought. The tool holds a 36-step swing clock, counted in fixed steps rather
+than seconds so it runs at the same speed on every machine.
+
+**The hole comes out on the swing's first step and the rest is follow-through.**
+Putting the impact partway in is the more literal reading of a swing's arc, and
+it was tried; it costs half a second between the press and the world changing,
+on a tool used constantly, and a dig that lands late reads as input lag rather
+than as weight. Landing it immediately also means the aim used is the aim at the
+moment of the press, with no window for the world to move underneath it. Holding
+the button starts the next swing on the step the last one ends, so it cycles
+seamlessly. A shot that connects with nothing starts no swing at all, which
+makes the limit read as tool speed instead of as a random input lockout.
+
+This is also **the only clock the dig animation has** — `player_anim` is handed
+`DigTool::swing_progress()` and divides it by its own frame count. The swing
+used to be timed twice, once in the tool and once in the sprite table, and the
+two disagreed.
+
+**Digging destroys matter, deliberately.** The conservation-of-matter test
+covers `Grid::update()` — the simulation itself still never creates or deletes a
+cell, and that invariant is intact. Digging is an *external* write that removes
+matter outright, which is correct for a tool and would be a bug anywhere inside
+the step loop. The two are testing different things; don't reconcile them.
+
+Removal goes through `set_element` like everything else, and that is the entire
+reason digging out the base of a sand pile makes the pile collapse instead of
+leaving it hanging over the hole — each removed cell wakes its 3x3
+neighbourhood. There is a test for exactly that.
+
+The world border cannot be dug through. `set_element` bounds-checks, so the part
+of a hole that falls outside the world is silently dropped.
+
+### Structures and falling
+
+`Static` materials hold their shape, which means they will also hold it
+somewhere they have no business holding it — dig the ground out from under a
+stone slab and it stays in mid-air, while the sand beside it falls correctly.
+The inconsistency is visible side by side, which is what makes it read as a bug
+rather than as a rule.
+
+So Wall and Wood can now lose support, and when they do the whole connected
+piece **falls as one rigid body, keeping its shape the entire way down**. It is
+not converted into loose grains: a slab that dissolves into gravel the instant
+it comes free just reads as a different bug. The shape is what makes it look
+like masonry.
+
+The piece **stays in the cell grid while it falls**. It is a rigid body in how
+it *moves*, not in where it *lives* — so rendering, player collision, digging,
+fire and every other system keep working on it with no special case anywhere.
+Which materials count as structure is a `structural` flag in the same
+`MATERIALS` table. Same discipline as solidity: one table, not two.
+
+**A piece that lands with speed on it breaks.** Dropping rigidly with the shape
+perfectly intact is what made masonry descend like an elevator, so a piece that
+comes down across uneven ground splits into two that are separate from then on:
+the half over the drop carries on down, the half that landed stays. Fracture,
+not rotation — true rigid-body rotation on a cell grid means resampling the
+piece every step it turns, which destroys the exact authored pixels that are the
+whole visual pillar, and masonry mostly breaks rather than tips anyway.
+
+**The crack goes where the support ends.** It is not a random line through the
+piece; it is the boundary between the columns that landed on something and the
+columns that landed on nothing, which is the only place a break changes
+anything. A piece landing flat on flat ground does not break at all.
+
+**A crack is a disagreement between two cells, not a line between them.** Each
+cell carries a `piece_tag`, and the support fill only crosses between cells
+whose tags match. That is what makes a crack survive the piece moving — cells
+carry their tag when they move, the same way they carry their colour — and
+persistence is the entire feature. Breaking a piece in mid-air instead would do
+nothing at all: both halves are unsupported, so both fall on exactly the same
+steps, and the next fill finds them touching and treats them as one piece again.
+
+**Fracture can never start a collapse, only finish one unevenly.** It is
+reachable only from a landing that arrived with speed, and a piece at rest has
+`ticks` of zero, so nothing that was standing still can be broken by it. That
+matters more than it sounds: a missed collapse is invisible, while a wrong one
+turns a level into rubble, and this is the change in the engine most able to get
+that wrong. The guarantee is structural rather than a matter of care.
+
+**Support is a flood fill.** From a disturbed structure cell, walk the connected
+piece looking for one cell that is *grounded* — meaning the bottom of the world,
+or something solid directly beneath it that is not part of the same piece. One
+grounded cell holds the whole thing up. Powders bear load and liquids do not, so
+a slab resting on packed sand stands, and the same slab over water sinks through
+it.
+
+**A fill records what it concluded, not merely where it went** — and that is
+load-bearing rather than an optimisation. One disturbance queues many cells to
+re-check, and a fill stops the instant it finds one grounded cell, so it leaves
+a partial trail of marks across a piece it has just decided is held up. If the
+marks only said "seen", the next queued cell would start its own fill, find that
+trail in the way, never reach the grounded cell behind it, conclude the piece is
+unsupported, and drop whichever fragment it could reach. A wall standing on
+solid ground would shed chunks of itself for no visible reason, one chunk per
+step, which looks exactly like the material particlising instead of holding
+together. So each mark carries its verdict, and a fill that runs into a settled
+cell adopts that verdict instead of re-deriving it — two connected cells are the
+same piece, so its answer is already this piece's answer. It also makes the
+common case cheap, since the hundreds of cells queued off one piece now cost one
+fill between them rather than one fill each.
+
+**Falling is a per-column, bottom-up shift of one cell.** Processing each column
+from its lowest cell upward means a cell only ever moves into space its lower
+neighbour has already left, and it handles a column containing two separate
+parts of the same piece — an arch — without having to find those parts
+explicitly. An L-shaped piece keeps its corner, which is the test that proves
+the piece moves as one rather than as independent columns.
+
+**A falling piece accelerates by falling repeatedly, not by falling further.**
+Everything above happens once per *cell of travel*, and a piece gets more than
+one cell of travel in a step by having the entire question — flood fill,
+grounded check, shift — run over again from scratch. It comes loose at one cell
+per step, gains a cell for every four steps in the air, and tops out at eight.
+
+Doing it this way is not a shortcut, it is the point. Because a piece never
+moves a cell without first re-deriving what is holding it up, it is
+*structurally* incapable of stepping over a floor thinner than its speed. Write
+it the obvious way instead — look once, then move eight cells — and a slab at
+full pelt sails straight through a one-cell shelf, which then needs its own
+special-case guard, which then has to be got right. The cost is that speed 8
+means eight times the work in that step; the ceiling exists to bound exactly
+that, and it is the constant to reach for if falling rubble ever shows up in a
+profile.
+
+Speed lives on the cells, as a count of steps spent falling. That is not where
+you would put it if you had a choice — it belongs to the piece — but a piece has
+**no identity between steps**. It is re-discovered by flood fill every time, so
+the cells are the only thing that persists. Moving a cell carries the count
+along for free, since a move is a swap of whole elements. The count is zeroed by
+the same code path that concludes a piece is supported, which is the only way a
+piece ever stops falling — without that, a slab that fell a hundred cells and
+landed would still be "at speed" whenever it was next dug free, and would leave
+the ledge like it had been fired rather than tipping off it.
+
+The move is always legal when the piece is unsupported, and that falls out of
+the definitions rather than needing a check: "unsupported" means nothing solid
+is under any part of it, so every cell is moving into empty space, into a fluid,
+or into space the piece itself just vacated. Because the move is a swap and
+structural materials are denser than every fluid, the water displaced from
+underneath surfaces on top of the slab instead of being deleted.
+
+Two decisions are worth knowing about, because both are visible in play:
+
+- **Support is checked on disturbance only, never as a global truth.** Sweeping
+  the world every step would cost more than the simulation it is attached to,
+  and a world as authored is assumed to be standing up on purpose. A piece
+  nobody has touched is never questioned — so a floating platform drawn with the
+  brush stays exactly where it was put, and only starts falling once something
+  removes part of it or slides out from under it. Placing structure never
+  triggers a check; only removing it does.
+- **Pieces over 4,096 cells are assumed supported rather than judged.** The
+  asymmetry is deliberate. A missed fall is invisible — a slab that should have
+  come down simply doesn't. A wrong fall drops the level. When the answer is too
+  expensive to compute, guess the harmless way.
+
+`swap_elements` now asks whether the cell above each end of a move is structure,
+and `swap_elements` is the hottest path there is, so this was expected to cost
+something. It does not measurably: a bracketed A/B against the same binary with
+the check compiled out cannot separate the two. An earlier revision of the docs
+claimed about 5%, which turned out to be the benchmark measuring the machine
+rather than the code. PERFORMANCE.md has the numbers, the method, and why the
+old figure was wrong — it is worth reading before trusting any timing in this
+project.
