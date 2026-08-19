@@ -54,6 +54,10 @@ namespace {
 // deliberate: the light texture's block extent then genuinely overhangs the
 // viewport, which is the alignment case the light pass's destination rect
 // exists for.
+// The bottom band V24's fill check reads. The shortened plane in that check
+// is 80 px deep and its horizon sits near row 114, so it cannot reach row 200
+// at any camera position - anything drawn below that came from the fill.
+constexpr int BAND_TOP = 200;
 constexpr int PADDED_W = 120;
 constexpr int PADDED_H = 68;
 
@@ -94,6 +98,20 @@ uint64_t hash_surface(SDL_Surface* surf) {
 // ratio between two frames, and the surface is BGRA in memory.
 double luminance_at(const uint8_t* px) {
     return 0.2126 * px[2] + 0.7152 * px[1] + 0.0722 * px[0];
+}
+
+// Rows [y0, y1) of the surface, hashed the way hash_surface does the whole of
+// it. V24's fill check needs to ask about one band rather than the frame.
+uint64_t hash_band(SDL_Surface* surf, int y0, int y1) {
+    uint64_t h = 1469598103934665603ull;
+    for (int y = y0; y < y1; ++y) {
+        const uint8_t* row = static_cast<const uint8_t*>(surf->pixels) + y * surf->pitch;
+        for (int x = 0; x < surf->w * 4; ++x) {
+            h ^= row[x];
+            h *= 1099511628211ull;
+        }
+    }
+    return h;
 }
 
 double mean_luminance(SDL_Surface* surf) {
@@ -464,7 +482,7 @@ int main() {
     // `camera_test`, which asserts the framing in *screen* terms before this
     // hash is consulted at all, so a wrong number here is separable from a
     // wrong framing.
-    constexpr uint64_t GOLDEN = 0xf29c435ed9d923b1ull;
+    constexpr uint64_t GOLDEN = 0x77404ada6ab4d08full;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),
@@ -496,6 +514,58 @@ int main() {
               without != first,
               "removing the plane's texture changed no pixel, so the golden "
               "checksum is not covering the layer at all");
+    }
+
+    // **The fill below the plane's near edge, which the golden checksum cannot
+    // reach** (V24, 2026-08-18). Freeing the near edge from the window is what
+    // makes that region exist, and whether it is *drawn* is a fact about
+    // `draw_ground` rather than about the arithmetic `backdrop_test` covers.
+    //
+    // **It does not trigger in this fixture and it does trigger on the machine
+    // the game is played on**, which is the whole reason this check is here.
+    // The plane's depth is the tile's height times PLANE_TEXEL_SCALE - 640 px
+    // for the shipped 256-row tile - so against this fixture's 272 px window the
+    // near edge is always far below the bottom. At 3440x1440, the display the
+    // game actually opened on, the horizon derives from the mountains' art and
+    // does not grow with the window, so a few hundred rows sit below the plane's
+    // near edge. **An untested path that appears only on the tester's display is
+    // the shape this project has been caught by before** - a layer whose absence
+    // the checksum silently covered.
+    //
+    // Forced by shortening the *declared* tile height for one composition, which
+    // is the only input the near edge depends on. The texture is untouched, so
+    // the rows this exercises are real rows of real art.
+    //
+    // **The comparison is over the bottom band only, and the first version of
+    // this check was wrong in a way worth recording.** It compared the whole
+    // frame against one composed with no ground texture at all, which differs
+    // whether or not the fill is drawn - the plane's own strips are in it. That
+    // passes for the wrong reason and would have gone on passing with the fill
+    // deleted. Restricted to rows below where the plane can possibly reach, the
+    // two frames are identical *unless* something fills them.
+    {
+        const int real_h = p.backdrop.ground_h;
+        p.backdrop.ground_h = 32;      // 32 * 2.5 = 80 px of plane in a 272 px window
+        frame::compose(renderer, p);
+        const uint64_t with_fill = hash_band(surface, BAND_TOP, surface->h);
+
+        SDL_Texture* real_ground = p.backdrop.ground;
+        p.backdrop.ground = nullptr;
+        frame::compose(renderer, p);
+        const uint64_t bare = hash_band(surface, BAND_TOP, surface->h);
+
+        p.backdrop.ground = real_ground;
+        p.backdrop.ground_h = real_h;
+        frame::compose(renderer, p);
+
+        check("the region below the plane's near edge is filled",
+              with_fill != bare,
+              "the rows below a short plane's near edge are identical with and "
+              "without the ground texture, so nothing is drawn there");
+        check("restoring the fixture's plane restores the golden frame",
+              hash_surface(surface) == first,
+              "the fill check left the fixture changed, so every number after "
+              "it is measuring a different frame");
     }
 
     // Composing the same inputs twice must give the same frame. This is not
@@ -681,7 +751,7 @@ int main() {
     // numbers must always be reasoned about in that order. **A moved
     // `OVERLAY_GOLDEN` beside an unmoved `GOLDEN` is the only combination that
     // says the UI changed.**
-    constexpr uint64_t OVERLAY_GOLDEN = 0x6527211c3b5d3bb2ull;
+    constexpr uint64_t OVERLAY_GOLDEN = 0x57a56d7aa8cc6bf0ull;
     char odetail[128];
     std::snprintf(odetail, sizeof(odetail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(with_overlay),

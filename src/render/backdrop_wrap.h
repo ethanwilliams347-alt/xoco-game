@@ -122,6 +122,59 @@ struct Plane {
     int tile_h;         // the tile's height in pixels; its rows are the plane's depth
 };
 
+// How many screen pixels one row of the tile occupies, and therefore how deep
+// the plane is. **The plane's whole geometry is this one number plus wherever
+// the horizon landed** (V24, 2026-08-18).
+//
+// **This is what replaces `bottom_y = window_h`, and the window is deliberately
+// not a parameter of this function any more.** Playtest session 10: *"the
+// entire .bmp stays on screen and squishes as the sprite flies up. this does
+// not make sense."* It was right, and the cause was that the near edge was the
+// bottom of the window - a constant - while the far edge was parallaxed at the
+// mountains' 0.06. So the near end of the plane had an effective vertical
+// parallax of **zero** and the far end did not: the nearer end of one layer
+// less parallaxed than its further end, which is the one thing a parallax stack
+// may never do. The tile never left the frame at any camera height and was
+// squeezed 30% across the climb, 2.54 px per texel down to 1.79.
+//
+// **The plane now translates and clips, the way every other layer does**, and
+// that was a decision between two fixes rather than the only one available. The
+// other was to give the near edge its own vertical factor (~0.21, off the
+// generator's ~0.4x ladder) and let the band *grow* as the camera climbs, which
+// is honest perspective for a surface seen from higher up - and which magnifies
+// the tile's marks about 75% over the world's height. A constant scale was
+// chosen: the report's complaint is that the layer resizes, and the depth-honest
+// fix resizes it too, just for a better reason. The argument is in ROADMAP.md
+// under V24; do not re-derive the second option from this constant.
+//
+// **2.5 is the shipped composition, kept rather than re-chosen.** The band at
+// the spawn was 651.4 px over a 256-row tile, so 2.544 px per texel; 2.5 gives
+// 640 and moves the plane's near edge by 11 px at the one camera position that
+// had it exactly at the window's bottom. **Stated per texel and not as a
+// fraction of the window** because that is what makes it constant across the
+// three DISPLAY_MODES - a fraction of the window would put the same tile on
+// screen at two sizes at 1080 and 1440, which is the reported defect again with
+// the window standing in for the camera.
+inline constexpr float PLANE_TEXEL_SCALE = 2.5f;
+
+// Where the plane's two edges go, given where its far edge landed.
+//
+// The far edge comes from the art (the mountains' skyline row, at the mountains'
+// vertical factor - see ground_horizon_y in render/frame.cpp); the near edge is
+// the far edge plus the plane's own depth. Nothing here knows the window size,
+// which is the point: **a layer's geometry is a fact about the layer, and the
+// window only decides how much of it you can see.**
+//
+// The near edge is free to land off the bottom of the window - it usually does -
+// and free to land above it when the camera is low, which is what the caller's
+// fill below the plane is for.
+inline Plane plane_geometry(float horizon_y, int tile_h,
+                            float far_factor, float near_factor) {
+    return Plane{horizon_y,
+                 horizon_y + static_cast<float>(tile_h) * PLANE_TEXEL_SCALE,
+                 far_factor, near_factor, tile_h};
+}
+
 // One strip: where it lands, what it samples, and how fast it scrolls.
 struct Strip {
     float factor;         // this strip's parallax factor, for wrap_axis

@@ -23,38 +23,60 @@ cmake --build build --config Release
 
 ---
 
-### 1. **The camera is not centred any more. Is that a fair trade?** *(V22 part 1, added 2026-08-18.)*
+### 1. **Does the ground plane move correctly now?** *(V24, added 2026-08-18.)*
 
-The player now sits **80% of the way down the screen** instead of at the middle,
-so there is more world above them and less below. Nothing else changed yet.
+You reported this on the last playtest: *"the entire .bmp stays on screen and
+squishes as the sprite flies up."* You were right, and this is the fix.
 
-**Play normally for a few minutes, then dig down for a while**, and tell me:
+**What was wrong:** the far edge of the ground plane moved with the camera, but
+its near edge was glued to the bottom of the window. So the plane could never
+leave the screen — it just got squeezed into whatever space was left. Measured,
+it lost 30% of its height between the ground and the top of the world.
 
-- **Does digging feel cramped?** This is the one that matters. You can see about
-  **55 cells of world below your feet** at the surface now, where before you saw
-  about 135. Digging is the game's main verb and this change takes room away
-  from it — that cost is known, it is not paid back by anything, and I expect
-  this to be the complaint.
-- **Does it look better standing still?** The point of the change is the
-  backdrop: more of the receding ground plane should now be under you.
-- **Anything jarring near the bottom of the world?** Deep down, the camera runs
-  out of world and quietly stops honouring the new framing, so the player drifts
-  back toward the middle of the screen. That is expected — I want to know if it
-  reads as a glitch.
+**What it does now:** the plane is a fixed slab of art. It slides down the
+screen as you fly up, keeps the same size the whole time, and eventually goes
+off the bottom of the window like any other layer would.
 
-**Fair answers include "put it back".** You asked for the centred camera two days
-ago and this reopens that at your direction; if it feels worse, say so and it
-comes out again. **One number controls all of it** — `VERTICAL_ANCHOR` in
-[TUNING.md](TUNING.md), 0.80 today, 0.50 is the centring you had.
+**Fly up as high as you can, then come back down**, and tell me:
 
-**What this is *not* asking:** whether the ground plane finally reads as
-receding. It will not yet — the world still hides all of it, and fixing that is
-the next part of V22.
+- **Does it still change size?** It should not, ever. This is the one that
+  matters — same question you already answered once.
+- **Does it leave the screen properly?** Flying up should push it down and out
+  of frame, not shrink it.
+- **Anything odd along the bottom of the screen?** Below the plane's near edge
+  there is a band filled with the plane's nearest colour. At the surface your
+  terrain covers it, so you should not normally see it — **on your 3440x1440
+  display that band is a few hundred pixels tall**, so if it shows up as a flat
+  stripe somewhere, that is the thing to tell me about.
+
+**What this is *not* asking:** whether the plane reads as receding, or whether
+you feel like you are standing in it. Still no — the world hides it and that is
+V22 part 2. Nothing about the composition changed here; at the spawn the frame
+should look the same as it did before, to within about ten pixels.
 
 ---
 
-**That is the only thing waiting on you.** The UI-wiring look asked for by `W5`
-part 3 came back **good** on 2026-08-18 and is closed below.
+**That is the only thing waiting on you.** The `V22` part 1 camera framing came
+back on 2026-08-18 and is closed below.
+
+---
+
+*Closed and off this list:* **the camera framing, closed 2026-08-18 and it
+stays.** *"digging not cramped"* — the anchor stays at 0.80 and
+`VERTICAL_ANCHOR` is not going back to 0.50. **The complaint this change was
+expected to draw did not arrive**, which is the whole result: the ~55 cells of
+world below the player was the stated cost, it was called out in advance as the
+likely reason to revert, and it was not felt. The other two halves of that item —
+whether it looks better standing still, and whether the drift near the world's
+floor reads as a glitch — **came back unanswered rather than passed**, and they
+are not being re-asked: the framing is settled by the answer that mattered, and
+re-running a question nobody had a complaint about spends a tester on nothing.
+The same playtest reported a defect on the ground plane, filed at
+[PLAYTEST_LOG.md session 10](PLAYTEST_LOG.md) and being worked now.
+
+
+The UI-wiring look asked for by `W5` part 3 came back **good** on 2026-08-18
+and is closed below.
 
 The camera questions this list carried for two days were
 withdrawn on 2026-08-17 rather than answered: session 9 asked for the centred

@@ -1047,3 +1047,46 @@ outcome from "answered no": nothing was measured about them.
 as the live answer on it. The camera is no longer a candidate route to it.
 
 Symptoms and directions only. What was done about this is V23b in ROADMAP.md.
+
+## Session 10 - 2026-08-18: V22 part 1's framing, and the plane squishes
+
+The playtest owed by `V22` part 1. Two answers, and the second one is a defect
+report about a layer the question deliberately said it was **not** asking about.
+
+### What was asked
+
+The camera moved the player from screen centre to 80% down. Does digging feel
+cramped, does it look better standing still, is the bottom-of-world drift
+jarring. The list said explicitly not to judge whether the ground plane reads as
+receding, because the world still hides all of it.
+
+### What came back
+
+> *"digging not cramped"*
+
+**The cost this change was expected to be rejected for was not felt.** The owed
+item said "I expect this to be the complaint" about the ~55 cells of world left
+below the player, against ~135 before. It was not the complaint. Nothing was
+said about the standing-still half and nothing was said about the bottom-of-world
+drift, so **those two are unanswered rather than passed** - only the question
+that mattered got an answer.
+
+> *"the backdrop_ground.bmp is not working correctly. currently, the entire .bmp
+> stays on screen and squishes as the sprite flies up. this does not make
+> sense."*
+
+**A new defect, on the ground plane, found by flying rather than by digging.**
+The report is about vertical motion: the tile never leaves the frame at any
+camera height, and its proportions change as the camera climbs. "Squishes" is
+the word used and it is the shape of the report - a rescale, not a scroll and
+not a seam.
+
+**This is a different failure from every previous ground-plane report.** Sessions
+6, 7, 7b and 8 were all about the plane at rest - what it is made of, whether it
+recedes, whether the player is touching it. This one is about what it does when
+the camera moves, and no earlier session names it. The camera's vertical travel
+became easy to see the day the anchor moved, which is the likely reason a defect
+this old surfaced on this playtest.
+
+Symptoms and directions only. The arithmetic behind the second report, and what
+is being done about it, are in ROADMAP.md.

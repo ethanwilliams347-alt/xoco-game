@@ -36,6 +36,12 @@ bool covers(Tiling t, int tile, int window) {
     return t.first + static_cast<float>(t.count) * tile >= static_cast<float>(window);
 }
 
+// Screen pixels, so the tolerance is a hundredth of one - the same 0.01f the
+// strip-contiguity check above uses, and for the same reason: these are float
+// positions that get handed to SDL_FRect, not values anybody expects to be bit
+// equal.
+bool near_eq(float a, float b) { return std::fabs(a - b) < 0.01f; }
+
 std::string describe(Tiling t) {
     return "first=" + std::to_string(t.first) + " count=" + std::to_string(t.count);
 }
@@ -346,6 +352,63 @@ int main() {
         }
         check("the integer rows stay ordered and in bounds at every horizon",
               all, first_bad);
+    }
+
+    // Property 9: **the plane translates, it does not rescale.** V24, from
+    // playtest session 10 - *"the entire .bmp stays on screen and squishes as
+    // the sprite flies up."*
+    //
+    // The plane's far edge is parallaxed and its near edge used to be the
+    // window's bottom, which is a constant. That gives the near end an effective
+    // vertical parallax of **zero** while the far end has the mountains' 0.06 -
+    // the nearer end of one layer less parallaxed than its further end, which is
+    // the one thing a parallax stack may never do. What it looks like is the
+    // whole tile squeezed into a shrinking band and never leaving the frame:
+    // measured at 1920x1080 over the camera's full travel, the band ran 651.4 px
+    // down to 457.0 and the tile's scale with it, 2.54 px per texel to 1.79.
+    //
+    // **This is stated as three things that must not change with the horizon,
+    // rather than as a formula**, because the formula is the fix and a test that
+    // restates its implementation checks nothing. A plane that translates has a
+    // constant band height, a constant scale, and a near edge that moves exactly
+    // as far as its far edge. All three are independent of what the constant
+    // happens to be.
+    //
+    // The sweep is the camera's real vertical range: `ground_horizon_y` runs
+    // 428.6 to 623.0 at 1920x1080, and wider here so a taller window mode cannot
+    // find an untested horizon.
+    {
+        const Plane base = backdrop_wrap::plane_geometry(300.0f, 256, 0.28f, 0.52f);
+        const float base_band = base.bottom_y - base.horizon_y;
+
+        bool constant_band = true, constant_scale = true, translates = true;
+        std::string first_bad;
+        for (int horizon = 200; horizon <= 800; horizon += 3) {
+            const float h = static_cast<float>(horizon);
+            const Plane q = backdrop_wrap::plane_geometry(h, 256, 0.28f, 0.52f);
+            const float band = q.bottom_y - q.horizon_y;
+
+            if (!near_eq(band, base_band)) {
+                constant_band = false;
+                if (first_bad.empty())
+                    first_bad = "horizon " + std::to_string(horizon) + " band " +
+                                std::to_string(band) + " vs " + std::to_string(base_band);
+            }
+            if (!near_eq(band / static_cast<float>(q.tile_h),
+                         base_band / static_cast<float>(base.tile_h)))
+                constant_scale = false;
+            // The near edge must move with the far edge, not against it and not
+            // less than it. Equality is what "translates" means.
+            if (!near_eq(q.bottom_y - base.bottom_y, q.horizon_y - base.horizon_y))
+                translates = false;
+        }
+
+        check("the plane's band height does not change with the horizon",
+              constant_band, first_bad);
+        check("the plane's scale does not change with the horizon",
+              constant_scale, "pixels per texel moved as the camera climbed");
+        check("the plane's near edge moves exactly as far as its far edge",
+              translates, "the near end is less parallaxed than the far end");
     }
 
     // Degenerate input, the same contract wrap_axis has: a failed BMP load is a

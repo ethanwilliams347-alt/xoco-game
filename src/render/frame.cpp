@@ -214,15 +214,18 @@ void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     // the motion half of the same defect: even a correctly placed horizon would
     // have climbed past the mountains within a few hundred cells of descent.
     //
-    // The band then runs from wherever that lands to the bottom of the window,
-    // so it always meets the near edge exactly.
-    const backdrop_wrap::Plane plane{
+    // **The band then runs from wherever that lands to a near edge the plane
+    // decides, and not to the bottom of the window** (V24, 2026-08-18). It used
+    // to be `window_h`, and that is the defect playtest session 10 reported as
+    // the tile squishing as the camera climbs: a parallaxed far edge against a
+    // near edge nailed to a window constant is a layer whose nearer end is less
+    // parallaxed than its further end. The whole argument, and the alternative
+    // that was not taken, are at `PLANE_TEXEL_SCALE` in render/backdrop_wrap.h.
+    const backdrop_wrap::Plane plane = backdrop_wrap::plane_geometry(
         ground_horizon_y(camera, p.backdrop.mountain_h),
-        static_cast<float>(window_h),
+        p.backdrop.ground_h,
         backdrop_layers::GROUND.parallax_x,
-        backdrop_layers::GROUND_NEAR_X,
-        p.backdrop.ground_h
-    };
+        backdrop_layers::GROUND_NEAR_X);
 
     for (int i = 0; i < GROUND_STRIPS; ++i) {
         const backdrop_wrap::Strip s = backdrop_wrap::plane_strip(plane, i, GROUND_STRIPS);
@@ -264,6 +267,37 @@ void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
             const SDL_FRect dst{
                 t.first + static_cast<float>(c) * p.backdrop.ground_w,
                 s.dst_y, static_cast<float>(p.backdrop.ground_w), s.dst_h
+            };
+            SDL_RenderCopyF(renderer, tex, &src, &dst);
+        }
+    }
+
+    // **Below the plane's near edge, when there is a below** (V24). Freeing the
+    // near edge from the window is what makes this case exist at all: the plane
+    // is a fixed depth of art now, so a camera low enough - or a window tall
+    // enough - can leave rows underneath it that the tile has nothing to say
+    // about. At 1920x1080 that is at most 11 px at the world's floor; at
+    // 3440x1440 it is a few hundred, because the horizon is derived from the
+    // mountains' art and does not grow with the window.
+    //
+    // **Filled with the tile's nearest row rather than left to the clear
+    // colour.** What is below the near end of a receding plane is ground nearer
+    // still, and the nearest thing the art knows about is its last row - so this
+    // is the plane's own near tone continued, not a new colour and not a new
+    // band. The world's terrain covers this region at the spawn, which is why
+    // the defect it replaces was survivable; "usually covered" is not a
+    // guarantee at every camera position and is not worth relying on.
+    if (plane.bottom_y < static_cast<float>(window_h)) {
+        const backdrop_wrap::Tiling t = backdrop_wrap::wrap_axis(
+            camera.parallax_origin_x(backdrop_layers::GROUND_NEAR_X),
+            p.backdrop.ground_w, window_w);
+        const SDL_Rect src{0, p.backdrop.ground_h - 1, p.backdrop.ground_w, 1};
+        const float top = plane.bottom_y > 0.0f ? plane.bottom_y : 0.0f;
+        for (int c = 0; c < t.count; ++c) {
+            const SDL_FRect dst{
+                t.first + static_cast<float>(c) * p.backdrop.ground_w,
+                top, static_cast<float>(p.backdrop.ground_w),
+                static_cast<float>(window_h) - top
             };
             SDL_RenderCopyF(renderer, tex, &src, &dst);
         }

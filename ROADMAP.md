@@ -134,7 +134,8 @@ point.
 | 6 | **V23 — the camera's vertical anchor, and the dig framing that moves it** | afternoon | ✅ **done 2026-08-17**, and it was **not on this list yesterday** — see the note below |
 | 6a | **V23a — the dig framing was never delivered** | afternoon | ✅ **done 2026-08-17** on playtest session 8. `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR` 0.50 and airborne became a second trigger. **The clamp was swallowing the framing** — 0.30 resolved to 0.51 on screen at the fixture floor and 0.70 deeper, so the camera answered the dig least where there was most to see. **The feel re-test it owed was never run** — session 9 withdrew the whole framing hours later (row 6b) |
 | 6b | **V23b — the camera goes back to centre** | an hour | ✅ **done 2026-08-17** on playtest session 9: *"lets go back to the camera always being centered."* **A deletion, not a retune** — `camera_bias.h`, its suite, `Camera::set_vertical_anchor` and the three TUNING rows are gone, and the golden checksum returned to its pre-V23 value `0xcde4dc1a39927fca`, which is the evidence the revert is complete. Suite count unchanged at 14 (`camera_test` keeps the Camera half). **Nothing is owed to the tester by this.** ⚠️ **It hands V22 back the ~50% cap** the centred camera puts on the plane's visible share |
-| 7 | **V22 — the plane the player is in** | week | **in progress, started 2026-08-18.** **Part 1 (the framing) is done**; part 2 is the fixture-scene rewrite and part 3 the world/plane value junction. ⚠️ **It runs in full by decision on 2026-08-18, over a stated concern** — the gate answered "no" a fourth time and the two-thirds target needs the camera V23b deleted, so part 1 reopens that deletion. **Read the session 8 note and the reopening bullet below before touching part 2**, which is the step that costs both `.rec` recordings |
+| 7 | **V22 — the plane the player is in** | week | **in progress, started 2026-08-18. Part 2 is now blocked on step 8.** **Part 1 (the framing) is done**; part 2 is the fixture-scene rewrite and part 3 the world/plane value junction. ⚠️ **It runs in full by decision on 2026-08-18, over a stated concern** — the gate answered "no" a fourth time and the two-thirds target needs the camera V23b deleted, so part 1 reopens that deletion. **Read the session 8 note and the reopening bullet below before touching part 2**, which is the step that costs both `.rec` recordings |
+| 8 | **V24 — the plane's near edge is nailed to the window** | afternoon | ✅ **built 2026-08-18**, from playtest session 10, ahead of V22 part 2. The plane's near edge was pinned to the bottom of the window while its far edge was parallaxed, so the tile never left the frame and was squeezed 30% across the camera's travel — an inverted depth ordering inside one layer. `PLANE_TEXEL_SCALE` 2.5 replaces the pin and the window is no longer an input to the plane's geometry. **A motion playtest is owed**; no `.rec` cost |
 
 > **Step 6 was not planned and that is the thing to notice about it.** It exists
 > because V22's scene work started with a measurement instead of a redraw, and
@@ -4046,6 +4047,122 @@ simulation's resolution and no amount of asset work changes that.
 - [x] **V23 — The camera leaves centre, and digging brings it back.** *(done —
   full entry in
   [ROADMAP_ARCHIVE.md](ROADMAP_ARCHIVE.md#v23-the-camera-leaves-centre-and-digging-brings-it-back))*
+- [ ] **V24 — The plane's near edge is nailed to the window.** *(new
+  2026-08-18, from playtest session 10; **ahead of V22 part 2**)* *Observed:*
+  [PLAYTEST_LOG.md](PLAYTEST_LOG.md) session 10, reported against a question
+  that was not asked: *"the entire .bmp stays on screen and squishes as the
+  sprite flies up. this does not make sense."* *Blocks:* V22 parts 2 and 3, and
+  V19 4c behind them.
+
+    **The report is exactly right and the arithmetic is four lines.**
+    `draw_ground` in [src/render/frame.cpp](src/render/frame.cpp) builds its
+    `backdrop_wrap::Plane` with `horizon_y` from `ground_horizon_y` — the
+    mountains' vertical factor, 0.06 — and `bottom_y` from `window_h`, **a
+    window constant**. So the plane's far edge is parallaxed and its near edge
+    is not, and `plane_strip` distributes the tile's whole 256 rows across
+    whatever band is left between them. Measured over the camera's full
+    vertical travel at 1920x1080, `mountain_h` 1642:
+
+    | `view_fy` | horizon | band | px per texel |
+    |---|---|---|---|
+    | 810 (spawn, bottom clamp) | 428.6 | 651.4 | 2.54 |
+    | 400 | 527.0 | 553.0 | 2.16 |
+    | 0 (top of world) | 623.0 | 457.0 | 1.79 |
+
+    **The tile never leaves the frame at any camera height and is compressed 30%
+    vertically across the climb.** That is the report, in numbers, and it is a
+    rescale rather than a scroll — which is why no seam test and no checksum
+    ever caught it.
+
+    - **The defect is an inverted depth ordering, and stating it that way is
+      what makes the fix obvious.** The near edge's *effective* vertical
+      parallax factor is **0.0**, because it is pinned to the window; the far
+      edge's is 0.06. **The nearer end of the plane is less parallaxed than the
+      further end**, which is the one thing a parallax stack may never do. Every
+      other layer in the frame is ordered correctly and this one is inverted
+      inside itself.
+    - **`backdrop_layers::GROUND.parallax_y` is 0.11, is generated, and is read
+      by nothing.** The only consumers of any `parallax_y` are
+      `draw_backdrop_layer` (sky and mountains) and `ground_horizon_y`, which
+      deliberately takes the **mountains'** 0.06 instead — V20's correction, and
+      it is right: the plane's far edge is at infinity, so its factor has to be
+      the smallest in the scene. What was never noticed is that this leaves the
+      plane's *near* edge with no vertical factor at all, and the code supplied
+      a window constant in its place. **A generated constant with no consumer is
+      how a stack gets built with a rung missing**, and `main.cpp` prints this
+      number in its mismatch warning, which makes it look live.
+    - **Why it goes ahead of V22 part 2, and this is an ordering claim rather
+      than a severity one.** V22 part 3 tunes the value junction where the
+      world's surface meets the plane's near end. **That junction currently
+      moves and rescales with camera height**, so a grade tuned to make the two
+      read as one surface is tuned at one camera position and wrong at every
+      other. Part 2 authors the terrain that meets it. **Both are authoring
+      against a target that moves** — the same rule step 6 and 4c were each
+      re-ordered for, arriving a third time. Fix the geometry, then author
+      against it.
+    - **It is also the first ground-plane report that is not about the plane at
+      rest.** Sessions 6, 7, 7b and 8 all asked what the plane *is*; this asks
+      what it *does*. Worth keeping as a shape: four rounds of value work went
+      into a layer whose motion nobody had checked, and the thing that surfaced
+      it was V22 part 1 moving the camera, not any of the work aimed at the
+      plane.
+    - **✅ The geometry decision came back the same day: (b), constant scale.**
+      Two candidates, both of which fix the inversion and which look different
+      in motion. **(a) Give the near edge its own vertical factor** — the ladder
+      in `tools/generate_backdrop.py` derives y as ~0.4x, so 0.52 gives ~0.21 —
+      and let the band grow as the camera climbs. That is honest perspective for
+      a horizontal surface seen from higher up, and it magnifies the tile's
+      marks about 75% over the world's height. **(b) Hold the depth mapping
+      fixed** — constant screen pixels per texel — and let the whole band
+      translate and clip, which is what every other layer in the frame does.
+      **(b) was chosen, and the reason is worth keeping**: the report's
+      complaint is that the layer *resizes*, and (a) resizes it too — just for a
+      better reason. A fix that answers a rescale with a different rescale is
+      betting the tester objected to the arithmetic rather than to what they
+      saw. **Do not re-derive (a) from the shipped constant**; it is recorded at
+      `PLANE_TEXEL_SCALE` so that a later reader can find it without
+      rediscovering it.
+    - **What sits below the near edge, which both candidates had to answer.**
+      Freeing the near edge from the window is what creates the case: the plane
+      is a fixed depth of art now, so a low camera or a tall window can leave
+      rows underneath it. At 1920x1080 that is at most 11 px at the world's
+      floor; at 3440x1440 it is a few hundred, because the horizon derives from
+      the mountains' art and does not grow with the window. **It is filled with
+      the tile's nearest row** — what is below the near end of a receding plane
+      is ground nearer still, and the nearest thing the art knows is its last
+      row. **Not left to the clear colour on the grounds that the terrain covers
+      it**, which it does at the spawn and does not promise anywhere else.
+    - **What the fix costs.** Both golden checksums move, in the same commit as
+      the change. It does **not** touch the scene, so **no `.rec` recording is
+      invalidated** — this is not part 2's cost arriving early. A playtest is
+      owed once it is built, and it is a *motion* check, which no step of the
+      Manual Tester Checklist currently is: step 11 covers seams and stair-steps
+      on the parallax strips at rest.
+    - **▶️ Built 2026-08-18.** `PLANE_TEXEL_SCALE` 2.5 and `plane_geometry` in
+      [src/render/backdrop_wrap.h](src/render/backdrop_wrap.h); `draw_ground`
+      calls it instead of building the `Plane` inline. Golden checksum
+      `0x77404ada6ab4d08f`, overlay `0x57a56d7aa8cc6bf0`, both in the same
+      commit. **The signature is where the fix is stated**: `plane_geometry`
+      does not take the window height, so the defect is not merely fixed but
+      unrepresentable — a layer's geometry is a fact about the layer, and the
+      window only decides how much of it you can see.
+    - **The failing test came first and it is a property, not a case**
+      (`backdrop_test`, property 9). Three things that must not change as the
+      horizon moves: the band's height, the scale in pixels per texel, and that
+      the near edge translates exactly as far as the far edge. **Stated that way
+      rather than as a formula**, because a test that restates its
+      implementation checks nothing — all three hold for any value of the
+      constant. It was run against the unfixed code first and failed on all
+      three; the intermediate step that made that possible was a
+      behaviour-preserving `plane_geometry` that still took `window_h` and
+      handed it back.
+    - **`PLANE_TEXEL_SCALE` is 2.5 because that is the composition already
+      shipped**, not because it was chosen: the spawn band was 651.4 px over a
+      256-row tile, 2.544 px per texel. **So this is a defect fix at the old
+      look**, and the only visible change is what the plane does while the
+      camera moves — which is what makes the playtest it owes answerable.
+
+
 - [ ] **V22 — The plane the player is in.** *(new 2026-08-16, **unblocked the
   same day**; retitled from "What the receding plane is made of" when the
   decision came back)* *Observed:* [PLAYTEST_LOG.md](PLAYTEST_LOG.md) session 7
