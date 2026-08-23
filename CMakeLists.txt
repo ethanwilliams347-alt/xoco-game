@@ -61,6 +61,7 @@ set(SCENE_PROP_SOURCES
     src/scene/props.cpp
     src/scene/sprites.cpp
     src/scene/bmp.cpp
+    src/scene/scene_list.cpp
 )
 
 # V17's frame composition. **A fifth variable rather than a line in
@@ -182,6 +183,14 @@ if(BUILD_TESTING)
     # Run from the source tree so the suite can parse the shipped
     # assets/test_props.txt, which is the fixture main.cpp actually loads.
     add_test(NAME props_test COMMAND props_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+    # Which scenes exist. Same shape as props_test and for the same reasons -
+    # a list format whose whole contract is "reject the file, not the line" -
+    # and it runs from the source dir because its last two checks parse the
+    # shipped assets/scenes.txt rather than only a synthetic one.
+    add_executable(scene_list_test tests/test_scene_list.cpp ${SCENE_PROP_SOURCES})
+    target_include_directories(scene_list_test PRIVATE src tests)
+    add_test(NAME scene_list_test COMMAND scene_list_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
     # The sprite manifest. Links the same parser-only set for the same reason:
     # it turns a text file into a list of records, knows no SDL, and nothing in

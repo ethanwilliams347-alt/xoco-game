@@ -1,0 +1,144 @@
+#include "scene_list.h"
+
+#include <fstream>
+#include <sstream>
+
+namespace scene_list {
+
+bool scene_name_ok(const std::string& name) {
+    if (name.empty()) return false;
+    if (name.find('/') != std::string::npos) return false;
+    if (name.find('\\') != std::string::npos) return false;
+    if (name.find("..") != std::string::npos) return false;
+    for (char c : name) {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                        (c >= '0' && c <= '9') || c == '_' || c == '-';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+std::vector<SceneDef> default_scene_list() {
+    SceneDef fixture;
+    fixture.name = "fixture";
+    fixture.material = "test_material.bmp";
+    fixture.albedo = "test_albedo.bmp";
+    fixture.props = "test_props.txt";
+    fixture.spawn = Spawn::Terrain;
+    fixture.line = 0;   // 0 rather than 1: this record came from no line at all
+    return { fixture };
+}
+
+std::vector<SceneDef> load_scene_list(const std::string& path, std::string* error) {
+    std::vector<SceneDef> scenes;
+
+    std::ifstream in(path);
+    // Absent is not malformed, exactly as in `load_prop_list`. The caller falls
+    // back to `default_scene_list()`, so deleting this file cannot stop the game
+    // booting - it only removes the choice.
+    if (!in) return scenes;
+
+    std::string line;
+    int line_no = 0;
+
+    auto fail = [&](const std::string& why) {
+        if (error) {
+            std::ostringstream msg;
+            msg << path << ":" << line_no << ": " << why;
+            *error = msg.str();
+        }
+        scenes.clear();
+        return scenes;
+    };
+
+    // A filename field: `-` means none, anything else must be a safe name plus
+    // an extension. The extension is why this is not `scene_name_ok` directly -
+    // a prop sprite is a stem and these are whole filenames, so the dot is
+    // allowed here and nowhere else.
+    auto file_field = [&](const std::string& raw, std::string& out) -> bool {
+        if (raw == "-") { out.clear(); return true; }
+        const size_t dot = raw.rfind('.');
+        if (dot == std::string::npos || dot == 0 || dot + 1 >= raw.size()) return false;
+        if (!scene_name_ok(raw.substr(0, dot))) return false;
+        if (!scene_name_ok(raw.substr(dot + 1))) return false;
+        out = raw;
+        return true;
+    };
+
+    while (std::getline(in, line)) {
+        ++line_no;
+
+        const size_t hash = line.find('#');
+        if (hash != std::string::npos) line.erase(hash);
+
+        std::istringstream fields(line);
+        SceneDef def;
+        def.line = line_no;
+
+        if (!(fields >> def.name)) continue;   // blank or comment-only
+
+        if (!scene_name_ok(def.name))
+            return fail("'" + def.name + "' is not a usable scene name "
+                        "(letters, digits, _ and - only; no path separators)");
+
+        for (const SceneDef& seen : scenes)
+            if (seen.name == def.name)
+                return fail("scene '" + def.name + "' is already defined on line " +
+                            std::to_string(seen.line));
+
+        std::string material, albedo, props, spawn;
+        if (!(fields >> material >> albedo >> props >> spawn))
+            return fail("scene '" + def.name +
+                        "' needs five fields: name material albedo props spawn "
+                        "(use - for none)");
+
+        if (!file_field(material, def.material))
+            return fail("'" + material + "' is not a usable file name");
+        if (!file_field(albedo, def.albedo))
+            return fail("'" + albedo + "' is not a usable file name");
+        if (!file_field(props, def.props))
+            return fail("'" + props + "' is not a usable file name");
+
+        // **A material map without an albedo map, or the reverse, is refused
+        // rather than half-loaded.** `bmp::load` takes both and a scene is the
+        // pair; naming one of them is an author who meant something the loader
+        // cannot do, and the failure without this check is a blank world - the
+        // exact symptom `scene/legend.h` exists to keep distinguishable.
+        if (def.material.empty() != def.albedo.empty())
+            return fail("scene '" + def.name +
+                        "' names one of material/albedo and not the other; "
+                        "a scene is the pair, or neither");
+
+        if (spawn == "terrain") def.spawn = Spawn::Terrain;
+        else if (spawn == "floor") def.spawn = Spawn::Floor;
+        else return fail("'" + spawn + "' is not a spawn rule (terrain or floor)");
+
+        // **An empty scene may not ask for a terrain spawn**, because there is
+        // no terrain to scan and the body would be left in mid-air a quarter of
+        // the way down the world - which reads as the mid-air spawn defect
+        // playtest session 12 reported, arriving through a new door.
+        if (def.declared_empty() && def.spawn != Spawn::Floor)
+            return fail("scene '" + def.name +
+                        "' names no material map, so it has no terrain to stand on; "
+                        "its spawn must be floor");
+
+        std::string extra;
+        if (fields >> extra)
+            return fail("unexpected sixth field '" + extra + "'");
+
+        scenes.push_back(def);
+    }
+
+    // A file that exists and lists nothing is an author who meant something.
+    // Returning an empty list here would silently fall the caller back to the
+    // built-in default, which is a different world than the one the file was
+    // edited to produce.
+    if (scenes.empty()) {
+        line_no = 0;
+        return fail("the file exists but lists no scenes");
+    }
+
+    return scenes;
+}
+
+} // namespace scene_list

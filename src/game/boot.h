@@ -156,6 +156,29 @@ inline Standing stand_player_on_ground(Run& run) {
     return Standing{true, surface};
 }
 
+// Stands the body on the world's bottom border instead of on terrain.
+//
+// **For a scene that is *meant* to have no terrain, and not as a fallback for
+// `stand_player_on_ground` failing.** The distinction is the whole reason this
+// is a second function rather than a branch inside that one: a terrain scan that
+// comes back empty is either a scene with no ground under the spawn column - a
+// defect the caller warns about - or a scene declared empty in
+// `assets/scenes.txt`, which is not. Collapsing the two would make a broken
+// scene look playable, which is the conflation `scene/legend.h` exists to
+// prevent, arriving through a new door.
+//
+// **The border is what it stands on, and that is load-bearing rather than
+// incidental.** `Run`'s constructor comment records it: the world edge reads as
+// solid, so a body with no terrain under it "falls to the bottom edge rather
+// than out of existence". This puts it there directly, so the drop is removed
+// rather than shortened - `Player::has_landed` is then still unspent when the
+// player takes their first real fall, which is `stand_player_on_ground`'s
+// argument and applies here unchanged.
+inline void stand_player_on_floor(Run& run) {
+    run.player = Player(run.grid.get_width() / 2,
+                        run.grid.get_height() - Player::HEIGHT);
+}
+
 // Where S0's objective ended up, and whether it got placed at all.
 struct Objective {
     bool placed = false;

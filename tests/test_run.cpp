@@ -523,6 +523,17 @@ int main() {
         check("S0: ...and the objective still placed",
               run.has_objective(), "an objective cleared by reset leaves an "
                                    "unwinnable run that says nothing");
+
+        // **And the one thing that may clear it, which is a level change.**
+        // The exception above is right while the caller re-stamps the same
+        // scene; scenes became a list on 2026-08-23 and switching to one with
+        // no terrain would otherwise leave this objective hanging in empty
+        // space, claiming a run is winnable when nothing can be reached.
+        run.clear_objective();
+        check("S0: clear_objective removes it, for a caller changing the level",
+              !run.has_objective());
+        run.reset(5153);
+        check("S0: ...and it stays cleared through a reset", !run.has_objective());
     }
 
     // --- the recorder's guarantee survives a restart ---

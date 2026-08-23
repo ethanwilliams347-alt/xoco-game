@@ -850,6 +850,85 @@ in their own tracks because they belong to those tracks' running orders.*
       traces are identical to the float version to the cell; and the constants
       in [TUNING.md](TUNING.md) still mean what they say.
 
+- [x] **T2 — Locations are a list, and one of them is empty.** *(new 2026-08-23,
+  built the same day)* *Observed:* asked for directly — *"i want to make a new
+  scene that i can load dynamically that has nothing at all except the
+  background. the player spawns at the very bottom."*
+
+    **The empty scene is the deliverable and the list is what it cost.** An
+    empty world is the instrument this visual track has been missing: with no
+    terrain, nothing occludes the backdrop, so the sky, the mountains and the
+    receding plane can be judged on their own rather than through the 41.6% of
+    the frame the fixture's terrain covers. Every reading taken for V19 through
+    V25 has been taken through that terrain.
+
+    **What decided the format: an empty scene is a scene with no image, not an
+    image of nothing.** The reflex is to author two all-black BMPs and load them
+    the way the fixture is loaded. They would be 12.4 MB carrying no
+    information, which is exactly what `props.h` refuses in its own second
+    paragraph — *per-cell data gets an image, a list gets a list*. So a scene
+    names its files and a scene that names none is empty by construction, and
+    the three literals that used to sit in `main.cpp` became a row.
+
+    **`SceneDef::declared_empty()` is the whole of why this does not break the
+    launch check.** `main.cpp` warns when a scene places no cells, because a
+    blank world is what a broken legend, a missing file and an empty file all
+    look like from there — and that warning is the only reason V2's blank world
+    was ever findable. A scene that is *declared* empty is a fourth thing, and
+    warning about it would make the check cry wolf. The predicate asks about the
+    declaration rather than the result, so the three failures stay loud and the
+    intended case stays silent.
+
+    **Two things the item found rather than added.**
+
+    1. **`Run::reset` keeps the objective, and that was right only while there
+       was one level.** The exception is recorded at the field and its argument
+       is sound: the objective is a property of the level, the caller re-stamps
+       the same level, so clearing it would be a thing the caller has to
+       remember. Switching to a scene with no terrain breaks the premise — the
+       previous level's objective stays placed, in empty space, claiming the run
+       is winnable. `Run::clear_objective` is the narrowing: the objective
+       survives a reset, and a caller changing the *level* says so.
+    2. **`restart_run` had its own copy of the rebuild and it was missing the
+       spawn.** A win or a loss re-stamped the scene and re-placed the objective
+       but never stood the body up, so it dropped back to a quarter of the
+       world's height and fell — which is the *exact* defect playtest session 12
+       reported at launch and which `boot::stand_player_on_ground` was written
+       to remove. It was fixed at boot and left standing here, because there
+       were two paths. There is one now: `activate_scene`, called by boot, by
+       `F7` and by `restart_run`.
+
+    **`spawn` is `terrain` or `floor`, and `floor` is not a fallback for
+    `terrain` failing.** That is the same conflation `scene/legend.h` exists to
+    prevent, arriving through a new door: a terrain scan that comes back empty
+    is either a scene with no ground under the spawn column — a defect, warned
+    about — or a scene declared empty, which is not. Collapsing them would make
+    a broken scene look playable. `boot::stand_player_on_floor` is a second
+    function for that reason and not for tidiness, and it is in `boot.h` rather
+    than in `main.cpp` so `boot_test` can assert what it claims: the body ends
+    up inside the world, at its lowest row, resting on the border after a step,
+    and having spent no health getting there.
+
+    **What it does not do, deliberately.**
+    - **No launch flag.** `F7` cycles, which is what lets the two scenes be
+      compared on one launch — the whole point of an instrument. A flag would
+      mean two launches and two world seeds.
+    - **No key per scene.** The list is authored and a fixed set of bindings
+      pretending to be a variable-length list is the same mistake as a format
+      field the loader ignores.
+    - **No third scene.** The format carries one, and the moment a location
+      wants one it is a row rather than a session.
+
+    **Coverage.** `scene_list_test` is the nineteenth suite; most of it asserts
+    that a malformed list is rejected *wholesale*, which is the shape
+    `.claude/rules/simulation.md` names as the one to get right — a suite
+    written the obvious way passes on the exact bug the rule exists to catch. It
+    also parses the shipped `assets/scenes.txt`, so the format and the file
+    cannot drift apart. `boot_test` gained the floor spawn and `run_test` the
+    objective clear. **`docs_test` caught the launch line changing shape** and
+    now reads the first scene's name out of `assets/scenes.txt` rather than
+    having it written in twice.
+
 - **T1 — The debug tooling batch.** *(2 days — new, and it is item 6)* Four
   items lifted out of Presentation & Tooling: **world reset hotkey, pause and
   single-step, a free camera, and the cell inspector.** They are moved rather
@@ -1453,7 +1532,7 @@ asked for or the work turned up:
   `TUNING.md` and `ROADMAP.md`. Three copies of `0xcde4dc1a39927fca` is three
   chances to drift, and `V23b` made the number's *provenance* the evidence a
   revert was complete.
-- **`FIXTURE_SCENE_CELLS`**, as the whole `Scene: 1920x1080, N cells placed`
+- **`FIXTURE_SCENE_CELLS`**, as the whole `Scene: <name>, 1920x1080, N cells placed`
   launch line, in `MANUAL_TESTING.md` and `ASSETS.md`. A stale copy there has
   the tester passing a world that failed.
 - **The Manual Tester Checklist's length** (thirteen), counted from the numbered

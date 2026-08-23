@@ -174,6 +174,42 @@ void test_choose_display_mode() {
     }
 }
 
+// The empty scene's spawn (2026-08-23). A world with no terrain at all is a
+// legitimate scene now - `assets/scenes.txt` ships one so the backdrop can be
+// looked at with nothing standing in front of it - and the body has to end up
+// somewhere real in it.
+void test_stand_player_on_floor() {
+    Run run(40, 40);           // no terrain stamped: this world is entirely Empty
+    boot::stand_player_on_floor(run);
+
+    check("stand_player_on_floor: the body is inside the world",
+          run.player.cell_y() + Player::HEIGHT <= 40,
+          std::to_string(run.player.cell_y()) + " + " + std::to_string(Player::HEIGHT));
+    check("stand_player_on_floor: ...and as low as it can be",
+          run.player.cell_y() + Player::HEIGHT == 40,
+          std::to_string(run.player.cell_y() + Player::HEIGHT));
+
+    // **The claim that matters is that it *rests* there**, and it rests on the
+    // world border rather than on anything stamped - which is the fact `Run`'s
+    // constructor comment records and which this scene depends on completely.
+    // A step is taken because `is_on_ground` is recomputed by the step, not by
+    // the placement.
+    run.step(Input{});
+    check("stand_player_on_floor: the world border holds it up",
+          run.player.is_on_ground());
+    check("stand_player_on_floor: ...and it has not fallen through",
+          run.player.cell_y() + Player::HEIGHT == 40,
+          std::to_string(run.player.cell_y() + Player::HEIGHT));
+
+    // The drop is *removed*, not shortened - so the free first landing is still
+    // unspent for the player's first real fall. Same argument as
+    // stand_player_on_ground's, and it is the reason neither of them just lets
+    // the body fall.
+    check("stand_player_on_floor: the spawn costs no health",
+          run.player.health() == Player::MAX_HEALTH,
+          std::to_string(run.player.health()));
+}
+
 void test_stand_player_on_ground() {
     // The mirror pair. Giving a body the *lowest* surface under its footprint
     // puts its feet inside the hill, which is a silent bug rather than a crash,
@@ -294,6 +330,7 @@ int main() {
     test_place_objective();
     test_plant_props();
     test_stand_player_on_ground();
+    test_stand_player_on_floor();
     test_choose_display_mode();
     test_shipped_fixture();
     return report();

@@ -128,6 +128,18 @@ public:
     // way it plants props, which is the closest thing to "in the level" that a
     // hard-coded objective can honestly be.
     void set_objective(int x, int y);
+
+    // Removes the objective outright.
+    //
+    // **This is the escape hatch for the exception recorded at `objective_set`
+    // below, and it exists because that exception met a level it was wrong
+    // for.** Surviving `reset()` is right when the caller re-stamps *the same*
+    // scene, which was the only thing that could happen until scenes became a
+    // list. Switching to a scene with no terrain leaves the previous level's
+    // objective hanging in empty space - placed, unreachable, and claiming the
+    // run is winnable. So the rule is unchanged and narrowed: the objective
+    // survives a reset, and a caller that changes the *level* says so.
+    void clear_objective();
     bool has_objective() const { return objective_set; }
     int objective_x() const { return goal_x; }
     int objective_y() const { return goal_y; }

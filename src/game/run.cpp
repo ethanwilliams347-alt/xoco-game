@@ -22,6 +22,12 @@ void Run::set_objective(int x, int y) {
     objective_set = true;
 }
 
+void Run::clear_objective() {
+    objective_set = false;
+    goal_x = 0;
+    goal_y = 0;
+}
+
 bool Run::step(const Input& input) {
     // A filled circle of radius brush_size, painted before physics runs so a
     // freshly placed cell does not move on the same step it was placed.

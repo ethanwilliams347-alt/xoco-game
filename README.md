@@ -64,7 +64,7 @@ covers the pipeline from a drawing to a validated sheet.
 ## Running the Tests
 
 The simulation has no SDL dependency, so it is tested headlessly. There are
-eighteen suites, one per concern — `grid_test` for the cellular automata,
+nineteen suites, one per concern — `grid_test` for the cellular automata,
 `player_test` for the character physics, `tool_test` for digging,
 `collapse_test` for structural support, `run_test` for the three of them driven
 together through one `Run::step()`, `scene_test` for the level loader,
@@ -205,6 +205,8 @@ in **[MANUAL_TESTING.md](MANUAL_TESTING.md)**. Run that one after any change to
 - **`I`**: The cell inspector — a line under the HUD reading what is in the cell under the cursor: material, temperature, whether its chunk is awake, and whichever of the fall clock, gas lifetime and piece tag apply. `E2` and `E3` both added per-cell state that has never been readable while the thing being debugged was on screen.
 - **`Ctrl`+`R`**: Reset the world unconditionally, mid-run included — the debug version of `R`. It keeps the current seed, so the world you were debugging comes back exactly; a fresh seed would also invalidate the session recorder's header, which is written once at startup. The modifier is what keeps it away from a key you might mis-hit.
 - **`CHUNKS:` on the HUD gains `+FALLING`** when a structural piece is in the air. `CHUNKS:0` on its own does *not* mean the world has stopped — a falling slab is carried by the support queue rather than by the chunk rects, so the counter can read zero the whole way down.
+
+- **`F7`**: Cycle to the next scene in `assets/scenes.txt`, rebuilding the world in place. The shipped list holds two: `fixture`, the authored test location, and `empty` — no terrain at all, so you are standing on the world's floor with nothing but the backdrop in front of you, which is what it exists for. The scene's name appears under the HUD and on stdout. It is a cycle rather than a key per scene because the list is authored and a fixed set of bindings pretending to be a variable-length list is the same mistake as a format field the loader ignores. Switching rebuilds the world, so it also restarts the session recorder — a log spanning two different worlds is not a log of either.
 
 - **`F9`**: Write everything played so far to `session.rec` — the benchmark's replayed row (P4). A line appears under the HUD saying what was written and how many steps it holds. Every session is recorded from its first step whether or not you ever press this; see [The replayed row](PERFORMANCE.md#the-replayed-row-and-recording-one-p4). It is on `F9` rather than a letter because every letter within reach of the movement keys is a hotbar slot, and a key that writes a file is a bad one to hit while reaching for sand.
 

@@ -23,6 +23,7 @@
 #include "scene/bmp.h"
 #include "scene/props.h"
 #include "scene/scene.h"
+#include "scene/scene_list.h"
 #include "scene/sprites.h"
 #include "ui/text.h"
 #include "ui/hotbar.h"
@@ -551,27 +552,69 @@ int main(int argc, char* argv[]) {
     // failure as V2's blank world and the first props pass's buried trees: a
     // scene that renders, renders wrong, and says nothing. props.h has the
     // argument in full.
-    std::string prop_error;
-    const std::vector<PropDef> prop_defs = load_prop_list("assets/test_props.txt", &prop_error);
-    if (!prop_error.empty()) {
-        std::fprintf(stderr, "ERROR: %s\n", prop_error.c_str());
-        std::fprintf(stderr, "       No props are drawn. Fix the line above and re-run.\n");
+    // **Which scenes exist, loaded before anything that depends on which one is
+    // active.** Until 2026-08-23 the location was three literals in this file;
+    // it is `assets/scenes.txt` now, and the format's reasoning is in
+    // `scene/scene_list.h`.
+    //
+    // **A malformed list falls back to the built-in default rather than
+    // refusing to start**, which is `load_prop_list`'s arrangement and is chosen
+    // for its reason: the failure is loud on stderr, and a game that will not
+    // boot because a debug convenience was mistyped is worse than one that boots
+    // into the location it shipped with. The fallback lives in `scene_list.cpp`
+    // and is deliberately not spelled out here, so that "the file is missing"
+    // and "the file lists exactly the shipped location" are provably the same
+    // world rather than two things that look the same.
+    std::string scene_list_error;
+    std::vector<scene_list::SceneDef> scenes =
+        scene_list::load_scene_list("assets/scenes.txt", &scene_list_error);
+    if (!scene_list_error.empty()) {
+        std::fprintf(stderr, "ERROR: %s\n", scene_list_error.c_str());
+        std::fprintf(stderr, "       Falling back to the built-in scene.\n");
     }
+    if (scenes.empty()) scenes = scene_list::default_scene_list();
+    int active_scene = 0;
 
-    // One entry per record, parallel to `prop_defs`, holding what only a window
-    // can answer: the sprite's texture and its native size in world cells. A
-    // record whose sprite did not load keeps its slot with a null texture and a
-    // width of 0, which is how `boot::plant_props` - which knows no SDL - is
-    // told about it without being handed one.
-    std::vector<SDL_Texture*> prop_tex(prop_defs.size(), nullptr);
-    std::vector<int> prop_w(prop_defs.size(), 0);
-    std::vector<int> prop_h(prop_defs.size(), 0);
-    for (size_t i = 0; i < prop_defs.size(); ++i) {
-        SDL_Texture* tex = prop_texture(prop_defs[i].sprite);
-        if (!tex) continue; // already warned by prop_texture, once per name
-        prop_tex[i] = tex;
-        SDL_QueryTexture(tex, nullptr, nullptr, &prop_w[i], &prop_h[i]);
-    }
+    // **The prop list is per scene now, and these are no longer const.** The
+    // texture cache above is keyed by sprite name and is also the destroy list,
+    // so two scenes naming the same tree share one texture and shutdown is
+    // unchanged - which is the whole reason switching scenes needs no texture
+    // bookkeeping of its own.
+    //
+    // **A malformed prop list is loud and costs every prop, not the bad line.**
+    // The alternative - skip the row that would not parse - is the same silent
+    // failure as V2's blank world and the first props pass's buried trees: a
+    // scene that renders, renders wrong, and says nothing. props.h has the
+    // argument in full.
+    std::vector<PropDef> prop_defs;
+    std::vector<SDL_Texture*> prop_tex;
+    std::vector<int> prop_w;
+    std::vector<int> prop_h;
+    auto load_props_for = [&](const scene_list::SceneDef& def) {
+        prop_defs.clear();
+        if (!def.props.empty()) {
+            std::string prop_error;
+            prop_defs = load_prop_list("assets/" + def.props, &prop_error);
+            if (!prop_error.empty()) {
+                std::fprintf(stderr, "ERROR: %s\n", prop_error.c_str());
+                std::fprintf(stderr, "       No props are drawn. Fix the line above and re-run.\n");
+            }
+        }
+        // One entry per record, parallel to `prop_defs`, holding what only a
+        // window can answer: the sprite's texture and its native size in world
+        // cells. A record whose sprite did not load keeps its slot with a null
+        // texture and a width of 0, which is how `boot::plant_props` - which
+        // knows no SDL - is told about it without being handed one.
+        prop_tex.assign(prop_defs.size(), nullptr);
+        prop_w.assign(prop_defs.size(), 0);
+        prop_h.assign(prop_defs.size(), 0);
+        for (size_t i = 0; i < prop_defs.size(); ++i) {
+            SDL_Texture* tex = prop_texture(prop_defs[i].sprite);
+            if (!tex) continue; // already warned by prop_texture, once per name
+            prop_tex[i] = tex;
+            SDL_QueryTexture(tex, nullptr, nullptr, &prop_w[i], &prop_h[i]);
+        }
+    };
     // The count is NOT printed here. A prop that has a texture is not yet a prop
     // that got placed - the terrain scan below drops any with no ground under
     // them - so a count taken at this point reports texture loads while saying
@@ -602,19 +645,33 @@ int main(int argc, char* argv[]) {
                                                   // is what puts it down, once there is
                                                   // terrain to put it on
     
-    // Load F4 test scene. A scene that resolves to no cells at all is reported
-    // rather than shrugged off: README's launch check is "terrain is visible
-    // immediately", and a blank world is exactly what a broken legend, a
+    // Load the active scene. A scene that resolves to no cells at all is
+    // reported rather than shrugged off: README's launch check is "terrain is
+    // visible immediately", and a blank world is exactly what a broken legend, a
     // missing file and an empty file all look like from here.
-    Scene scene = load_scene_from_bmp("assets/test_material.bmp", "assets/test_albedo.bmp");
+    //
+    // **A scene that is *declared* empty is a fourth thing and must not be
+    // confused with those three**, which is why `SceneDef::declared_empty()`
+    // asks about the declaration and not about the result. Warning on a world
+    // that is empty because it was asked to be would make the launch check a
+    // liar, and a check that cries wolf is one nobody reads - which is exactly
+    // how V2's blank world survived a full suite.
+    Scene scene;
     int scene_cells = 0;
-    if (scene.width > 0) {
-        scene_cells = load_scene(run.grid, scene, 0, 0);
-        std::printf("Scene: %dx%d, %d cells placed\n", scene.width, scene.height, scene_cells);
-        if (scene_cells == 0) {
+    auto stamp_scene = [&](const scene_list::SceneDef& def) {
+        scene = Scene{};
+        scene_cells = 0;
+        if (!def.declared_empty()) {
+            scene = load_scene_from_bmp(("assets/" + def.material).c_str(),
+                                        ("assets/" + def.albedo).c_str());
+            if (scene.width > 0) scene_cells = load_scene(run.grid, scene, 0, 0);
+        }
+        std::printf("Scene: %s, %dx%d, %d cells placed\n", def.name.c_str(),
+                    scene.width, scene.height, scene_cells);
+        if (scene_cells == 0 && !def.declared_empty()) {
             std::fprintf(stderr, "WARNING: the scene named no material anywhere - the world is empty.\n");
         }
-    }
+    };
 
     // The body starts mid-air because `Run` is built before the scene is; now
     // that there is terrain, stand it on the terrain. Playtest session 12
@@ -622,31 +679,51 @@ int main(int argc, char* argv[]) {
     // can reach it; what is left here is the warning, for the same reason the
     // objective's is here - a body that could not find ground is something the
     // player is about to experience and cannot otherwise account for.
-    if (!boot::stand_player_on_ground(run).placed) {
-        std::fprintf(stderr, "WARNING: no ground under the spawn column; "
-                             "the player starts in mid-air and will fall.\n");
-    }
+    //
+    // **`floor` is a second rule and not a fallback for the first**, which is
+    // the distinction `scene_list::Spawn` is written around. A scene with no
+    // terrain has nothing to scan, so it says so in the file; using `floor` when
+    // a terrain scan merely *failed* would turn a broken scene into a
+    // playable-looking one, and the warning below is what makes that failure
+    // visible instead.
+    auto spawn_player = [&](const scene_list::SceneDef& def) {
+        if (def.spawn == scene_list::Spawn::Floor) {
+            boot::stand_player_on_floor(run);
+            return;
+        }
+        if (!boot::stand_player_on_ground(run).placed) {
+            std::fprintf(stderr, "WARNING: no ground under the spawn column; "
+                                 "the player starts in mid-air and will fall.\n");
+        }
+    };
 
     // S0's objective, planted on whatever terrain is actually at
     // `boot::OBJECTIVE_X` the same way a prop is. The decision moved to
     // `game/boot.h` with W5; what is left here is the warning, because a run
     // that cannot be won is a thing the *player* has to be told about and
     // stderr is where this shell says such things.
-    auto place_objective = [&]() {
+    // **Cleared first, and that is a change scenes forced.** `Run::reset` keeps
+    // the objective on purpose - it is a property of the level, and the caller
+    // used to always re-stamp the same level. Switching to a scene with no
+    // terrain would otherwise leave the previous level's objective hanging in
+    // empty space: placed, unreachable, and claiming the run is winnable. The
+    // rule is unchanged and narrowed - the objective survives a reset, and a
+    // caller changing the *level* says so.
+    auto place_objective_for = [&](const scene_list::SceneDef& def) {
+        run.clear_objective();
+        if (def.declared_empty()) return;   // nothing to plant it on, and none is owed
         if (!boot::place_objective(run).placed) {
             std::fprintf(stderr, "WARNING: no ground under the objective column x=%d; "
                                  "this run has no objective and cannot be won.\n",
                          boot::OBJECTIVE_X);
+            return;
         }
-    };
-    place_objective();
-
-    // Printed for the same reason the seed and the scene count are: an objective
-    // that silently failed to place is a run that cannot be won, and that is not
-    // something a player can tell apart from one they have not found yet.
-    if (run.has_objective()) {
+        // Printed for the same reason the seed and the scene count are: an
+        // objective that silently failed to place is a run that cannot be won,
+        // and that is not something a player can tell apart from one they have
+        // not found yet.
         std::printf("Objective: (%d, %d)\n", run.objective_x(), run.objective_y());
-    }
+    };
 
     // --- P4: the session recorder ---
     //
@@ -668,8 +745,12 @@ int main(int argc, char* argv[]) {
     recording.header.grid_w = GRID_WIDTH;
     recording.header.grid_h = GRID_HEIGHT;
     recording.header.seed = world_seed;
-    recording.header.scene_cells = scene_cells;
-    recording.header.start_fingerprint = input_log::fingerprint(run.grid);
+    // **`scene_cells` and the start fingerprint are filled after the world is
+    // built, not here.** They were set at this line while the scene was three
+    // literals stamped forty lines above; with scenes a list, the world is put
+    // together by `activate_scene` below and a header written before it would
+    // describe a world that does not exist yet - which is precisely the "log
+    // that replays into the wrong world" failure P4 exists to remove.
     constexpr size_t MAX_RECORDED_STEPS = 60 * 60 * 30; // half an hour of play
     bool recording_full = false;
 
@@ -689,29 +770,76 @@ int main(int argc, char* argv[]) {
     // What is left in this file is turning the report into draw records and
     // saying out loud what was dropped - the two things that need a texture and
     // a stderr respectively.
-    const boot::PlantingReport planting =
-        boot::plant_props(run.grid, prop_defs, prop_w);
-    for (int i : planting.no_ground) {
-        std::fprintf(stderr, "WARNING: assets/test_props.txt: prop at x=%.1f has no ground "
-                             "under it and is not drawn.\n", prop_defs[i].x);
-    }
-    props.reserve(planting.planted.size());
-    for (const boot::Planted& p : planting.planted) {
-        props.push_back(Prop{ prop_tex[p.def_index], prop_w[p.def_index], prop_h[p.def_index],
-                              prop_defs[p.def_index].x, static_cast<float>(p.anchor_y) });
-    }
+    // **Everything a scene change is, in the order it has to happen**, and the
+    // only caller of the five steps above. Boot calls it once; F7 calls it
+    // again. There is deliberately no second path that puts a world together -
+    // that is `restart_run`'s rule, and this is the same rule one level up.
+    //
+    // The order is not arbitrary: the grid has to be wiped before it is
+    // stamped, stamped before anything scans it for a surface, and the body has
+    // to be standing before the camera is asked where to look. Props are last
+    // because they are the only step that cannot fail in a way the others need
+    // to know about.
+    auto plant_props_now = [&](const scene_list::SceneDef& def) {
+        props.clear();
+        const boot::PlantingReport planting =
+            boot::plant_props(run.grid, prop_defs, prop_w);
+        for (int i : planting.no_ground) {
+            std::fprintf(stderr, "WARNING: assets/%s: prop at x=%.1f has no ground "
+                                 "under it and is not drawn.\n",
+                         def.props.c_str(), prop_defs[i].x);
+        }
+        props.reserve(planting.planted.size());
+        for (const boot::Planted& p : planting.planted) {
+            props.push_back(Prop{ prop_tex[p.def_index], prop_w[p.def_index], prop_h[p.def_index],
+                                  prop_defs[p.def_index].x, static_cast<float>(p.anchor_y) });
+        }
+        // Printed *after* planting, because this is the line README's launch
+        // check reads and it has to count props that will actually be drawn. It
+        // used to print immediately after the textures loaded, before either way
+        // a prop can be dropped - so a run with an unplantable prop reported
+        // `10 of 10 placed` on stdout while warning on stderr that one of them
+        // was not drawn. The warning was right and the number contradicted it,
+        // which is worse than no number: a check that asserts the wrong thing
+        // fails silently, because it passes. Both drops are in the count now - a
+        // sprite that would not load, and a prop with no ground under it.
+        std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
+                    static_cast<int>(prop_defs.size()));
+    };
 
-    // Printed *after* planting, because this is the line README's launch check
-    // reads and it has to count props that will actually be drawn. It used to
-    // print immediately after the textures loaded, 59 lines above and before
-    // either way a prop can be dropped - so a run with an unplantable prop
-    // reported `10 of 10 placed` on stdout while warning on stderr that one of
-    // them was not drawn. The warning was right and the number contradicted it,
-    // which is worse than no number: a check that asserts the wrong thing fails
-    // silently, because it passes. Both drops are in the count now - a sprite
-    // that would not load, and a prop with no ground under it.
-    std::printf("Props: %d of %d placed\n", static_cast<int>(props.size()),
-                static_cast<int>(prop_defs.size()));
+    // **Everything building a world is, in the order it has to happen** - and
+    // the only caller of the five steps above. Boot calls it once, F7 calls it
+    // to switch scenes, and `restart_run` calls it on a win or a loss. There is
+    // deliberately no second path that puts a world together; that is
+    // `restart_run`'s own rule, applied one level up now that there is more than
+    // one world to put together.
+    //
+    // The order is not arbitrary. The grid is wiped before it is stamped,
+    // stamped before anything scans it for a surface, and the body is standing
+    // before the camera is asked where to look. The objective is cleared inside
+    // its own step rather than here, because "the level changed" is the fact
+    // that clears it and this is the only place that fact exists.
+    auto activate_scene = [&](int index) {
+        if (index < 0 || index >= static_cast<int>(scenes.size())) return;
+        active_scene = index;
+        const scene_list::SceneDef& def = scenes[static_cast<size_t>(index)];
+
+        run.reset(world_seed);
+        stamp_scene(def);
+        spawn_player(def);
+        place_objective_for(def);
+        load_props_for(def);
+        plant_props_now(def);
+
+        // The world is new, so a log of inputs into the old one is not a log of
+        // anything. Same argument as `restart_run`'s, and the reason that
+        // function now delegates here rather than re-stamping on its own.
+        recording.steps.clear();
+        recording.header.scene_cells = scene_cells;
+        recording.header.start_fingerprint = input_log::fingerprint(run.grid);
+        recording_full = false;
+    };
+    activate_scene(active_scene);
 
     // Centred, and deliberately not configurable from here. V23 gave this a
     // moving vertical anchor and session 9 asked for the centring back; the
@@ -813,13 +941,15 @@ int main(int argc, char* argv[]) {
     // before the restart. `saved_logs` is deliberately not reset, so a second
     // F9 still writes to a new file rather than over the first.
     auto restart_run = [&]() {
-        run.reset(world_seed);
-        if (scene.width > 0) load_scene(run.grid, scene, 0, 0);
-        place_objective();
-
-        recording.steps.clear();
-        recording.header.start_fingerprint = input_log::fingerprint(run.grid);
-        recording_full = false;
+        // **Delegated rather than duplicated**, and this used to be four lines
+        // of its own that re-stamped the scene and re-placed the objective. They
+        // were the same four lines `activate_scene` runs, minus the spawn - so a
+        // restart dropped the body back into mid-air at a quarter of the world's
+        // height and let it fall, which is exactly the defect playtest session
+        // 12 reported at *launch* and which `boot::stand_player_on_ground` was
+        // written to remove. It was fixed at boot and left standing here,
+        // because there were two paths.
+        activate_scene(active_scene);
 
         // The body is somewhere else entirely now, so last step's drawn
         // position is not something to ease away from. The interpolation clamp
@@ -1045,6 +1175,42 @@ int main(int argc, char* argv[]) {
                                             mode.padded_w(), mode.padded_h(),
                                             GRID_WIDTH, GRID_HEIGHT);
                     }
+                }
+                // **F7 cycles to the next scene in `assets/scenes.txt`.**
+                // A function key for F9's reason - every letter near the
+                // movement keys is a hotbar slot, and a key that rebuilds the
+                // world is a worse thing to hit while reaching for sand than one
+                // that writes a file.
+                //
+                // **Cycle rather than a key per scene**, because the list is
+                // authored and a binding per row would be a fixed number of keys
+                // pretending to be a variable-length list - the same shape of
+                // mistake as a format field the loader ignores. One key, and the
+                // scene name is printed and shown on the HUD so the cycle is
+                // never something to guess at.
+                //
+                // It does nothing when the list holds one scene, which is the
+                // shipped state if `assets/scenes.txt` is deleted. Silence is
+                // right there: nothing changed, so nothing is reported.
+                if (e.key.keysym.sym == SDLK_F7 && scenes.size() > 1) {
+                    activate_scene((active_scene + 1) % static_cast<int>(scenes.size()));
+
+                    // The body is somewhere else entirely, so last frame's drawn
+                    // position is not something to ease away from - the same
+                    // correction `restart_run` makes, and for the same reason.
+                    prev_player_x = run.player.visual_x();
+                    prev_player_y = run.player.visual_y();
+                    anim_state = player_anim::State{};
+                    frame_pacer.accumulator = 0.0;
+
+                    // A detached camera is looking at a world that no longer
+                    // exists. Re-attaching is the honest answer: re-aiming it at
+                    // the same coordinates would be pointing a debug view at
+                    // whatever happens to be at those cells now.
+                    if (debug.free_camera) debug.attach_camera();
+
+                    record_notice = "SCENE  " + scenes[static_cast<size_t>(active_scene)].name;
+                    record_notice_timer = 2.0;
                 }
                 // F9 writes everything played so far to a session log (P4).
                 // Deliberately not bound to a letter: every letter within reach

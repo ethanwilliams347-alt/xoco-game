@@ -53,7 +53,7 @@ ctest --test-dir build -C Release --output-on-failure
 .\build\Release\SlopPhysics.exe
 ```
 
-**The full suite is 18 suites and runs in about a second**, of which seventeen are
+**The full suite is 19 suites and runs in about a second**, of which eighteen are
 headless and link no SDL; **`golden_frame_test` is the one that links SDL2-static**
 (V17, 2026-08-16). It still needs no display — it composes into a software
 renderer over an `SDL_Surface` — but "the tests do not link SDL" stopped being
@@ -61,7 +61,7 @@ true that day, and this line is where it says so. There is no
 reason to run a subset — always run all of it.
 
 **The numbers in this paragraph are a test rather than a discipline** (`W3`,
-2026-08-17). `docs_test` is the seventeenth suite and it asserts the docs'
+2026-08-17). `docs_test` is the eighteenth suite and it asserts the docs'
 checkable numeric claims — this suite count, `Element`'s size and its three free
 bytes, the golden checksum quoted in prose, `FIXTURE_SCENE_CELLS`, the Manual
 Tester Checklist's length and the two plan-file sizes — against the code and the

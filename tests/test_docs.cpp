@@ -42,6 +42,23 @@
 
 namespace {
 
+// The first scene named in a scene list: the first field of its first line that
+// is neither blank nor a comment. Deliberately not a second copy of
+// `scene_list::load_scene_list` - this suite links nothing, on purpose, so that
+// a doc claim and the code it describes cannot both be wrong in the same way.
+std::string first_scene_name(const std::string& path) {
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t hash = line.find('#');
+        if (hash != std::string::npos) line.erase(hash);
+        std::istringstream fields(line);
+        std::string name;
+        if (fields >> name) return name;
+    }
+    return std::string();
+}
+
 std::string read_file(const std::string& path) {
     // Binary, on purpose. All three roadmap files are CRLF on disk and two of
     // the sources are LF; a text-mode read on one platform and not another is
@@ -289,8 +306,16 @@ int main() {
     const long long cells = int_after(scene_src, "constexpr int FIXTURE_SCENE_CELLS");
     check("FIXTURE_SCENE_CELLS can be read out of scene_test", cells > 0,
           std::to_string(cells));
+    // **The line gained the scene's name on 2026-08-23**, when the location
+    // became a row in `assets/scenes.txt` instead of two literals in
+    // `main.cpp`. The name is read out of that file rather than written here,
+    // for this suite's own reason: a claim is only checkable against a
+    // machine-readable source, and "the first scene is called fixture" has one.
+    const std::string first_scene = first_scene_name("assets/scenes.txt");
+    check("the first scene's name can be read out of assets/scenes.txt",
+          !first_scene.empty(), first_scene);
     const std::string scene_line =
-        "Scene: 1920x1080, " + std::to_string(cells) + " cells placed";
+        "Scene: " + first_scene + ", 1920x1080, " + std::to_string(cells) + " cells placed";
     check_claims("the launch-check cell count matches the pinned fixture",
                  {
                      {"MANUAL_TESTING.md", scene_line},

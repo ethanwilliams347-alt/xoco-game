@@ -68,11 +68,18 @@ Not everything goes through the manifest. These are still literals in
 `main.cpp`, because they are not sprites — a location is a pair of BMPs read by
 a different loader, and the prop list is a placement file:
 
-| What | Path the game loads | Where that literal lives |
+| What | Path the game loads | Where that is decided |
 |---|---|---|
-| Location — materials | `assets/test_material.bmp` | `load_scene_from_bmp(...)` call in [main.cpp](src/main.cpp) |
-| Location — albedo | `assets/test_albedo.bmp` | same call |
-| Prop placements | `assets/test_props.txt` | `load_prop_list(...)` call in [main.cpp](src/main.cpp) |
+| Which locations exist | `assets/scenes.txt` | the file itself; format in [scene_list.h](src/scene/scene_list.h) |
+| Location — materials | `assets/test_material.bmp` | the `fixture` row of `assets/scenes.txt` |
+| Location — albedo | `assets/test_albedo.bmp` | same row |
+| Prop placements | `assets/test_props.txt` | same row |
+
+**These stopped being literals in `main.cpp` on 2026-08-23.** They are a row in
+`assets/scenes.txt` now, along with a `spawn` rule saying where the body starts.
+`F7` in the running game cycles to the next row, which is how the shipped `empty`
+scene — no terrain at all, backdrop only, player on the world's floor — is
+reached without a rebuild.
 
 The manifest is safe to break. Every key falls back to the file the code shipped
 with, so a deleted, truncated or malformed `sprites.txt` gets you the old art
@@ -390,16 +397,35 @@ To author one:
    (`GRID_WIDTH` / `GRID_HEIGHT` in [main.cpp](src/main.cpp)) and the scene loads
    at origin `(0,0)`, so a smaller image covers the top-left corner and leaves
    the rest empty — fine for a test, and the camera will pan off it.
-2. Name them `test_material.bmp` / `test_albedo.bmp`, or edit the literals in the
-   `load_scene_from_bmp(...)` call in [main.cpp](src/main.cpp).
-3. Rebuild, run, and **read stdout rather than eyeballing it**:
+2. Give them any name you like and add a row to `assets/scenes.txt`. No rebuild
+   and no code change — this is what that file is for:
    ```
-   Scene: 1920x1080, 334501 cells placed
+   # name    material         albedo           props          spawn
+   marsh     marsh_mat.bmp    marsh_alb.bmp    marsh.txt      terrain
    ```
-   That count is the check. `0 cells placed` gets its own warning, and any pixel
-   in no legend entry prints a `WARNING` naming the unrecognised colours.
-4. Props are per-scene too — `assets/test_props.txt` is written against a
-   specific scene's geometry, so a new location generally wants its own list.
+   Five fields, all required, `-` for none. `spawn` is `terrain` (stand on the
+   ground under the spawn column) or `floor` (stand on the world border, which
+   is what a scene with no terrain uses).
+3. Run it — `python tools/load_sprite.py --stage` first if you have not rebuilt,
+   because a *new* file in `assets/` is staged next to the exe by the build and
+   not by editing it. Then **read stdout rather than eyeballing it**:
+   ```
+   Scene: marsh, 1920x1080, 41230 cells placed
+   ```
+   That count is the check — the shipped location prints
+   `Scene: fixture, 1920x1080, 334501 cells placed`, which is the number
+   `docs_test` pins. `0 cells placed` gets its own warning — unless the
+   scene named no files at all, which is a declared-empty scene and not a
+   failure — and any pixel in no legend entry prints a `WARNING` naming the
+   unrecognised colours.
+4. Props are per-scene, which the format now says out loud:
+   `assets/test_props.txt` is written against a specific scene's geometry, so a
+   new location generally wants its own list in its own row.
+5. **A malformed `scenes.txt` costs the whole file, not the bad row**, and drops
+   you back to the built-in `fixture` scene with an error on stderr naming the
+   line. That is the same all-or-nothing rule the prop list has, for the same
+   reason: a list that skips the row it could not read gives you a world that
+   loads, loads wrong, and says nothing.
 
 `generate_test_scene.py` at the repo root generates the existing fixture and is
 worth reading as a worked example — note that it is a *fixture wearing art*,

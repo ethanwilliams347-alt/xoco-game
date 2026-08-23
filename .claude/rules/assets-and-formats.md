@@ -279,10 +279,33 @@ that matter when writing code or moving files:
 - **A small edit is made in place**, with git as the undo. Do not copy a file
   before editing it — that copy is what becomes the next `COPY_`.
 
-Three things are *not* in the manifest and are still literals in `main.cpp`,
-because they are not sprites: `assets/test_material.bmp` and `test_albedo.bmp`
-(a location, read by `load_scene_from_bmp`) and `assets/test_props.txt`
-(placements, read by `load_prop_list`).
+**A location is not in `sprites.txt` and is not a literal in `main.cpp`
+either — it is a row in `assets/scenes.txt`** (2026-08-23). This paragraph said
+the opposite until then, and it was true for as long as there was one location.
+The three files a location is made of — a material map, an albedo map and a prop
+list — are named per scene, and `src/scene/scene_list.h` carries the format.
+
+- **It is a *second* manifest rather than rows in `sprites.txt`, and the split
+  is the same one `props.h` draws.** `sprites.txt` answers "which file is this
+  sprite", one key to one path; a scene is three paths and a spawn rule that
+  only mean anything together. Folding them in would make every consumer of the
+  sprite manifest able to ask for half a location.
+- **An empty scene names no files at all**, which is the case that decided the
+  format: two grid-sized BMPs of pure black would be 12.4 MB carrying no
+  information, and "per-cell data gets an image, a list gets a list" refuses
+  exactly that. So a scene that names nothing *is* empty, and
+  `SceneDef::declared_empty()` is what keeps that distinguishable from a scene
+  that stamped nothing because its legend matched no colour — which is a defect,
+  and which `main.cpp` still warns about.
+- **It follows the four format rules above**, including the fourth: a scene row
+  names paths, so the names are validated and cannot reach outside `assets/`.
+  It adds two refusals of its own — a duplicate scene name, and a scene naming
+  a material map without an albedo map — because both are silent otherwise.
+- **A malformed list falls back to the built-in default and says so loudly**,
+  rather than refusing to boot. `scene_list::default_scene_list()` is that
+  fallback and it lives in the loader, not in `main.cpp`, so that "the file is
+  missing" and "the file lists exactly the shipped location" are provably the
+  same world.
 
 ## Rendering constraints
 

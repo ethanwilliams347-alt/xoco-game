@@ -1,0 +1,13 @@
+# The scenes the game can load, and what each one is made of.
+#
+# Five fields, all required. `-` means none. Blank lines and `#` comments are
+# fine. A malformed row costs the whole file, not just itself - see
+# src/scene/scene_list.h for why, and for what each field means.
+#
+# spawn is `terrain` (stand on the ground under the spawn column) or `floor`
+# (stand on the world border). A scene naming no material map must use `floor`,
+# because it has no terrain to scan.
+
+# name     material           albedo           props           spawn
+fixture    test_material.bmp  test_albedo.bmp  test_props.txt  terrain
+empty      -                  -                -               floor
