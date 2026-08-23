@@ -23,34 +23,66 @@ cmake --build build --config Release
 
 ---
 
-**1. The gate question, a seventh time — and the frame has changed since you
-last looked.** `V22` part 4 (2026-08-23) widened the ground plane's own
-far-to-near ramp: `ground_near` and `ground_mark` up by 1.35, the far edge at the
-horizon deliberately untouched. Measured at the spawn, the join between the plane
-and the ground you stand on went from **plane 51.3 / world 73.4** — a 22-level
-step with the world the brighter side — to **70.2 / 73.4**, and the band ladder
-now climbs 25 / 30 / 35 / 40 / 46 / 53 / 59 / 65 / 71 into your feet instead of
-stepping up at the last moment.
+**1. The gate question, an eighth time — and this time the frame changed in a
+different way than the last four did.** You asked for option B: *"i want the
+ground that the player is on to act like the water in those files visually…
+the player is sat into the page on the water plane."* `V25` (2026-08-23) is
+that, and it is the first attempt at this question that is not a value change.
+
+**What was wrong, in one number.** In the CnC/WnC reference frames the character
+stands with **28–39% of the receding plane in front of them**. Ours was **0%** —
+not because the camera is wrong (you already sit at 66% of the plane's depth,
+inside the reference's own range) but because solid terrain covered every row
+below your feet. The frame's brightness climbed steadily from the horizon down to
+your feet and then **collapsed**, from 71 to 49 to 30 to 24, in the last fifth of
+the window. That reversal is what "a separate shelf" is.
+
+**What now happens.** Terrain within reach of its own surface is tinted toward
+the plane's value at its own depth, so the recession carries on past you to the
+bottom edge. The same measurement now reads **34 / 43 / 52 / 59 / 64 / 70 / 75 /
+82 at your feet / 82 / 88 / 88** — it rises the whole way down.
 
 Launch, stand at the spawn, and answer the same question: **does the ground you
-are standing on read as part of one receding surface, or still as a separate
-shelf sitting in front of a backdrop?**
+are standing on read as one continuous surface receding into the distance, with
+you sitting *on* it rather than in front of it?**
 
-Two things I need alongside the yes or no, because six previous "no"s did not
-separate them:
+Four things I need alongside the yes or no. The first two are the item; the last
+two are things I changed knowingly and would rather hear about now than discover
+in six sessions.
 
 - **If it is still a shelf, where is the seam** — at your feet, or higher up
   nearer the horizon? Those are different defects with different owners.
-- **Is anything too bright now?** This raised one band's near end to 8% above the
-  level playtest session 7 called "too bright". Nothing else moved, and the
-  horizon edge is exactly where it was.
+- **Does the ground below you now read as *ground*, or as fog / glare / a wash?**
+  This is the specific way this fix can fail: it brightens the near band a long
+  way, and the failure mode is that it stops looking like a surface and starts
+  looking like light on the lens.
+- **Dig a hole and look into it.** A hole still shows the backdrop through it,
+  exactly as before — but it now does so against a much brighter band, so it will
+  read more strongly than it used to. Is that readable as a hole, or does it look
+  like a mistake?
+- **Look at any terrain that is above you but still below the horizon** — a hill
+  or a cliff face to either side. That is now tinted too. It is 2% of those bands
+  by area, so it may be invisible; if it reads as a bright smear on a hillside,
+  say so, because that is the one case I chose to accept rather than measure.
 
-**No `.rec` cost this time** — the change is render-side, so the recording you
-made on 2026-08-23 is still valid and P4's replayed row stays live. If you play
-anyway, remember `F9` overwrites `session.rec` on the first save of a launch:
-copy `session_4_digging_fluids_fire.rec` somewhere safe first if you want it kept.
+**No `.rec` cost** — the change is render-side, so `session_4_digging_fluids_fire.rec`
+is still valid and P4's replayed row stays live. If you play anyway, remember
+`F9` overwrites `session.rec` on the first save of a launch: copy it somewhere
+safe first if you want it kept.
+
+**What I could not check myself.** `grid_bench` times the simulation and cannot
+see draw-side cost, so the frame rate is the only instrument for what this
+costs — if the game feels less smooth than it did, that is a real reading and I
+have no number that contradicts it.
 
 ---
+
+*Superseded rather than answered:* **the seventh asking of the gate question
+(`V22` part 4, 2026-08-23) was never returned** — `V25` landed on top of it
+the same day and changed the frame again, so an answer to the seventh would
+now be about a frame that no longer exists. Its two sub-questions are folded
+into gate 8 above. **The 8%-above-V20 brightness debt it carried is still
+open** and is now part of "does this read as ground or as glare".
 
 *Closed and off this list:* **all three of `V22` part 3's items, closed
 2026-08-23** ([session 13](PLAYTEST_LOG.md)).

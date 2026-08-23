@@ -34,6 +34,7 @@
 #include "physics/player.h"
 #include "render/backdrop_layers.h"
 #include "render/backdrop_wrap.h"
+#include "render/surface_plane.h"
 #include "scene/legend.h"
 #include "scene/scene.h"
 #include <cstdint>
@@ -42,6 +43,8 @@
 #include <vector>
 
 namespace {
+
+constexpr char CHR_NL[] = {10, 0};
 
 // The 1920x1080 viewport in cells. Stated here rather than included so the
 // probe does not drag the SDL shell's header in for two integers.
@@ -188,6 +191,7 @@ void sample(const Grid& g, float center_x, float center_y, int feet_y, const cha
 struct Rows {
     double world_sum = 0.0;  long world_n = 0;
     double plane_sum = 0.0;  long plane_n = 0;
+    double after_sum = 0.0;   // world_sum again, with V25's near-ground pass applied
     long above_n = 0;
 };
 
@@ -219,23 +223,55 @@ void band_ladder(const Grid& g, float center_x, float center_y, int feet_y,
     const backdrop_wrap::Plane plane = backdrop_wrap::plane_geometry(
         horizon, backdrop_layers::GROUND.height,
         backdrop_layers::GROUND.parallax_x, backdrop_layers::GROUND_NEAR_X);
+    const float band_h = plane.bottom_y - plane.horizon_y;
+
+    // **V25's pass, applied to the same sample, so the ladder can be read before
+    // and after in one table.** The weight and the surface scan come from
+    // render/surface_plane.cpp rather than from a copy here - a probe that
+    // reimplements the thing it measures agrees with itself and with nothing
+    // else. Blending luminance is the same as blending the channels and taking
+    // luma afterwards, because luma is linear in them.
+    const std::vector<uint32_t>& px = g.get_pixels();
+    const surface_plane::View view{camera.view_x(), camera.view_y(), VIEW_W, VIEW_H};
+    std::vector<int> depth(static_cast<size_t>(VIEW_W) * VIEW_H, -1);
+    surface_plane::depth_map(px.data(), g.get_width(), g.get_height(), view, depth.data());
 
     std::vector<Rows> band(static_cast<size_t>(bands));
     for (int vy = 0; vy < VIEW_H; ++vy) {
         const int wy = camera.view_y() + vy;
         const float sy = camera.world_to_screen_y(static_cast<float>(wy) + 0.5f);
         const size_t bi = static_cast<size_t>(vy) * bands / VIEW_H;
+        // **Which tile row this screen row samples, through `plane_src_at`.**
+        // This was `(sy - horizon) / PLANE_TEXEL_SCALE` until V25, and that is a
+        // *linear* map from screen row to tile row - which is exactly the
+        // degenerate case `plane_src_at` returns when the two parallax factors
+        // collapse to one depth. The shipped draw uses the inverse-depth
+        // relation, so the probe was reporting the plane at rows the renderer
+        // never puts there: at t = 0.65 the linear form says tile row 166 and
+        // the plane actually shows row 198. **The `plane` column moved when this
+        // was corrected and no pixel changed** - readings taken before it are
+        // not comparable with readings taken after.
+        //
         // Below the plane's near edge frame.cpp continues the tile's last row,
         // so that is what is sampled there - not a new colour.
-        int texel = static_cast<int>((sy - plane.horizon_y) / backdrop_wrap::PLANE_TEXEL_SCALE);
+        const float t_row = band_h > 0.0f ? (sy - plane.horizon_y) / band_h : 0.0f;
+        int texel = t_row >= 1.0f
+                        ? tile_h - 1
+                        : static_cast<int>(backdrop_wrap::plane_src_at(plane, t_row) + 0.5f);
         if (texel < 0) texel = 0;
         if (texel >= tile_h) texel = tile_h - 1;
         for (int vx = 0; vx < VIEW_W; ++vx) {
             const int wx = camera.view_x() + vx;
             const bool inside = wx >= 0 && wx < g.get_width() && wy >= 0 && wy < g.get_height();
             if (inside && is_solid(g.get_element(wx, wy).type)) {
-                band[bi].world_sum += luma(g.get_element(wx, wy).color);
+                const double raw = luma(g.get_element(wx, wy).color);
+                band[bi].world_sum += raw;
                 band[bi].world_n++;
+                const int w = surface_plane::weight_at_depth(
+                                  depth[static_cast<size_t>(vy) * VIEW_W + vx]) *
+                              surface_plane::row_scale_at(t_row) / 255;
+                band[bi].after_sum +=
+                    (raw * (255 - w) + row_lum[static_cast<size_t>(texel)] * w) / 255.0;
             } else if (sy < plane.horizon_y) {
                 band[bi].above_n++;
             } else {
@@ -245,16 +281,51 @@ void band_ladder(const Grid& g, float center_x, float center_y, int feet_y,
         }
     }
 
+    // --- what the pass actually reaches -------------------------------------
+    //
+    // **The ladder above says what the near band came out at; this says how much
+    // of it the pass touched at all**, and the two are different questions. The
+    // first version of `depth_map` measured from the top of each column and left
+    // 39% of the band untouched - the ladder showed that as a flat number a
+    // little too low, which is exactly the kind of reading that gets explained
+    // away as a tuning problem. A census cannot be explained away.
+    {
+        long n = 0, full = 0, none = 0, wsum = 0;
+        int deepest = 0;
+        for (int vy = 0; vy < VIEW_H; ++vy) {
+            const int wy = camera.view_y() + vy;
+            if (wy <= feet_y) continue;
+            for (int vx = 0; vx < VIEW_W; ++vx) {
+                const int wx = camera.view_x() + vx;
+                if (wx < 0 || wx >= g.get_width() || wy >= g.get_height()) continue;
+                if (!is_solid(g.get_element(wx, wy).type)) continue;
+                const int d = depth[static_cast<size_t>(vy) * VIEW_W + vx];
+                const float sy2 = camera.world_to_screen_y(static_cast<float>(wy) + 0.5f);
+                const int w = surface_plane::weight_at_depth(d) *
+                              surface_plane::row_scale_at(
+                                  band_h > 0.0f ? (sy2 - plane.horizon_y) / band_h : 0.0f) / 255;
+                n++; wsum += w;
+                if (w >= 255) full++;
+                if (w <= 0) { none++; if (d > deepest) deepest = d; }
+            }
+        }
+        std::printf("%swhat V25 reaches, below the feet (%ld solid cells):%s", CHR_NL, n, CHR_NL);
+        std::printf("  mean weight %5.1f of 255   full %5.1f%%   untouched %5.1f%%   deepest untouched %d%s",
+                    n ? static_cast<double>(wsum) / n : 0.0,
+                    n ? 100.0 * full / n : 0.0,
+                    n ? 100.0 * none / n : 0.0, deepest, CHR_NL);
+    }
+
     const int feet_band = (feet_y - camera.view_y()) * bands / VIEW_H;
     std::printf("\nthe band ladder at the spawn (luminance 0-255, %d bands down the window):\n", bands);
-    std::printf("  band   %% down   world   plane   frame   solid%%\n");
+    std::printf("  band   %% down   world   plane   frame   solid%%    V25   frame+V25\n");
     for (int i = 0; i < bands; ++i) {
         const Rows& r = band[static_cast<size_t>(i)];
         const long n = r.world_n + r.plane_n + r.above_n;
         if (n <= 0) continue;
         const double frame_sum = r.world_sum + r.plane_sum;
         const long frame_n = r.world_n + r.plane_n;
-        char w[16], pl[16], fr[16];
+        char w[16], pl[16], fr[16], af[16], fa[16];
         auto put = [](char* dst, double sum, long cnt) {
             if (cnt > 0) std::snprintf(dst, 16, "%6.1f", sum / cnt);
             else std::snprintf(dst, 16, "     -");
@@ -262,9 +333,11 @@ void band_ladder(const Grid& g, float center_x, float center_y, int feet_y,
         put(w, r.world_sum, r.world_n);
         put(pl, r.plane_sum, r.plane_n);
         put(fr, frame_sum, frame_n);
-        std::printf("  %4d  %5.0f%%   %s  %s  %s   %5.1f%%%s%s\n",
+        put(af, r.after_sum, r.world_n);
+        put(fa, r.after_sum + r.plane_sum, frame_n);
+        std::printf("  %4d  %5.0f%%   %s  %s  %s   %5.1f%%  %s  %s%s%s\n",
                     i, 100.0 * i / bands, w, pl, fr,
-                    100.0 * static_cast<double>(r.world_n) / static_cast<double>(n),
+                    100.0 * static_cast<double>(r.world_n) / static_cast<double>(n), af, fa,
                     i == feet_band ? "   <- the feet" : "",
                     r.above_n > 0 ? "   (above the horizon, not sampled)" : "");
     }

@@ -1077,3 +1077,90 @@ single-pixel sparkle on the plane around it.
 band ORDERING, the RATIOS, the detail ramp and the layer structure transfer; the
 absolute levels do not. "Our sky should read 133" does not follow from anything
 here, and where the night ceiling sits belongs to the day/night feature.
+
+
+ENTRY 14 - the CnC_parallax frames measured for PLANE COMPOSITION, and the
+third of the plane that belongs in front of the character. 2026-08-23.
+--------------------------------------------------------------------------
+
+Observed because the owner named these files and described what they want in
+composition terms rather than value terms: *"the water looks like one contiguous
+plane receding into the background and partially coming towards the foreground.
+the player is sat into the page on the water plane. some of the layers of stone
+islands are under the horizon of the water plane."*
+
+**ENTRY 1 refused these frames for parallax factors and that refusal stands** -
+they are three separately generated lakes, not one pan. It does not touch this
+measurement, which is about where things sit inside one frame.
+
+*1. The plane's extent, both frames.*
+
+  waterline (mirror axis)      row 760 / 754   52.8% / 52.4% down
+  plane's share of the frame                   47.2% / 47.6%
+  plane's near edge                            the bottom edge of the frame
+
+**The plane runs from the horizon to the bottom of the frame with nothing in
+front of it** except, in frame 1, a single small near rock. There is no
+foreground band, no cross-section, and no near silhouette across the width.
+
+*2. The water is a TRUE MIRROR, and that is the whole of its value ladder.*
+
+Correlation of the region above the waterline against the region below it,
+flipped, at several vertical scale factors:
+
+  k=0.80  r=0.448      k=1.00  r=0.600  <- peak      k=1.10  r=0.561
+  k=0.90  r=0.529                                    k=1.25  r=0.513
+
+**It peaks at exactly k=1.00 and falls off on both sides**, in both frames. The
+reflection is unscaled - not foreshortened, not stretched.
+
+And the band ladder is that mirror and nothing else. Frame 3, whole width:
+
+    0%  152.6   sky              55%   81.3   reflected treeline
+   45%   77.3   treeline         75%  112.9
+   50%   73.5   WATERLINE        95%  159.8   reflected sky, frame's brightest
+
+**The V is the reflection.** 152.6 at the top against 159.8 at the bottom; 77.3
+at the treeline against 81.3 at its reflection; the waterline is the pinch. So
+in these frames the plane has **no far-to-near ramp of its own at all** - what
+reads as recession is the scene above it, mirrored. That is a different
+mechanism from V19's tile ramp, and we should not confuse the two: ours is a
+receding *ground*, and a ground does not mirror the sky.
+
+*3. Where the figure sits, and this is ENTRY 9's third, confirmed twice more.*
+
+  frame                   figure at % of plane depth   plane IN FRONT of it
+  CnC_lighthouse (E9)              64%                       36%
+  WnC_walking (3) (E12)            61%                       39%
+  CnC_parallax_1                   72%                       28%
+  CnC_parallax_3                   72%                       28%
+
+**Between a quarter and two fifths of the plane is in front of the character in
+every reference frame measured.** ENTRY 9 wrote *"the number to carry is that
+third"* on 2026-08-16 and called it *"a fact about composition, not about
+shading - no value, ramp or grade produces it."* Four items have since been
+built (V22 parts 1-4) and every one of them was about value.
+
+*4. Ours, and the gap is one number.*
+
+`plane_probe` at the spawn: horizon at 41.6% of the window, the plane's band
+running to 100% and past it, the feet at 80%. **Geometrically the player is at
+66% of the plane's depth, which is inside the reference family of 61-72%.** The
+camera is not wrong and neither is the anchor.
+
+**Visually the figure is at 100% of the plane, because the terrain occludes all
+of it below the feet** - `plane_probe` reports 43 solid rows below the feet in
+every column but the spawn column, and `below the feet: PLANE 0.8% WORLD 99.2%`.
+
+  reference: 28-39% of the plane in front of the character
+  ours:      0%
+
+**That is the whole of "a separate shelf in front of a background", stated as
+composition rather than as value, and it is why four value fixes did not move
+it.** A shelf is what you get when the surface stops at the character.
+
+*What this does not settle, and it is a design fork rather than a measurement.*
+Putting plane in front of the player means drawing something over the region
+the player digs into. The reference has no digging and therefore no conflict to
+resolve; we do. **Do not read this entry as specifying the fix** - it specifies
+the target, and the cost lands on the core verb.

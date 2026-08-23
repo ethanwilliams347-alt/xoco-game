@@ -14,10 +14,12 @@
 #include "game/run.h"
 #include "game/settings_menu.h"
 #include "render/backdrop_layers.h"
+#include "render/backdrop_wrap.h"
 #include "render/frame.h"
 #include "render/light.h"
 #include "render/overlay.h"
 #include "render/player_anim.h"
+#include "render/surface_plane.h"
 #include "scene/bmp.h"
 #include "scene/props.h"
 #include "scene/scene.h"
@@ -385,6 +387,63 @@ int main(int argc, char* argv[]) {
     // recession. Same direction, same fix, different symptom.
     check_layer_size("ground", backdrop.ground, backdrop.ground_w,
                      backdrop.ground_h, backdrop_layers::GROUND);
+
+    // **V25: the same tile again, on the CPU, reduced to one colour per row.**
+    // `render/surface_plane.cpp` blends the near terrain toward the plane's own
+    // value at its own depth, and it cannot read an `SDL_Texture` - so the BMP is
+    // read a second time, through `bmp::read`, which is the reader main.cpp
+    // already uses for the scene.
+    //
+    // **Read again rather than kept from the texture load, and that is a
+    // deliberate small waste.** `load_art_texture` returns a texture and throws
+    // the pixels away; threading a copy out of it would put a second output
+    // parameter on a function four other layers call and do not want it. This is
+    // one 0.2 MB file, once, at startup.
+    //
+    // A failure here is not fatal: `ground_rows` stays empty, `TileRows::count`
+    // is 0, and the pass copies the window through unchanged - which is exactly
+    // the frame the game composed before V25 existed. The warning is printed
+    // because a silently-disabled depth pass is the kind of thing that gets
+    // noticed six sessions later.
+    std::vector<uint8_t> ground_rows;
+    {
+        bmp::Image ground_img;
+        std::string err;
+        const std::string path = sprites.path_for("backdrop_ground", "backdrop_ground.bmp");
+        if (bmp::read(path.c_str(), ground_img, &err)) {
+            surface_plane::average_rows(ground_img.pixels.data(), ground_img.width,
+                                        ground_img.height, ground_rows);
+        } else {
+            std::printf("WARNING: ground plane rows unavailable (%s) - "
+                        "the near terrain will not take the plane's value\n", err.c_str());
+        }
+    }
+
+    // The `ground` row's grade, read out of frame.cpp's table rather than
+    // written here a second time. **A constant copied into two files with a
+    // comment asking a human to keep them in step is this project's most
+    // repeated defect** - it is what V11 removed from the parallax factors and
+    // what `.claude/rules/assets-and-formats.md` records as the shape to
+    // recognise. The blend has to match the plane *as composited*, so it needs
+    // this number; the table stays the one place it is decided.
+    frame::Grade ground_grade{};
+    for (int i = 0; i < frame::LAYER_COUNT; ++i) {
+        if (std::string(frame::LAYERS[i].name) == "ground") {
+            ground_grade = frame::LAYERS[i].grade;
+            break;
+        }
+    }
+
+    // Scratch for V25's pass. **Resized at the upload site rather than sized
+    // here**, because `mode` is not fixed for the run - the settings menu
+    // switches between 1920x1080, 2560x1440 and 3440x1440 and `apply_mode`
+    // rebuilds every target when it does. A buffer sized once at boot is the
+    // shape of defect that survives every test and fails on the one machine
+    // whose owner opens the menu.
+    std::vector<uint32_t> cell_window;
+    std::vector<int> plane_src_row_for;
+    std::vector<int> plane_row_scale;
+    std::vector<int> cell_depth;
 
     // V4's props: sprites from tools/generate_props.py, positioned by
     // assets/test_props.txt rather than by a list in this file. **That
@@ -1188,19 +1247,83 @@ int main(int argc, char* argv[]) {
 
         // Upload only the visible rect (F3.3), not the whole grid, starting
         // from the camera's current view (F3.4) rather than always (0, 0).
-        // The source pitch stays GRID_WIDTH wide even though the rect is
-        // narrower, so SDL reads the right columns out of each grid row and
-        // skips the rest - one call, no intermediate buffer. Clamped to the
-        // grid's own size so this stays correct if the grid is ever smaller
-        // than the viewport; the case this step exists for is the opposite
-        // one, a grid larger than the viewport, where the clamp is a no-op
-        // and the rect is the full viewport every frame.
+        // Clamped to the grid's own size so this stays correct if the grid is
+        // ever smaller than the viewport; the case this step exists for is the
+        // opposite one, a grid larger than the viewport, where the clamp is a
+        // no-op and the rect is the full viewport every frame.
+        //
+        // **This comment used to end "one call, no intermediate buffer", and
+        // V25 spent that.** The zero-copy upload worked by handing SDL the
+        // grid's own buffer with a pitch of GRID_WIDTH, so SDL read the right
+        // columns out of each row and skipped the rest. `surface_plane::apply`
+        // has to *change* some of those pixels - see decision 1 in its header,
+        // which is that the near terrain has to get brighter than it is and a
+        // colour multiply can only darken - so there is now a viewport-sized
+        // copy between the grid and the texture. It costs 480x270 words at
+        // 1920x1080, half a megabyte, once a frame. **The old arrangement is
+        // still reachable and still used**: a window row that is not on the
+        // plane, which is every row above the horizon, is a straight copy, and
+        // when the tile failed to load the whole pass is one.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
         const int visible_w = std::min(mode.padded_w(), GRID_WIDTH);
         const int visible_h = std::min(mode.padded_h(), GRID_HEIGHT);
         const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
-        const uint32_t* visible_pixels = pixels.data() + camera.view_y() * GRID_WIDTH + camera.view_x();
-        SDL_UpdateTexture(targets.cells, &visible_rect, visible_pixels, GRID_WIDTH * sizeof(uint32_t));
+
+        // Which tile row each window row of cells is looking at, or -1 for the
+        // rows that are not on the plane at all.
+        //
+        // **The near edge clamps to the tile's last row rather than falling off
+        // to -1**, which is the same choice frame.cpp makes in its fill below
+        // the plane's near edge, and for the same reason stated there: what is
+        // past the near end of a receding plane is ground nearer still, so the
+        // tile's nearest row continues rather than the effect stopping. Dropping
+        // to -1 here would put a horizontal line across the terrain at whatever
+        // row the plane's near edge happened to reach.
+        const backdrop_wrap::Plane plane = backdrop_wrap::plane_geometry(
+            frame::ground_horizon_y(camera, backdrop.mountain_h),
+            backdrop.ground_h,
+            backdrop_layers::GROUND.parallax_x,
+            backdrop_layers::GROUND_NEAR_X);
+        const float band = plane.bottom_y - plane.horizon_y;
+        plane_src_row_for.assign(static_cast<size_t>(visible_h), -1);
+        plane_row_scale.assign(static_cast<size_t>(visible_h), 0);
+        for (int wy = 0; wy < visible_h; ++wy) {
+            // The centre of the cell row, in screen pixels, including the
+            // camera's sub-cell remainder - the same shift draw_cells applies to
+            // the texture this feeds. Sampling the top edge instead would bias
+            // every row half a cell toward the horizon.
+            const float screen_y =
+                (static_cast<float>(wy) + 0.5f - camera.frac_y()) * Camera::SCALE;
+            if (band <= 0.0f || screen_y < plane.horizon_y) continue;
+            const float t = (screen_y - plane.horizon_y) / band;
+            const int scale = surface_plane::row_scale_at(t);
+            if (scale <= 0) continue;
+            int row = backdrop.ground_h - 1;
+            if (t < 1.0f) {
+                row = static_cast<int>(backdrop_wrap::plane_src_at(plane, t) + 0.5f);
+                if (row < 0) row = 0;
+                if (row > backdrop.ground_h - 1) row = backdrop.ground_h - 1;
+            }
+            plane_src_row_for[static_cast<size_t>(wy)] = row;
+            plane_row_scale[static_cast<size_t>(wy)] = scale;
+        }
+
+        const size_t window_cells =
+            static_cast<size_t>(visible_w) * static_cast<size_t>(visible_h);
+        if (cell_window.size() != window_cells) cell_window.assign(window_cells, 0u);
+        if (cell_depth.size() != window_cells) cell_depth.assign(window_cells, -1);
+
+        const surface_plane::View view{camera.view_x(), camera.view_y(), visible_w, visible_h};
+        const surface_plane::TileRows tile_rows{
+            ground_rows.empty() ? nullptr : ground_rows.data(),
+            static_cast<int>(ground_rows.size() / 3)
+        };
+        surface_plane::apply(pixels.data(), GRID_WIDTH, GRID_HEIGHT, view,
+                             tile_rows, plane_src_row_for.data(), plane_row_scale.data(),
+                             ground_grade.r, ground_grade.g, ground_grade.b,
+                             cell_depth.data(), cell_window.data());
+        SDL_UpdateTexture(targets.cells, &visible_rect, cell_window.data(),
+                          visible_w * sizeof(uint32_t));
 
         // V7. Computed against the same view origin the cell upload just used,
         // and after `camera.follow` for the same reason that upload is: a light

@@ -38,6 +38,7 @@ set(ENGINE_SOURCES
 set(RENDER_SOURCES
     src/render/light.cpp
     src/render/player_anim.cpp
+    src/render/surface_plane.cpp
 )
 
 # V4's prop list parser, and P4's BMP reader. Its own variable rather than a
@@ -202,6 +203,22 @@ if(BUILD_TESTING)
     target_include_directories(backdrop_test PRIVATE src tests)
     add_test(NAME backdrop_test COMMAND backdrop_test)
 
+    # V25's near-ground pass. **Links one source file rather than
+    # RENDER_SOURCES**, because the pass shares nothing with the light field or
+    # the sprite sheet and pulling those in would make this suite's link line a
+    # claim it does not need to make.
+    #
+    # It exists because `golden_frame_test` structurally cannot see what it
+    # tests: V25 runs between the grid's pixel buffer and SDL_UpdateTexture, in
+    # main.cpp's upload, and the golden frame is composed from a texture that is
+    # already uploaded. So the checksum did not move when V25 landed and will not
+    # move if V25 breaks. Growing a second compositor inside the golden test to
+    # close that is the refused move; this is the other answer.
+    add_executable(surface_plane_test tests/test_surface_plane.cpp
+                   src/render/surface_plane.cpp)
+    target_include_directories(surface_plane_test PRIVATE src tests)
+    add_test(NAME surface_plane_test COMMAND surface_plane_test)
+
     # The camera's view arithmetic: the centred framing, the world-edge clamps,
     # and the anchor mechanism the clamps have to survive. Links no sources -
     # `camera.h` is an SDL-free header. Was `camera_bias_test` until V23b
@@ -329,6 +346,10 @@ if(BUILD_TESTING)
     # RENDER_SOURCES is deliberately not linked: the moment this needs a .cpp
     # from the renderer it has stopped being a headless instrument, and that
     # should be a link error rather than a habit.
-    add_executable(plane_probe tests/plane_probe.cpp ${ENGINE_SOURCES})
+    # V25 joined the link line: the probe reports the band ladder before and
+    # after the near-ground pass, and reporting the "after" by reimplementing
+    # the blend here would be a second copy of the thing being measured.
+    add_executable(plane_probe tests/plane_probe.cpp ${ENGINE_SOURCES}
+                   src/render/surface_plane.cpp)
     target_include_directories(plane_probe PRIVATE src tests)
 endif()

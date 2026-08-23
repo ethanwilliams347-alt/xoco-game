@@ -228,4 +228,15 @@ void compose(SDL_Renderer* renderer, const Params& p);
 extern const Layer* const LAYERS;
 extern const int LAYER_COUNT;
 
+// Screen y of the ground plane's far edge, given the loaded mountains' height.
+//
+// **Exposed at V25 because a second caller appeared, and the alternative was a
+// second copy.** `render/surface_plane.cpp` needs to know which rows of the
+// window are on the plane, which is this number plus PLANE_TEXEL_SCALE; the
+// derivation - why the horizon is a row of the mountains BMP and why it moves at
+// the *mountains'* vertical factor rather than the plane's - is a paragraph in
+// frame.cpp and stays there. This is the declaration, not a second home for the
+// argument.
+float ground_horizon_y(const Camera& camera, int mountain_h);
+
 } // namespace frame

@@ -191,10 +191,9 @@ constexpr int GROUND_STRIPS = 24;
 // texture where the shipped BMP is 1642, and against an absolute row index the
 // plane fell off the bottom of the fixture's window and stopped being in the
 // checksum at all.
-float ground_horizon_y(const Camera& camera, int mountain_h) {
-    return camera.parallax_origin_y(backdrop_layers::MOUNTAINS.parallax_y) +
-           static_cast<float>(mountain_h) * backdrop_layers::MOUNTAINS_SKYLINE_MAX;
-}
+// Defined below, outside the anonymous namespace: V25's surface_plane pass
+// needs the same number and frame.h declares it. The derivation is the
+// comment directly above this line and does not move.
 
 void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     SDL_Texture* tex = p.backdrop.ground;
@@ -655,6 +654,11 @@ static_assert(grade_layer_is_plain(),
               "multiplies twice and neither number says so");
 
 } // namespace
+
+float ground_horizon_y(const Camera& camera, int mountain_h) {
+    return camera.parallax_origin_y(backdrop_layers::MOUNTAINS.parallax_y) +
+           static_cast<float>(mountain_h) * backdrop_layers::MOUNTAINS_SKYLINE_MAX;
+}
 
 const Layer* const LAYERS = TABLE;
 const int LAYER_COUNT = TABLE_COUNT;

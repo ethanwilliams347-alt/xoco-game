@@ -87,8 +87,10 @@ contract is "reject everything", the tests have to say so.
 added the fifth on 2026-08-16**:
 
 - `ENGINE_SOURCES` — what the simulation *is*. SDL-free, headless, integer-only.
-- `RENDER_SOURCES` — `light.cpp`, `player_anim.cpp`. Headless and testable, but
-  emphatically not simulation: **light must never become a simulation input.**
+- `RENDER_SOURCES` — `light.cpp`, `player_anim.cpp`, `surface_plane.cpp`.
+  Headless and testable, but emphatically not simulation: **light must never
+  become a simulation input**, and neither may the near-ground pass — it reads
+  `Grid::get_pixels()` and writes a scratch copy, never back.
 - `SCENE_PROP_SOURCES` — `props.cpp`, `sprites.cpp`, `bmp.cpp`. Text or image in,
   records out. Nothing in `src/physics/` may read these.
 - `FRAME_SOURCES` — `frame.cpp`, the world layers of one frame. **Kept out of
@@ -141,6 +143,20 @@ first, which held. Three rules out of that:
   separate — the hash's blindness to the nature of a change is what makes it a
   good regression guard, and a hash that started meaning something specific
   would stop being one.
+
+
+**`golden_frame_test` cannot see everything the shipped frame does, and V25
+(2026-08-23) is the first thing outside it.** The near-ground pass runs between
+`Grid::get_pixels()` and `SDL_UpdateTexture`, in `main.cpp`'s upload, and the
+golden frame is composed from a texture that is *already* uploaded - so **the
+checksum did not move when V25 landed and will not move if V25 breaks**. Two
+things follow. Do not close that gap by composing the pass inside the golden
+test: that is the parallel compositor this section already refuses, and it would
+pass happily while the shipped upload was broken. And **do not quote the checksum
+as covering the frame** - it covers `frame::compose`, which is a smaller thing
+than it was. The coverage for V25 is `surface_plane_test`, headless, linking one
+source file; its overhang and cave cases are a real defect the probe caught, not
+hypotheticals.
 
 **The layer table's `Lighting` field is held by `static_assert`, not by comment**
 (`src/render/frame.cpp`): exactly one `Lighting::Light` entry, every `Lit` layer

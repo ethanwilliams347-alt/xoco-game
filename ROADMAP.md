@@ -4544,6 +4544,131 @@ simulation's resolution and no amount of asset work changes that.
       against a near foreground silhouette applies with the same force: a
       painted plane in front of the world occludes the one verb the game has.
 
+- [x] **V25 — The near ground is the plane, not a shelf in front of it.**
+  *(new 2026-08-23, built the same day, on the tester's choice of option B)*
+  *Observed:* playtest session 11, *"it looks like the ground i am standing on
+  is a separate shelf sitting in front of a parallaxed background"* — and then,
+  after the analysis below, the direct instruction: *"i want the ground that the
+  player is on to act like the water in those files visually. the water looks
+  like one contiguous plane receding into the background and partially coming
+  towards the foreground. the player is sat into the page on the water plane."*
+
+    **This is V22 restated as composition, and that is why four value items
+    could not reach it.** `notes/reference_observations.txt` ENTRY 9 wrote the
+    finding on 2026-08-16 — *"the number to carry is that third… a fact about
+    composition, not about shading — no value, ramp or grade produces it"* — and
+    V22 parts 1 through 4 were all built after that sentence, all about value,
+    and none of them touched it. ENTRY 14 measured the same thing from the
+    reference side on 2026-08-23: across four frames the character stands at
+    **61–72% of the plane's depth with 28–39% of the plane in front of them**,
+    and ours is **0%**.
+
+    **The camera was never the problem, which is the finding that saved the item
+    from being expensive.** Geometrically the player already sits at 66% of the
+    plane's depth — inside the reference family — and `VERTICAL_ANCHOR` 0.80
+    puts the feet at 80.0% of the window against the reference's 80.0%. What
+    removed the near third was **occlusion**: `plane_probe` reports 43 solid rows
+    of terrain below the feet in every column but the spawn column, and
+    `below the feet: PLANE 0.8% / WORLD 99.2%`. **A shelf is what you get when
+    the receding surface stops at the character**, and no camera change fixes
+    that.
+
+    **The instrument that states the defect and the fix in one line is the band
+    ladder.** Before, the composed frame ran 25 / 30 / 35 / 40 / 46 / 53 / 59 /
+    65 / 71 down to the feet at 80% of the window — a clean recession — and then
+    **collapsed to 49 / 30 / 24** across the last three bands, which are 99.2%
+    solid terrain, while the plane behind them carried on to 78 / 83 / 89. After
+    V25 the same table reads **34 / 43 / 52 / 59 / 64 / 70 / 75 / 82 at the feet
+    / 82 / 88 / 88**: monotone from the horizon to the bottom edge, with the
+    player standing in the middle of it rather than on top of it.
+
+    **What was built.** `src/render/surface_plane.{h,cpp}` blends terrain within
+    reach of its own surface toward the plane's value at its own depth, applied
+    to the visible cell window between the grid's pixel buffer and
+    `SDL_UpdateTexture` in `main.cpp`. Five decisions are argued at the header
+    and are not repeated here; the two that would otherwise be re-derived:
+
+    - **It writes pixels rather than scaling them, and it is the first thing in
+      the project that has had to.** The cheap version is a per-strip
+      `SDL_SetTextureColorMod` on the cell texture, which is machinery that
+      already exists. It cannot work: **a grade is a multiply and a multiply can
+      only darken**, and the target is *brighter* than the world at every row it
+      touches — 89 against 24 at the bottom band. `.claude/rules/assets-and-formats.md`
+      carries the general rule; this is the first case it does not serve.
+    - **It takes the tile's row-average colour, not its marks.** Painting the
+      ground BMP's texture onto the terrain is the obvious reading of "the
+      walkable surface becomes the plane" and it would have looked wrong in
+      motion: the plane scrolls at 0.28–0.52 and the terrain at 1.0, so the marks
+      would slide across the cells they are supposed to be lying on. Value is
+      what carries recession — V19's, V20's and V22's shared finding — and it is
+      the half that survives being pinned to world coordinates.
+
+    **Two numbers moved on measurement rather than on taste, and both were
+    mistakes the instrument caught before the tester did.**
+
+    1. **The depth quantity was wrong.** It began as "distance below the row of
+       the column's topmost matter", which is what a person writes when the
+       world in their head is a flat field. At the spawn the visible surface rows
+       span 575 to 950 — trunks and overhangs — so every cell under one fell past
+       the bound and **22.9% of the near band silently kept its raw colour**. The
+       quantity that means what the item means is **distance to the air directly
+       above**, which is different wherever there is a cave, a shelf or a trunk,
+       and which one top-to-bottom pass with a per-column counter gets exactly.
+    2. **`DEPTH_END` was doing two jobs.** It bounded what counts as
+       near-surface ground *and* kept the pass off the world when the camera is
+       underground — where the horizon is off the top of the window, every row is
+       past the plane's near edge, and the brightest tile row would otherwise be
+       painted over solid rock in every direction. The second job moved to
+       `row_scale_at`, which states it geometrically as *t*, the row's position
+       along the plane; the first was then free to be generous. The census went
+       from **22.9% untouched / mean weight 176** to **1.1% untouched / mean
+       weight 246, 93.6% at full strength**.
+
+    **`plane_probe` gained the two instruments and lost a bug.** It prints the
+    ladder before and after the pass in one table, and a census of how much of
+    the near band the pass reaches at all — the second exists because the first
+    reported the 22.9% hole as "a flat number a little too low", which is exactly
+    the reading that gets explained away as tuning. Separately, the probe's
+    `plane` column was **wrong before this item and is not comparable across
+    it**: it mapped screen row to tile row *linearly*, which is the degenerate
+    case `plane_src_at` returns when the two parallax factors collapse to one
+    depth, so it reported the plane at rows the renderer never puts there — tile
+    row 166 at t = 0.65 where the draw shows 198.
+
+    **The coverage gap is structural and is named rather than papered over.**
+    `golden_frame_test` cannot see this pass: V25 runs at the upload and the
+    golden frame is composed from a texture that is already uploaded, so the
+    checksum **did not move when V25 landed and will not move if V25 breaks**.
+    Growing a second compositor inside the golden test to close that is the
+    refused move. The answer is `surface_plane_test`, the eighteenth suite,
+    headless, linking one source file — and the overhang and cave cases in it are
+    defect 1 above, pinned.
+
+    **What it costs, stated as arithmetic because the honest instrument is not
+    available.** The pass is one depth pass over the window plus one blend per
+    visible cell: about 206 thousand grid reads and 129,600 blends a frame at
+    1920x1080, and it spends the zero-copy upload — `SDL_UpdateTexture` now reads
+    a half-megabyte scratch copy instead of the grid's own buffer. **`grid_bench`
+    times the simulation and cannot see a draw-side cost at all**, the same limit
+    `GROUND_STRIPS` is stated against, so there is no bracketed number here and
+    none is claimed. The instrument is the frame rate in the running game, which
+    is checklist work.
+
+    **What was deliberately not built, so the asking stays readable.**
+    - **Nothing occludes the player and nothing is drawn in front of the world.**
+      The near band is terrain that is already there, recoloured; the standing
+      refusal against a painted near foreground is untouched, and digging still
+      cuts into the band and shows what is behind it.
+    - **A dug hole still shows the backdrop through it**, which is the pre-V25
+      behaviour and now stands against a brighter band, so it will read more
+      strongly. That is the one thing most likely to come back as a complaint and
+      it is a separate item if it does.
+    - **Terrain above the player but below the horizon is now painted too** — 2%
+      of those bands by area, but it is the cliff-face case, and it is on the
+      checklist rather than assumed good.
+    - The tile's own detail-energy ramp and the mist band at the plane's far edge
+      are still `V19 4c`'s and are untouched.
+
 - [ ] **V16 — The backdrop moves.** *Observed:* `backdrop_sky` and
   `backdrop_mountains` are two static textures whose only motion is the parallax
   offset, so **the backdrop's sole depth cue stops the moment the player does.**

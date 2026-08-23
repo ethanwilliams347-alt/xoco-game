@@ -207,6 +207,28 @@ Learned building the prop list; all four generalise to the next format.
     near ramp is authored into the tile and the grade only places the whole band
     on the ladder. Two knobs, two jobs — do not try to buy the ramp with the
     grade.
+  - **V25 (2026-08-23) is the first change this rule could not serve, and the
+    boundary it draws is the useful part.** The rule above is that band-to-band
+    separation belongs in a grade and a ramp within a band belongs in the art.
+    V25 is neither: the near terrain had to end up *brighter* than it is —
+    luminance 89 against 24 at the bottom band — and **a grade is a multiply, so
+    it can only darken**. The art half could not do it either, because the band
+    in question is the simulated world, whose colours are per-material data and
+    not an authored image. So it is the first thing in the project to **write
+    pixels rather than scale them**: `src/render/surface_plane.cpp` blends the
+    visible cell window toward the ground tile's value before the upload.
+  - **The test that keeps this from becoming a loophole.** A pixel pass is
+    allowed only where both of the other two answers are unavailable — the
+    change is not a ratio between bands (a grade), and the band has no authored
+    image to edit (the art). Terrain is the only band in the frame that meets
+    the second condition today. **If a change to the sky, the mountains or the
+    ground tile ever reaches for a pixel pass, that is the signal it was a grade
+    or an art edit all along.**
+  - **It is still rendering, and the guard is unchanged.** The pass reads
+    `Grid::get_pixels()` and writes a scratch copy; it never writes back, so no
+    cell colour changes and `input_log::fingerprint` — which hashes cell state,
+    not pixels — is untouched, and every `.rec` survives. It lives in
+    `RENDER_SOURCES` for the same reason `light.cpp` does.
   - **Retuning a grade moves the golden frame checksum**, and the new value goes
     in the same commit. That is expected, not a breakage.
   - **A grade is per-layer, and that is not incidental.** A frame-wide multiply
