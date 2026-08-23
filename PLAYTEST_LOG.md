@@ -1090,3 +1090,148 @@ this old surfaced on this playtest.
 
 Symptoms and directions only. The arithmetic behind the second report, and what
 is being done about it, are in ROADMAP.md.
+
+---
+
+## Session 11 - 2026-08-22: V24's plane, in motion
+
+The playtest owed by `V24`, and the shortest entry in this file.
+
+### What was asked
+
+Fly up as high as possible and come back down, then three questions: does the
+ground plane still change size (the defect session 10 reported), does it leave
+the screen properly, and is there a flat stripe along the bottom of the window
+where the plane's fill band shows through. The list said explicitly it was not
+asking whether the plane reads as receding.
+
+### What came back
+
+> *"V24 looks good"*
+
+**The session 10 defect is not reproducing.** That is what the answer settles and
+it is the question V24 existed to answer: the plane was squeezing 30% across the
+camera's vertical travel, the tester flew the same path that found it, and it was
+not reported again.
+
+**The other two questions came back unanswered rather than passed**, the same way
+session 10's standing-still and drift halves did. Nothing was said about the
+plane leaving the frame and nothing was said about the fill band along the
+bottom. They are not being re-asked. The fill band in particular is a *"tell me
+if you see it"* question - a tester who did not mention a flat stripe across a
+few hundred pixels of a 3440x1440 display is weak evidence that there was none,
+but it is evidence, and re-running a playtest to convert weak evidence about a
+band the world is supposed to cover spends a tester on nothing. **If it is
+there, V22 part 2 is the step that will surface it**, because part 2 is what
+stops the world hiding the plane.
+
+Symptoms only. What it closes is in ROADMAP.md.
+
+---
+
+## Session 12 - 2026-08-22: V22 part 2's spawn, and the shelf is named
+
+### What was asked
+
+The two items MANUAL_TESTING.md was carrying after V22 part 2 reflowed the
+fixture. **(a)** Play a couple of minutes and press `F9`, because both `.rec`
+files had gone invalid with the scene and P4's replayed row was dark. **(b)**
+One question about the opening frame, to be answered on first impression and
+not investigated: *does the ground you are standing on read as the near end of
+the receding plane behind it, or as a separate shelf sitting in front of a
+painted backdrop?*
+
+A "no" was flagged in advance as the expected answer, because part 2 built the
+junction and part 3 is what tunes it.
+
+### What came back
+
+> *"looks like a separate shelf sitting in front of a painted backdrop"*
+
+> *"i am spawning in the air then falling to the test_albedo.bmp asset. instead
+> it should look like i am 'into the page' on the backdrop_ground.bmp and
+> test_albedo.bmp should probably not exist anymore"*
+
+### What is in that, separated from what it implies
+
+**Three separate reports, and only the first one was asked for.**
+
+1. **The gate question came back "no" for the fifth time**, as predicted. It is
+   the first "no" with a junction actually in the frame to look at, which is
+   what makes it the first one that is about the junction rather than about its
+   absence.
+
+2. **"Spawning in the air then falling" is a new symptom and it was not asked
+   about.** `main.cpp` starts the run with the player mid-air by construction -
+   the comment at the `Run` constructor says so, and `Player::has_landed` exists
+   to make the drop free of fall damage - so this is a report about something
+   the build does on purpose and has done since F2. What is new is that it is
+   now *visible*: before part 2 the body fell a few cells onto a ledge, and it
+   now falls the full distance to the floor.
+
+3. **"test_albedo.bmp should probably not exist anymore" is a proposal, not a
+   symptom**, and it is recorded here because it arrived in the same breath as
+   the symptom that motivates it. What it is responding to is symptom 1.
+
+**The session 11 prediction fired.** That entry said a flat stripe along the
+bottom of the window, if it was there, would be surfaced by part 2 "because part
+2 is what stops the world hiding the plane". Nothing was reported about a
+stripe. What was reported instead is the junction one band up, which is the same
+mechanism arriving as a different symptom.
+
+**The recording arrived and the replayed row is live again** - 4798 steps, 80.0
+seconds, replaying to the recorded end state exactly. Its census is not the
+session the row wants; that is in PERFORMANCE.md and ROADMAP.md, not here.
+
+Symptoms only. What it closes is in ROADMAP.md.
+
+---
+
+## Session 13 - 2026-08-23: the shelf, with the layer named
+
+### What was asked
+
+The three items MANUAL_TESTING.md was carrying after `V22` part 3.
+**(a)** The gate question, a fifth asking: *does the ground you are standing on
+read as the near end of the receding plane behind it, or as a separate shelf
+sitting in front of a painted backdrop?* **(b)** A recording that includes
+digging, because the previous one read `dig 0 steps` and `Steam never seen`.
+**(c)** Confirmation that the mid-air spawn is gone.
+
+### What came back
+
+> *"it looks like the ground i am standing on is a separate shelf sitting in
+> front of a parallaxed background, sepcfically the backdrop_ground.bmp.
+> session was recorded. i did not spawn mid air"*
+
+### What is in that
+
+**1. The gate question came back "no" for the sixth time - but not the same
+"no".** Session 12 called the thing behind the shelf *"a painted backdrop"*.
+This session calls it *"a parallaxed background, specifically the
+backdrop_ground.bmp"* - the layer is named, and named correctly. **That is a
+different report, and the difference is the useful part of this session.** A
+backdrop that is being read as *parallaxed* is a backdrop whose recession is
+landing; the tester is not saying the plane looks flat, they are saying the
+world does not join it. The failure has moved from the plane to the join.
+
+It is also the first answer in the sequence that identifies a layer by filename
+rather than by appearance, which means the two surfaces are separable by eye at
+a glance - the thing the item exists to prevent.
+
+**2. "Still two things" was offered as an acceptable answer and was not the
+answer given.** The reply names one thing, not two, and it is the junction
+rather than either of the two gaps part 3 knowingly left. Neither of those was
+mentioned.
+
+**3. The recording arrived and the replayed row is live** - 9700 steps, 161.7 s
+of play, replaying to the recorded end state `exact`. Seed
+`512498761813985290`. Whether its census is the *working* session that was
+asked for is a benchmark question and belongs in PERFORMANCE.md and ROADMAP.md,
+not here.
+
+**4. The mid-air spawn is confirmed gone.** *"i did not spawn mid air"* closes
+item 3 of the owed list, and no `WARNING` was reported, so the spawn scan found
+its floor.
+
+Symptoms only. What it closes is in ROADMAP.md.

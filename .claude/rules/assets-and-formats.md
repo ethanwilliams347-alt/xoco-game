@@ -31,6 +31,15 @@ got ignored too.
   backdrops, trees, terrain are built from those names, so they conform by
   construction. An off-palette pixel there means a generator has been edited to
   hardcode a colour instead of naming one. That is still worth catching.
+- **The audit earned its keep on 2026-08-22 and that is worth one line**, since
+  the bullets around it are all about why it is *not* enforced. V22 part 3's
+  first draft of the terrain ramp interpolated between two palette colours and
+  dithered between the results, putting **25,480 pixels in nine unnamed
+  colours** into `assets/test_albedo.bmp`. The audit reported it, the pass was
+  rewritten to pick only between adjacent *named* rungs, and the measured result
+  was the same to within 0.1 of a luminance level. **Run it after regenerating
+  any asset**; the generated groups are the half of the palette rule still in
+  force, and this is the failure mode they have.
 - **`tools/validate_palette.py` is an audit, not a gate.** It runs only when you
   invoke it, and nothing in CMake or ctest invokes it. On a drawn sprite its
   output describes the file; it is not a defect.
@@ -160,6 +169,17 @@ Learned building the prop list; all four generalise to the next format.
     *ratio* between two bands, it is the refused move and belongs in a grade. If
     it scales every band and leaves the ratios intact, it is a ceiling, and no
     grade can do it.
+  - **V22 part 3 (2026-08-22) is the second worked example of "a ramp within a
+    band is the art's job", and it is the one that shows the rule catching a
+    mistake before it was made.** TUNING.md's `cells` grade row had been
+    standing since 2026-08-16 saying V22 would turn it. It would not have
+    worked: the world's art is near-black, so any multiply of it is still
+    near-black, and the row had inferred the junction's direction from the two
+    grades without reading the art under them. Measured, the plane's near end
+    was 65.7 against the world's 23.3 — the opposite of what the row assumed —
+    so grading the world *down* would have deepened the inversion. **The fix was
+    a ramp authored into `assets/test_albedo.bmp`**, exactly as this bullet
+    says, and the grade stayed at identity.
   - **V20 was not purely the second kind and it is worth being exact about
     that**, because a rule stated and then quietly exceeded is the failure this
     project keeps having. Two ratios *did* change in the same commit, both

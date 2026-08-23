@@ -1,0 +1,352 @@
+// What share of the frame the receding ground plane actually gets, and what is
+// standing in front of it, in numbers.
+//
+// Not an add_test() for the same reason the other four probes are not: what it
+// reports is an input to a composition decision, and a test pinning today's
+// composition would be a copy of the answer rather than a check on it.
+//
+// **Why it exists.** V22's gate question - does the plane read as receding -
+// has come back "no" four times, and each of the three fixes tried so far was
+// aimed at a cause nobody had measured. The entry's own rule, written when
+// part 1 was sequenced ahead of part 2, is *compute the target's reachability
+// before authoring against it*. This is that computation for part 2: it takes
+// the shipped camera, the shipped parallax factors and the shipped fixture,
+// and reports where the plane's band lands on screen and how much of it the
+// world's own terrain covers up.
+//
+// It links no SDL. `backdrop_wrap.h` is arithmetic by design (see its header
+// comment) and the camera is a game-side class, so the only thing missing is
+// the draw call, which cannot change where anything lands.
+//
+// Four numbers per camera position, all as a share of the cells in the window:
+//   PLANE - open world whose screen row is inside the plane's band. This is the
+//           plane you can actually see.
+//   WORLD - cells the fixture fills. Solid terrain occludes every backdrop
+//           layer, so this is the budget PLANE competes against.
+//   ABOVE - open world above the horizon: sky, mountains, treeline.
+//   BELOW - open world past the plane's near edge, which is the flat fill
+//           colour frame.cpp paints under the band.
+// and the same four again for the region **below the player's feet**, which is
+// the one the reference frames its subject against and the one every "no" has
+// been about.
+#include "game/camera.h"
+#include "physics/grid.h"
+#include "physics/player.h"
+#include "render/backdrop_layers.h"
+#include "render/backdrop_wrap.h"
+#include "scene/legend.h"
+#include "scene/scene.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+namespace {
+
+// The 1920x1080 viewport in cells. Stated here rather than included so the
+// probe does not drag the SDL shell's header in for two integers.
+constexpr int VIEW_W = 1920 / Camera::SCALE;
+constexpr int VIEW_H = 1080 / Camera::SCALE;
+
+// The shipped mountains BMP's height. `ground_horizon_y` in frame.cpp reads it
+// off the loaded texture for a reason recorded there; here there is no texture,
+// so it comes from the generated header - the same number main.cpp warns about
+// a mismatch against at startup.
+constexpr int MOUNTAIN_H = backdrop_layers::MOUNTAINS.height;
+
+// Minimal 24-bit BMP reader, the same one rim_probe carries and for the same
+// reason: the probes are headless like the suites are.
+bool read_bmp24(const char* path, int& w, int& h, std::vector<uint32_t>& out) {
+    std::FILE* f = std::fopen(path, "rb");
+    if (!f) { std::fprintf(stderr, "cannot open %s\n", path); return false; }
+    std::vector<unsigned char> buf;
+    std::fseek(f, 0, SEEK_END);
+    buf.resize(static_cast<size_t>(std::ftell(f)));
+    std::fseek(f, 0, SEEK_SET);
+    const size_t got = std::fread(buf.data(), 1, buf.size(), f);
+    std::fclose(f);
+    if (got != buf.size() || buf.size() < 54 || buf[0] != 'B' || buf[1] != 'M') {
+        std::fprintf(stderr, "%s is not a readable BMP\n", path);
+        return false;
+    }
+    auto u32 = [&](size_t o) {
+        return static_cast<uint32_t>(buf[o]) | (buf[o + 1] << 8) | (buf[o + 2] << 16) |
+               (static_cast<uint32_t>(buf[o + 3]) << 24);
+    };
+    const uint32_t offset = u32(10);
+    const int width = static_cast<int>(u32(18));
+    const int height_raw = static_cast<int>(u32(22));
+    const int bpp = buf[28] | (buf[29] << 8);
+    if (bpp != 24) { std::fprintf(stderr, "%s: only 24bpp supported\n", path); return false; }
+    const bool top_down = height_raw < 0;
+    w = width;
+    h = height_raw < 0 ? -height_raw : height_raw;
+    const int row_size = (w * 3 + 3) & ~3;
+    out.assign(static_cast<size_t>(w) * h, 0);
+    for (int row = 0; row < h; ++row) {
+        const int file_row = top_down ? row : (h - 1 - row);
+        const size_t base = offset + static_cast<size_t>(file_row) * row_size;
+        for (int x = 0; x < w; ++x) {
+            const unsigned char b = buf[base + x * 3 + 0];
+            const unsigned char g = buf[base + x * 3 + 1];
+            const unsigned char r = buf[base + x * 3 + 2];
+            out[static_cast<size_t>(row) * w + x] =
+                0xFF000000u | (static_cast<uint32_t>(r) << 16) | (g << 8) | b;
+        }
+    }
+    return true;
+}
+
+enum class Band { Plane, World, Above, Below };
+
+struct Share { long plane = 0, world = 0, above = 0, below = 0; };
+
+void add(Share& s, Band b) {
+    switch (b) {
+        case Band::Plane: s.plane++; break;
+        case Band::World: s.world++; break;
+        case Band::Above: s.above++; break;
+        case Band::Below: s.below++; break;
+    }
+}
+
+void report(const char* label, const Share& s) {
+    const long total = s.plane + s.world + s.above + s.below;
+    if (total <= 0) { std::printf("  %-22s (no cells)\n", label); return; }
+    auto pct = [&](long v) { return 100.0 * static_cast<double>(v) / static_cast<double>(total); };
+    std::printf("  %-22s PLANE %5.1f%%   WORLD %5.1f%%   ABOVE %5.1f%%   BELOW %5.1f%%\n",
+                label, pct(s.plane), pct(s.world), pct(s.above), pct(s.below));
+}
+
+// One camera position, fully classified.
+void sample(const Grid& g, float center_x, float center_y, int feet_y, const char* label) {
+    Camera camera;
+    camera.follow(center_x, center_y, VIEW_W, VIEW_H, g.get_width(), g.get_height());
+
+    const float horizon = camera.parallax_origin_y(backdrop_layers::MOUNTAINS.parallax_y) +
+                          static_cast<float>(MOUNTAIN_H) * backdrop_layers::MOUNTAINS_SKYLINE_MAX;
+    const backdrop_wrap::Plane plane = backdrop_wrap::plane_geometry(
+        horizon, backdrop_layers::GROUND.height,
+        backdrop_layers::GROUND.parallax_x, backdrop_layers::GROUND_NEAR_X);
+
+    Share whole, under;
+    for (int vy = 0; vy < VIEW_H; ++vy) {
+        const int wy = camera.view_y() + vy;
+        // The screen row of this cell's centre, which is what decides the band
+        // it falls in. Whole cells rather than pixels: a cell is 4x4 px and the
+        // question here is composition, not a pixel-exact clip.
+        const float sy = camera.world_to_screen_y(static_cast<float>(wy) + 0.5f);
+        const Band band = sy < plane.horizon_y ? Band::Above
+                        : (sy < plane.bottom_y ? Band::Plane : Band::Below);
+        for (int vx = 0; vx < VIEW_W; ++vx) {
+            const int wx = camera.view_x() + vx;
+            const bool solid = wx >= 0 && wx < g.get_width() && wy >= 0 && wy < g.get_height() &&
+                               is_solid(g.get_element(wx, wy).type);
+            const Band what = solid ? Band::World : band;
+            add(whole, what);
+            if (wy > feet_y) add(under, what);
+        }
+    }
+
+    std::printf("\n%s\n", label);
+    std::printf("  camera view (%d, %d), feet at world row %d\n",
+                camera.view_x(), camera.view_y(), feet_y);
+    std::printf("  horizon at screen y %.1f, plane near edge at %.1f (the window is 1080 tall)\n",
+                plane.horizon_y, plane.bottom_y);
+    report("whole window:", whole);
+    report("below the feet:", under);
+}
+
+
+// --- the band ladder ------------------------------------------------------
+//
+// The other half of the same frame, and the half part 3 is about. The shares
+// above answer "what is on screen"; this answers "at what value", which is the
+// quantity notes/reference_observations.txt ENTRY 12 measured off the WnC
+// frames and the quantity the tester's "a separate shelf sitting in front of a
+// painted backdrop" is a report of.
+//
+// Read it beside ENTRY 12's table, which is the same measurement on the
+// reference: row-mean luminance down the frame, in bands. What the reference
+// does is put its **brightest** band at the surface the character stands on and
+// darken in both directions from there. A ladder that runs the other way at the
+// junction - a bright plane above a near-black world - is the shelf, and no
+// per-layer Grade can turn it over, because a Grade is uniform and this is a
+// ramp *inside* one band (.claude/rules/assets-and-formats.md).
+//
+// **Rows above the horizon are excluded and reported as such rather than
+// sampled.** Composing sky and mountains here would mean reproducing two more
+// parallax stacks for bands this pass does not change and whose values are
+// already pinned in TUNING.md. The junction is below the horizon and so is
+// everything the ladder is being asked about.
+//
+// Two approximations, both stated because a probe that quietly rounds is worse
+// than no probe: the plane's texel row is taken straight from the depth
+// mapping rather than through `plane_src_row`'s 24-strip quantisation (which
+// can shift a row by at most one strip), and a cell is classified whole rather
+// than at pixel precision, the same way `sample()` does it.
+struct Rows {
+    double world_sum = 0.0;  long world_n = 0;
+    double plane_sum = 0.0;  long plane_n = 0;
+    long above_n = 0;
+};
+
+double luma(uint32_t argb) {
+    const double r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+// The GROUND row of frame.cpp's layer table, which is a multiply.
+constexpr double GROUND_GRADE = 135.0 / 255.0;
+
+void band_ladder(const Grid& g, float center_x, float center_y, int feet_y,
+                 const std::vector<uint32_t>& tile, int tile_w, int tile_h,
+                 int bands) {
+    // The tile's rows reduced to one graded luminance each, once. The tile
+    // dithers horizontally between two flat tones, so a row mean is the right
+    // sample of it - the same thing the eye does at this size.
+    std::vector<double> row_lum(static_cast<size_t>(tile_h), 0.0);
+    for (int ty = 0; ty < tile_h; ++ty) {
+        double sum = 0.0;
+        for (int tx = 0; tx < tile_w; ++tx) sum += luma(tile[static_cast<size_t>(ty) * tile_w + tx]);
+        row_lum[static_cast<size_t>(ty)] = sum / tile_w * GROUND_GRADE;
+    }
+
+    Camera camera;
+    camera.follow(center_x, center_y, VIEW_W, VIEW_H, g.get_width(), g.get_height());
+    const float horizon = camera.parallax_origin_y(backdrop_layers::MOUNTAINS.parallax_y) +
+                          static_cast<float>(MOUNTAIN_H) * backdrop_layers::MOUNTAINS_SKYLINE_MAX;
+    const backdrop_wrap::Plane plane = backdrop_wrap::plane_geometry(
+        horizon, backdrop_layers::GROUND.height,
+        backdrop_layers::GROUND.parallax_x, backdrop_layers::GROUND_NEAR_X);
+
+    std::vector<Rows> band(static_cast<size_t>(bands));
+    for (int vy = 0; vy < VIEW_H; ++vy) {
+        const int wy = camera.view_y() + vy;
+        const float sy = camera.world_to_screen_y(static_cast<float>(wy) + 0.5f);
+        const size_t bi = static_cast<size_t>(vy) * bands / VIEW_H;
+        // Below the plane's near edge frame.cpp continues the tile's last row,
+        // so that is what is sampled there - not a new colour.
+        int texel = static_cast<int>((sy - plane.horizon_y) / backdrop_wrap::PLANE_TEXEL_SCALE);
+        if (texel < 0) texel = 0;
+        if (texel >= tile_h) texel = tile_h - 1;
+        for (int vx = 0; vx < VIEW_W; ++vx) {
+            const int wx = camera.view_x() + vx;
+            const bool inside = wx >= 0 && wx < g.get_width() && wy >= 0 && wy < g.get_height();
+            if (inside && is_solid(g.get_element(wx, wy).type)) {
+                band[bi].world_sum += luma(g.get_element(wx, wy).color);
+                band[bi].world_n++;
+            } else if (sy < plane.horizon_y) {
+                band[bi].above_n++;
+            } else {
+                band[bi].plane_sum += row_lum[static_cast<size_t>(texel)];
+                band[bi].plane_n++;
+            }
+        }
+    }
+
+    const int feet_band = (feet_y - camera.view_y()) * bands / VIEW_H;
+    std::printf("\nthe band ladder at the spawn (luminance 0-255, %d bands down the window):\n", bands);
+    std::printf("  band   %% down   world   plane   frame   solid%%\n");
+    for (int i = 0; i < bands; ++i) {
+        const Rows& r = band[static_cast<size_t>(i)];
+        const long n = r.world_n + r.plane_n + r.above_n;
+        if (n <= 0) continue;
+        const double frame_sum = r.world_sum + r.plane_sum;
+        const long frame_n = r.world_n + r.plane_n;
+        char w[16], pl[16], fr[16];
+        auto put = [](char* dst, double sum, long cnt) {
+            if (cnt > 0) std::snprintf(dst, 16, "%6.1f", sum / cnt);
+            else std::snprintf(dst, 16, "     -");
+        };
+        put(w, r.world_sum, r.world_n);
+        put(pl, r.plane_sum, r.plane_n);
+        put(fr, frame_sum, frame_n);
+        std::printf("  %4d  %5.0f%%   %s  %s  %s   %5.1f%%%s%s\n",
+                    i, 100.0 * i / bands, w, pl, fr,
+                    100.0 * static_cast<double>(r.world_n) / static_cast<double>(n),
+                    i == feet_band ? "   <- the feet" : "",
+                    r.above_n > 0 ? "   (above the horizon, not sampled)" : "");
+    }
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    int mw = 0, mh = 0, aw = 0, ah = 0;
+    std::vector<uint32_t> mat_px, alb_px;
+    if (!read_bmp24("assets/test_material.bmp", mw, mh, mat_px)) return 1;
+    if (!read_bmp24("assets/test_albedo.bmp", aw, ah, alb_px)) return 1;
+    if (mw != aw || mh != ah) { std::fprintf(stderr, "scene BMP sizes differ\n"); return 1; }
+
+    Scene scene;
+    scene.width = mw;
+    scene.height = mh;
+    scene.materials.assign(static_cast<size_t>(mw) * mh, ElementType::Empty);
+    scene.albedo.assign(static_cast<size_t>(mw) * mh, 0);
+    for (size_t i = 0; i < mat_px.size(); ++i) {
+        ElementType t = ElementType::Empty;
+        element_from_legend(mat_px[i], t);
+        scene.materials[i] = t;
+        scene.albedo[i] = alb_px[i];
+    }
+
+    Grid g(mw, mh, 1234);
+    const int placed = load_scene(g, scene, 0, 0);
+    std::printf("plane_probe: %dx%d scene, %d cells placed, viewport %dx%d cells\n",
+                mw, mh, placed, VIEW_W, VIEW_H);
+
+    // Where the player comes to rest at the spawn column, found the way boot.h's
+    // planter finds ground: the *highest* first-solid row across the body's
+    // footprint, since that is the one the body lands on first.
+    // The spawn column is GRID_WIDTH / 2 (see Run), and an argument overrides
+    // it - the whole finding below turned on which column the body happens to
+    // land in, so being able to ask about a different one is the instrument.
+    const int spawn_x = argc > 1 ? std::atoi(argv[1]) : mw / 2;
+    int feet = mh;
+    for (int x = spawn_x; x < spawn_x + Player::WIDTH && x < mw; ++x) {
+        for (int y = 0; y < mh; ++y) {
+            if (is_solid(g.get_element(x, y).type)) { if (y < feet) feet = y; break; }
+        }
+    }
+    if (feet >= mh) { std::fprintf(stderr, "the spawn column is open all the way down\n"); return 1; }
+
+    const float cx = static_cast<float>(spawn_x) + Player::WIDTH / 2.0f;
+    const float cy = static_cast<float>(feet) - Player::HEIGHT / 2.0f;
+    sample(g, cx, cy, feet, "at the spawn, standing:");
+
+    // The same reading at three heights of the flight the tester actually
+    // flies, because a composition that only works at one camera position is
+    // the defect V24 was built to remove rather than a fix for this one.
+    for (int up : {60, 160, 320}) {
+        char label[96];
+        std::snprintf(label, sizeof(label), "%d cells above the spawn:", up);
+        sample(g, cx, cy - static_cast<float>(up), feet, label);
+    }
+
+    // The value ladder at the spawn, which is the reading part 3 is aimed at.
+    // The tile is read here rather than inside the function so a missing
+    // backdrop fails once, next to the other two asset loads.
+    int gw = 0, gh = 0;
+    std::vector<uint32_t> ground_px;
+    if (read_bmp24("assets/backdrop_ground.bmp", gw, gh, ground_px)) {
+        band_ladder(g, cx, cy, feet, ground_px, gw, gh, 20);
+    }
+
+    // A column walk at the spawn, for the question the shares cannot answer:
+    // *where* the world stops.
+    std::printf("\nwhat stands between the feet and the bottom of the window:\n");
+    Camera camera;
+    camera.follow(cx, cy, VIEW_W, VIEW_H, g.get_width(), g.get_height());
+    for (int i = 0; i < 8; ++i) {
+        const int wx = camera.view_x() + i * VIEW_W / 8;
+        int solid_rows = 0;
+        for (int vy = 0; vy < VIEW_H; ++vy) {
+            const int wy = camera.view_y() + vy;
+            if (wy > feet && wx >= 0 && wx < mw && wy >= 0 && wy < mh &&
+                is_solid(g.get_element(wx, wy).type)) solid_rows++;
+        }
+        std::printf("  column %5d: %3d solid rows below the feet\n", wx, solid_rows);
+    }
+    return 0;
+}

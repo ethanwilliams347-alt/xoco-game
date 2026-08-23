@@ -134,8 +134,8 @@ point.
 | 6 | **V23 — the camera's vertical anchor, and the dig framing that moves it** | afternoon | ✅ **done 2026-08-17**, and it was **not on this list yesterday** — see the note below |
 | 6a | **V23a — the dig framing was never delivered** | afternoon | ✅ **done 2026-08-17** on playtest session 8. `DIG_ANCHOR` 0.30 → `COLUMN_ANCHOR` 0.50 and airborne became a second trigger. **The clamp was swallowing the framing** — 0.30 resolved to 0.51 on screen at the fixture floor and 0.70 deeper, so the camera answered the dig least where there was most to see. **The feel re-test it owed was never run** — session 9 withdrew the whole framing hours later (row 6b) |
 | 6b | **V23b — the camera goes back to centre** | an hour | ✅ **done 2026-08-17** on playtest session 9: *"lets go back to the camera always being centered."* **A deletion, not a retune** — `camera_bias.h`, its suite, `Camera::set_vertical_anchor` and the three TUNING rows are gone, and the golden checksum returned to its pre-V23 value `0xcde4dc1a39927fca`, which is the evidence the revert is complete. Suite count unchanged at 14 (`camera_test` keeps the Camera half). **Nothing is owed to the tester by this.** ⚠️ **It hands V22 back the ~50% cap** the centred camera puts on the plane's visible share |
-| 7 | **V22 — the plane the player is in** | week | **in progress, started 2026-08-18. Part 2 is now blocked on step 8.** **Part 1 (the framing) is done**; part 2 is the fixture-scene rewrite and part 3 the world/plane value junction. ⚠️ **It runs in full by decision on 2026-08-18, over a stated concern** — the gate answered "no" a fourth time and the two-thirds target needs the camera V23b deleted, so part 1 reopens that deletion. **Read the session 8 note and the reopening bullet below before touching part 2**, which is the step that costs both `.rec` recordings |
-| 8 | **V24 — the plane's near edge is nailed to the window** | afternoon | ✅ **built 2026-08-18**, from playtest session 10, ahead of V22 part 2. The plane's near edge was pinned to the bottom of the window while its far edge was parallaxed, so the tile never left the frame and was squeezed 30% across the camera's travel — an inverted depth ordering inside one layer. `PLANE_TEXEL_SCALE` 2.5 replaces the pin and the window is no longer an input to the plane's geometry. **A motion playtest is owed**; no `.rec` cost |
+✅ **Part 4 shipped 2026-08-23 and it is the change the six "no"s were asking for.** `ground_near` and `ground_mark` scaled by 1.35 in [tools/pixel_art.py](tools/pixel_art.py), `ground_far` untouched, `assets/backdrop_ground.bmp` regenerated. **Two independent readings picked the same factor, which is the only reason to trust either**: the post-grade span becomes **24 → 85, a difference of 60.9 levels against the reference plane's 60.7** — the quantity V20 named as the target and the pair was then authored to 38 — and, coming the other way, the value at **tile row 198**, the row the terrain actually meets, becomes 71.5 against the world's 73.4. **Measured after: the join reads plane 70.2 / world 73.4 at the feet, from 51.3 / 73.4**, and the composed frame runs 25.5 / 29.5 / 34.8 / 40.3 / 46.3 / 52.8 / 58.7 / 65.2 / 71.1 into the contact — **a slope where there was a step.** ⚠️ **`ground_far` did not move, and that is what makes this the art's job rather than the grade's**: the horizon stays the frame's dark pinch at 25.4 and the mountain join stays at 11, and a uniform multiply could not have raised one end of a band alone. ⚠️ **This one band's near end is now 8% above V20, and V20 is what session 7 called "too bright"** (0.80 × 1.35). The defence is that it is one band's near end rather than the ceiling, that the visible part tops out at 71.5 and not 85, and that the world's lit surface at 73.4 stays the brightest thing beside the player — which is the reference's arrangement. **If session 14 says "too bright" again, this factor is the first thing to look at.** ✅ **No `.rec` cost and nothing red**: 17/17 suites pass with `golden_frame_test` included (it builds its own fixture, so the shipped tile never reaches the checksum), and `session_4_digging_fluids_fire.rec` survives. 📌 **Two things measured and deliberately not fixed, so they are not claimed:** the tile's **detail energy** still peaks mid-tile and falls toward the near edge (7.8 mean now, was 5.2, against the reference's monotone 2.2 → 27.6), and the plane still has **no mist band** dissolving its far edge. Both are ENTRY 13 findings; they belong to `V19 4c` or a new item, and bundling either here would have made the seventh asking unreadable. **Owed to a playtest: the gate question a seventh time.** ⛔ **The gate came back "no" a sixth time on 2026-08-23 ([session 13](PLAYTEST_LOG.md)), and the measurement that explains all six is now in hand.** The answer named the layer — *"a separate shelf sitting in front of a parallaxed background, specifically the backdrop_ground.bmp"* — and that moves the fault **off the plane and onto the join**: a backdrop being read as *parallaxed* is one whose recession is landing. **The defect is that part 3 matched the world to a row of the plane that is never on screen.** `plane_probe` prints the plane spanning horizon `y 449.2` to near edge `y 1089.2`, and the world's surface at the spawn sits at `y 864` — so the plane is only ever visible to **t = 0.65 of its own depth, and its near 35% is permanently behind the terrain** (the probe's own `below the feet: PLANE 0.8% WORLD 99.2%` is the same fact said another way). Part 3 aimed the world's **73.4** at the plane's authored near end of **65.7** — but 65.7 is one of the rows the terrain covers. The row that actually touches the world on screen reads **51.3**. **So the join the player is looking at is 51.3 → 73.4, a 22-level step up with the world the brighter side**: a lit shelf in front of a darker backdrop, which is what all six answers have described. 📌 **The lever is the tile's ramp, not the grade, and that was written down before this session** — MANUAL_TESTING step 12 already says a grade "multiplies uniformly and cannot brighten one end of a band", and the owner's standing rule is that a ramp *within* one band is the art's job. The plane's art spans **47.9 → 122.5, a 2.56:1 ratio**; to hold the horizon under the sky's 22.9 while reaching the reference's 64–81 lit band at t=0.65 it needs about **4.6:1**, so the change is a **darker far end, not a brighter near one**, and the near end is already about right. ⚠️ **That sentence is wrong, part 4 disproved it, and it is kept because the *way* it is wrong is this project's recurring one.** It held the ramp's **ratio** over the whole tile, when the quantity the palette had already named as the target is the **difference** — V20's own line, *"when a mechanism is absolute contrast, matching its ratio is not matching it"*, written about this very pair. And it took the visible fraction off the *screen* band when the sampling is `plane_src_at`'s inverse-depth mapping, which puts t=0.65 at **tile row 198 of 256, not row 166**. Darkening the far end with the near end held would have made the join **worse**. What shipped is the near end raised 1.35× with `ground_far` untouched. ⛔ **Closing the gap by moving the plane's near edge is refused** — that is the pin `V24` removed, and it brings back session 10's squish. ✅ **No `.rec` cost this time**: the tile and the grade are render-side, so `session_4_digging_fluids_fire.rec` survives the fix. ✅ **P4's replayed row is live and is finally the working session** — 9700 steps, 161.7 s, `exact`, **`dig 3842 steps`** against the last recording's `dig 0`, fire that burned (`Charred` peak 317), 0 of 9700 steps over budget, p99 0.667 ms. **`Steam` is still `never seen`** and the census samples every 60 steps, so that is not evidence of absence. **all three parts built as of 2026-08-22; the item stays open until the gate question comes back.** ✅ **Part 3 shipped 2026-08-22 and it was a measurement before it was an edit.** `plane_probe` gained a band ladder — row-mean luminance down the spawn frame, the same instrument ENTRY 12 measured the WnC references with — and it read **plane 65.7 against world 23.3** at the junction: the frame's brightest band directly behind its darkest. The reference does the reverse in every frame, so the fix is a far-to-near ramp authored into the terrain albedo (`apply_depth_ramp`, nine new palette rungs), and the ladder now peaks at **73.4 at the feet** and falls 48.6 / 29.5 / 23.3 below it. ⚠️ **It is not the `cells` grade, and TUNING.md's row saying it would be is corrected rather than turned** — that row inferred the junction's direction from two grades without reading the art under them, and turning it as written would have deepened the inversion. ⚠️ **The cost is spent again: the albedo changed, so `session_3_painting_fire.rec` is invalid and P4's replayed row is dark until the tester plays and presses `F9`.** 📌 **Two findings pass to the next items rather than closing here**: the plane's *middle* still reads 39-51 where the reference's lit band is 64-81, which is the `ground` grade and not this ramp; and the bottom of the window now sits at 23.3 with nothing in front of it, which is the near-black foreground band **V19 4c** owns. *(Original status:)* **in progress, started 2026-08-18. Parts 1 and 2 are done; part 3 is all that is left.** ✅ **Part 2 shipped 2026-08-22 and it corrected this item's own premise rather than continuing it** — `plane_probe` (new, headless) measured the spawn frame and found the inverse of what the entry claimed: **98.3% of the region below the player's feet was open air showing the plane, and 0.9% of the window was world**, because the body spawned onto a jump ledge 275 cells above the floor. That is the fourth "no" explained — value continuity and camera framing were both being asked to join the world's surface to a plane it never touched. The fixture is reflowed (spawn corridor at scene units 355-430) and the same reading is now **99.2% world below the feet**. ⚠️ **The cost is spent: both `.rec` recordings are invalid and P4's replayed row is dark until the tester plays and presses `F9`.** A playtest is owed and is on MANUAL_TESTING.md. ⚠️ **It runs in full by decision on 2026-08-18, over a stated concern** — the gate answered "no" a fourth time and the two-thirds target needs the camera V23b deleted, so part 1 reopens that deletion. **Read the session 8 note and the reopening bullet below before touching part 2**, which is the step that costs both `.rec` recordings 📌 **A 2026-08-22 measurement pass binds part 3**: the owner's answer to "make it look like the WnC references" was measured against a live capture, and the largest gap is the band ladder part 3 owns — our frame spans **47 luminance levels at p05–p95 against the reference's 123**, and the reference spends a third to a half of every frame on near-black foreground we have no band for. **Day is now a supported setting** (owner, same day), and because the depth ordering inverts between day and night, **day/night and the band ladder are one feature, not two** — do not author a daylight palette before part 3 lands. notes/art_direction.txt section 9 and reference_observations ENTRY 11 |
+| 8 | **V24 — the plane's near edge is nailed to the window** | afternoon | ✅ **built 2026-08-18**, from playtest session 10, ahead of V22 part 2. The plane's near edge was pinned to the bottom of the window while its far edge was parallaxed, so the tile never left the frame and was squeezed 30% across the camera's travel — an inverted depth ordering inside one layer. `PLANE_TEXEL_SCALE` 2.5 replaces the pin and the window is no longer an input to the plane's geometry. ✅ **Playtested 2026-08-22 and closed** — *"V24 looks good"*; session 10's squish did not reproduce on the same flight path that found it. The plane-leaves-frame and bottom-fill-band halves came back **unanswered rather than passed** and are not being re-asked — part 2 below surfaces the band if it is there ([session 11](PLAYTEST_LOG.md)). **Nothing is owed to the tester by this**; no `.rec` cost |
 
 > **Step 6 was not planned and that is the thing to notice about it.** It exists
 > because V22's scene work started with a measurement instead of a redraw, and
@@ -4047,7 +4047,7 @@ simulation's resolution and no amount of asset work changes that.
 - [x] **V23 — The camera leaves centre, and digging brings it back.** *(done —
   full entry in
   [ROADMAP_ARCHIVE.md](ROADMAP_ARCHIVE.md#v23-the-camera-leaves-centre-and-digging-brings-it-back))*
-- [ ] **V24 — The plane's near edge is nailed to the window.** *(new
+- [x] **V24 — The plane's near edge is nailed to the window.** *(closed on playtest session 11, 2026-08-22)* *(new
   2026-08-18, from playtest session 10; **ahead of V22 part 2**)* *Observed:*
   [PLAYTEST_LOG.md](PLAYTEST_LOG.md) session 10, reported against a question
   that was not asked: *"the entire .bmp stays on screen and squishes as the
@@ -4203,7 +4203,10 @@ simulation's resolution and no amount of asset work changes that.
          the same commit as the change. `camera_test` asserts the framing in
          *screen* terms, which is what V23a proved a `view_y()` check cannot do.
       2. **The fixture-scene rewrite.** The load-bearing half, and the one that
-         costs both `.rec` recordings.
+         costs both `.rec` recordings. **Done 2026-08-22, and it cost an
+         afternoon rather than the week budgeted, because the first thing
+         done was to measure instead of to author** — see the correction
+         below, which is what the measurement bought.
       3. **The world/plane value junction**, which is the deliberately-open
          TUNING question this item consumed. `Params::world_grade` already
          exists at identity, so the knob is built and unset.
@@ -4219,10 +4222,123 @@ simulation's resolution and no amount of asset work changes that.
 
       **What part 1 does not do, and it must not be read as having done it.** It
       moves the contact point from 20.2% to ~65% of the band *arithmetically*.
-      The plane's visible share in front of the player is still **exactly
-      zero**, because the world occludes it — that is part 2's job and no camera
-      constant touches it. **A framing that frames nothing is what V23 already
+      **A framing that frames nothing is what V23 already
       shipped once**, and the fourth "no" is the evidence.
+
+      ⚠️ **The two sentences that used to open this paragraph were false,
+      and they were the premise part 2 was about to be built on.** They read:
+      *"The plane's visible share in front of the player is still **exactly
+      zero**, because the world occludes it — that is part 2's job and no
+      camera constant touches it."* Measured on 2026-08-22 with `plane_probe`,
+      the truth at the spawn was the exact inverse: **98.3% of the region
+      below the player's feet was open air showing the plane, and 0.9% of the
+      whole window was world at all.** The player was spawning onto the third
+      jump ledge — a 20x8-cell island 275 cells above the floor with nothing
+      whatever beneath it — because the ledge cluster straddled
+      `GRID_WIDTH / 2`.
+
+      **That is the fourth "no", explained.** Value continuity and camera
+      framing were each aimed at the junction between the world's surface and
+      the plane's near end, and at the spawn **there was no world surface in
+      the frame to be a junction with**. Both mechanisms were necessary; both
+      were being asked to join a thing to nothing.
+
+      The false sentences are quoted rather than deleted because of what they
+      cost: three fixes aimed at a cause nobody had measured, and this entry's
+      own rule — *compute the target's reachability before authoring against
+      it* — written two paragraphs above them and not applied to them.
+
+      **What part 2 therefore was.** `generate_test_scene.py` reflowed, not
+      rewritten: the bridge and its pit and the jump ledges moved west, the
+      water channel and the sleeper run east, and **scene units 355-430 are
+      now a spawn corridor holding floor and nothing else**, named as a
+      constraint at the top of that file. Every region F4.4 named survives,
+      which is the closed decision *dress it and spread it out* honoured
+      rather than re-argued. Measured after, at the spawn: **below the feet
+      99.2% world against 0.8% plane** (it was 1.7% against 98.3%), and over
+      the whole window **WORLD 17.6%, PLANE 41.6%, ABOVE 40.8%**.
+
+    - **✅ Part 3 — the value junction. Built 2026-08-22, and the
+      first thing to say about it is that it began by measuring the junction
+      instead of adjusting it.**
+
+      **The instrument, because the finding is only as good as it is.**
+      `plane_probe` gained a **band ladder**: the spawn frame divided into 20
+      horizontal bands, each reporting the mean luminance of the world, of the
+      receding plane, and of the two together. That is deliberately the same
+      measurement `notes/reference_observations.txt` ENTRY 12 ran over the WnC
+      frames, so the two tables can be set side by side. **Rows above the
+      horizon are excluded and say so** rather than being sampled — composing
+      sky and mountains here would mean reproducing two more parallax stacks
+      for bands this pass does not change.
+
+      **What it read, before anything was edited.** At the spawn the receding
+      plane's near end is luminance **65.7** and the world standing in front of
+      it is **23.3**. The frame's brightest band was sitting directly behind
+      its darkest one, at the single junction the eye is asked to read as
+      continuous — and every reference frame measured does the exact reverse:
+      the surface the character stands on is the **brightest** band in the frame
+      (72.9-79.9 across four `WnC_walking` frames) and the frame darkens both
+      upward and downward from it. **That is a complete account of five "no"s,
+      and it is why none of the three earlier attempts could have worked.**
+
+      **Why it is art and not a grade, which is the part that took the longest
+      to be sure of.** `.claude/rules/assets-and-formats.md` already carries the
+      rule and V20 already learned it on the ground plane: **a Grade is a
+      uniform multiply, so a ramp *within* a band is always the art's job.** The
+      terrain layer had no ramp at all — one flat near-black fill per material,
+      0.1 distinct tones per 100 pixels against the reference's 5.9-21.5. So it
+      gets the same treatment the ground plane got in V19: **the ramp is in the
+      art and the level is in the grade.** `apply_depth_ramp` in
+      `tools/pixel_art.py` measures each cell's depth below its own surface,
+      straight up, and lays a named ladder down it.
+
+      **Every rung is a palette entry, and that was not the first attempt.** The
+      ramp originally interpolated between the lit tone and the fill, which put
+      nine colours into `assets/test_albedo.bmp` that appear in no palette;
+      `tools/validate_palette.py` reported 25,480 off-palette pixels. **The
+      audit that "is not a gate" is what caught it**, which is worth recording
+      on the side of keeping it. Rewritten to pick only between adjacent named
+      rungs, the measured result is the same to within 0.1 of a luminance level.
+
+      **After, at the same camera position:** the world peaks at **73.4 at the
+      feet** — the brightest band in the sampled frame, against the reference's
+      72.9-79.9 — and falls **48.6 / 29.5 / 23.3** through the three bands
+      below it, against the reference's fall to 19.4-24.2. The shape matches.
+
+      **Two things this does not fix, and they are handed on rather than left
+      implied.** (1) The plane's *middle* — bands 12-15, immediately above the
+      feet — reads **39-51** where the reference's lit band is 64-81. That is
+      the `ground` grade's level, not this ramp, and moving it moves the
+      mountain/ground horizon join, which is V21's 14-level signature; it is a
+      separate item with a separate argument. (2) The bottom of the window is
+      now the deep fill at 23.3 with **nothing in front of it**. The reference
+      puts a near-black *occluding* band there — vegetation, logs, bank, at a
+      nearer depth, never a cutaway of the ground being stood on — and that is
+      **V19 4c** and `art_direction` section 9 item (b). ENTRY 12 part 2 warns
+      it is a vignette and not a bottom band; do not build it as one.
+
+      **What it costs.** The albedo changed, so `input_log::fingerprint` —
+      which hashes `e.color` — rejects `session_3_painting_fire.rec`, and P4's
+      replayed row is dark again until the tester plays and presses `F9`.
+      **The refusal message is worth reading once, because it is the cleanest
+      demonstration of the mechanism this project has:** *"334501 cells placed
+      now, 334501 when recorded; start fingerprints differ"* — an identical
+      scene, refused on colour alone. **This
+      was the cost deferred deliberately on 2026-08-22** rather than spending
+      the tester twice: the recording was not re-asked for until the colour work
+      had landed. It is asked for now, on `MANUAL_TESTING.md`.
+
+      **What is not answered is the only thing that matters**: whether it reads.
+      The gate question goes back to the tester a fifth time.
+
+      **What that does and does not settle.** It builds the junction; it does
+      not tune it, and nobody has yet seen it. Part 3 is now the whole of the
+      remaining question and it has a surface to work on for the first time.
+      The near-black foreground band the reference spends a third of its
+      frame on is *not* part 2's to deliver — at `VERTICAL_ANCHOR` 0.80 only
+      20% of the window is below the player at all, so that band is the ladder's
+      and V19 4c's, exactly where notes/art_direction.txt section 9 files it.
 
       **What it costs is unpaid.** ~55 cells of world below the player at the
       surface, against digging as the game's one verb. V23 paid that back with a
@@ -4371,8 +4487,14 @@ simulation's resolution and no amount of asset work changes that.
       is the consequence to state out loud before anyone redraws anything.**
       `src/game/input_log.h` names "the fixture scene changes" as the *first* of
       the three things that invalidate a log, and `tests/test_scene.cpp` pins
-      `FIXTURE_SCENE_CELLS = 334901` specifically so this fails in `ctest`
-      rather than in a benchmark nobody runs on the breaking commit. **So P4's
+      `FIXTURE_SCENE_CELLS` specifically so this fails in `ctest`
+      rather than in a benchmark nobody runs on the breaking commit.
+      **Spent on 2026-08-22 by part 2, and the guard fired exactly as
+      written**: `scene_test` failed on the pin (334,901 — 334,501),
+      `docs_test` then failed on the two documents quoting the launch line,
+      and `grid_bench` refused all three replayed rows with *"the fixture
+      scene has changed since this log was recorded"*. **P4's replayed row
+      is dark from this date** until the tester plays and presses `F9`. **So P4's
       replayed row — the only instrument in the project that proves the frame
       budget is intact on a real frame — goes dark until somebody plays and
       records again, and only the tester can do that.** The guard working as

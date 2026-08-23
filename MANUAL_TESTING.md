@@ -23,43 +23,72 @@ cmake --build build --config Release
 
 ---
 
-### 1. **Does the ground plane move correctly now?** *(V24, added 2026-08-18.)*
+**1. The gate question, a seventh time — and the frame has changed since you
+last looked.** `V22` part 4 (2026-08-23) widened the ground plane's own
+far-to-near ramp: `ground_near` and `ground_mark` up by 1.35, the far edge at the
+horizon deliberately untouched. Measured at the spawn, the join between the plane
+and the ground you stand on went from **plane 51.3 / world 73.4** — a 22-level
+step with the world the brighter side — to **70.2 / 73.4**, and the band ladder
+now climbs 25 / 30 / 35 / 40 / 46 / 53 / 59 / 65 / 71 into your feet instead of
+stepping up at the last moment.
 
-You reported this on the last playtest: *"the entire .bmp stays on screen and
-squishes as the sprite flies up."* You were right, and this is the fix.
+Launch, stand at the spawn, and answer the same question: **does the ground you
+are standing on read as part of one receding surface, or still as a separate
+shelf sitting in front of a backdrop?**
 
-**What was wrong:** the far edge of the ground plane moved with the camera, but
-its near edge was glued to the bottom of the window. So the plane could never
-leave the screen — it just got squeezed into whatever space was left. Measured,
-it lost 30% of its height between the ground and the top of the world.
+Two things I need alongside the yes or no, because six previous "no"s did not
+separate them:
 
-**What it does now:** the plane is a fixed slab of art. It slides down the
-screen as you fly up, keeps the same size the whole time, and eventually goes
-off the bottom of the window like any other layer would.
+- **If it is still a shelf, where is the seam** — at your feet, or higher up
+  nearer the horizon? Those are different defects with different owners.
+- **Is anything too bright now?** This raised one band's near end to 8% above the
+  level playtest session 7 called "too bright". Nothing else moved, and the
+  horizon edge is exactly where it was.
 
-**Fly up as high as you can, then come back down**, and tell me:
-
-- **Does it still change size?** It should not, ever. This is the one that
-  matters — same question you already answered once.
-- **Does it leave the screen properly?** Flying up should push it down and out
-  of frame, not shrink it.
-- **Anything odd along the bottom of the screen?** Below the plane's near edge
-  there is a band filled with the plane's nearest colour. At the surface your
-  terrain covers it, so you should not normally see it — **on your 3440x1440
-  display that band is a few hundred pixels tall**, so if it shows up as a flat
-  stripe somewhere, that is the thing to tell me about.
-
-**What this is *not* asking:** whether the plane reads as receding, or whether
-you feel like you are standing in it. Still no — the world hides it and that is
-V22 part 2. Nothing about the composition changed here; at the spawn the frame
-should look the same as it did before, to within about ten pixels.
+**No `.rec` cost this time** — the change is render-side, so the recording you
+made on 2026-08-23 is still valid and P4's replayed row stays live. If you play
+anyway, remember `F9` overwrites `session.rec` on the first save of a launch:
+copy `session_4_digging_fluids_fire.rec` somewhere safe first if you want it kept.
 
 ---
 
-**That is the only thing waiting on you.** The `V22` part 1 camera framing came
-back on 2026-08-18 and is closed below.
+*Closed and off this list:* **all three of `V22` part 3's items, closed
+2026-08-23** ([session 13](PLAYTEST_LOG.md)).
 
----
+**The gate question came back "no" for the sixth time, and it is not the same
+"no".** The answer was *"a separate shelf sitting in front of a parallaxed
+background, specifically the backdrop_ground.bmp"* — the layer is named, and
+named correctly. Session 12 called the same thing *"a painted backdrop"*. A
+backdrop being read as **parallaxed** is one whose recession is landing, so this
+answer moves the fault off the plane and onto the join. **"Still two things" was
+offered and was not the answer given** — neither of the two gaps part 3
+knowingly left was mentioned.
+
+**The recording arrived and it is the working session that was asked for** —
+`dig 3842 steps` against the last one's `dig 0`, and fire that actually burned
+(`Charred` peak 317). 9700 steps, 161.7 s, replaying `exact`, 0 steps over
+budget. Kept as `session_4_digging_fluids_fire.rec`. **Steam is still
+`never seen`**, and that is the one thing the request did not get; the census
+samples every 60 steps, so a puff that condensed between two samples reads the
+same as one that never existed.
+
+**The mid-air spawn is gone** — *"i did not spawn mid air"*, no `WARNING`, so
+the spawn scan found its floor.
+
+*Closed and off this list:* **V22 part 2's two items, both closed 2026-08-22.**
+The recording arrived (above). The opening-frame question came back **"looks
+like a separate shelf sitting in front of a painted backdrop"** — the fifth
+"no", and the first one with a junction actually in the frame to look at. The
+tester also reported, unasked, spawning in mid-air and falling, and proposed
+retiring `assets/test_albedo.bmp`. All three are [session 12](PLAYTEST_LOG.md)
+and all three land on V22 part 3.
+
+*Closed and off this list:* **V24's ground plane, closed 2026-08-22** — *"V24
+looks good"*. Session 10's squish is not reproducing on the same flight path that
+found it. **The other two halves came back unanswered rather than passed** — the
+plane leaving the frame, and the fill band along the bottom of the window — and
+they are not being re-asked, because `V22` part 2 stops the world hiding the
+plane and will surface the band if it is there ([session 11](PLAYTEST_LOG.md)).
 
 *Closed and off this list:* **the camera framing, closed 2026-08-18 and it
 stays.** *"digging not cramped"* — the anchor stays at 0.80 and
@@ -142,7 +171,7 @@ has ever had.*
 
 ## The steps
 
-1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 1920x1080, 334901 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart. **The two lines under it are no longer yours to read (`W5`, 2026-08-17).** `Objective: (1700, 932)` and `Props: 9 of 9 placed` were the other half of this step, and both were a number a person had to notice was missing — the objective's absence makes a run unwinnable, and a dropped prop is the buried-trees bug, which hid for a whole feature because the trees sit off-screen at spawn. The scans behind both moved to `game/boot.h` and `boot_test` asserts them **against this same shipped scene**, so a regression in either now fails `ctest` before anybody launches. What is left for you here is the part a checksum cannot have: the window opens, the seed prints, and there is terrain in front of you.
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: 1920x1080, 334501 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart. **The two lines under it are no longer yours to read (`W5`, 2026-08-17).** `Objective: (1700, 932)` and `Props: 9 of 9 placed` were the other half of this step, and both were a number a person had to notice was missing — the objective's absence makes a run unwinnable, and a dropped prop is the buried-trees bug, which hid for a whole feature because the trees sit off-screen at spawn. The scans behind both moved to `game/boot.h` and `boot_test` asserts them **against this same shipped scene**, so a regression in either now fails `ctest` before anybody launches. What is left for you here is the part a checksum cannot have: the window opens, the seed prints, and there is terrain in front of you.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. **The sprite is 14x26 over an 8x20 collision box, so "flush" is a claim about the sprite's *feet*, not its bounding rect** — the mask overhangs above the box and the sleeves outside it, both by design. A figure that hovers one cell above every floor means some frame's bottom row went empty — `python tools/player_sheet.py --validate` checks exactly that, per frame, and is the first thing to run; a figure sunk into the floor means `src/render/player_sprite.h` is stale and needs `--header` re-run. Also confirm the figure turns to face the direction you walk, and keeps facing that way after you stop.
 

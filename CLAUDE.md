@@ -77,6 +77,7 @@ Not part of `ctest`, run by hand, each answering a question a pass/fail cannot:
 .\build\Release\burn_probe.exe        # burn timing and shape, in numbers
 .\build\Release\water_probe.exe       # where poured water ends up
 .\build\Release\rim_probe.exe         # surviving rim highlight after settling
+.\build\Release\plane_probe.exe       # what share of the frame the ground plane gets
 .\build\Release\velocity_probe.exe    # what Element's spare bytes can hold
 ```
 

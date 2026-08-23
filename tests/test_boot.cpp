@@ -174,6 +174,48 @@ void test_choose_display_mode() {
     }
 }
 
+void test_stand_player_on_ground() {
+    // The mirror pair. Giving a body the *lowest* surface under its footprint
+    // puts its feet inside the hill, which is a silent bug rather than a crash,
+    // so the two are asserted against the same terrain in one place.
+    Grid g(40, 40);
+    for (int x = 0; x < 20; ++x) g.set_element(x, 30, ElementType::Wall);   // low step
+    for (int x = 20; x < 40; ++x) g.set_element(x, 24, ElementType::Wall);  // high step
+    check("highest_surface_under: a footprint straddling a step takes the high side",
+          boot::highest_surface_under(g, 16, 8) == 24);
+    check("lowest_surface_under: ...and the prop planter still takes the low one",
+          boot::lowest_surface_under(g, 16, 8) == 30);
+
+    {
+        // Session 12's report, as an assertion: the body ends up standing on
+        // the terrain rather than falling to it.
+        Run run(40, 40);
+        // Row 34 rather than 30 on purpose: a 40-cell world spawns the body at
+        // height / 4 = 10, so a surface at 30 would put a 20-cell body exactly
+        // where it already was and the assertion below would pass on a
+        // stand_player_on_ground that does nothing at all.
+        for (int x = 0; x < 40; ++x) run.grid.set_element(x, 34, ElementType::Wall);
+        const int before = run.player.cell_y();
+        const boot::Standing s = boot::stand_player_on_ground(run);
+        check("stand_player_on_ground: it finds the ground", s.placed && s.surface == 34,
+              std::to_string(s.surface));
+        check("stand_player_on_ground: the feet land exactly on the surface",
+              run.player.cell_y() + Player::HEIGHT == 34,
+              std::to_string(run.player.cell_y()));
+        check("stand_player_on_ground: ...which is somewhere it was not", before != run.player.cell_y());
+    }
+    {
+        // A world with nothing under the spawn column leaves the body where it
+        // was, rather than guessing a row. Same refusal `place_objective` makes.
+        Run run(40, 40);
+        const int before = run.player.cell_y();
+        const boot::Standing s = boot::stand_player_on_ground(run);
+        check("stand_player_on_ground: no ground means no placement", !s.placed);
+        check("stand_player_on_ground: ...and the body is not moved to a guess",
+              run.player.cell_y() == before);
+    }
+}
+
 // --- the fixture half: the launch check, as assertions ---
 
 void test_shipped_fixture() {
@@ -189,6 +231,18 @@ void test_shipped_fixture() {
     const int cells = load_scene(run.grid, scene, 0, 0);
     check("fixture: the shipped scene stamps cells into the world", cells > 0,
           std::to_string(cells));
+
+    // **The spawn, on the scene the game actually loads.** The unit case above
+    // proves the scan; this proves the shipped fixture still has floor under
+    // the spawn corridor V22 part 2 cleared for it. A regression here is the
+    // 660-cell free fall coming back, which is what session 12 reported.
+    const boot::Standing stand = boot::stand_player_on_ground(run);
+    check("fixture: the body stands on the shipped scene rather than falling to it",
+          stand.placed, "no ground under the spawn column");
+    check("fixture: ...with its feet on the surface",
+          stand.placed && run.player.cell_y() + Player::HEIGHT == stand.surface,
+          std::to_string(run.player.cell_y()) + " + " + std::to_string(Player::HEIGHT) +
+              " vs surface " + std::to_string(stand.surface));
 
     // **`Objective: (x, y)` stops being a line to read.** A run with no
     // objective cannot be won, and the only thing that used to say so was a
@@ -239,6 +293,7 @@ int main() {
     test_lowest_surface_under();
     test_place_objective();
     test_plant_props();
+    test_stand_player_on_ground();
     test_choose_display_mode();
     test_shipped_fixture();
     return report();

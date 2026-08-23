@@ -318,4 +318,17 @@ if(BUILD_TESTING)
     # test over it would pin a prototype rather than check the product.
     add_executable(velocity_probe tests/velocity_probe.cpp ${ENGINE_SOURCES})
     target_include_directories(velocity_probe PRIVATE src tests)
+
+    # Where the receding ground plane's band lands on screen, and how much of it
+    # the fixture's own terrain covers up. Not an add_test() for the same reason
+    # the four above are not: it reports an input to a composition decision.
+    #
+    # **It is the one probe that reaches into src/render/, and it does so only
+    # through the two headers that are arithmetic** - backdrop_layers.h and
+    # backdrop_wrap.h, both of which are header-only and SDL-free by design.
+    # RENDER_SOURCES is deliberately not linked: the moment this needs a .cpp
+    # from the renderer it has stopped being a headless instrument, and that
+    # should be a link error rather than a habit.
+    add_executable(plane_probe tests/plane_probe.cpp ${ENGINE_SOURCES})
+    target_include_directories(plane_probe PRIVATE src tests)
 endif()

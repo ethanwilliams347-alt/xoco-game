@@ -350,6 +350,17 @@ A location is **two BMPs of the same dimensions**, loaded together:
   the colours anything is drawn in.
 - **`test_albedo.bmp` — the albedo map.** The colour each cell actually renders
   as. This is where the art lives.
+  - **It carries the terrain's value ladder as of V22 part 3 (2026-08-22), not
+    one flat tone per material.** Playtest session 12 asked whether this file
+    should exist at all — *"test_albedo.bmp should probably not exist anymore"*
+    — and the answer came back the other way: what made the world read as a
+    shelf in front of the backdrop was its *contents*, one near-black fill per
+    material with no depth to it, and the fix needed a per-cell colour to live
+    in. `generate_test_scene.py` now runs `apply_depth_ramp` before the rim
+    light, so a cell's tone depends on how far below its own surface it sits.
+    **Regenerate it rather than editing it**, and note that changing it
+    invalidates every `.rec` recording, because `input_log::fingerprint` hashes
+    `e.color`.
 
 The legend, which is frozen — changing a value invalidates every scene file ever
 authored:
@@ -383,7 +394,7 @@ To author one:
    `load_scene_from_bmp(...)` call in [main.cpp](src/main.cpp).
 3. Rebuild, run, and **read stdout rather than eyeballing it**:
    ```
-   Scene: 1920x1080, 334901 cells placed
+   Scene: 1920x1080, 334501 cells placed
    ```
    That count is the check. `0 cells placed` gets its own warning, and any pixel
    in no legend entry prints a `WARNING` naming the unrecognised colours.

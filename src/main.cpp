@@ -539,6 +539,9 @@ int main(int argc, char* argv[]) {
     std::printf("World seed: %llu\n", static_cast<unsigned long long>(world_seed));
 
     Run run(GRID_WIDTH, GRID_HEIGHT, world_seed); // starts fully Empty, player mid-air
+                                                  // - boot::stand_player_on_ground below
+                                                  // is what puts it down, once there is
+                                                  // terrain to put it on
     
     // Load F4 test scene. A scene that resolves to no cells at all is reported
     // rather than shrugged off: README's launch check is "terrain is visible
@@ -552,6 +555,17 @@ int main(int argc, char* argv[]) {
         if (scene_cells == 0) {
             std::fprintf(stderr, "WARNING: the scene named no material anywhere - the world is empty.\n");
         }
+    }
+
+    // The body starts mid-air because `Run` is built before the scene is; now
+    // that there is terrain, stand it on the terrain. Playtest session 12
+    // reported the fall this removes. The scan is in `game/boot.h` so a suite
+    // can reach it; what is left here is the warning, for the same reason the
+    // objective's is here - a body that could not find ground is something the
+    // player is about to experience and cannot otherwise account for.
+    if (!boot::stand_player_on_ground(run).placed) {
+        std::fprintf(stderr, "WARNING: no ground under the spawn column; "
+                             "the player starts in mid-air and will fall.\n");
     }
 
     // S0's objective, planted on whatever terrain is actually at

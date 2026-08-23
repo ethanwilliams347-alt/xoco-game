@@ -6,11 +6,14 @@ Columns: 4
 # Source of truth is PALETTE in tools/pixel_art.py; see
 # notes/art_direction.txt for what each colour is for.
 #
- 20  16  34  sky_deep
- 40  31  62  sky_horizon
-199 194 222  star
- 32  25  48  mountain
- 48  39  72  mountain_rim
+ 83  67 142  sky_deep
+ 56  44  87  sky_horizon
+232 228 255  star
+ 66  52  99  mountain
+105  85 158  mountain_rim
+ 50  41  78  ground_far
+132 112 152  ground_near
+148 125 162  ground_mark
  24  32  22  tree_shadow
  42  56  36  tree_mid
  71  89  57  tree_lit
@@ -21,6 +24,15 @@ Columns: 4
  36  28  16  sand_fill
  23  18  13  wood_fill
 105 120  58  rim_grass
+ 73  66  56  wall_lit
+ 58  51  43  wall_mid
+ 42  37  30  wall_shade
+ 92  76  51  sand_lit
+ 73  60  39  sand_mid
+ 55  44  28  sand_shade
+ 62  51  39  wood_lit
+ 49  40  30  wood_mid
+ 36  29  22  wood_shade
  28  32  41  char_base
  42  50  64  char_mid
  63  74  94  char_light

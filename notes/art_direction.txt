@@ -57,7 +57,8 @@ Named by: tools/pixel_art.py (the PALETTE dict is grouped by this document's
 layer model), tools/export_palette_gpl.py.
 
 The rule, unchanged from V2 and now stated as a rule rather than as a property
-of one table:
+of one table. *(2026-08-22: these three are now the **night** rules rather than
+global ones, and a daylight reference breaks all three. Section 9.)*
 
   - **The backdrop is cool and carries no warm colour at all.** Zero. This is
     what keeps it reading as *behind* rather than as far-away-but-present.
@@ -123,6 +124,12 @@ exception.
 The reference supports this at a specific scale: the CnC frames dither the sky
 gradient and the water heavily, and leave large filled masses almost untextured.
 Dither is for *transitions*, not for surfaces.
+
+*(2026-08-22: **the second sentence holds for masses in shadow only** — measured,
+that reading came off the near-black silhouettes and the reference's lit masses
+carry five to twenty times their tone count. Corrected in section 9. The
+dithering rule itself is unchanged, including that dither is not a texture
+pass.)*
 
 
 4. WHAT THE PLAYER READS AS
@@ -300,6 +307,12 @@ That is the whole technique, and it is what carries shape in a palette this
 dark. It comes from the reference directly: the CnC frames leave large masses
 nearly flat and spend their contrast budget on edges.
 
+*(2026-08-22: **scoped to masses in shadow.** The reference does this on its dark
+masses and does the reverse on its lit ones, and the contrast budget moves off
+the edge and into the surface as a mass brightens. Section 9. Everything below
+in this section — the rim as a proportion, the dithered hand-off, the baked
+per-cell rim — is unaffected.)*
+
 Three consequences, each of which has already cost something:
 
   **The rim is a proportion of the body, not a pixel count.** Two cells against
@@ -339,10 +352,151 @@ Held open on purpose, so that the next thing to need one of these knows it is
 choosing rather than following:
 
   - **The home base has no direction.** Section 1 names it and stops.
-  - **Time of day is one setting: night.** The reference shows day, dusk and
-    night, and section 2's measurement says the depth cueing has to change
-    between them. Nothing here says what dusk looks like in our palette.
+  - ~~**Time of day is one setting: night.**~~ **Retired 2026-08-22** — the
+    owner's decision is that the game has both day and night. Section 9 records
+    what that costs, and it is the band ladder rather than a palette. Dusk is
+    still unanswered.
   - **The band-value defect in section 2 is recorded, not fixed**, and cannot
     be fixed by editing colours.
   - **No second biome.** The moment one exists it gets its own section 1 entry
     and its own palette group, and does not inherit this one's.
+
+
+9. 2026-08-22: DAY IS ADMITTED, AND THREE THINGS ABOVE ARE CORRECTED
+--------------------------------------------------------------------
+
+Supersedes, by date, parts of sections 2, 3, 7 and 8. Each of those carries a
+pointer to this section at the line it loses; nothing above has been deleted,
+because what they were right about is most of what they say.
+
+*What prompted it.* A measurement pass over `WnC_walking (1..4).jpg` — daylight
+forest, the first daylight reference this project has measured — set beside a
+live capture of our own screen, both reduced to their own native art grids so
+the two are compared at the same scale. Numbers, method and disproof conditions
+are ENTRY 11 in notes/reference_observations.txt; this section carries only what
+changes as a result. The pass was asked for by the owner with the goal "make it
+look almost exactly like WnC", and the answer to that as stated is below.
+
+**1. Time of day is two settings, day and night, and neither is the default.**
+Section 8 held it open as "one setting: night" and that is retired. The decision
+is the owner's, taken 2026-08-22: the game will have both. What that costs is
+not a palette — it is section 2's own finding, that the depth ordering *inverts*
+between them, so a day pass and a night pass need different band values for the
+same geometry. **That is the same per-band exposure section 2 says the renderer
+cannot currently express**, which means day and night are one feature and not
+two, and the feature is the band ladder. Do not author a daylight palette before
+the ladder exists; it will be authored against an ordering the renderer cannot
+produce and will have to be thrown away.
+
+  The night rules in section 2 — cool backdrop with zero warm, warm desaturated
+  world, saturation reserved for Fire and Water — **stay in force for night and
+  are not global any more.** The daylight reference breaks all three: its lit
+  surfaces are warm and get warmer as they brighten (+3 at lum 0-20 rising to
+  +33 at 90-130), its cool is spent on sky and haze as a *depth* cue rather than
+  as a backdrop rule, and its play plane sits at saturation 0.48-0.66 with
+  nothing on fire anywhere in the frame. A day section 2 is owed when day is
+  built and it is not written here, because writing it now would be authoring
+  against the missing ladder.
+
+**2. "Large filled masses are almost untextured" is true of silhouettes only.**
+Sections 3 and 7 both state it as a property of the reference and both cite the
+CnC frames for it. Measured at native scale, distinct tones per 100 pixels: the
+near-black foreground mass is 1.1 — the rule holds, exactly as entry 3 read it —
+and every *lit* mass is the opposite, at 5.9-6.8 on the CnC control and 8.0-21.5
+across WnC's trunk, grass and path. Ours are at 0.1. **The corrected rule:**
+
+    A mass in shadow is flat and carries its shape on its rim. A mass in light
+    carries internal tone, and the contrast budget moves from the edge into the
+    surface as the mass gets brighter and nearer.
+
+  Section 3's dithering rule is not what broke here and is unchanged: dither
+  still steps transitions, still never blends, still is not a texture pass, and
+  `color_jitter` stays cut. What changes is that "leave the surface alone" was
+  never the reference's answer for a lit surface, so **an unlit-mass rule was
+  being applied to the one band we most want to read.** Where the tone comes
+  from is open — authored per-cell colour is the existing pillar and the honest
+  first answer, and it is section 7's travelled-highlight acceptance that says
+  per-cell tone survives the material moving.
+
+**3. Their frame is coarser than ours, and that is why theirs reads chunkier.**
+Entry 7 recorded this and entry 11 measured it from a second method: they work
+at 344x144 native, we work at 480x270. Both characters are ~20 art pixels tall,
+so theirs fills 14% of frame height and ours 9.6%. Matching the read is
+`Camera::SCALE` 7-8 rather than 4, and **it is a camera decision that costs
+visible world in cells, not an art decision** — it belongs to whoever owns the
+camera, and it should not be attempted by drawing bigger.
+
+**What "almost exactly like WnC" resolves to, stated as a scope rather than as
+a mood.** In descending order of how much of the measured difference each one
+accounts for: (a) the band ladder — our frame spans 47 luminance levels against
+their 123 at p05-p95, and section 2 already names this defect and already says
+it is not a palette edit; (b) a near-black foreground band, which is a third to
+a half of every reference frame and which we do not have at all; (c) surface
+tone on lit masses, item 2 above; (d) the camera scale, item 3. **Only (d) is
+cheap and only (a) is already on the plan.** None of the four is a colour
+change, and the thing to take from that is that the gap this pass measured is a
+renderer gap wearing a palette's clothes — which is the same sentence section 2
+wrote in 2026-08-16 and which has now been measured twice.
+
+
+10. 2026-08-22: THE TERRAIN GETS A VALUE LADDER, AND ITEM (c) IS SPENT
+---------------------------------------------------------------------
+
+Records what V22 part 3 built, against the scope section 9 set. Section 9 is not
+superseded; this is the first of its four items to be spent, and it took a
+second one with it.
+
+*What was measured.* `plane_probe` gained a band ladder - row-mean luminance
+down the spawn frame in 20 bands, the same measurement ENTRY 12 ran over the WnC
+references, so ours and theirs can be read side by side. **At the spawn the
+receding plane's near end was luminance 65.7 and the world standing in front of
+it was 23.3.** The frame's brightest band was directly behind its darkest, at
+the one junction the eye reads as continuous, and the reference does the exact
+reverse in every frame: the walkable surface is the brightest band and the frame
+darkens both ways from it.
+
+*What was built.* `apply_depth_ramp` in tools/pixel_art.py, run over the fixture
+albedo before the rim light. Each cell's depth below its own surface, measured
+straight up, picks a rung from a named ladder: four cells of lit tone, then
+three quantised steps falling to the material's old fill over 24 more. After it,
+the same measurement reads **73.4 at the feet** falling 48.6 / 29.5 / 23.3 -
+the reference's shape (peak 72.9-79.9, foreground 19.4-24.2).
+
+*Which items that spends.*
+
+  (a) THE BAND LADDER - **spent at the junction, not across the frame.** What
+      part 3 owned was the world/plane join and that is now measured and turned
+      the right way up. **Section 9's headline number, "47 luminance levels at
+      p05-p95 against the reference's 123", has NOT been re-measured**, and the
+      probe cannot do it: it excludes everything above the horizon, so it cannot
+      see the sky, which is most of the frame's upper range. Re-measuring it
+      needs a capture of the running game, the way the original was taken. **Do
+      not quote a new spread number until somebody takes one.**
+
+  (c) SURFACE TONE ON LIT MASSES - **spent, and it came free with (a).** Item 2
+      of section 9 measured our lit masses at 0.1 distinct tones per 100 pixels
+      against the reference's 5.9-21.5, and named authored per-cell colour as
+      the honest first answer. That is exactly what the ramp is: four rungs per
+      material where there was one. The corrected rule it was written to serve -
+      *a mass in shadow is flat and carries its shape on its rim; a mass in
+      light carries internal tone* - is now true of the terrain layer for the
+      first time.
+
+  (b) THE NEAR-BLACK FOREGROUND BAND - **untouched and now the largest item
+      left.** The bottom of the window sits at 23.3 with nothing in front of
+      it. ENTRY 12 part 2 is the constraint on building it and it is easy to get
+      wrong: the reference's near-black band is *occluding matter at a nearer
+      depth*, and it runs up both edges and across the top. It is a vignette.
+      **Do not build it as a bottom band.** V19 4c.
+
+  (d) THE CAMERA SCALE - untouched.
+
+*One thing this pass proved about the pipeline, worth keeping.* The ramp's first
+version interpolated between two palette colours and dithered between the
+results, which put nine unnamed colours into the shipped albedo.
+tools/validate_palette.py caught it - 25,480 pixels - and the rewrite to named
+rungs cost 0.1 of a luminance level. **The audit that is deliberately not a gate
+did the job a gate would have done**, on generated art, which is the half of the
+palette rule that is still in force. That is an argument for keeping it, and it
+belongs on the record beside the argument for never enforcing it on hand-drawn
+art.

@@ -83,10 +83,13 @@ consequences for writing here:
 ## Per-file conventions
 
 **ROADMAP.md** — the one live plan: what is next, how big it is, and why it is
-ordered that way, **one entry per item**. **346 KB**, so search it rather than
+ordered that way, **one entry per item**. **382 KB**, so search it rather than
 reading it through — except its **The plan** block at the top, which is the only
 part that has to be re-read to know what to do. *(This line said 280 KB, then 399
-KB; `W4` took it to 346 KB, against a 319 KB archive, by moving closed work out.)*
+KB; `W4` took it to 346 KB, against a 319 KB archive, by moving closed work out.
+It is back to 382 KB as of 2026-08-22 on `V22`'s three parts alone, which is the
+signal `W4` set this check up to give: **the next item to close is the next
+candidate to archive**, and `V22` closing is when that gets done.)*
 **Both figures are checked by `docs_test`, to within 10%** — enough slack that
 ordinary editing does not touch this line, tight enough to catch the file
 doubling.

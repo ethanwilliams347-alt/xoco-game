@@ -23,11 +23,29 @@ namespace {
 // the session (README, "Recording a session"). If you did not, something has
 // changed the legend or the loader underneath you.
 // Cross-checked against `tools/pixel_art.py`'s reader, which is an independent
-// implementation of the same format: 1,738,699 of the fixture's 2,073,600
+// implementation of the same format: 1,739,099 of the fixture's 2,073,600
 // pixels are background, leaving exactly this many that name a material. That
 // agreement is what stands behind moving the loader out of `main.cpp` - the
 // number is not "what the new code happens to produce".
-constexpr int FIXTURE_SCENE_CELLS = 334901;
+//
+// **Moved from 334,901 on 2026-08-22 by V22 part 2**, which reflowed the
+// fixture's regions off the spawn column. The 400-cell drop was attributed
+// rather than assumed, by reverting each move as a *group* and re-counting:
+// the bridge and its pit are +80, the channel and the sleeper run it starts
+// from are -480, the jump ledges are 0, and reverting all three reproduces
+// 334,901 exactly. The -480 is three fewer sleepers (20x8 cells each), which
+// is what a run starting 40 scene units further east has room for before it
+// reaches the world edge.
+//
+// **The first version of this comment named a different cause and was wrong**,
+// and the way it was caught is worth keeping: reverting one line at a time
+// looked like a controlled experiment and was not, because reverting the pit
+// alone stretched the bridge beam that spans it. A revert has to carry a
+// region's dependents or it measures two changes and reports one.
+//
+// Every region F4.4 named is still present - a count that fell by more than
+// this would be an exercise quietly deleted, which is what this pin catches.
+constexpr int FIXTURE_SCENE_CELLS = 334501;
 
 } // namespace
 

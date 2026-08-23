@@ -93,6 +93,9 @@ sign. Video capture would settle it in seconds; stills cannot.
 
 
 ENTRY 2 — depth is carried by band VALUE, and the ordering flips between day
+*(2026-08-22: entry 11 measures a daylight set and finds this half right —
+the far half of a day frame does descend monotonically, the near half is unlit
+framing and is not on the ramp at all.)*
           and night. This is the palette-sample note.
 --------------------------------------------------------------------------
 Frames: CnC_parallax_1.jpg (day), CnC_night.jpg, CnC_fishing.jpg (night).
@@ -192,6 +195,9 @@ comments are left as they stand.)*
 
 
 ENTRY 3 — the rim technique: flat masses, contrast spent on edges.
+*(2026-08-22: entry 11 scopes this to masses in shadow; the reference's lit
+masses carry 5-20x the tone count. The reading is correct as taken, the scope
+was not.)*
 --------------------------------------------------------------------------
 Frames: all eight, most clearly CnC_night.jpg and CnC_parallax_1.jpg.
 
@@ -658,3 +664,416 @@ same three frames it was earned from:* a reading that survives its own disproof
 can still be unaffordable, and those are separate findings. This one was
 affordable — it cost a camera anchor and a state machine, both testable — but
 that was luck about which item it landed in, not a property of the reading.
+
+
+ENTRY 11 — the four WnC_walking frames, measured against a live capture of our
+own screen. Observed 2026-08-22.
+
+The first entry in this file written against Walk n Chill rather than Cast n
+Chill, and the first written with our own frame beside the reference in the same
+measurement pass, so every number below exists for both sides. `WnC_walking
+(1..4).jpg`, all 3440x1440, daylight forest: a woman and a dog on a lit dirt
+path, near-black canopy above, near-black bank below, huge foreground trunks
+left and right, misty conifers behind. `CnC_parallax_1.jpg` was carried through
+the same pass as a control, because the risk in a two-image comparison is that
+the difference is between two studios rather than between day and night.
+
+*Our side of the pass, and its one caveat.* There is no screenshot path in the
+build — `main.cpp` takes no arguments, `preview_light` renders a synthetic
+cavern and `golden_frame_test` uses generated textures, so none of the three is
+the shipped look. The frame was taken by launching the exe and copying the
+window off the screen. It is the spawn view of the **test fixture**, so the
+*scene* is not authored and nothing about its composition should be read as a
+decision. The palette, the per-layer grades, the layer stack and the native
+scale in it are the shipped ones, and those are what the numbers below are
+about.
+
+**The native art cell is 10 px on the WnC files, and it is 10 px everywhere in
+the frame.** Measured as the ratio of on-grid to off-grid edge energy, run per
+region rather than over the whole image — parallax layers scroll independently
+and their grid phases cancel each other out when averaged, which is what made
+the first attempt (whole-frame reconstruction error against block size) return
+no plateau at all. Per region it is unambiguous:
+
+    sky through canopy   y=10, ratio 1.99      dirt path      y=10, ratio 2.67
+    far conifers         x=10, ratio 1.85      foreground     y=10, ratio 1.59
+    grass band           y=10, ratio 2.36      character      y=10, ratio 2.94
+
+    So 344x144 native. The same test on our capture gives k=4 (ratio 2.87,
+    corroborated by a reconstruction-error dip at 4), so 480x270 — which is
+    Camera::SCALE, arriving from a measurement rather than from the header.
+
+This reproduces entry 7's "the native art cell is about 10 px on these files"
+from a different method and on a different set of frames, so treat the ~344x144
+working resolution as a property of the studio and not of one image.
+
+**And it makes entry 7's aside the sharper finding.** Their character is ~20 art
+px tall in a 144-px frame; ours is 20 cells (`Player::HEIGHT`, sprite frame 26)
+in a 270-cell one. The two characters are the same size in art pixels. Theirs
+reads chunkier because their *screen* is coarser — 14% of frame height against
+our 9.6%. Matching that read is a camera change (SCALE 7-8 at 1080p) and it
+costs visible world in cells; it is not an art change and cannot be reached by
+authoring.
+
+**The value range, and this is the largest single measured difference.**
+
+                       WnC(1)   WnC(3)   WnC(4)   ours
+    luminance p1-p99   1-185    1-171    1-183    23-76
+    p05-p95            7-130    --       4-118    29-76
+    sd                 39.2     38.1     38.6     20.7
+    % below lum 30     32.8     46.2     43.6     8.4
+    % above lum 180    1.6      0.9      1.1      0.4
+
+Our whole frame lives inside 47 levels. A third to a half of theirs is spent on
+near-black framing on all four sides, and about 1.5% on near-white. This is
+section 2's recorded band-value defect showing up in a second, independent
+measurement — and note it is *not* a day/night artifact: the CnC control spends
+its darks the same way.
+
+**Warmth tracks brightness in the reference, and tracks it backwards in ours.**
+Mean (R-B) by luminance band:
+
+    lum band    WnC(1)   WnC(4)   ours
+    0-20        +4.7     +3.3     --
+    20-40       +14.0    +12.4    -16.1
+    40-60       +10.8    +14.4    -11.8
+    60-90       +9.4     +19.3    -46.7
+    90-130      +21.0    +33.1    +20.9  (0.2% of frame)
+
+In WnC the lit thing is the warm thing and the only cool clusters are sky and
+haze, i.e. the cool is a depth cue. In ours the brightest 39% of the frame is
+also the bluest part of it. That is the palette doing exactly what section 2
+asks for — cool backdrop, warm ground — in a frame where the backdrop is the
+brightest band, which is the night ordering entry 2 described. The two are
+consistent; the point is that the ordering is what puts the blue on top.
+
+**Surface texture, and this is the one that corrects a rule.** Distinct tones
+per 100 pixels, measured at each image's own native scale:
+
+    WnC dirt path        21.5        CnC mountain          6.8
+    WnC grass band       13.6        CnC rock              5.9
+    WnC trunk             8.0        ours, mountain        0.1
+    WnC dark foreground   1.1        ours, terrain         0.1
+                                     ours, sky             0.0
+
+    Adjacent-pixel |dLum| at native scale: WnC lit surfaces 6.3-7.5, ours
+    0.94-0.99, our sky 0.01. Native |laplacian|: WnC 23.4-25.6, ours 5.62.
+
+Entry 3 and art_direction section 3 both say the reference leaves large filled
+masses almost untextured. **That is true of exactly one thing in these frames:
+the near-black foreground silhouette, at 1.1.** Every lit mass is the opposite,
+and so is the CnC control at 5.9-6.8, which means the rule was generalised from
+the silhouettes and then applied to everything. Entry 3's reading was taken on
+the *dark* masses and is correct as taken; what went wrong is the scope it was
+written with. The corrected form is in art_direction section 9.
+
+**Composition: they frame the shot on two axes and we frame it on neither.**
+Row-mean luminance in sixteenths, top to bottom:
+
+    WnC(1):  47 65 59 50 55 62 70 75 79 83 78 70 | 37 25 23 19
+    ours:    77 75 72 68 60 51 41 33 29 36 42 47 | 52 56 60 64
+
+Theirs peaks at 82.6 at 63% down — the lit path, the plane the subject is on —
+then falls off a cliff to 19. Ours peaks at the sky and climbs back up so that
+the bottom of frame is the second brightest thing in it. Column-mean, left to
+right: WnC(4) runs 21.4 to 64.2, a 3.0x swing carried by a foreground trunk;
+ours runs 49.5 to 57.3, a 1.16x swing, which is no horizontal composition at
+all. Walking a column: 13 alternating plateaus in theirs, 6 smoothly graded in
+ours.
+
+This is entry 10's rule seen from the other side. Entry 10 said give the volume
+the frame is about the bottom two thirds and sit the subject on its edge; the
+row profile above is that rule as a number, and the near-black sixteenths under
+it are what stops the plane running off the bottom of the screen.
+
+**The depth model is a stage, not a ramp.** Sampled by hand on WnC(1):
+
+    layer                       lum    sat     sd(lum)
+    foreground ground (bottom)  14.8   0.296    9.5
+    foreground canopy (top-L)   51.0   0.466   37.6
+    foreground trunk (right)    61.0   0.339   20.5
+    near bushes                 69.2   0.661   45.7
+    THE PATH (subject's plane) 103.6   0.480   33.9
+    sunlit grass                87.2   0.597   20.2
+    mid trees                   75.7   0.338   21.4
+    far conifers                73.2   0.383   25.1
+    sky through canopy          81.5   0.423   49.8
+
+Eight to ten depths. The subject's plane is the brightest thing in frame and
+among the most saturated. Everything nearer collapses toward black and loses
+saturation; everything further compresses into 73-82 and desaturates to
+0.34-0.42. Entry 2 called day "monotonic descent from sky to foreground" and
+that is not what this is — the *background* half descends monotonically, and the
+foreground half is not on the ramp at all, it is unlit framing. **Entry 2's day
+reading is right about the far half and wrong about the near half**, and the
+difference matters because it is the near half we do not have.
+
+*What it would take to disprove all of this.* The native-scale claim goes if a
+region of a WnC frame returns a block size other than 10 under the same
+on-grid/off-grid test — the foreground trunk at ratio 1.59 is the weakest of the
+six and is where to look. The texture correction goes if the 21.5 tones/100px on
+the dirt path turn out to be JPEG ringing rather than authored tones: the check
+is that the same measurement on the near-black foreground returns 1.1 in the
+same file under the same compression, which is the control, and it does. The
+stage reading goes if a WnC frame puts the subject's plane anywhere but the
+brightest band; all four put it there. **Our own numbers are the weakest half of
+the entry** — one capture, one scene, and that scene the test fixture, so treat
+every "ours" column as a property of the fixture's spawn view until a second
+capture from an authored scene agrees with it.
+
+  2026-08-22, days later, and this is why that caveat was worth writing.
+  The spawn view those numbers were taken from was defective, and not in a
+  small way: the body was standing on a jump ledge 275 cells above the floor
+  with nothing beneath it, so **0.9% of the frame measured here was world at
+  all** and 98.3% of the strip below the feet was open air. Measured with
+  plane_probe, and fixed the same day by V22 part 2, after which the same
+  reading is 17.6% world. So the readings above split into two kinds:
+    - The palette, layer and native-scale numbers stand. They are properties
+      of the shipped renderer and the shipped art, and the camera position
+      does not touch them - k=4, the warmth-by-luminance inversion, the
+      0.1 tones/100px on our surfaces.
+    - **The compositional numbers do not.** The row-mean profile in
+      sixteenths, and the reading that our frame has no near volume, were
+      measured on a frame that happened to contain almost no world. They are
+      not wrong about what was on screen that day; they are wrong about the
+      engine. Re-measure before quoting them, on a frame where the player is
+      standing on something.
+
+ENTRY 12 — the layer system under the character, measured, and ENTRY 9's
+number corrected from a frame fraction to a plane fraction.
+WnC_walking (1..4).jpg and WnC_marsh.jpg, 2026-08-22.
+--------------------------------------------------------------------------
+
+Observed because the tester answered V22 part 2's gate question with *"looks
+like a separate shelf sitting in front of a painted backdrop"* and then named
+these files: *"mainly i want the scene to have the same layer system as
+WnC_marsh.jpg and the WnC_walking.jpgs"*. So this measures the layer system,
+which nothing above had done directly — entry 11 measured these same four
+frames for palette and scale and did not ask how they are stacked.
+
+Method: row-mean luminance and saturation in fortieths of frame height, every
+7th pixel. The character is located by cropping, not by hue — a warm-red
+detector was tried first and returned 26,000 pixels, because tree bark and the
+dirt path are the same hue as the shirt. That failure is recorded because the
+detector looked like it worked: it reported a plausible row.
+
+*1. The band structure below the horizon, WnC_walking (3).jpg, 3440x1440.*
+
+  rows      % down      lum        what it is
+  0-396      0-27%      36-46      canopy and hazy distance
+  396-756   27-52%      47-60      mid forest
+  756-1044  52-72%      64-81      **the lit band. peak of the whole frame**
+  1044-1188 72-83%      63->25     dark vegetation, saturation rising to 0.76
+  1188-1440 83-100%     21->14     near-black, saturation falling back to 0.37
+
+**The surface the character stands on is the brightest band in the frame, and
+the frame darkens in both directions from it.** WnC_marsh.jpg has the same
+shape with a sunset sky on top of it: the treeline pinches to 75.6, the water
+plane the figure stands in rises back to 107, and the foreground collapses to
+20.6 by the last fortieth.
+
+**This is the finding that matters for us, because ours is inverted.** Our
+walkable surface is `wall_fill` at luminance 23 and the backdrop plane's near
+end is 65 (`ground_near` through the ground row's 135/255 grade). The reference
+makes the walkable surface the brightest thing in the frame; we make it the
+darkest. That is a complete account of "a separate shelf sitting in front of a
+painted backdrop" and it is not a hue problem — the ladder is upside down at
+the one junction the eye is asked to read.
+
+*2. What is below the feet is never the terrain's cross-section.* In all five
+frames the band under the character is occluding vegetation, logs and bank —
+things in front of the character, at a nearer depth. **No reference frame in
+this set shows a cutaway of the ground the character is standing on.** This is
+what art_direction section 9's item (b) is asking for, and it is a layer drawn
+after the character, not a tint on the terrain below their feet.
+
+It is also a vignette rather than a floor: the same near-black mass runs up the
+left and right edges as trunks and leaves, and across the top as canopy. Do not
+build it as a bottom band only.
+
+*3. ENTRY 9's two thirds is a fraction of the PLANE, and reading it as a
+fraction of the frame is wrong.* Measured contact points:
+
+  frame                     % of visible plane    % of frame height
+  CnC_lighthouse (entry 9)        64%                  85.2%
+  CnC_fishing    (entry 9)        70%                  n/a (graphic cut)
+  WnC_walking (3)                 60.9%                67.5%
+
+**The plane fraction is tight across three frames and the frame fraction is
+not** — 67.5% against 85.2% is not a spread, it is a different quantity. The
+frame position is a *consequence* of how much foreground is drawn below the
+plane, which varies per composition. Entry 9 stated this correctly and called
+it an ordinal claim; what this entry adds is the third data point and the
+warning, because `Camera::VERTICAL_ANCHOR` is a fraction of the *viewport* and
+its comment cites entry 9's two thirds as its authority. **Those two numbers
+are not the same kind of thing.** The anchor cannot be set from this reading
+until there is a foreground band below the player to measure the plane against;
+setting it first is authoring against a band that does not exist.
+
+*Disproof run the same sitting, and it held.* The band table in part 1 is
+one frame.
+WnC_walking (1), (2) and (4) are the same location and should show the same
+ordering; if any of them puts the character's band below the canopy's mean
+luminance, part 1's claim is about this frame and not about the game. The p05-
+p95 spreads were taken across all four and agree closely (124.0, 119.4, 113.2,
+115.8), which is evidence the frames are comparable but is not the same
+check. Ordering across all four, as canopy / lit / foreground means:
+
+  walking (1)   53.9   79.9   20.9
+  walking (2)   45.7   76.3   21.8
+  walking (3)   38.9   72.9   19.4
+  walking (4)   41.6   74.6   24.2
+
+**The lit band is the brightest in all four and the foreground the darkest
+in all four**, with the lit band held inside 72.9-79.9 and the foreground
+inside 19.4-24.2 across frames whose canopies range over 15 levels. The
+claim is about the composition, not about the frame it was found in.
+
+*What this does not measure.* Nothing here is a capture of our own composed
+frame — entry 11's was, and it was taken on the defective spawn view and is
+retracted above. The "ours" numbers quoted in part 1 are read off the palette
+and the layer grade in source, not off a screenshot, and they are static values
+rather than what any particular frame contained.
+
+
+ENTRY 12b - 2026-08-22, same day: our own frame, measured the same way
+----------------------------------------------------------------------
+
+An addendum to ENTRY 12 rather than a new entry, because it is the other half of
+one measurement. ENTRY 12 measured the references; this is our frame measured
+with the same method, which is what made the two comparable at all.
+
+**The instrument is `plane_probe`'s band ladder** - 20 horizontal bands down the
+spawn frame, each carrying the mean luminance of the world, of the receding
+plane, and of the two composed. It is headless and it lives with the other
+probes. Rows above the horizon are excluded and reported as excluded; composing
+sky and mountains would mean reproducing two more parallax stacks.
+
+Before V22 part 3, at the spawn:
+
+    band 15   75%    plane 51.3    world 20.9
+    band 16   80%    plane 53.9    world 61.5  <- the feet; the rim light alone
+    band 17   85%    plane 58.6    world 24.2
+    band 18   90%    plane 62.0    world 22.9
+    band 19   95%    plane 65.7    world 22.9
+
+After:
+
+    band 16   80%    world 73.4    <- the feet
+    band 17   85%    world 48.6
+    band 18   90%    world 29.5
+    band 19   95%    world 23.3
+
+Set that beside ENTRY 12's reference table: lit band 64-81 peaking at the
+contact, falling 63 -> 25, foreground 21 -> 14. **The shape now matches; the
+levels are within a few points at both ends.**
+
+**Two readings that did not move and should not be quoted as if they had.** The
+plane's own middle, bands 12-15, is 39-51 where the reference's lit band is
+64-81 - that is the `ground` grade's level and not the terrain's ramp. And the
+whole-frame p05-p95 spread, the "47 against 123" that art_direction section 9
+leads with, **is not measurable by this probe at all**, because it cannot see the
+sky. It has not been re-measured since 2026-08-22 morning.
+
+
+ENTRY 13 - WnC_marsh.jpg torn down: the camera, the eight-band stack, and the
+six mechanisms. 2026-08-23.
+--------------------------------------------------------------------------
+
+Observed because the owner asked for a comprehensive read of this frame with
+the complaint stated structurally: *"currently my player is sat on a separate
+layer infront of a background, the layers curently do not create the sense of
+one cohesive scene."* ENTRY 12 measured the layer *ordering* in these frames;
+this measures the camera, the band extents, and what actually produces the
+depth. Method: row-mean luminance (Rec. 709), saturation, saturation-weighted
+circular-mean hue, and **16x16-tile standard deviation as "detail energy"**,
+sampled in a 30-70% centre corridor where the vignette would otherwise dominate.
+
+*1. The camera, and the finding is that ours is already right.*
+
+  measured                        WnC_marsh   ours (plane_probe, spawn)
+  figure height, share of frame     10.2%       9.6%
+  feet, share down the frame        80.0%       80.0%
+  horizon, share down the frame     66.6%       41.6%
+
+**The figure scale and the anchor match to within half a point on both axes.**
+`VERTICAL_ANCHOR` 0.80 and a 26-cell sprite at 4 px/cell land where this frame
+lands, arrived at from a different direction. ENTRY 12 part 3 warned the frame
+fraction was the wrong quantity to set the anchor from; that warning stands and
+the anchor is right anyway. **The number that is wrong is the horizon**, and the
+consequence is section 2.
+
+The waterline is at row 719 and the hunter's head sits just below it. A figure
+whose head falls below the horizon is one the lens is level with - this is a
+participant's viewpoint at human eye height, not an observer beside a wall.
+
+*2. Eight bands, and three of them we have no equivalent for.*
+
+  8 cool upper sky    0-12%     lum  83   the frame's cool anchor
+  7 sunset sky       12-50%    lum 122-180  brightest thing in the frame
+  6 mountain ridge   43-58%    lum  83   flat, hazed toward the sky
+  5 treeline         50-66.6%  lum  91   MISSING here
+  4 mist strip        ~66%     lum 120   MISSING here - sits ON the waterline
+  3 water plane      66.6-90%  lum  91->153
+  2 figure and dog   feet 80%
+  1 near vignette    85-100% + both edges, lum 22   MISSING here
+
+**Below the sky the reference divides ~50 points of screen height among four
+bands; we give that span to one.** The ground plane runs 41.6% to past the
+bottom of the window and the terrain hides its near third, so one layer carrying
+a four-band ramp delivers only its far two-thirds. That is the structural cause
+of "a separate shelf", underneath the arithmetic V22 part 4 fixed.
+
+**The treeline is NOT a licence to rebuild the mid-ground band.** That band was
+built and removed on 2026-08-16 and `.claude/rules/assets-and-formats.md` records
+the reason: the reference has to author a mid-ground because nothing else will
+occupy it, and we simulate 800 cells of ground into it. Its reopen trigger is
+"a location whose terrain does not fill the band". At the spawn the terrain does
+not - bands 9-15 are 1.0-2.2% solid - so **the trigger arguably has fired, and
+that is an item to be argued, not a thing to go and build.**
+
+*3. The six mechanisms, in order of how much depth they carry.*
+
+  (a) DETAIL ENERGY, and it is the strongest cue in the frame. Local texture
+      variance climbs monotonically toward the camera: far sky 2.24, treeline
+      10.5, near water 20.0, foreground 27.6 - a 12x range. **It is independent
+      of luminance, so it survives any night grade untouched.** Ours, measured on
+      assets/backdrop_ground.bmp: 0.00 -> 8.85 at 60% through the tile -> 5.10 at
+      the near edge. A fifth of the range and running backwards over the last
+      third. V22 part 4 moved it to 7.8 mean but did not fix the direction.
+
+  (b) A COOL PINCH AT THE HORIZON. Warmth (R-B) is double-peaked: sky +125,
+      horizon -14, water +90, foreground -6. The horizon is where colour drains
+      out, and warmth returns on both sides of it.
+
+  (c) THE PLANE RETURNS THE SKY. The water reflects the sky's hue and the sun
+      path, so top and bottom halves share one palette - 72% of the sky's warmth
+      comes back in the plane. **This is the single strongest cohesion device in
+      the image and it is not parallax**; it is the ground being made of the same
+      light as the sky. We have no equivalent and no item for one.
+
+  (d) THE NEAR FIELD FRAMES, IT DOES NOT FLOOR. Edge-to-centre luminance ratio
+      bottoms at 0.21, and the dark mass runs up both edges and across the top as
+      well as the bottom. ENTRY 12 part 2 said do not build it as a bottom band
+      only; this is that, measured.
+
+  (e) FLAT MASSES, CONTRAST AT THE EDGES. Bands carry little internal structure;
+      the contrast budget is spent on the boundary between them. This is ENTRY 3
+      re-measured and it holds.
+
+  (f) DARK FIGURE ON A BRIGHT PLANE. Figure luminance 51.1 against surrounding
+      plane 115.4 - the plane is 2.26x brighter than the thing standing in it.
+
+*4. How the figure is tied to the ground, at pixel scale, and none of it is a
+value.* Four devices: no hard contact edge (the legs dissolve into a slightly
+darker horizontal smear, no outline); a broken reflection of a few dark dashes
+fading downward, never a mirrored sprite; atmosphere in front - a pale mist
+streak crosses over the hunter's arm, putting air between camera and figure; and
+contrast rather than detail - the dog is a flat mass with one rim and one eye
+pixel against water at nearly four times its luminance, with isolated
+single-pixel sparkle on the plane around it.
+
+*What this does not license.* The frame is a sunset and we render night, so the
+band ORDERING, the RATIOS, the detail ramp and the layer structure transfer; the
+absolute levels do not. "Our sky should read 133" does not follow from anything
+here, and where the night ceiling sits belongs to the day/night feature.

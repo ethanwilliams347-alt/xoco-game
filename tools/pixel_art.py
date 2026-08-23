@@ -70,7 +70,11 @@ import struct
 #
 #     sky top        76      mountain rim     57    (grade 0.60)
 #     sky horizon    50      mountain body    35    (grade 0.60)
-#     ground far     24      ground near      62    (grade 0.53)
+#     ground far     24      ground near      85    (grade 0.53)
+#
+# **`ground near` was 62 until V22 part 4 (2026-08-23) and is the one number in
+# that table the ceiling move no longer governs** - see the ground group below
+# for why it moved and why nothing around it did.
 #
 # **Those are V21's numbers (2026-08-16). V20's were 95/62, 71/44, 30/78 and
 # playtest session 7 answered item 1 "too bright".** V21 multiplies the whole
@@ -143,9 +147,45 @@ PALETTE = {
     # contrast, matching its ratio is not matching it.** The pair below is now
     # stated as a difference - 30 to 78 post-grade, 48 levels - and the ratio it
     # happens to have is not the thing being held.
+    #
+    # **V22 part 4 (2026-08-23) scaled `ground_near` and `ground_mark` by 1.35
+    # and left `ground_far` alone, and the reason it is the near end that moved
+    # is a geometry finding rather than a taste one.** The paragraph above set
+    # the target as a *difference* and named the reference's 61 levels; the pair
+    # was then authored to 38 and the gap was never closed, because five
+    # sittings of tuning aimed at the tile's near edge - which at the spawn is
+    # **never on screen**. The plane is drawn from the horizon to a near edge
+    # 640 px below it, the world's surface sits at 65% of that band, and
+    # `plane_src_at`'s inverse-depth mapping puts that contact at **tile row 198
+    # of 256**. So the row the eye actually reads against the terrain was
+    # carrying 0.778 of a ramp that was already 23 levels short, and the join
+    # came out at 51 against the world's 73 - a lit shelf in front of a darker
+    # backdrop, which is what six playtests in a row reported.
+    #
+    # At 1.35 the two readings agree, which is the only reason to trust either:
+    # the post-grade span becomes **60.9 levels against the reference's 60.7**,
+    # and the value at row 198 becomes 71.5 against the world's 73.4. **The
+    # target was hit by fixing where it was measured, not by moving it.**
+    #
+    # **What did not move, and each is load-bearing.** `ground_far` is untouched,
+    # so the horizon stays the frame's dark pinch (entry 7 mechanism 2) and stays
+    # under the graded mountains - a uniform grade could not have done this, which
+    # is why it is here and not in the layer table. `ground_mark` is scaled by the
+    # *same* factor so its contrast against the ramp is unchanged as a ratio and
+    # grows as a difference toward the near edge, which is the detail-energy ramp
+    # entry 13 measures at 12x in the reference and had at 5x and backwards here.
+    #
+    # **This is the one band V21's 0.80 ceiling no longer covers, and that is a
+    # debt not a licence.** 0.80 x 1.35 puts this band 8% above V20, and V20's
+    # ground_near is part of what playtest session 7 called "too bright". The
+    # defence is that it is *one* band's near end rather than the ceiling, that
+    # the visible part of it tops out at 71.5 rather than 85, and that the world's
+    # lit surface at 73.4 stays the brightest thing next to the player - which is
+    # the reference's arrangement, not a departure from it. If session 14 says
+    # "too bright" again, this scale factor is the first thing to look at.
     'ground_far':   (0x32, 0x29, 0x4E),
-    'ground_near':  (0x84, 0x70, 0x98),
-    'ground_mark':  (0x94, 0x7D, 0xA2),
+    'ground_near':  (0xB2, 0x97, 0xCD),
+    'ground_mark':  (0xC8, 0xA9, 0xDB),
 
     # trees (V4 props, layer 3) - desaturated green, warmer than the sky,
     # cooler than the terrain rim, so it sits legibly between the two
@@ -162,6 +202,65 @@ PALETTE = {
     'sand_fill':    (0x24, 0x1C, 0x10),
     'wood_fill':    (0x17, 0x12, 0x0D),
     'rim_grass':    (0x69, 0x78, 0x3A),  # the one bright accent in the layer
+
+    # **The lit end of the same four, added by V22 part 3 (2026-08-22), and the
+    # `*_fill` values above are now the *deep* end of a ramp rather than the
+    # material's one tone.** Nothing above changed value; what changed is that a
+    # cell near its own surface no longer gets the deep tone.
+    #
+    # The defect these answer, measured: `plane_probe`'s band ladder at the
+    # spawn read the receding plane's near end at luminance **65.7** and the
+    # world standing in front of it at **23.3** - the frame's brightest band
+    # directly behind its darkest one, at the one junction the eye is asked to
+    # read as continuous. Every reference frame does the opposite: the surface
+    # the character stands on is the *brightest* band in the frame (72.9-79.9
+    # across four WnC frames) and the frame darkens both upward and downward
+    # from it (reference_observations ENTRY 12). That inversion is the whole of
+    # playtest session 12's "a separate shelf sitting in front of a painted
+    # backdrop", and it is why three attempts to fix that report by grading a
+    # layer could not have worked: **a Grade is uniform, so a ramp inside one
+    # band is always the art's job** (.claude/rules/assets-and-formats.md).
+    #
+    # So the terrain layer is now authored the way the ground plane already is:
+    # **the ramp is in the art and the level is in the grade.** These are the
+    # near/lit end of it, and they are targets rather than tastes -
+    #
+    #     wall lit        67      the plane's near end is 65.7; the world is
+    #                             nearer than the plane, so it is not darker
+    #     sand lit        78      the top of the reference's lit band (64-81)
+    #     wood lit        53      a beam is an object on the surface, not the
+    #                             surface; it stays the darker thing on it
+    #
+    # Hue follows the daylight finding in art_direction section 9 item 1, which
+    # holds for any lit surface: **lit surfaces are warm and get warmer as they
+    # brighten** (+3 red-over-blue at luminance 0-20, rising to +33 at 90-130).
+    # At luminance ~68 that is about +20, and these carry +17 (rock, greyer) to
+    # +41 (sand, the warmest thing in the layer). The `*_fill` end keeps its own
+    # +10, so the ramp warms as it brightens rather than merely lightening.
+    # **Every rung is named, and that is the constraint that shaped the set.**
+    # The first version of this ramp interpolated between the lit tone and the
+    # fill and dithered between the results, which put nine colours into
+    # assets/test_albedo.bmp that appear nowhere in this file -
+    # `tools/validate_palette.py` reported 25,480 off-palette pixels and it was
+    # right to. Every other generated pass here dithers between two *named*
+    # colours and therefore cannot leave the set: the rim light does, the ground
+    # tile's far-to-near ramp does. So the ramp is a ladder of palette entries
+    # and `apply_depth_ramp` only ever picks between two adjacent rungs.
+    #
+    # Even steps in luminance, four rungs per material counting the fill:
+    #
+    #     wall   66.9 -> 52.1 -> 37.7 -> 22.9 (wall_fill)
+    #     sand   77.9 -> 61.4 -> 45.4 -> 28.8 (sand_fill)
+    #     wood   52.8 -> 41.6 -> 30.3 -> 18.9 (wood_fill)
+    'wall_lit':     (0x49, 0x42, 0x38),  # greyer than dirt at the same level: rock
+    'wall_mid':     (0x3A, 0x33, 0x2B),
+    'wall_shade':   (0x2A, 0x25, 0x1E),
+    'sand_lit':     (0x5C, 0x4C, 0x33),
+    'sand_mid':     (0x49, 0x3C, 0x27),
+    'sand_shade':   (0x37, 0x2C, 0x1C),
+    'wood_lit':     (0x3E, 0x33, 0x27),
+    'wood_mid':     (0x31, 0x28, 0x1E),
+    'wood_shade':   (0x24, 0x1D, 0x16),
 
     # player (V3, drawn between the props and the terrain's own layer - it is
     # not a cell and not a prop, it is the one sprite that moves under input).
@@ -306,6 +405,104 @@ def apply_rim_light(mat, alb, width, height, empty_marker, rim_color,
                 else:
                     out[idx] = dither_mix(x, yy, alb[idx], top_color,
                                            1.0 - d / rim_depth)
+    return out
+
+
+# --- the depth ramp ------------------------------------------------------
+#
+# The terrain layer's own far-to-near ramp, and the sibling of `apply_rim_light`
+# above: same shape of pass, same place in a generator, one question different.
+# The rim asks *is this cell at a surface*; this asks *how far below one is it*.
+#
+# **Why it is a pass over the albedo and not a Grade in frame.cpp.** A Grade is
+# a uniform multiply over a whole layer, so it can place a band on the value
+# ladder but can never make one end of a band brighter than the other. The
+# ground plane hit this first and resolved it the same way - "the ramp is in the
+# art and the level is in the grade" - and the rule was written down after it:
+# **a ramp within a band is always the art's job**
+# (.claude/rules/assets-and-formats.md). The terrain layer needed exactly that
+# and did not have it, which is why it read as one flat near-black mass sitting
+# in front of a plane that recedes.
+#
+# **What it costs, stated because it is the same cost the rim light already
+# pays and neither is free.** The tone is baked per cell, so a cell carries the
+# depth it was *authored* at, not the depth it currently sits at: dig a lit
+# surface cell out and drop it down a shaft and it stays lit. That is
+# notes/art_direction.txt section 7's travelled-highlight acceptance, taken
+# knowingly there for the rim and taken again here. The freshly exposed face of
+# a dig gets no lit band either, for the same reason. If either ever reads
+# wrongly in play, the fix is a renderer pass with the grid as its input, and
+# that is a different item with a much larger argument to make first.
+#
+# The steps are quantised and then dithered between, rather than interpolated
+# smoothly, for the reason section 3 gives: a transition is *stepped* through
+# the Bayer matrix, never blended into tones no editor's palette would contain.
+# `steps` is therefore how many distinct tones the ramp adds, and it is a small
+# number on purpose - the reference's lit masses carry 5.9-21.5 distinct tones
+# per 100 pixels (section 9 item 2) and ours carried 0.1.
+def apply_depth_ramp(mat, alb, width, height, empty_marker, ramp,
+                     lit_depth=4, fade_depth=24):
+    """Returns a new albedo buffer, brightened toward each cell's own surface.
+
+    For every filled cell, the depth to the nearest empty cell **straight up**
+    is measured, and the albedo is set from a ladder of colours: `ramp[0]` for
+    the first `lit_depth` cells, then the rest of the ladder in order, reaching
+    whatever the buffer already held at `lit_depth + fade_depth`. Deeper than
+    that the buffer is untouched, so a material's `*_fill` keeps meaning exactly
+    what it meant - the deep tone, and the ladder's last rung.
+
+    `ramp` is a sequence of (r, g, b) from the surface downward, or a callable
+    `(x, y) -> sequence | None` - the same contract `apply_rim_light` uses, so a
+    caller with several materials in one buffer gives each its own ladder and
+    returns None for any that should stay flat.
+
+    **Only ever picks between two adjacent rungs, and never averages them.** The
+    ladder is palette entries, so the output is too; see the note at the ramp
+    colours in PALETTE for the audit that made this the contract.
+
+    Straight up, and not a distance field: the light in this scene comes from
+    the sky, so a vertical measure is the one that matches the mechanism. It
+    also makes an overhang's underside deep, which is correct, where a distance
+    field would light it like a floor.
+
+    Run it **before** `apply_rim_light`, so the rim's dithered hand-off lands on
+    the lit tone rather than on the deep one - which is the join the whole pass
+    exists to make continuous.
+    """
+    ramp_fn = ramp if callable(ramp) else (lambda x, y: ramp)
+
+    def filled(x, y):
+        if not (0 <= x < width and 0 <= y < height):
+            return False
+        return mat[y * width + x] != empty_marker
+
+    out = list(alb)
+    total = lit_depth + fade_depth
+    for x in range(width):
+        depth = 0
+        for y in range(height):
+            if not filled(x, y):
+                depth = 0
+                continue
+            if depth >= total:
+                depth += 1
+                continue
+            rungs = ramp_fn(x, y)
+            if not rungs:
+                depth += 1
+                continue
+            idx = y * width + x
+            if depth < lit_depth:
+                out[idx] = rungs[0]
+            else:
+                # The fill already in the buffer is the ladder's last rung, so
+                # there are len(rungs) segments to cross over fade_depth cells.
+                t = (depth - lit_depth) / float(fade_depth)
+                level = t * len(rungs)
+                k = min(int(level), len(rungs) - 1)
+                lower = rungs[k + 1] if k + 1 < len(rungs) else alb[idx]
+                out[idx] = dither_mix(x, y, rungs[k], lower, level - k)
+            depth += 1
     return out
 
 

@@ -56,8 +56,10 @@ inline constexpr int GRID_HEIGHT = 1080;
 //
 // 1700 is chosen for what stands between it and the spawn, not for where it is.
 // The player starts at GRID_WIDTH / 2, so this is ~740 cells east: past the
-// jump ledges, across F4's water channel (cells 1000-1402, walled on both sides
-// and full to within 175 cells of the top), and out onto the sleeper run. That
+// jump ledges, across F4's water channel (cells 1100-1503, walled on both sides
+// and full to within 175 cells of the top - the channel moved 100 cells east on
+// 2026-08-22 for V22 part 2's spawn corridor, and 1700 still lands beyond it),
+// and out onto the sleeper run. That
 // is a traverse the character cannot walk, which makes flight the thing the run
 // is actually about - and flight was a shipped feature nothing in the built
 // game had ever asked for.
@@ -95,6 +97,63 @@ inline int lowest_surface_under(const Grid& grid, int x0, int width) {
         if (surface > lowest) lowest = surface;
     }
     return lowest;
+}
+
+// The *highest* first-solid row across `[x0, x0 + width)`, or -1 if no column
+// in that span has ground under it.
+//
+// **The mirror of `lowest_surface_under`, and the pair is worth reading
+// together, because picking the wrong one of the two is a silent bug rather
+// than a crash.** A prop wants the lowest so a tree leans into a hill; a
+// *body* wants the highest, because a body falling onto uneven ground stops on
+// the first thing its footprint meets, not on the deepest. Give a body the
+// lowest and it stands with its feet inside the hill.
+inline int highest_surface_under(const Grid& grid, int x0, int width) {
+    int highest = -1;
+    for (int x = x0; x < x0 + width; ++x) {
+        const int surface = terrain_surface(grid, x);
+        if (surface >= 0 && (highest < 0 || surface < highest)) highest = surface;
+    }
+    return highest;
+}
+
+// Whether the body found ground to stand on, and the row its feet ended on.
+struct Standing {
+    bool placed = false;
+    int surface = 0;
+};
+
+// Stands the body on the terrain under its own spawn column, instead of leaving
+// it where `Run`'s constructor put it.
+//
+// **Why this exists, and it is a playtest report rather than a tidy-up**
+// (session 12, 2026-08-22): *"i am spawning in the air then falling"*. `Run`
+// spawns the player at `height / 4` because it is built before any terrain is,
+// and with the scene loaded that is 270 with the floor at 950 - a 660-cell free
+// fall on every launch. It has always been that way and it was invisible while
+// the body landed on a jump ledge partway down; V22 part 2 cleared the spawn
+// corridor, and what that left is a long fall through an empty frame.
+//
+// **It is a `main.cpp` fix living here for the reason everything else in this
+// file does**: it runs once at startup, it is a scan over the shipped scene,
+// and a scan in `main()` is a scan no suite can reach. `boot_test` asserts it
+// against the same scene the game loads.
+//
+// **The drop is not merely shortened, it is removed**, and that is a decision.
+// A short fall would still spend `Player::has_landed` - the flag that makes the
+// spawn drop free of fall damage - on the first frame of the game, which is a
+// mechanic being consumed by the camera getting into position. Standing the
+// body on the surface leaves it for the first jump, where it means something.
+//
+// **A column with no ground under it leaves the body where it was**, the same
+// refusal `place_objective` makes: the only fallback available is a guess, and
+// a body placed at a guessed row is worse than a body that falls, because
+// falling at least ends up somewhere real. The caller warns.
+inline Standing stand_player_on_ground(Run& run) {
+    const int surface = highest_surface_under(run.grid, run.player.cell_x(), Player::WIDTH);
+    if (surface < 0) return Standing{};
+    run.player = Player(run.player.cell_x(), surface - Player::HEIGHT);
+    return Standing{true, surface};
 }
 
 // Where S0's objective ended up, and whether it got placed at all.

@@ -192,8 +192,19 @@ int main(int argc, char** argv) {
             for (int dx = -r; dx <= r; ++dx)
                 if (dx * dx + dy * dy <= r * r) g.set_element(cx + dx, cy + dy, ElementType::Empty);
     };
-    carve(80, 366, 9);    // straight through the snowbank
-    carve(562, 330, 7);   // breach the water channel's right wall
+    // **These were in scene units and have been carving open air since the
+    // fixture was scaled with the player body.** Checked on 2026-08-22: both
+    // old centres, (80, 366) and (562, 330), are Empty in the shipped BMP, so
+    // every "after digging" table this probe has printed since that rescale was
+    // 1,200 steps of ordinary settling under a label claiming otherwise. The
+    // radii are scaled by the same 2.5 as the centres.
+    //
+    // The lesson is the probe's own: a disturbance that misses reports a clean
+    // number rather than an error, so **a probe that perturbs the world should
+    // assert it changed something**. Left as a comment rather than built,
+    // because what to assert is a design question and this is not that item.
+    carve(200, 915, 22);   // straight through the snowbank
+    carve(1505, 860, 18);  // breach the water channel's right wall
     for (int i = 0; i < steps; ++i) g.update();
 
     Tally disturbed[static_cast<int>(ElementType::Count)];
