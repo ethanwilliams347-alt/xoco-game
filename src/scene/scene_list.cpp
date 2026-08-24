@@ -18,15 +18,35 @@ bool scene_name_ok(const std::string& name) {
     return true;
 }
 
+// **This was the `fixture` scene until 2026-08-24 and is now `empty`.** The
+// owner retired every scene built before `empty`, and this function was the
+// last place the fixture was still load-bearing rather than merely referenced:
+// `main.cpp` falls back to it when `assets/scenes.txt` is missing or malformed,
+// so for as long as it named the fixture it was **the guarantee the game boots
+// at all**, quietly depending on three asset files that are no longer shipped
+// as the scene. A fallback that can fail to load is not a fallback.
+//
+// **`empty` is the right fallback for the reason it is a legitimate scene at
+// all** (see the header): a scene that names no files cannot fail to find one.
+// The body lands on the world's bottom border and the player is in a real, if
+// featureless, world. **That is not `Spawn::Floor` being used as a recovery
+// path** - the refusal beside that enumerator forbids exactly that - because
+// this scene is *meant* to be empty rather than having failed a terrain scan.
+//
+// **The cost is stated rather than hidden: the fallback world now has no
+// terrain in it.** A missing scene list used to boot into something diggable
+// and now boots into open air. That is the honest reading of a missing file,
+// and it is preferable to the alternative on offer, which was booting into a
+// scene whose assets may not exist.
 std::vector<SceneDef> default_scene_list() {
-    SceneDef fixture;
-    fixture.name = "fixture";
-    fixture.material = "test_material.bmp";
-    fixture.albedo = "test_albedo.bmp";
-    fixture.props = "test_props.txt";
-    fixture.spawn = Spawn::Terrain;
-    fixture.line = 0;   // 0 rather than 1: this record came from no line at all
-    return { fixture };
+    SceneDef empty;
+    empty.name = "empty";
+    empty.material = "";
+    empty.albedo = "";
+    empty.props = "";
+    empty.spawn = Spawn::Floor;
+    empty.line = 0;   // 0 rather than 1: this record came from no line at all
+    return { empty };
 }
 
 std::vector<SceneDef> load_scene_list(const std::string& path, std::string* error) {

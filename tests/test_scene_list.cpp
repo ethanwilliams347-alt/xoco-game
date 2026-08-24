@@ -165,13 +165,13 @@ int main() {
     {
         const std::vector<SceneDef> d = scene_list::default_scene_list();
         check("the built-in default is the location the game shipped with",
-              d.size() == 1 && d[0].name == "fixture" &&
-              d[0].material == "test_material.bmp" &&
-              d[0].albedo == "test_albedo.bmp" &&
-              d[0].props == "test_props.txt" &&
-              d[0].spawn == Spawn::Terrain);
+              d.size() == 1 && d[0].name == "empty" &&
+              d[0].material.empty() &&
+              d[0].albedo.empty() &&
+              d[0].props.empty() &&
+              d[0].spawn == Spawn::Floor);
 
-        const Result r = parse("fixture test_material.bmp test_albedo.bmp test_props.txt terrain\n");
+        const Result r = parse("empty - - - floor\n");
         check("and an explicit row for it parses to the same record",
               r.scenes.size() == 1 && d.size() == 1 &&
               r.scenes[0].name == d[0].name &&

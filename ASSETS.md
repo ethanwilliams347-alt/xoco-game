@@ -213,6 +213,7 @@ is still the approach: copy your file **onto the loaded name** and rebuild.
   ```bash
   python tools/png_to_bmp.py edited.png assets/whatever.bmp
   ```
+- **The editors in use are Pixquare (iPad) and LibreSprite (PC)**, stated 2026-08-24. Neither changes anything above: both export PNG, and `tools/png_to_bmp.py` is the bridge, exactly as the bullet above describes. **What is worth checking on the first file that comes off the iPad** is that the export is flat RGB with no alpha channel surviving into the PNG - an alpha-carrying export converts to a BMP whose transparent pixels are black rather than magenta, which loads without an error and renders as a black box.
 - **Transparency is magenta `#FF00FF`, not alpha.** BMP has no usable alpha
   here, so `load_art_texture` in [main.cpp](src/main.cpp) colour-keys that exact
   value into the texture's alpha. Any magenta in your art becomes a hole.

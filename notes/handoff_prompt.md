@@ -1,6 +1,7 @@
-# Handoff — `V25` is built and waiting on the tester's eye; `T2` is uncommitted.
+# Handoff — the gate question is still unanswered, and the tree is uncommitted.
 
-*Written 2026-08-23, at the close of the session that shipped `V25` and `T2`.*
+*Written 2026-08-24, at the close of the session that took the tester's answers
+on `V25` and moved the hotbar.*
 
 You are picking up Toop/Xoco, a from-scratch C++20 / SDL2 cellular-automata
 pixel-physics game. Repo root is `code/`; **run every command from there.** Read
@@ -23,25 +24,49 @@ part of that file that has to be re-read to know what to do, and it is the
 authority on both the order and the argument. The rest of `ROADMAP.md` is a
 search target, not a read.
 
-Where it stands: **`V25` is built and the question it exists to answer is open.**
-It is the first attempt at the tester's recurring "a separate shelf in front of a
-backdrop" complaint that is not a value change — the defect turned out to be
-composition, and `notes/reference_observations.txt` `ENTRY 9` had said so a week
-before four value items were built against it anyway. Read the `V25` entry, then
-**wait for the answer**, which is on `MANUAL_TESTING.md`.
+Where it stands: **`V25` is built and the question it exists to answer is still
+open after an eighth asking.** The answers came back on 2026-08-24 but were
+given against the `empty` scene, which has no terrain — and `V25` tints terrain.
+`MANUAL_TESTING.md` now opens with the five questions and the setup step that
+makes them answerable; [PLAYTEST_LOG.md](../PLAYTEST_LOG.md) session 14 has what
+came back and why two of the four answers cannot be about `V25` at all.
 
-**The right next action is almost certainly not to build anything.** The gate
-question has now come back "no" seven times and the eighth asking is the first
-one aimed at a different mechanism; spending another item before it returns is
-how the previous four were spent.
+**The right next action is still almost certainly not to build anything.** That
+was true when the previous handoff said it and the intervening session did not
+change it — the gate question has now been asked eight times and answered
+"no" seven, and the eighth is the first aimed at a different mechanism. Spending
+another item before it returns is how the previous four were spent.
 
-If the answer is still "no", the `V25` entry's closing bullets name what it
-knowingly did not do and where each belongs — do not re-derive them. `V19 4c`
-still owns the tile's detail-energy ramp and the mist band at the plane's far
-edge.
+**One thing did get settled and it narrows the search.** Asked to look at the
+plane with nothing in front of it, the tester reported it reads as a receding
+plane, with no join and no tiling seam in motion. Session 13 had already moved
+the fault off the plane and onto the join; session 14 removed the other side of
+that join and the remaining side came back clean. **Both sessions now bracket
+the junction from opposite sides** — so whatever is left is at the join, not on
+either surface. If the eighth answer is still "no", the `V25` entry's closing
+bullets name what it knowingly did not do and where each belongs; `V19 4c` still
+owns the tile's detail-energy ramp and the mist band at the plane's far edge.
+
+**A direction arrived that is recorded and not started.** The scene is to be
+built up from hand-made layers drawn in Pixquare and LibreSprite. It is in
+`VISION.md` under Project Goals, with the answer that prompted it, and
+`ASSETS.md` carries the one pipeline trap. **Do not start it** — the deferral
+rule in `VISION.md` is the one this project has never bent.
 
 ## What a fresh reader gets wrong
 
+- **`MANUAL_TESTING.md` opens with bare questions now, and that shape is
+  deliberate and permanent (2026-08-24).** The questions and their setup step
+  are the first thing in the file; the reasoning behind them moved below, under
+  *Behind the questions*, and none of it was deleted. It changed because the
+  setup step used to sit under several paragraphs and the tester answered from
+  the frame that ships instead of the one being asked about. **Do not restore
+  the old order**, and when you add a question, put anything it depends on
+  *inside* the question block.
+- **A tester answer is not automatically an answer to the question it is
+  numbered against.** Check what was on screen. Four answers came back numbered
+  against the gate question that describe a scene with no terrain in it, and two
+  of them are trivially true there.
 - **`golden_frame_test` no longer covers the whole shipped frame, and its
   checksum will not move if `V25` breaks.** The near-ground pass runs at the
   texture upload in `main.cpp`, and the golden frame is composed from a texture
@@ -50,6 +75,10 @@ edge.
   is quoting a green checksum as evidence the frame is intact. **Do not close
   the gap by composing inside the golden test** — that is the parallel
   compositor the same rule refuses.
+- **`OVERLAY_GOLDEN` moves whenever the world moves, so only a moved
+  `OVERLAY_GOLDEN` beside an *unmoved* `GOLDEN` says the UI changed.** That
+  combination is what the hotbar move produced this session and it is the
+  expected reading, not a defect.
 - **`plane_probe`'s `plane` column changed meaning on 2026-08-23 and readings
   taken across that line are not comparable.** It mapped screen row to tile row
   linearly, which is the degenerate case of the relation the renderer actually
@@ -61,39 +90,47 @@ edge.
   what the terrain is tinted toward, because the pass samples that tile. If you
   are chasing a value in the lower fifth of the frame, `TUNING.md` has the row —
   it is not reachable by a `Grade`, and that is the point of it.
-- **The location is no longer three literals in `main.cpp`.** It is a row in
-  `assets/scenes.txt`, with `F7` cycling between rows in the running game. The
-  format is `src/scene/scene_list.h`. Two documents asserted the literals until
-  this session; both are corrected, but older entries in `ROADMAP.md` still
-  describe the old arrangement as current — they are dated and correct as
-  written.
+- **The location is a row in `assets/scenes.txt`, not literals in `main.cpp`**,
+  with `F7` cycling between rows in the running game. The format is
+  `src/scene/scene_list.h`. **`empty` is currently the only live row and the
+  `fixture` row is commented out at the bottom of that file** — uncommenting it
+  is the whole restore. Older entries in `ROADMAP.md` still describe the old
+  arrangement as current; they are dated and correct as written.
 - **A *new* file in `assets/` is not staged until `SlopPhysics` relinks.** The
   existing rule covers *edited* files; a newly added one behaves the same way and
   the failure is quieter, because the loader falls back and the game boots
-  looking normal. `python tools/load_sprite.py --stage` is the fix. This cost
-  time this session.
+  looking normal. `python tools/load_sprite.py --stage` is the fix.
 - **`.rec` files survived `V25`.** `input_log::fingerprint` hashes cell state and
   the pass writes only pixels, so `P4`'s replayed row is live. The trap is the
   other direction and it is unchanged: *any* change to a cell's colour
   invalidates every recording. Check before asking the tester to play.
 - **Check `git status` before assuming the tree is clean.** Commits here are
-  asked for rather than taken, and **`T2` is finished and uncommitted as this
-  file is written** — the scene list, the empty scene, and the two defects it
-  surfaced in the reset path.
+  asked for rather than taken, and **the documentation half of
+  2026-08-24 is uncommitted as this is written** — the `MANUAL_TESTING.md`
+  restructure, the session 14 record, and the `VISION.md` / `ASSETS.md` entries
+  for the hand-made-layers direction. The code half of that day (the hotbar move,
+  its checksum, and the scene archive) went in as `cd4b5a1`.
 
 ## Owed to a human
 
-**One item.** `MANUAL_TESTING.md` opens with the authoritative list and **that
-file is the authority, not this line**; read it rather than trusting this
-paragraph. In outline: the gate question an eighth time, against `V25`.
+**Five questions, and they are the first thing in `MANUAL_TESTING.md` — that
+file is the authority, not this line.** In outline: the gate question a ninth
+time, against `V25`, **with the `fixture` row uncommented first**. That last
+clause is the whole reason the eighth asking produced nothing usable.
 
 You cannot run the Manual Tester Checklist yourself. Put an item on that list the
 moment you ask for one, take it off the moment it comes back, and write it so a
-beginner can act on it without reading the rest of the file. **The seventh asking
-was never answered** — `V25` landed on top of it the same day and changed the
-frame again, so an answer would have been about a frame that no longer exists.
-That is a cost worth not repeating: a gate question and a change to the thing it
-asks about should not be in flight together.
+beginner can act on it without reading the rest of the file. **Two askings have
+now been lost to avoidable causes** — the seventh because `V25` landed on top of
+it the same day and changed the frame it asked about, the eighth because the
+scene it needed was not the scene that ships. A gate question and a change to
+the thing it asks about should not be in flight together, and a question that
+needs a non-default setup has to carry that setup in the question.
+
+There is also an unrun visual check the tester has not been asked for: **the
+hotbar moved to the top-right corner this session** and no human has looked at
+it in a window. It is not on the owed list because it is not worth spending a
+tester on by itself — fold it into the next launch.
 
 ## Standing constraints, carried verbatim from the user
 
@@ -109,6 +146,9 @@ asks about should not be in flight together.
   *into* the page on it. Measured in `ENTRY 14`; it is what `V25` is built
   against, and the reference's own mechanism there is a mirror, which a ground
   cannot copy.
+- **The scene is ultimately to be built up from hand-made layers**, drawn in
+  Pixquare on iPad and LibreSprite on PC. Recorded in `VISION.md`, **not
+  started**.
 - **The game supports both day and night.** Neither is the default, and because
   the depth ordering inverts between them, **day/night and the band ladder are
   one feature.** Do not author a daylight palette ahead of the ladder.
@@ -120,9 +160,8 @@ asks about should not be in flight together.
   could serve and the first to write pixels; the test that keeps that from
   becoming a loophole is in `.claude/rules/assets-and-formats.md`.
 - **The shipped scene is the test scene.** There will never be a separate
-  test-only world. *(The `empty` scene added by `T2` is an instrument for looking
-  at the backdrop, not a second world to tune against — nothing is authored in
-  it.)*
+  test-only world. *(The `empty` scene is an instrument for looking at the
+  backdrop, not a second world to tune against — nothing is authored in it.)*
 - **Do not author a near silhouette.** That row is a refusal, not an omission.
   Note that this and the foreground vignette are not the same thing and the
   distinction is load-bearing: the refusal is about paint occluding *the world
@@ -142,11 +181,17 @@ links SDL2-static**; it needs no display. **It hashes software rasterisation and
 is blind to a GPU-only defect — do not quote it as covering the shipped frame**,
 and since `V25` it does not reach the near-ground pass at all.
 
+**`docs_test` will fail if a number in the docs goes stale, including the
+checklist's step count.** It counts lines matching `^[0-9]+\. \*\*` in
+`MANUAL_TESTING.md` and cross-checks the word against three files, so **a
+numbered list added to that file in that exact format silently becomes a
+"checklist step"**. The questions block avoids it by writing `**1.**` instead;
+keep it that way or update all three prose claims.
+
 **`plane_probe` prints two instruments and you need both.** The band ladder says
 what the frame came out at; the census under it says how much of the near band
 the pass reached. A hole in the second reads as a slightly-low flat number in the
-first, which is exactly the shape that gets explained away as a tuning problem —
-that happened this session and the census exists because of it.
+first, which is exactly the shape that gets explained away as a tuning problem.
 
 **`validate_palette.py` is an audit rather than a gate**, and it earned that
 place by catching off-palette pixels in a generated asset that every suite was
@@ -155,21 +200,20 @@ happy with. Run it after any generator change.
 **A green `ctest` in the same command as a failed build is meaningless** — it ran
 the previous exe. Check the build line before reading the test line.
 
-**Text-encoding traps have now cost six sessions and one more this one.**
-`MANUAL_TESTING.md`, `CLAUDE.md`, `.claude/rules/assets-and-formats.md`,
-`notes/` and this file are LF; almost everything else is CRLF, and
-`PLAYTEST_LOG.md` is mixed. Read with universal newlines, write each file back in
-the endings it already had, pass `encoding="utf-8"` at every `open`, and **verify
-the edit landed rather than trusting the exit code**. Three shapes, each of which
-produces a silent no-op or a shell error with nothing useful in it:
+**Text-encoding traps have now cost seven sessions.** `MANUAL_TESTING.md`,
+`CLAUDE.md`, `.claude/rules/assets-and-formats.md`, `notes/` and this file are
+LF; almost everything else is CRLF, and `PLAYTEST_LOG.md` is mixed. Read with
+universal newlines, write each file back in the endings it already had, pass
+`encoding="utf-8"` at every `open`, and **verify the edit landed rather than
+trusting the exit code**. Three shapes, each of which produces a silent no-op or
+a shell error with nothing useful in it:
 
 - A file opened without an explicit `encoding=` uses the locale codepage, so two
   byte-identical em dashes compare unequal.
 - **A `bash` heredoc mangles backslashes and dies on long content.** A `\n`
   inside a C++ string literal in the patch arrives as a real newline, and a
   script over roughly a hundred lines fails with `unexpected EOF`. **Write the
-  patch script to a file and run it by path** — this is the reliable form, and it
-  was relearned the hard way twice this session.
+  patch script to a file and run it by path** — this is the reliable form.
 - `open(path, 'w')` truncates before the write that fails. **Encode to bytes
   first, write to a temporary path, then `os.replace`.** A script that did not
   do this destroyed `ROADMAP.md` in a previous session.
@@ -179,7 +223,7 @@ nothing until a rebuild or `python tools/load_sprite.py --stage` — and see the
 newly-added-file trap above, which is worse because it fails quietly.
 
 **`main.cpp` prints the launch check** — `World seed: N`, then a `Scene:` line
-naming the scene and its cell count, then the objective and the prop count. Read
-those, not the window; a scene count of zero once meant a blank world that every
-suite passed on. Launch after any change to the shell and confirm it still
-prints, with nothing on stderr.
+naming the scene and its cell count. Read those, not the window. **While `empty`
+is the only shipped row the check is the *name* on that line, not the count**: a
+declared-empty scene legitimately prints `0 cells placed`, which is the same
+reading the blank-world bug produced.

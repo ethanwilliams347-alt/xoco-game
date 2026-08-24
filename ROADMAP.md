@@ -115,8 +115,9 @@ has to be re-read to know what to do.***
 | ~~5~~ | ~~**S0 — The run can be lost**~~ | ~~week~~ | ✅ **built 2026-08-14, and it took two days rather than a week.** Health, contact-heat and fall damage, one objective, win and loss both through `Run::reset(seed)`, `HP` on the HUD. **Playtested 2026-08-14 and checklist step 10 passed** — the mechanical half returned nothing ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-14--step-10-runs-and-the-question-is-held-open)). **The design half is deliberately unanswered:** the combat decision was held open rather than closed on the first sitting with it, which is a decision about the decision and is recorded as one below. Findings in [ROADMAP.md](ROADMAP.md#-medium-term-core-gameplay-loop) |
 | ~~6~~ | ~~**T1 — The debug tooling batch**~~ | ~~2 days~~ | ✅ **shipped 2026-08-14, and it took an afternoon rather than two days.** Pause and single-step, a free camera, the cell inspector, an unconditional world reset. **It found a false claim in the engine on the first thing it was pointed at** — `active_chunk_count() == 0` does not mean the world is at rest, because a falling slab is carried by the support queue and not by the chunk rects. Entry in [ROADMAP.md](ROADMAP.md#t1-the-debug-tooling-batch) |
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
-| 8 | **V-track: the renderer block** | ~2 weeks | ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
+| 8 | **V-track: the renderer block** | ~2 weeks | ⛔ **suspended in part 2026-08-24 by item 10** — the value-tuning chain it ends in (V20, V21, V22, V25, V19 4c/4d) was tuning generated art that is being replaced; V12, V13 and V16 come out of it and go to item 10. *(Prior state, unchanged for the steps that survive:)* ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
 | 9 | **W-track: the workbench** | ~3 days | ✅ **closed 2026-08-18** — `W1`–`W4` shipped 2026-08-17, `W5`'s three parts 2026-08-17/18, **`W6` 2026-08-18**. **The one thing left open in it was closed as a decision on 2026-08-18: `W5` gets no part 4** — see the end of that entry. **`V22` is next**, and the tester's UI look came back good the same day, so it is unblocked. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
+| 10 | **The scene rebuild — hand-made layers** | ~2 weeks, unsized past V12/V13 | ▶️ **next, new 2026-08-24.** The owner retired every scene built before `empty` and started the hand-made-layer direction that [VISION.md](VISION.md) had recorded but not scheduled. **V12 then V13 first** — they are what a Pixquare/LibreSprite export needs in order to load at all — then V16. See the block at the head of [V — Visual identity](#v--visual-identity), which is where this item's argument lives |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -158,8 +159,8 @@ to go. **Do not re-ask it.**
 |---|---|---|
 | 4a | **The wrapping arithmetic** — `render/backdrop_wrap.h`, a thirteenth suite linking no source set at all, nothing calling it and the checksum unmoved | ✅ done 2026-08-16 (`76a3d30`) |
 | 4b | **The ground plane** — the strip loop, the tile, the layer row and its grade. The item's centre of gravity, and the first thing in V19 to move the checksum | ✅ done 2026-08-16 |
-| 4c | **The far range, the near ridge and the treeline** — three rows reusing 4b's draw path, one colour and a shade each. **The treeline is the one band authored warm**; everything else stays on the cool ramp. **No longer a *shore* treeline** — the decision came back land, so it stands on ground rather than across water | **unblocked 2026-08-16; queued behind V22** |
-| 4d | **The value ladder tuned against entry 7**, once all seven bands exist and can be judged together | queued |
+| 4c | **The far range, the near ridge and the treeline** — three rows reusing 4b's draw path, one colour and a shade each. **The treeline is the one band authored warm**; everything else stays on the cool ramp. **No longer a *shore* treeline** — the decision came back land, so it stands on ground rather than across water | ⛔ **suspended 2026-08-24 by the scene rebuild** — three hand-drawn bands are art files, not three rows on 4b's draw path, so the deliverable changed kind. *(Prior state: unblocked 2026-08-16; queued behind V22.)* |
+| 4d | **The value ladder tuned against entry 7**, once all seven bands exist and can be judged together | ⛔ **suspended 2026-08-24 with 4c** — there is no ladder to tune until the hand-made bands exist |
 
 > **4c was blocked for part of one day and the block paid for itself** *(blocked
 > and released 2026-08-16, playtest session 7)*. The decision was **"is the
@@ -2891,6 +2892,79 @@ what it makes possible.*
 
 ### V — Visual identity
 
+> **The scene rebuild reorders this track, 2026-08-24.** The owner retired
+> the `fixture` scene and every scene made before `empty`, and is rebuilding
+> the scene logic and the fundamental visuals from that baseline out of
+> **hand-made layers** — drawn in Pixquare and LibreSprite rather than
+> generated. `VISION.md` had carried that as a direction since 2026-08-23 and
+> explicitly *not* as a scheduled item; this is the sitting that scheduled it,
+> and that bullet is rewritten rather than left standing.
+>
+> **The new running order for the open half is V12 → V13 → the hand-made
+> layers → V16**, and the reason V12 leads is mechanical rather than
+> aesthetic: both drawing tools export PNG with alpha, and today an
+> alpha-carrying export becomes a BMP whose transparent pixels are **black,
+> not magenta** — it loads without error and renders as a black box. That is
+> V12's subject exactly, and `ASSETS.md` currently documents a workaround for
+> it. **V13 follows for the same reason one level up**: hand-drawn layers
+> arrive at whatever size the artist worked at, and today one BMP pixel is one
+> screen pixel by assumption. V16 keeps its place after them, unchanged — it
+> is a layer-list mechanism and is indifferent to whether a layer was drawn or
+> generated.
+>
+> **What this suspends, and suspended is not closed.** V20, V21, V22, V25 and
+> V19 4c/4d are one chain, and all of it was tuning the *generated*
+> `backdrop_ground.bmp` produced by `tools/pixel_art.py`. Their measurements
+> stay true about that tile and are why the chain is not deleted: **seven of
+> the eight gate askings came back "no" about generated art**, which is a
+> finding about the mechanism and is the strongest single argument the
+> hand-made direction has. **V19 4c changes *kind* rather than value** — its
+> deliverable was "three rows reusing 4b's draw path, one colour and a shade
+> each", and three hand-drawn bands are art files, not palette rungs. **V25
+> is built and was never validated**; it stays `[x]` because the code shipped,
+> and it tints terrain the rebuild is about to redefine.
+>
+> **The condition this collides with is real and is carried forward here.**
+> The closed decision *"Does the spawn serve the fixture, or the plane?"*
+> (2026-08-16, in [Decisions owed](#-decisions-owed)) permanently killed a
+> test-only scene separate from the shipped one, and killed replacing the
+> fixture **"unless a replacement carries every exercise forward"**. The
+> exercises are named there: **uneven stairs, fence posts, a pit with pillars,
+> a water channel, jump ledges**. Retiring the fixture is therefore not a line
+> in `assets/scenes.txt`; it is about a day in the test tree, and the bill is
+> written out in the item below. **The decision is not overturned — its
+> condition is inherited by whatever the hand-made scene becomes.**
+>
+> **What the fixture is load-bearing for**, measured 2026-08-24, so the cost
+> is not rediscovered: `scene_list::default_scene_list()` hardcodes it and
+> `main.cpp` falls back to it when `assets/scenes.txt` is absent or malformed,
+> so **it is currently the guarantee the game boots at all**;
+> `FIXTURE_SCENE_CELLS` in `tests/test_scene.cpp`, read back by `docs_test`;
+> `test_boot.cpp`'s fixture half, which asserts the shipped scene stamps cells
+> and that the body *stands on* terrain rather than falling to it;
+> `plane_probe`, which is the instrument V22 and V25 were measured with and
+> which measures nothing against `empty`; `bench_grid`'s two loaders and both
+> `.rec` recordings, so **P4's replayed frame-budget row dies with the
+> fixture**; `rim_probe`; and `test_scene_list.cpp`'s assertion on the default
+> list. **The boot fallback was answered the same day: `default_scene_list()`
+> now returns `empty`, not the fixture** (2026-08-24, owner). A fallback that
+> names three asset files which are no longer shipped as the scene is a
+> fallback that can fail to load, and `empty` cannot: a scene that names no
+> files cannot fail to find one. **The cost is stated rather than hidden** -
+> a missing `scenes.txt` used to boot into something diggable and now boots
+> into open air, which is the honest reading of a missing file. It is **not**
+> `Spawn::Floor` being used as a recovery path, which its own enumerator
+> forbids; `empty` is *meant* to be empty rather than having failed a scan.
+> `test_scene_list.cpp` kept its assertion at full strength rather than being
+> weakened - it still proves "the file is missing" and "the file lists the
+> shipped row" are the same world, now at `empty`. **The rest of the fixture
+> bill above is still unpaid.** *(Superseded, kept because the ordering rule in it is the reusable part:
+> "removing it from `default_scene_list()` leaves the boot fallback empty and
+> that has to be answered before it is removed, not after.")*
+>
+> **What is untouched by any of this**: the whole E track, the whole P track,
+> and V16. Nothing in `src/physics/` is in question.
+
 Running order: **V17 → (V11 + V12 + V13) → V19 → V16 → V9 → V14 → V8 →
 V7-rest**, with **V10.1** alongside E6. **V15 moved behind the playtest gate on
 2026-08-11** and is gated on the combat decision, for the reason written in its
@@ -3461,7 +3535,7 @@ simulation's resolution and no amount of asset work changes that.
       rectangles are rewritten three times and the middle version is wrong in a
       way that only shows on one asset.
 
-- [ ] **V12 — The asset layer: alpha, and more than one format.** *Observed:*
+- [ ] **V12 — The asset layer: alpha, and more than one format.** ▶️ **Promoted to the head of this track 2026-08-24 by the scene rebuild** — the hand-made layers export PNG with alpha and cannot load correctly without it. *Observed:*
   transparency in this project is one exact colour, keyed at load
   (`load_art_texture` in [main.cpp](src/main.cpp), `COLOR_KEY` in
   [tools/pixel_art.py](tools/pixel_art.py)), so **nothing in the game can have a
@@ -3524,7 +3598,7 @@ simulation's resolution and no amount of asset work changes that.
     > called four times, with four matching cleanup lines at shutdown that
     > are invisible to forget.
 
-- [ ] **V13 — Sprites carry their own resolution.** *Observed:* "one BMP pixel
+- [ ] **V13 — Sprites carry their own resolution.** ▶️ **Promoted to second 2026-08-24 by the scene rebuild** — hand-drawn layers arrive at whatever size they were drawn at. *Observed:* "one BMP pixel
   is one world cell" is not enforced anywhere and is assumed everywhere —
   `Prop`'s destination rect and the player's are both native size times
   `Camera::SCALE`, taken straight from `SDL_QueryTexture`. **So the only way to
@@ -4242,7 +4316,7 @@ simulation's resolution and no amount of asset work changes that.
       camera moves — which is what makes the playtest it owes answerable.
 
 
-- [ ] **V22 — The plane the player is in.** *(new 2026-08-16, **unblocked the
+- [ ] **V22 — The plane the player is in.** ⛔ **Suspended 2026-08-24 by the scene rebuild** — see the block at the head of this track. It tuned the generated tile; the tile is being replaced. Not closed: its measurements stay true about that tile. *(new 2026-08-16, **unblocked the
   same day**; retitled from "What the receding plane is made of" when the
   decision came back)* *Observed:* [PLAYTEST_LOG.md](PLAYTEST_LOG.md) session 7
   answered "does the plane recede" with **"no"**, and supplied the reading that
@@ -4623,7 +4697,7 @@ simulation's resolution and no amount of asset work changes that.
       against a near foreground silhouette applies with the same force: a
       painted plane in front of the world occludes the one verb the game has.
 
-- [x] **V25 — The near ground is the plane, not a shelf in front of it.**
+- [x] **V25 — The near ground is the plane, not a shelf in front of it.** ⛔ **Built, never validated, and suspended 2026-08-24 by the scene rebuild** — the gate asking it was owed cannot be run (the `fixture` scene is retired) and it tints terrain the rebuild redefines. It stays `[x]` because the code shipped, not because it was judged.
   *(new 2026-08-23, built the same day, on the tester's choice of option B)*
   *Observed:* playtest session 11, *"it looks like the ground i am standing on
   is a separate shelf sitting in front of a parallaxed background"* — and then,

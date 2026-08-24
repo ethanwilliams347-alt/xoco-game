@@ -1235,3 +1235,70 @@ item 3 of the owed list, and no `WARNING` was reported, so the spawn scan found
 its floor.
 
 Symptoms only. What it closes is in ROADMAP.md.
+
+## Session 14 - 2026-08-24: the plane alone, and four answers about the wrong scene
+
+- **Build:** working tree at `0b2419f` plus the uncommitted `T2` archive change, Release, MSVC
+- **World seed:** **not reported.** This file's own rule applies - a finding without its seed is an anecdote - so nothing below is reproducible by seed, and that is a cost of the session rather than a detail to fill in later.
+- **Scene:** `empty` (the only row in `assets/scenes.txt`; the `fixture` row was archived on 2026-08-23 and was **still archived during this session**)
+- **Suites at time of test:** 19/19 green
+- **Result:** item 1 answered in full. Item 2's four sub-questions answered, but against a scene that cannot contain their subject - see below.
+
+### What was asked
+
+The two items MANUAL_TESTING.md was carrying. **(1)** Look at the ground plane
+with nothing standing in front of it, which is what the `empty` scene was
+requested for: does it read as one receding surface, where does it stop
+convincing, is there a visible join, and does it hold up while walking.
+**(2)** The gate question, an eighth asking, **parked** - the item said in bold
+that it needed the `fixture` row uncommented and a rebuild first.
+
+### What came back
+
+> *"1. a. yes the plane reads as a receding plane / b. it looks convincing
+> abstractly but it currently doesnt look realistic in nature. which is fine for
+> now / c. didn't notice right now / d. yes looks good walking left right*
+>
+> *2. a. no not still a shelf looks like receding plane with the player at the
+> bottom of the window / b. no it reads as the bottom of the window / c. yes,
+> looks fine for now / d. not sure pass for now*
+>
+> *i ultimately want to build up the scene with hand made layers using pixquare
+> on my ipad and libresprite on my pc."*
+
+### What is in that
+
+**1. The plane on its own reads as a receding plane.** All four parts of item 1
+came back positive: it reads as ground going away rather than as a painted wall,
+no join or stair-step was noticed anywhere across it, and it holds up while
+walking left and right - so no tiling join surfaced in motion either.
+
+**2. Against session 13 that is a control rather than a pass.** Session 13
+placed the fault at the join, naming the layer correctly. This session removed
+the other side of that join entirely and the remaining side came back clean.
+**The two sessions now bracket the junction from opposite sides.**
+
+**3. One answer inside item 1 is not a pass and was deferred rather than
+filed:** *"convincing abstractly but it currently doesnt look realistic in
+nature. which is fine for now"*. It is the first answer in this track asking for
+a different **kind** of art rather than a different value.
+
+**4. Item 2's four answers are about the `empty` scene, and two of them cannot
+be about `V25` at all.** The `fixture` row was never uncommented, so there was
+no terrain in the frame. *"not still a shelf"* is trivially true where there is
+no terrain to form a shelf, and *"dig a hole and look into it"* had nothing to
+dig. **These are recorded as answers about the empty scene and are not counted
+as an eighth "no" to the gate question, which remains unanswered.**
+
+**5. The tester was not at fault and the document was.** The setup step sat
+below several paragraphs of reasoning. That is the same failure this file
+records at the top about "I'm not sure" being indistinguishable from a pass: a
+check whose preconditions a tester has to dig for is not a check. MANUAL_TESTING.md
+was restructured the same day so the questions and their setup are the first
+thing in the file.
+
+**6. A direction arrived unasked**, as observations often do here: the scene is
+to be built up from hand-made layers, authored in Pixquare on iPad and
+LibreSprite on PC. That is scope, not a symptom, and it is in VISION.md.
+
+Symptoms only. What it closes is in ROADMAP.md.
