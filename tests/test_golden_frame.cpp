@@ -751,7 +751,7 @@ int main() {
     // numbers must always be reasoned about in that order. **A moved
     // `OVERLAY_GOLDEN` beside an unmoved `GOLDEN` is the only combination that
     // says the UI changed.**
-    constexpr uint64_t OVERLAY_GOLDEN = 0x57a56d7aa8cc6bf0ull;
+    constexpr uint64_t OVERLAY_GOLDEN = 0x22bc53f21528a0baull;
     char odetail[128];
     std::snprintf(odetail, sizeof(odetail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(with_overlay),

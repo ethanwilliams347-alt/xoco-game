@@ -9,5 +9,26 @@
 # because it has no terrain to scan.
 
 # name     material           albedo           props           spawn
-fixture    test_material.bmp  test_albedo.bmp  test_props.txt  terrain
 empty      -                  -                -               floor
+
+# --- archived ---------------------------------------------------------------
+#
+# **The `fixture` row is archived, not deleted (2026-08-23), at the tester's
+# request: the backdrop track is being looked at with nothing in front of it,
+# and `empty` is the only active scene for now.**
+#
+# Uncomment the row below to bring it back - it is the whole restore, and it is
+# byte-for-byte the record `scene_list::default_scene_list()` returns, so the
+# restored world is provably the one the game shipped with.
+#
+# Two things stop working while it is archived, and both are the point of
+# writing them here rather than in a commit message:
+#
+#   - **Gate 8 cannot be answered.** `V25` tints terrain and `empty` has none,
+#     so the question owed on MANUAL_TESTING.md needs this row back first.
+#   - **The launch check can no longer catch a blank world by its count.** A
+#     declared-empty scene prints `0 cells placed` legitimately, which is the
+#     one reading V2's blank-world bug also produced. While this is the only
+#     row, the check is the *name* on the line, not the number after it.
+#
+# fixture    test_material.bmp  test_albedo.bmp  test_props.txt  terrain

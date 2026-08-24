@@ -175,8 +175,9 @@ in **[MANUAL_TESTING.md](MANUAL_TESTING.md)**. Run that one after any change to
 **World (development tools)**
 - **Right-Click & Drag:** Spawn elements onto the screen.
 - **Mouse Wheel:** Grow / shrink the brush.
-- The eight material keys below are drawn as a **hotbar** along the bottom of
-  the window, so which key places what no longer has to be memorised. The
+- The eight material keys below are drawn as a **hotbar** in the top-right
+  corner of the window, so which key places what no longer has to be
+  memorised. The
   selected slot is framed in that material's own colour. The icons are
   hand-authored 8x8 bitmaps in `src/ui/hotbar.cpp` that take their colours from
   `MATERIALS`, so an icon cannot drift from the palette it depicts, and the key

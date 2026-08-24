@@ -71,9 +71,16 @@ a different loader, and the prop list is a placement file:
 | What | Path the game loads | Where that is decided |
 |---|---|---|
 | Which locations exist | `assets/scenes.txt` | the file itself; format in [scene_list.h](src/scene/scene_list.h) |
-| Location — materials | `assets/test_material.bmp` | the `fixture` row of `assets/scenes.txt` |
+| Location — materials | `assets/test_material.bmp` | the `fixture` row of `assets/scenes.txt` — **archived 2026-08-23**, see below |
 | Location — albedo | `assets/test_albedo.bmp` | same row |
 | Prop placements | `assets/test_props.txt` | same row |
+
+**The `fixture` row is commented out as of 2026-08-23** and `empty` is the only
+active scene, asked for so the backdrop can be looked at with nothing standing
+in front of it. The row is still in the file — uncommenting it is the whole
+restore, and `assets/scenes.txt` carries what stops working meanwhile. The three
+asset files are untouched and every suite that builds the fixture directly still
+does.
 
 **These stopped being literals in `main.cpp` on 2026-08-23.** They are a row in
 `assets/scenes.txt` now, along with a `spawn` rule saying where the body starts.
@@ -412,12 +419,17 @@ To author one:
    ```
    Scene: marsh, 1920x1080, 41230 cells placed
    ```
-   That count is the check — the shipped location prints
-   `Scene: fixture, 1920x1080, 334501 cells placed`, which is the number
-   `docs_test` pins. `0 cells placed` gets its own warning — unless the
-   scene named no files at all, which is a declared-empty scene and not a
-   failure — and any pixel in no legend entry prints a `WARNING` naming the
-   unrecognised colours.
+   That count is the check — **but only for a scene that names maps.** The
+   shipped list's first row is `empty` as of 2026-08-23, so what prints today is
+   `Scene: empty, 0x0, 0 cells placed`, and `docs_test` builds that expectation
+   from the row itself rather than assuming the fixture is first. `0 cells
+   placed` gets its own warning — unless the scene named no files at all, which
+   is a declared-empty scene and not a failure — and any pixel in no legend
+   entry prints a `WARNING` naming the unrecognised colours. **While a
+   declared-empty scene is the one that boots, the launch check is the *name* on
+   that line and not the count after it**, because the count V2's blank-world
+   bug produced and the count a legitimately empty scene produces are the same
+   number.
 4. Props are per-scene, which the format now says out loud:
    `assets/test_props.txt` is written against a specific scene's geometry, so a
    new location generally wants its own list in its own row.

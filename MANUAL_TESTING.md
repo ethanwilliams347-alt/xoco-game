@@ -23,11 +23,66 @@ cmake --build build --config Release
 
 ---
 
-**1. The gate question, an eighth time — and this time the frame changed in a
-different way than the last four did.** You asked for option B: *"i want the
-ground that the player is on to act like the water in those files visually…
-the player is sat into the page on the water plane."* `V25` (2026-08-23) is
-that, and it is the first attempt at this question that is not a value change.
+**⚠️ What the game boots into changed on 2026-08-23.** You asked for the
+`empty` scene to be the only one on the list, and it is: no terrain anywhere,
+you standing on the world's floor, nothing at all in front of the backdrop. The
+launch line reads `Scene: empty, 0x0, 0 cells placed` and **that is correct
+now, not a failure** — a scene that names no maps places no cells by design.
+While this is what ships, **the launch check is the *name* on that line, not
+the count after it**: `0 cells placed` is also exactly what the blank-world bug
+of step 1 produced, so the number can no longer tell the two apart.
+
+That reordering changes what is owed to you. **Item 1 is the one you can
+actually do**, and it is the reason you asked for the empty scene. **Item 2 is
+the gate question, and it is parked rather than open** — `V25` tints terrain
+and there is none, so launching as shipped cannot answer it.
+
+---
+
+**1. Look at the plane with nothing standing in front of it.** This is what the
+empty scene was asked for. Build, launch, and just look — there is nothing to
+do, no terrain to dig, and the body is resting on the world's bottom border.
+
+The thing worth knowing before you judge it: **terrain has been covering 41.6%
+of every frame this track has been judged on**, and every "no" the gate question
+has collected was given about a frame with that terrain in it. This is the first
+look at the plane by itself.
+
+What I need back, in whatever order you notice it:
+
+- **Does the plane read as one surface receding into the distance?** Not "is it
+  pretty" — does it read as *ground going away from you*, or as a flat painted
+  wall standing behind you?
+- **Where does it stop convincing you?** If the recession works near the horizon
+  and dies lower down, or the other way round, say which — those are two
+  different defects and they have different owners.
+- **Is there a visible join anywhere across it** — a horizontal seam, a
+  stair-step between strips, a band that jumps rather than grades? The plane
+  wraps and tiles, and both of those are known ways it can fail.
+- **Walk left and right for a while.** The plane should slide past you
+  continuously. A tiling join that is invisible standing still is often obvious
+  moving.
+
+There are no numbers to check against here on purpose. Every measurement this
+track has is of a frame with terrain in it; this one is your eye against the
+art, and a disagreement between the two is worth more to me than agreement.
+
+---
+
+**2. Parked — the gate question, an eighth asking. It needs the fixture scene
+back before it can be answered.** `V25` (2026-08-23) is the first attempt at
+this question that is not a value change, and it tints *terrain* toward the
+plane. The empty scene has no terrain, so as shipped this item is unrunnable
+rather than merely unanswered.
+
+**To run it:** uncomment the `fixture` row at the bottom of
+`assets/scenes.txt`, `cmake --build build --config Release`, and launch again.
+`F7` then cycles between the two scenes as before. Everything below is unchanged
+and still accurate the moment that row is back.
+
+You asked for option B: *"i want the ground that the player is on to act like
+the water in those files visually… the player is sat into the page on the water
+plane."*
 
 **What was wrong, in one number.** In the CnC/WnC reference frames the character
 stands with **28–39% of the receding plane in front of them**. Ours was **0%** —
@@ -42,9 +97,9 @@ the plane's value at its own depth, so the recession carries on past you to the
 bottom edge. The same measurement now reads **34 / 43 / 52 / 59 / 64 / 70 / 75 /
 82 at your feet / 82 / 88 / 88** — it rises the whole way down.
 
-Launch, stand at the spawn, and answer the same question: **does the ground you
-are standing on read as one continuous surface receding into the distance, with
-you sitting *on* it rather than in front of it?**
+Stand at the spawn and answer the same question: **does the ground you are
+standing on read as one continuous surface receding into the distance, with you
+sitting *on* it rather than in front of it?**
 
 Four things I need alongside the yes or no. The first two are the item; the last
 two are things I changed knowingly and would rather hear about now than discover
@@ -65,13 +120,6 @@ in six sessions.
   by area, so it may be invisible; if it reads as a bright smear on a hillside,
   say so, because that is the one case I chose to accept rather than measure.
 
-**New this session, and it may help you answer the above:** `F7` cycles to the
-`empty` scene - no terrain at all, you standing on the world's floor, nothing
-in front of the backdrop. **V25 does nothing there** (it tints terrain, and
-there is none), so it is not a way to check gate 8 itself - it is a way to see
-what the plane looks like *without* the terrain that has been covering 41.6% of
-every frame this track has been judged on. `F7` again returns to the fixture.
-
 **No `.rec` cost** — the change is render-side, so `session_4_digging_fluids_fire.rec`
 is still valid and P4's replayed row stays live. If you play anyway, remember
 `F9` overwrites `session.rec` on the first save of a launch: copy it somewhere
@@ -88,7 +136,7 @@ have no number that contradicts it.
 (`V22` part 4, 2026-08-23) was never returned** — `V25` landed on top of it
 the same day and changed the frame again, so an answer to the seventh would
 now be about a frame that no longer exists. Its two sub-questions are folded
-into gate 8 above. **The 8%-above-V20 brightness debt it carried is still
+into item 2 above, and are parked with it. **The 8%-above-V20 brightness debt it carried is still
 open** and is now part of "does this read as ground or as glare".
 
 *Closed and off this list:* **all three of `V22` part 3's items, closed
@@ -210,7 +258,7 @@ has ever had.*
 
 ## The steps
 
-1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. The world is no longer empty at launch: `main.cpp` loads the authored F4 test scene (`assets/test_material.bmp` / `test_albedo.bmp`) over it first, so confirm terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel — rather than a blank grid. **A `Scene: fixture, 1920x1080, 334501 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** (The name at the front arrived on 2026-08-23, when locations became rows in `assets/scenes.txt`; `F7` cycles to the next one, and the shipped list's second row is an `empty` scene with no terrain at all.) This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. A count of zero, or a `WARNING` about unrecognised legend colours, means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart. **The two lines under it are no longer yours to read (`W5`, 2026-08-17).** `Objective: (1700, 932)` and `Props: 9 of 9 placed` were the other half of this step, and both were a number a person had to notice was missing — the objective's absence makes a run unwinnable, and a dropped prop is the buried-trees bug, which hid for a whole feature because the trees sit off-screen at spawn. The scans behind both moved to `game/boot.h` and `boot_test` asserts them **against this same shipped scene**, so a regression in either now fails `ctest` before anybody launches. What is left for you here is the part a checksum cannot have: the window opens, the seed prints, and there is terrain in front of you.
+1. **Launch.** `cmake --build build --config Release`, then run the exe. Window opens, a `World seed: N` line prints to stdout (the seed check has no way to fail silently: if the number is missing, `main.cpp` stopped being the project's one nondeterministic line). The HUD in the window's top-left corner shows fps, current material, brush size, and chunks awake — the window title bar is now a plain, static label, not where this lives. **What you should see in the window depends on which scene is active, and as of 2026-08-23 that is `empty`** — no terrain at all, the body resting on the world's bottom border, the backdrop unobstructed. With the `fixture` row restored it is instead the authored F4 scene (`assets/test_material.bmp` / `test_albedo.bmp`) and terrain is visible immediately — a snowbank, fence posts, a bridge over a pit, a water channel. **A `Scene: empty, 0x0, 0 cells placed` line prints alongside the seed, and that is the check rather than the eyeballing.** (The name at the front arrived on 2026-08-23, when locations became rows in `assets/scenes.txt`. **Later the same day the `fixture` row was archived at your request and `empty` became the only scene**, which is why the line above says `empty` and why there is no terrain to see — uncomment that row in `assets/scenes.txt` to get the authored location, and its line reads `Scene: fixture, 1920x1080, 334501 cells placed`.) **While `empty` is what boots, the check is the name on that line rather than the count after it** — a declared-empty scene prints `0 cells placed` legitimately, which is the same reading the blank-world bug below produced, so the count can no longer tell them apart. This step used to be eyeballed and it silently stopped being true for a whole commit: retuning the palette changed the colours the material map was matched against, every authored pixel resolved to `Empty`, and the game booted blank while all six suites passed. **A count of zero means the scene file and [src/scene/legend.h](src/scene/legend.h) have come apart — but only for a scene that named maps**, which is why the name on the line is what you read first. A `WARNING` about unrecognised legend colours means the same thing and is unconditional; a declared-empty scene never earns one. **The two lines under it are no longer yours to read (`W5`, 2026-08-17).** `Objective: (1700, 932)` and `Props: 9 of 9 placed` were the other half of this step, and both were a number a person had to notice was missing — the objective's absence makes a run unwinnable, and a dropped prop is the buried-trees bug, which hid for a whole feature because the trees sit off-screen at spawn. The scans behind both moved to `game/boot.h` and `boot_test` asserts them **against this same shipped scene**, so a regression in either now fails `ctest` before anybody launches. What is left for you here is the part a checksum cannot have: the window opens, the seed prints, and the line names the scene you meant to be in.
 
 2. **Movement (`Player`).** Walk both directions, jump, land. Confirm the body rests flush on top of Wall and on top of settled Sand — no half-cell sinking, no hovering. **The sprite is 14x26 over an 8x20 collision box, so "flush" is a claim about the sprite's *feet*, not its bounding rect** — the mask overhangs above the box and the sleeves outside it, both by design. A figure that hovers one cell above every floor means some frame's bottom row went empty — `python tools/player_sheet.py --validate` checks exactly that, per frame, and is the first thing to run; a figure sunk into the floor means `src/render/player_sprite.h` is stale and needs `--header` re-run. Also confirm the figure turns to face the direction you walk, and keeps facing that way after you stop.
 

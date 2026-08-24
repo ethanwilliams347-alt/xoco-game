@@ -237,13 +237,18 @@ void draw_hotbar(SDL_Renderer* renderer, int window_w, int window_h, int ui_scal
     const int gap = slot_gap(ui_scale);
     const int row_w = HOTBAR_COUNT * slot + (HOTBAR_COUNT - 1) * gap;
 
-    // Bottom centre. The reticle is at the mouse and the readout is top-left,
-    // so this is the one edge with nothing already on it - and a hotbar wants
-    // to be somewhere the eye can find without leaving the thing it is aiming
-    // at, which is down rather than sideways.
+    // Top right. Moved off the bottom edge (2026-08-23) at the tester's
+    // request; top-centre was tried first and rejected before it was built -
+    // the readout's own first line reaches x~772 of 1920 at the smallest
+    // shipped mode, which is within a brush-name's width of where a centred
+    // row would start, so the two draw calls would paint over each other on
+    // an ordinary HUD line, not just a debug one. The readout owns top-left,
+    // the reticle is at the mouse, so top-right is the one corner with
+    // nothing already on it - the same reasoning the old bottom-centre
+    // placement recorded, aimed at a different corner.
     const int margin = 6 * px;
-    const int x0 = (window_w - row_w) / 2;
-    const int y0 = window_h - margin - hotbar_height(ui_scale);
+    const int x0 = window_w - margin - row_w;
+    const int y0 = margin;
 
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 

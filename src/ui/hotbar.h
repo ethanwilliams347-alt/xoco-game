@@ -59,8 +59,8 @@ inline constexpr int HOTBAR_COUNT = static_cast<int>(sizeof(HOTBAR) / sizeof(HOT
 // drift from the palette it depicts - the art here is the *shape* only.
 void draw_icon(SDL_Renderer* renderer, int x, int y, int scale, ElementType type);
 
-// Draws the whole row centred horizontally in a `window_w`-wide window, sitting
-// `margin` pixels above the bottom edge at `window_h`. `selected` is an index
+// Draws the whole row anchored to the top-right corner of a `window_w`x
+// `window_h` window, `margin` pixels in from both edges. `selected` is an index
 // into HOTBAR; anything out of range simply draws no highlight.
 //
 // `ui_scale` is DisplayMode::ui_scale(), not a constant: at 3440x1440 a hotbar

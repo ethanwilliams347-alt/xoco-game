@@ -42,21 +42,29 @@
 
 namespace {
 
-// The first scene named in a scene list: the first field of its first line that
-// is neither blank nor a comment. Deliberately not a second copy of
+// The first record of a scene list: its first line that is neither blank nor a
+// comment, whitespace-split. Deliberately not a second copy of
 // `scene_list::load_scene_list` - this suite links nothing, on purpose, so that
 // a doc claim and the code it describes cannot both be wrong in the same way.
-std::string first_scene_name(const std::string& path) {
+//
+// **The whole row rather than just the name (2026-08-23).** **The whole row rather
+// than just the name (2026-08-23)**, because the launch-check line it feeds
+// depends on more than the name: a scene that names no maps prints `0x0, 0
+// cells placed` and is not a failure, and a version of this that read only the
+// name asserted the fixture's count against whatever row happened to be first.
+std::vector<std::string> first_scene_fields(const std::string& path) {
     std::ifstream in(path);
     std::string line;
     while (std::getline(in, line)) {
         const size_t hash = line.find('#');
         if (hash != std::string::npos) line.erase(hash);
         std::istringstream fields(line);
-        std::string name;
-        if (fields >> name) return name;
+        std::vector<std::string> row;
+        std::string field;
+        while (fields >> field) row.push_back(field);
+        if (!row.empty()) return row;
     }
-    return std::string();
+    return {};
 }
 
 std::string read_file(const std::string& path) {
@@ -311,12 +319,26 @@ int main() {
     // `main.cpp`. The name is read out of that file rather than written here,
     // for this suite's own reason: a claim is only checkable against a
     // machine-readable source, and "the first scene is called fixture" has one.
-    const std::string first_scene = first_scene_name("assets/scenes.txt");
-    check("the first scene's name can be read out of assets/scenes.txt",
-          !first_scene.empty(), first_scene);
+    const std::vector<std::string> first_scene = first_scene_fields("assets/scenes.txt");
+    check("the first scene's row can be read out of assets/scenes.txt",
+          first_scene.size() >= 5, std::to_string(first_scene.size()) + " fields");
+    // **The expected line is built from what that row actually declares**, not
+    // from an assumption that it is the fixture. The `fixture` row was archived
+    // on 2026-08-23 - commented out in `assets/scenes.txt`, restorable in one
+    // line - and this check went on asserting the fixture's 1920x1080 and its
+    // cell count against a row that names no maps at all. A scene declaring `-`
+    // for material and albedo stamps nothing, so `main.cpp` prints the default
+    // `Scene{}` extent and a count of zero, and that is the line the tester has
+    // to be told to expect.
+    const bool first_is_empty =
+        first_scene.size() >= 3 && first_scene[1] == "-" && first_scene[2] == "-";
     const std::string scene_line =
-        "Scene: " + first_scene + ", 1920x1080, " + std::to_string(cells) + " cells placed";
-    check_claims("the launch-check cell count matches the pinned fixture",
+        first_scene.empty()
+            ? std::string()
+            : "Scene: " + first_scene[0] +
+                  (first_is_empty ? ", 0x0, 0 cells placed"
+                                  : ", 1920x1080, " + std::to_string(cells) + " cells placed");
+    check_claims("the launch-check line matches the first shipped scene",
                  {
                      {"MANUAL_TESTING.md", scene_line},
                      {"ASSETS.md", scene_line},
