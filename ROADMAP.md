@@ -4698,6 +4698,22 @@ simulation's resolution and no amount of asset work changes that.
       painted plane in front of the world occludes the one verb the game has.
 
 - [x] **V25 — The near ground is the plane, not a shelf in front of it.** ⛔ **Built, never validated, and suspended 2026-08-24 by the scene rebuild** — the gate asking it was owed cannot be run (the `fixture` scene is retired) and it tints terrain the rebuild redefines. It stays `[x]` because the code shipped, not because it was judged.
+  **Gated off in `main.cpp` on 2026-08-24** (`PLANE_ON_NEAR_TERRAIN = false`),
+  on playtest session 15: *"any material placed or that falls under the horizon
+  is invisible"*. **The pass at full strength does not tint a cell, it replaces
+  it** - `weight_at_depth` is 255 for every cell 4+ rows below the air in its own
+  column and `blend(from, to, 255)` is `to` exactly, so all matter under a
+  four-cell top crust is painted the ground tile's row colour, which is the same
+  colour for every column in that row. Against the fixture's landscape that read
+  as recession, because what was under the crust really was scenery. Against a
+  scene whose subject is the material the player puts down, it paints the subject
+  in the backdrop's colour. **The finding that has to survive into the hand-made
+  replacement: the ramp needs either a floor that preserves material identity, or
+  a bound that separates world terrain from placed material, before full strength
+  can mean 255 again.** Off is the pass's own no-tile path, so nothing new runs;
+  re-enabling is the one constant. **Confirmed fixed in-game by the tester the
+  same day**, which also settles that the crust was the whole of it - there was
+  no second cause making thin or falling material vanish.
   *(new 2026-08-23, built the same day, on the tester's choice of option B)*
   *Observed:* playtest session 11, *"it looks like the ground i am standing on
   is a separate shelf sitting in front of a parallaxed background"* — and then,
@@ -4894,6 +4910,95 @@ simulation's resolution and no amount of asset work changes that.
     > freeze on impact make explosions read as force. The trap: driven by
     > the fixed simulation clock, not the display refresh, or their speed
     > changes with frame rate.
+
+#### V26 — Two scene paradigms: fixed bounded worlds and infinite scrolling
+
+**Built 2026-08-24**, from `gemini_plans/infinite_and_fixed_scenes_plan.md`, in
+five phases. It is a *mechanism* item and it is deliberately not a look: nothing
+in it retunes a value, and the shipped frame is unchanged.
+
+**What it is for.** A scene row could name three files and a spawn rule; it could
+not say how big its world was, and it could not say whether travelling east ever
+ends. Both were the same constant — `boot::GRID_WIDTH`/`GRID_HEIGHT` — read
+directly at eight places in `main.cpp`. That is the shape item 10's hand-made
+layers need broken before an artist can hand over a location of their own size.
+
+- **`scene_list` grows three optional columns**, `mode` then `width height` as a
+  pair. Optional, and still *read*: an unknown mode, a lone width, a zero and a
+  non-number are each an error naming the line, never a silent fall back to the
+  default. That is `props.h`'s rule 2 kept at a column that is allowed to be
+  absent — absent is a row that made no claim, and tolerant is a world of the
+  wrong size that loads and says nothing.
+- **The size has three sources and they are trusted in order**: the row, then
+  the material BMP, then the engine default. The BMP is second because an author
+  who wrote a size meant it — a scene may legitimately be larger than the image
+  stamped into its corner.
+- **`Camera::follow_mode` drops the horizontal clamp and only that one.** An
+  infinite scene is unbounded in *travel*, not in depth: the upload reads rows
+  out of the grid, so an unclamped vertical view is a read outside it. `follow`
+  keeps its signature and delegates with `false`, and `camera_test` asserts the
+  delegation — if it ever stops being one, every `.rec` in the repo reframes
+  silently.
+- **The backdrop gets a second layout, and the two agree wherever the shipped
+  art is concerned.** A fixed scene pans each layer across its own width exactly
+  once: `dst_x = -(view_fx / (world_w - padded_w)) * (w - window_w)`. That is
+  *algebraically identical* to `Camera::parallax_origin_x(factor)` for a layer
+  sized the way `tools/generate_backdrop.py` sizes one — `window + pan_range *
+  factor` — which is every layer we ship. `camera_test` asserts the identity
+  numerically across the pan (worst disagreement 0.00006 px, and it is the whole-
+  pixel rounding in the image width, not either formula). **So the shipped frame
+  moved by nothing.** What the new form buys is that it stops *depending* on the
+  art being sized to the pan: an image of any width lands flush at both borders,
+  which is what an authored panorama needs. An infinite scene keeps the factor
+  form and tiles it through `backdrop_wrap::wrap_axis`.
+- **`Run::reset` gains optional dimensions, and it is the only path that can
+  resize a grid.** `Grid::reset` cannot and says so. It is on `Run` rather than
+  at the call site because the call site is `main.cpp`, which threads a `Run&`
+  through several lambdas that a rebuild would leave pointing at a dead object.
+  0 means "keep the size", so every existing caller reallocates nothing.
+  **The cost is stated rather than papered over: a resize drops `vent_radius`**,
+  which a wipe keeps, because the new grid is a fresh `Grid(w, h, seed)` and that
+  is the whole of what the reset contract promises.
+- **Loading a scene's art and stamping it are two steps now**, and the split is
+  forced rather than tidy: a scene that states no size takes it from the BMP, so
+  the BMP has to be open before the grid can be sized, and the grid has to be
+  sized before anything can be stamped into it.
+
+**The golden checksum moved and the no-op half could not be shipped first** —
+frame `0x26881784d76b594f`, overlay `0xd23935ff7e756900`, both in the same
+commit. The reason is a property of the fixture rather than of the change: its
+sky and mountains are deliberately *not* pan-sized (700x400 and 700x300 against a
+480x272 window), so the one configuration where the two layouts differ is the one
+the fixture composes. **The instrument that stands in for a no-op run is the
+identity check in `camera_test`**, which says in numbers what the checksum
+cannot: on a pan-sized layer the two formulas are the same number everywhere.
+
+**What is deliberately not done, and is owed.**
+
+- **`assets/scenes.txt` gains the columns but no second active row.** The
+  `large_canyon` fixed scene the plan specifies is written into the archived
+  block beside `fixture`, commented, because the 2026-08-23 decision that
+  `empty` is the only active scene while the backdrop track is looked at has not
+  been revisited — and the row reuses exactly the retired art that decision was
+  about. Uncommenting it is the whole of activating it.
+- ~~**Neither paradigm has been seen by a human.**~~ ✅ **Both looked at and
+  passed 2026-08-24**, the day the mechanism landed
+  ([spot check](PLAYTEST_LOG.md#spot-check--2026-08-24--v26s-two-scene-paradigms-first-human-look)).
+  The infinite scene walked past the old world edge — camera unclamped, layers
+  tiling, no seam reported. The fixed scene walked to both borders — camera
+  stopping dead, backdrop edge flush with the window's. The tester uncommented
+  `large_canyon` for the second one and put it back, which is why the bullet
+  above is unchanged rather than closed.
+    - **What the pass covers is narrower than "it works", and that is recorded at
+      the spot check rather than here.** Two limits worth carrying into the
+      hand-made-layer work: nobody recorded how far the infinite scene was
+      walked, and the tiling defect this check is aimed at appears hundreds of
+      thousands of pixels out where a float's spacing stops being 1 — so
+      `backdrop_test`'s property sweeps remain the actual guarantee, not this.
+      And the fixed scene walked was fixture art at twice its own size, so it
+      exercised the camera clamp and the pan and said nothing about how an
+      authored panorama reads. **That second question is the one item 10 will
+      have to ask for real**, of art that does not exist yet.
 
 ### P — Performance
 

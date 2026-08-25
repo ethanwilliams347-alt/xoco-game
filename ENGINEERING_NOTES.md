@@ -266,6 +266,35 @@ worth being able to recognise again.
   byte-identical results for a given seed, or the save format, the playtest bug
   reports and Quantum Worlds all lose their footing at once. The measured
   numbers do not come close to justifying that.
+
+  **The shape it would have to take, written down so the question is not
+  re-derived from scratch every time it is asked: a four-phase checkerboard
+  (red-black) chunk sweep.** Chunks are coloured by the parity of their
+  `(cx, cy)`, giving four classes, and a step runs the four classes in a fixed
+  order — (even, even), (odd, even), (even, odd), (odd, odd) — with a barrier
+  between them. Within one class no two chunks are 8-neighbours, so a cell write
+  and the 3x3 wake it triggers can never reach a chunk another worker is
+  touching in the same phase, and the sweep needs no locking at all.
+
+  What makes it *deterministic* rather than merely race-free is that the phase
+  order is fixed and the work inside a phase is order-independent, so the number
+  of workers is not an input to the result. Two things would have to be made to
+  hold for that to be true here, and neither is today:
+
+  - **The wake queue must be commutative.** `chunk_next` is written by every
+    write, from any worker, and the surviving `DirtyRect` has to be the union
+    regardless of the order the workers got there in. A union is commutative;
+    the current in-place widening is only commutative because it is serial.
+  - **`sim_random` already holds.** It is a pure function of seed, step, cell
+    index and `Stream`, so it gives the same answer on any thread in any order.
+    This is the half of the problem that was solved in advance, and it is why
+    F1's purity rule is worth more than its speed cost suggested.
+
+  The cost is a barrier per phase — four per step — against a step that already
+  runs in a fraction of a millisecond on the played row (PERFORMANCE.md). **That
+  is the number that keeps this deferred**: four barriers is plausibly more than
+  the work being parallelised. It is written here as a design, not a plan, and
+  the invariant in CLAUDE.md stands unchanged — no threading in `Grid`.
 - **Cross-platform.** The build targets Windows/macOS/Linux and uses no
   platform-specific code, but has only been *built and run on Windows*. Verify
   on the other two before claiming support.

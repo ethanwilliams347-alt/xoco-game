@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -17,13 +18,24 @@
 //
 // Format, one record per line, `#` to end-of-line is a comment:
 //
-//     # name     material           albedo            props           spawn
+//     # name     material           albedo            props           spawn    mode      w     h
 //     fixture    test_material.bmp  test_albedo.bmp   test_props.txt  terrain
-//     empty      -                  -                 -               floor
+//     empty      -                  -                 -               floor    infinite  1920  1080
 //
-// Five fields, all required, `-` meaning "none" for the three filenames. Blank
-// lines are fine. Anything else is an error with a line number, never a
-// silently skipped row.
+// Five fields required, `-` meaning "none" for the three filenames. Blank lines
+// are fine. Anything else is an error with a line number, never a silently
+// skipped row.
+//
+// **Three optional fields follow the five, and they are optional in the one way
+// that does not break the rule directly below** - `mode`, then `width` and
+// `height` *together*. Every field is still read; an omitted one is not an
+// ignored one, it is a row that made no claim, and the default it falls back to
+// is stated at the field. `mode` is `fixed` (a bounded world with solid borders
+// and non-repeating backdrops) or `infinite` (unbounded horizontal travel with
+// tiling backdrops); omitted, it is `fixed`, which is what every row written
+// before this column existed meant. `width height` must appear as a pair, since
+// half a size is not a size, and omitted they mean "derive it" - the material
+// BMP's own dimensions, or the engine default when the scene names no BMP.
 //
 // **Every field is read, which is `props.h`'s rule 2 and the reason there is no
 // `seed` column and no `x`/`y` spawn column.** A number the loader ignores is
@@ -47,12 +59,37 @@ enum class Spawn {
     Floor,
 };
 
+// Which of the two world paradigms a scene is. **This is a property of the
+// authored location and not a camera setting**, which is why it lives here
+// rather than in `Camera`: it decides the world's borders, how the backdrop is
+// laid out, and whether travelling in one direction ever ends. A camera that
+// could be switched between them independently of the scene would be able to
+// pan off the edge of a bounded world's art, which is the seam this column
+// exists to make impossible.
+enum class SceneMode : uint8_t {
+    // A bounded world of a stated size with solid borders. The camera clamps to
+    // the world rect and each backdrop layer is panned across its own width
+    // exactly once, so authored art never repeats and never runs out.
+    Fixed,
+    // Unbounded horizontal travel. The camera does not clamp horizontally and
+    // the backdrop layers tile through `backdrop_wrap::wrap_axis`. Vertical is
+    // still clamped, because the world has a floor and a ceiling either way.
+    Infinite,
+};
+
 struct SceneDef {
     std::string name;       // the scene's own name; also what the HUD shows
     std::string material;   // asset stem or empty; resolves to assets/<stem>
     std::string albedo;     // asset stem or empty
     std::string props;      // asset stem or empty
     Spawn spawn = Spawn::Terrain;
+    SceneMode mode = SceneMode::Fixed;
+    // 0 means "not stated" and **not** "zero cells", which is why these are not
+    // pre-filled with the engine default here: the loader cannot know a scene's
+    // BMP dimensions and the caller can, so the caller resolves 0 and this file
+    // never invents a size it did not read.
+    int custom_width = 0;
+    int custom_height = 0;
     int line = 0;           // 1-based source line, for diagnostics
 
     // A scene that names no material map places no cells. Stated as a question
@@ -61,6 +98,8 @@ struct SceneDef {
     // matched no colour also places no cells, and that is a defect. `main.cpp`'s
     // startup warning keys on exactly this.
     bool declared_empty() const { return material.empty() && albedo.empty(); }
+
+    bool is_infinite() const { return mode == SceneMode::Infinite; }
 };
 
 // Parses a scene list. Returns the records; on any malformed line the list comes

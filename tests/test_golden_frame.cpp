@@ -482,7 +482,24 @@ int main() {
     // `camera_test`, which asserts the framing in *screen* terms before this
     // hash is consulted at all, so a wrong number here is separable from a
     // wrong framing.
-    constexpr uint64_t GOLDEN = 0x77404ada6ab4d08full;
+    //
+    // **The tenth move is `V26`, 2026-08-24: the backdrop layers are laid out by
+    // a normalized pan across the world rather than by a factor on the camera.**
+    // The no-op half could not be taken here either, and the reason is a
+    // property of the fixture rather than of the change: the two formulas are
+    // *algebraically identical* for a layer sized `window + pan_range * factor`,
+    // which is every layer `tools/generate_backdrop.py` writes, and the fixture's
+    // sky and mountains are deliberately not sized that way (700x400 and 700x300
+    // against a 480x272 window). So the shipped game's frame moves by nothing and
+    // this fixture's frame moves a lot - which is the *right* way round, since
+    // the whole point of the new form is that it stops depending on the art
+    // being sized to the pan.
+    //
+    // The derivation is at `draw_backdrop_layer` in render/frame.cpp and is not
+    // repeated here. The instrument that stands in for a no-op run is that
+    // derivation plus `backdrop_test`, which asserts the two layouts agree at a
+    // pan-sized layer in numbers rather than in a hash.
+    constexpr uint64_t GOLDEN = 0x26881784d76b594full;
     char detail[128];
     std::snprintf(detail, sizeof(detail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(first),
@@ -751,7 +768,7 @@ int main() {
     // numbers must always be reasoned about in that order. **A moved
     // `OVERLAY_GOLDEN` beside an unmoved `GOLDEN` is the only combination that
     // says the UI changed.**
-    constexpr uint64_t OVERLAY_GOLDEN = 0x22bc53f21528a0baull;
+    constexpr uint64_t OVERLAY_GOLDEN = 0xd23935ff7e756900ull;
     char odetail[128];
     std::snprintf(odetail, sizeof(odetail), "got 0x%016llx, expected 0x%016llx",
                   static_cast<unsigned long long>(with_overlay),

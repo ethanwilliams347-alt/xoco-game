@@ -76,6 +76,8 @@ void Grid::reset(uint64_t seed) {
     pending_support.clear();
     support_stack.clear();
     support_component.clear();
+    support_seeds.clear();
+    support_deferred.clear();
     std::fill(support_visit.begin(), support_visit.end(), 0);
     std::fill(support_state.begin(), support_state.end(), 0);
     support_epoch = 0;
@@ -86,6 +88,7 @@ void Grid::reset(uint64_t seed) {
     scratch_epoch = 0;
 
     fracture_component.clear();
+    fracture_lowest.clear();
     next_piece_tag = 1;
 
     frame_tag = 0;
@@ -365,8 +368,10 @@ void Grid::resolve_support() {
 
     resolving_support = true;
 
-    std::vector<int> seeds;
-    std::vector<int> deferred; // still falling, but not fast enough for this pass
+    // Persistent scratch (see grid.h): cleared here, not reallocated. `deferred`
+    // still accumulates across the passes below, exactly as the locals did.
+    support_seeds.clear();
+    support_deferred.clear();
 
     // One pass per cell of travel. Everything queued gets the first pass; each
     // pass after that is only for the pieces that have been in the air long
@@ -377,8 +382,8 @@ void Grid::resolve_support() {
         // Taken by value: a piece that falls re-queues itself into
         // pending_support, and that must not extend the loop running now, or
         // one piece would fall the whole way down inside a single pass.
-        seeds.clear();
-        seeds.swap(pending_support);
+        support_seeds.clear();
+        support_seeds.swap(pending_support);
 
         // A fresh epoch per pass. Every cell of travel is a new question about
         // a world that has just changed, so last pass's verdicts must not be
@@ -401,7 +406,7 @@ void Grid::resolve_support() {
             scratch_epoch = 1;
         }
 
-        for (const int seed : seeds) {
+        for (const int seed : support_seeds) {
             if (!is_structural(cells[seed].type)) continue;
             if (support_visit[seed] == support_epoch) continue; // its piece already moved this pass
 
@@ -409,7 +414,7 @@ void Grid::resolve_support() {
             // next step picks it up again; it just does not travel any further
             // this one.
             if (fall_speed(cells[seed].ticks) <= pass) {
-                deferred.push_back(seed);
+                support_deferred.push_back(seed);
                 continue;
             }
 
@@ -418,7 +423,7 @@ void Grid::resolve_support() {
         }
     }
 
-    for (const int idx : deferred) pending_support.push_back(idx);
+    for (const int idx : support_deferred) pending_support.push_back(idx);
 
     // Whatever is still queued moved at some point during this step, so it is
     // in the air and has now been for one step longer. A tick is a step, not a
@@ -551,6 +556,33 @@ void Grid::fall_if_unsupported(int x, int y) {
     drop_component();
 }
 
+uint8_t Grid::alloc_piece_tag() {
+    // `pending_support` is every cell currently asking to be re-checked, so a
+    // piece that is still in flight has its cells in it. Scanning it is O(queue)
+    // per fracture, which is the same order as the fill that just ran, and a
+    // fracture is rare next to a step.
+    for (int attempt = 0; attempt < 255; ++attempt) {
+        const uint8_t candidate = next_piece_tag;
+        next_piece_tag = static_cast<uint8_t>(next_piece_tag + 1);
+        if (next_piece_tag == 0) next_piece_tag = 1; // 0 means "never broken"
+
+        bool in_use = false;
+        for (const int idx : pending_support) {
+            if (cells[idx].ticks > 0 && cells[idx].piece_tag == candidate) {
+                in_use = true;
+                break;
+            }
+        }
+        if (!in_use) return candidate;
+    }
+
+    // All 255 tags are in the air at once. There is no non-colliding answer to
+    // give, so give the counter's and let the two bodies merge - the same
+    // outcome the bare counter had, now only in the case that genuinely has no
+    // better one.
+    return next_piece_tag;
+}
+
 void Grid::fracture_landing(int x, int y) {
     const int seed = get_index(x, y);
     const uint8_t tag = cells[seed].piece_tag;
@@ -635,10 +667,10 @@ void Grid::fracture_landing(int x, int y) {
     // on flat ground does not break at all** - there is no boundary to break at
     // - which is both correct and what stops every routine landing burning a
     // tag out of the 255 there are.
-    std::vector<int> lowest(span, -1);
+    fracture_lowest.assign(static_cast<size_t>(span), -1);
     for (const int idx : fracture_component) {
         const int c = (idx - (idx / width) * width) - min_x;
-        if (lowest[c] < 0 || idx > lowest[c]) lowest[c] = idx; // larger index = lower row
+        if (fracture_lowest[c] < 0 || idx > fracture_lowest[c]) fracture_lowest[c] = idx; // larger index = lower row
     }
 
     // Scanning from the left is arbitrary but deterministic. A piece with
@@ -661,8 +693,8 @@ void Grid::fracture_landing(int x, int y) {
     int crack = -1;
     bool prev_grounded = false, have_prev = false;
     for (int c = 0; c < span; ++c) {
-        if (lowest[c] < 0) continue; // a gap in the footprint is not a boundary
-        const bool g = landed_on_something(lowest[c]);
+        if (fracture_lowest[c] < 0) continue; // a gap in the footprint is not a boundary
+        const bool g = landed_on_something(fracture_lowest[c]);
         if (have_prev && g != prev_grounded) { crack = min_x + c; break; }
         prev_grounded = g;
         have_prev = true;
@@ -676,9 +708,7 @@ void Grid::fracture_landing(int x, int y) {
     if (crack < min_x + 1) crack = min_x + 1;
     if (crack > max_x) crack = max_x;
 
-    const uint8_t fresh = next_piece_tag;
-    next_piece_tag = static_cast<uint8_t>(next_piece_tag + 1);
-    if (next_piece_tag == 0) next_piece_tag = 1; // 0 means "never broken"
+    const uint8_t fresh = alloc_piece_tag();
 
     for (const int idx : fracture_component) {
         const int cy = idx / width;

@@ -658,13 +658,39 @@ int main(int argc, char* argv[]) {
     // how V2's blank world survived a full suite.
     Scene scene;
     int scene_cells = 0;
-    auto stamp_scene = [&](const scene_list::SceneDef& def) {
+
+    // **The world's size and paradigm are now variables, not the two constants
+    // at the top of this file** (`V26`, 2026-08-24). `boot::GRID_WIDTH/HEIGHT`
+    // are still the engine default and still what `Run` is built with; a scene
+    // row may replace them, and everything downstream of the camera has to be
+    // stated against these rather than against the constants. **A site left
+    // reading `GRID_WIDTH` after a scene of a different size loads is not a
+    // cosmetic slip** - it either clamps the camera to the wrong rectangle or
+    // uploads pixels from outside the grid.
+    int world_w = GRID_WIDTH;
+    int world_h = GRID_HEIGHT;
+    bool world_infinite = false;
+    //
+    // **Loading the art and stamping it are two steps as of `V26`, and the split
+    // is forced rather than tidy.** A scene may now size the world, and when it
+    // does not state a size the size *is* the material BMP's - which cannot be
+    // known until the BMP is open. Stamping requires a grid of the right size,
+    // and the grid cannot be sized until the BMP is read, so the read has to
+    // come first. `activate_scene` is the only caller and runs them in that
+    // order; nothing else may call one without the other.
+    auto load_scene_art = [&](const scene_list::SceneDef& def) {
         scene = Scene{};
         scene_cells = 0;
         if (!def.declared_empty()) {
             scene = load_scene_from_bmp(("assets/" + def.material).c_str(),
                                         ("assets/" + def.albedo).c_str());
-            if (scene.width > 0) scene_cells = load_scene(run.grid, scene, 0, 0);
+        }
+    };
+
+    auto stamp_scene = [&](const scene_list::SceneDef& def) {
+        scene_cells = 0;
+        if (!def.declared_empty() && scene.width > 0) {
+            scene_cells = load_scene(run.grid, scene, 0, 0);
         }
         std::printf("Scene: %s, %dx%d, %d cells placed\n", def.name.c_str(),
                     scene.width, scene.height, scene_cells);
@@ -824,7 +850,20 @@ int main(int argc, char* argv[]) {
         active_scene = index;
         const scene_list::SceneDef& def = scenes[static_cast<size_t>(index)];
 
-        run.reset(world_seed);
+        // **The size, in the order the answers are trusted** (`V26`): the row
+        // says so, or the material BMP does, or it is the engine default. The
+        // BMP comes second rather than first because an author who wrote a size
+        // meant it - a scene may legitimately be larger than the image stamped
+        // into its corner - and the default comes last because it is the only
+        // one of the three that is not a fact about this scene.
+        load_scene_art(def);
+        world_infinite = def.is_infinite();
+        world_w = def.custom_width  > 0 ? def.custom_width
+                : (scene.width  > 0 ? scene.width  : GRID_WIDTH);
+        world_h = def.custom_height > 0 ? def.custom_height
+                : (scene.height > 0 ? scene.height : GRID_HEIGHT);
+
+        run.reset(world_seed, world_w, world_h);
         stamp_scene(def);
         spawn_player(def);
         place_objective_for(def);
@@ -835,6 +874,12 @@ int main(int argc, char* argv[]) {
         // anything. Same argument as `restart_run`'s, and the reason that
         // function now delegates here rather than re-stamping on its own.
         recording.steps.clear();
+        // **Re-stated here as well as at boot, because a scene may now resize
+        // the grid.** A header naming the old dimensions would describe a world
+        // the log cannot replay into, which is the exact failure `P4` put a
+        // fingerprint in this header to catch.
+        recording.header.grid_w = run.grid.get_width();
+        recording.header.grid_h = run.grid.get_height();
         recording.header.scene_cells = scene_cells;
         recording.header.start_fingerprint = input_log::fingerprint(run.grid);
         recording_full = false;
@@ -1173,7 +1218,7 @@ int main(int argc, char* argv[]) {
                         debug.detach_camera(static_cast<float>(run.player.center_x()),
                                             static_cast<float>(run.player.center_y()),
                                             mode.padded_w(), mode.padded_h(),
-                                            GRID_WIDTH, GRID_HEIGHT);
+                                            world_w, world_h);
                     }
                 }
                 // **F7 cycles to the next scene in `assets/scenes.txt`.**
@@ -1289,7 +1334,7 @@ int main(int argc, char* argv[]) {
                                 (fast ? DebugView::PAN_FAST_MULTIPLIER : 1.0f) *
                                 static_cast<float>(frame_time);
             debug.pan(pan_x * speed, pan_y * speed, mode.padded_w(), mode.padded_h(),
-                      GRID_WIDTH, GRID_HEIGHT);
+                      world_w, world_h);
         }
 
         // The viewport follows the player, clamped at the world's edges
@@ -1301,11 +1346,16 @@ int main(int argc, char* argv[]) {
         // means: `Camera` is unchanged and still owns every conversion and the
         // clamp, it is simply handed a different centre.
         if (debug.free_camera) {
+            // **The free camera stays clamped even in an infinite scene**, and
+            // that is not an oversight: `debug.pan` already clamps its own
+            // centre to the world rect, so an unclamped `follow` here would
+            // disagree with the thing feeding it. T1's camera is for inspecting
+            // the world that exists.
             camera.follow(debug.cam_x, debug.cam_y,
-                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+                          mode.padded_w(), mode.padded_h(), world_w, world_h);
         } else {
-            camera.follow(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
-                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+            camera.follow_mode(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
+                               mode.padded_w(), mode.padded_h(), world_w, world_h, world_infinite);
         }
 
         // Handle continuous mouse pressing
@@ -1407,8 +1457,12 @@ int main(int argc, char* argv[]) {
         // and applying it to a free camera would drag the view towards the
         // player it was detached from.
         if (!debug.free_camera) {
-            camera.follow(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
-                          mode.padded_w(), mode.padded_h(), GRID_WIDTH, GRID_HEIGHT);
+            // **`follow_mode` and not `follow`, for the reason stated at
+            // `VERTICAL_ANCHOR`**: this is the second of the two aiming calls in
+            // one rendered frame, and a framing rule applied at one of them and
+            // not the other tears the backdrop against the world every frame.
+            camera.follow_mode(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
+                               mode.padded_w(), mode.padded_h(), world_w, world_h, world_infinite);
         }
 
         // Upload only the visible rect (F3.3), not the whole grid, starting
@@ -1431,8 +1485,8 @@ int main(int argc, char* argv[]) {
         // plane, which is every row above the horizon, is a straight copy, and
         // when the tile failed to load the whole pass is one.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
-        const int visible_w = std::min(mode.padded_w(), GRID_WIDTH);
-        const int visible_h = std::min(mode.padded_h(), GRID_HEIGHT);
+        const int visible_w = std::min(mode.padded_w(), run.grid.get_width());
+        const int visible_h = std::min(mode.padded_h(), run.grid.get_height());
         const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
 
         // Which tile row each window row of cells is looking at, or -1 for the
@@ -1453,7 +1507,33 @@ int main(int argc, char* argv[]) {
         const float band = plane.bottom_y - plane.horizon_y;
         plane_src_row_for.assign(static_cast<size_t>(visible_h), -1);
         plane_row_scale.assign(static_cast<size_t>(visible_h), 0);
-        for (int wy = 0; wy < visible_h; ++wy) {
+
+        // V25's near-ground pass, off since 2026-08-24. Leaving every row at -1
+        // is the pass's own "no tile" path, so `apply` degrades to the straight
+        // copy the upload did before V25 existed - no second code path, and
+        // turning it back on is this one constant.
+        //
+        // **Why it is off: at full strength the pass does not tint a cell, it
+        // replaces it.** `weight_at_depth` returns 255 for every cell 4 or more
+        // rows below the air in its own column, and `blend(from, to, 255)` is
+        // `to` exactly - so on any row below the horizon, all matter under a
+        // four-cell top crust is painted the ground tile's row colour, which is
+        // the same colour for every column in that row. The tester's report on
+        // 2026-08-24 was that material placed or fallen below the horizon is
+        // invisible, and that is what it is: it is being drawn in the backdrop's
+        // own colour. On the old fixture scene this read as recession because
+        // the terrain below the crust really was scenery; on a scene whose
+        // subject is the material the player puts down, it erases the subject.
+        //
+        // Not retuned, because V25 is suspended (ROADMAP.md) pending the
+        // hand-made layers, and a cap on the weight would be tuning a value
+        // chain that is being replaced. The finding that has to survive into
+        // whatever replaces it: **the ramp needs a floor that keeps material
+        // identity, or a bound that separates world terrain from placed
+        // material, before full strength can ever mean 255 again.**
+        constexpr bool PLANE_ON_NEAR_TERRAIN = false;
+
+        for (int wy = 0; PLANE_ON_NEAR_TERRAIN && wy < visible_h; ++wy) {
             // The centre of the cell row, in screen pixels, including the
             // camera's sub-cell remainder - the same shift draw_cells applies to
             // the texture this feeds. Sampling the top edge instead would bias
@@ -1484,7 +1564,7 @@ int main(int argc, char* argv[]) {
             ground_rows.empty() ? nullptr : ground_rows.data(),
             static_cast<int>(ground_rows.size() / 3)
         };
-        surface_plane::apply(pixels.data(), GRID_WIDTH, GRID_HEIGHT, view,
+        surface_plane::apply(pixels.data(), run.grid.get_width(), run.grid.get_height(), view,
                              tile_rows, plane_src_row_for.data(), plane_row_scale.data(),
                              ground_grade.r, ground_grade.g, ground_grade.b,
                              cell_depth.data(), cell_window.data());
@@ -1519,6 +1599,9 @@ int main(int argc, char* argv[]) {
         fp.camera = &camera;
         fp.padded_w = mode.padded_w();
         fp.padded_h = mode.padded_h();
+        fp.is_infinite = world_infinite;
+        fp.world_w = world_w;
+        fp.world_h = world_h;
         fp.backdrop = backdrop;
         fp.props = &props;
         fp.cells = targets.cells;

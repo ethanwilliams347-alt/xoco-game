@@ -7,9 +7,17 @@
 # spawn is `terrain` (stand on the ground under the spawn column) or `floor`
 # (stand on the world border). A scene naming no material map must use `floor`,
 # because it has no terrain to scan.
+#
+# Three optional fields follow (V26, 2026-08-24): `mode`, then `width height` as
+# a pair. mode is `fixed` (solid world borders, camera clamped, each backdrop
+# layer panned across its own width exactly once so nothing repeats) or
+# `infinite` (unbounded horizontal travel, backdrop layers tiled). Omitted, a
+# row means `fixed`, which is what every row written before the column existed
+# meant. Omitted, the size is the material BMP's own, or the engine default for
+# a scene that names no BMP.
 
-# name     material           albedo           props           spawn
-empty      -                  -                -               floor
+# name     material           albedo           props           spawn    mode      width  height
+empty      -                  -                -               floor    infinite  1920   1080
 
 # --- archived ---------------------------------------------------------------
 #
@@ -32,3 +40,15 @@ empty      -                  -                -               floor
 #     row, the check is the *name* on the line, not the number after it.
 #
 # fixture    test_material.bmp  test_albedo.bmp  test_props.txt  terrain
+#
+# **A large fixed scene is archived here too, and it is archived rather than
+# active on purpose (V26, 2026-08-24).** The mode column exists so a bounded
+# world larger than the engine default can be authored; this row is what that
+# looks like, and it is left commented because the note above still stands -
+# `empty` is the only active scene while the backdrop track is being looked at,
+# and uncommenting this one puts retired art back in front of the camera and
+# back on F7's cycle. It also reuses the fixture's BMPs at twice the world size,
+# so the stamped terrain covers the top-left corner and the rest is open air -
+# fine for exercising the camera clamp and the backdrop pan, not a location.
+#
+# large_canyon  test_material.bmp  test_albedo.bmp  test_props.txt  terrain  fixed  3840  1440

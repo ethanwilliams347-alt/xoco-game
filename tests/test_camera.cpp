@@ -141,5 +141,78 @@ int main() {
                   std::to_string(camera.world_to_screen_x(0.0f)));
     }
 
+    // --- V26: the two scene paradigms ----------------------------------------
+    //
+    // **`follow` and `follow_mode(..., false)` must be the same framing**, and
+    // that is asserted rather than assumed because `follow` is what every
+    // recorded session and the golden fixture go through. If the delegation ever
+    // stops being a delegation, every `.rec` in the repo reframes silently.
+    {
+        Camera a, b;
+        a.follow(960.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
+        b.follow_mode(960.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H, false);
+        check("follow is follow_mode with the bounded rule",
+              near(a.view_fx(), b.view_fx()) && near(a.view_fy(), b.view_fy()), "");
+    }
+
+    // An infinite scene drops the *horizontal* clamp and only that one. Both
+    // halves are checked at once, because the failure worth catching is the
+    // vertical clamp being dropped along with it - the texture upload reads rows
+    // out of the grid, so a view above the world is a read outside it.
+    {
+        Camera far_left, far_right, high;
+        far_left.follow_mode(-5000.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H, true);
+        check("an infinite scene does not clamp at the left border",
+              far_left.view_fx() < 0.0f, std::to_string(far_left.view_fx()));
+
+        far_right.follow_mode(50000.0f, cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H, true);
+        check("nor at the right one",
+              far_right.view_fx() > static_cast<float>(WORLD_W - VIEWPORT_W),
+              std::to_string(far_right.view_fx()));
+
+        high.follow_mode(960.0f, -900.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H, true);
+        check("but the world still has a ceiling", near(high.view_fy(), 0.0f),
+              std::to_string(high.view_fy()));
+
+        Camera low;
+        low.follow_mode(960.0f, 100000.0f, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H, true);
+        check("and a floor",
+              near(low.view_fy(), static_cast<float>(WORLD_H - VIEWPORT_H)),
+              std::to_string(low.view_fy()));
+    }
+
+    // **The identity `render/frame.cpp`'s fixed-scene branch rests on, in
+    // numbers.** The golden fixture cannot show it - its synthetic layers are
+    // deliberately not pan-sized - so this is the instrument that stands in for
+    // a no-op run of that change: for a layer sized the way
+    // `tools/generate_backdrop.py` sizes one, `window + pan_range * factor`, the
+    // normalized pan `-u * (w - window)` and the factor form
+    // `parallax_origin_x(factor)` are the same number at every camera position.
+    // A shipped backdrop therefore moved by nothing when the branch was added.
+    {
+        constexpr float FACTOR = 0.15f;
+        const int window_w = VIEWPORT_W * Camera::SCALE;
+        const int pan_px = (WORLD_W - VIEWPORT_W) * Camera::SCALE;
+        const int layer_w = window_w + static_cast<int>(static_cast<float>(pan_px) * FACTOR);
+        const float max_cam_x = static_cast<float>(WORLD_W - VIEWPORT_W);
+        const float span_x = static_cast<float>(layer_w - window_w);
+
+        bool agree = true;
+        float worst = 0.0f;
+        for (int centre = 0; centre <= WORLD_W; centre += 37) {
+            Camera c;
+            c.follow(static_cast<float>(centre), cy, VIEWPORT_W, VIEWPORT_H, WORLD_W, WORLD_H);
+            const float normalized = -(c.view_fx() / max_cam_x) * span_x;
+            const float factored = c.parallax_origin_x(FACTOR);
+            // A pixel of slack, and it is the rounding in `layer_w` above rather
+            // than in either formula: the generator writes a whole-pixel image.
+            const float d = std::fabs(normalized - factored);
+            if (d > worst) worst = d;
+            if (d > 1.0f) agree = false;
+        }
+        check("the normalized pan and the parallax factor agree on a pan-sized layer",
+              agree, "worst disagreement " + std::to_string(worst) + " px");
+    }
+
     return report();
 }

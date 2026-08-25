@@ -1,5 +1,6 @@
 #include "render/surface_plane.h"
 
+#include <algorithm>
 #include <vector>
 
 namespace surface_plane {
@@ -36,7 +37,7 @@ void average_rows(const uint32_t* pixels, int w, int h, std::vector<uint8_t>& ou
 }
 
 void depth_map(const uint32_t* grid_pixels, int grid_w, int grid_h,
-               const View& v, int* depth) {
+               const View& v, int* depth, int* run_scratch) {
     if (!grid_pixels || !depth || v.w <= 0 || v.h <= 0) return;
 
     int start = v.view_y - DEPTH_END;
@@ -44,7 +45,18 @@ void depth_map(const uint32_t* grid_pixels, int grid_w, int grid_h,
 
     // The running counter, one per visible column. `DEPTH_END` doubles as
     // "at least this deep", which is all the caller can use it for.
-    std::vector<int> run(static_cast<size_t>(v.w), -1);
+    //
+    // Caller-owned when it can be: this runs once a frame at window width, and
+    // a fresh vector each time is an allocation on the render path for a buffer
+    // whose contents never outlive the call.
+    std::vector<int> local_run;
+    int* run = run_scratch;
+    if (run == nullptr) {
+        local_run.assign(static_cast<size_t>(v.w), -1);
+        run = local_run.data();
+    } else {
+        std::fill(run, run + v.w, -1);
+    }
 
     for (int y = start; y < v.view_y + v.h; ++y) {
         if (y < 0 || y >= grid_h) {
@@ -58,7 +70,7 @@ void depth_map(const uint32_t* grid_pixels, int grid_w, int grid_h,
         for (int x = 0; x < v.w; ++x) {
             const int gx = v.view_x + x;
             const bool matter = gx >= 0 && gx < grid_w && is_matter(src[gx]);
-            int& r = run[static_cast<size_t>(x)];
+            int& r = run[x];
             if (!matter) r = -1;
             else if (y == start) r = DEPTH_END;          // air above never looked at
             else if (r < 0) r = 0;                        // this cell is the surface
@@ -66,7 +78,7 @@ void depth_map(const uint32_t* grid_pixels, int grid_w, int grid_h,
         }
         if (y >= v.view_y) {
             int* row = depth + static_cast<size_t>(y - v.view_y) * v.w;
-            for (int x = 0; x < v.w; ++x) row[x] = run[static_cast<size_t>(x)];
+            for (int x = 0; x < v.w; ++x) row[x] = run[x];
         }
     }
 }
@@ -81,7 +93,17 @@ void apply(const uint32_t* grid_pixels, int grid_w, int grid_h,
     // One pass over the window, before any pixel is touched. See the note at
     // depth_map: this is the whole reason the pass is affordable, and it is also
     // the quantity the first draft got wrong.
-    depth_map(grid_pixels, grid_w, grid_h, v, scratch);
+    //
+    // The run buffer is the *last* row of `scratch`, which costs nothing and is
+    // safe for one reason only: `depth_map` writes each output row on the single
+    // pass that produces it, top to bottom, so row `v.h - 1` is not touched until
+    // the final iteration - at which point that row's copy is `run` to itself and
+    // `run` is dead immediately after. **The aliasing is exact, not approximate,
+    // and it is the reason `depth_map`'s loop must stay top-to-bottom and must
+    // keep writing each row once.** Anything that reorders it has to give this
+    // its own buffer instead.
+    depth_map(grid_pixels, grid_w, grid_h, v, scratch,
+              scratch + static_cast<size_t>(v.h - 1) * v.w);
 
     for (int wy = 0; wy < v.h; ++wy) {
         const int gy = v.view_y + wy;

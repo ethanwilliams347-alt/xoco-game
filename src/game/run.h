@@ -93,7 +93,27 @@ public:
     // a real sharp edge and it is the caller's, not this class's; the argument
     // for leaving it there rather than giving `Run` the scene is in
     // ENGINEERING_NOTES.md, along with what would make it come due.
-    void reset(uint64_t seed);
+    // **The size arguments are `V26`, 2026-08-24, and they are the one way a
+    // grid's dimensions can change at all.** `Grid::reset` cannot resize and
+    // deliberately says so; a scene list whose rows name different world sizes
+    // needs *some* path that can, and the choice is between this and tearing the
+    // whole `Run` down at the call site. It is here because the call site is
+    // `main.cpp`, which holds a `Run&` threaded through several lambdas - a
+    // rebuild there would leave every one of them pointing at a dead object.
+    //
+    // 0 means "keep the size", not "a world of no cells", so every existing
+    // caller and every recorded session is unaffected: `reset(seed)` still
+    // wipes in place through `Grid::reset` and reallocates nothing.
+    //
+    // **A resize is a heavier reset than a wipe and the difference is
+    // observable.** `Grid::reset`'s documented exception - `vent_radius`
+    // surviving, because it is configuration rather than world state - does not
+    // survive a resize, because the grid is a new object. That is stated rather
+    // than fixed: carrying it across would mean the new grid is not a fresh
+    // `Grid(w, h, seed)`, which is the one thing the reset contract promises.
+    // A caller that has configured a vent radius re-applies it after changing
+    // scene, the same way it re-stamps the terrain.
+    void reset(uint64_t seed, int new_width = 0, int new_height = 0);
 
     // Advances grid, player and dig tool by exactly one fixed step, in that
     // order - matching the order `main.cpp` ran them in before this step

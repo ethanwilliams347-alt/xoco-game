@@ -4,21 +4,37 @@
 
 namespace {
 
-// floor(sqrt(v)) for v >= 0, by Newton's method on integers. Exact: the loop
-// descends to the largest x with x*x <= v and stops there.
+// floor(sqrt(v)) for v >= 0, digit by digit in binary. Exact: it settles on the
+// largest root with root*root <= v, the same value Newton's method here used to
+// return -- checked against every v below 200000 and 200000 random 62-bit ones
+// before the swap, so this is a like-for-like replacement and not a retune.
 //
 // Not `std::sqrt` cast to int, and the difference is the point of F6 -- a
 // library sqrt is a float result, and a float result one bit low turns an exact
 // square into the integer below it on one toolchain and not on another.
+//
+// Binary rather than Newton because Newton ran an `idiv` per iteration and this
+// runs none: shifts, adds and compares only. That also makes its cost flat and
+// its result obviously the same everywhere, which matters more here than the
+// speed does -- integer division is the one arithmetic op whose latency varies
+// most between machines this may ever be built on.
 long long isqrt(long long v) {
     if (v <= 0) return 0;
-    long long x = v;
-    long long next = (x + 1) / 2;
-    while (next < x) {
-        x = next;
-        next = (x + v / x) / 2;
+    unsigned long long n = static_cast<unsigned long long>(v);
+    unsigned long long root = 0;
+    unsigned long long bit = 1ULL << 62; // highest even power of four in 64 bits
+
+    while (bit > n) bit >>= 2;
+    while (bit != 0) {
+        if (n >= root + bit) {
+            n -= root + bit;
+            root = (root >> 1) + bit;
+        } else {
+            root >>= 1;
+        }
+        bit >>= 2;
     }
-    return x;
+    return static_cast<long long>(root);
 }
 
 // a/b rounded to nearest with halves away from zero, for b > 0. The integer

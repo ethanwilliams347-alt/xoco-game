@@ -171,8 +171,14 @@ struct View {
 // bound is not an approximation: anything deeper has weight 0 whatever the exact
 // number is. Cells in the seed row are treated as already that deep, which is
 // the only honest answer when the air above them was never looked at.
+//
+// `run_scratch`, if given, is `v.w` ints the pass uses as its per-column running
+// counter, so a per-frame caller allocates nothing. Its contents on entry do not
+// matter - it is filled with -1 first - and its contents on exit are the last
+// visible row of `depth`. Pass nullptr and the buffer is allocated locally,
+// which is what the tests and the probes do.
 void depth_map(const uint32_t* grid_pixels, int grid_w, int grid_h,
-               const View& v, int* depth);
+               const View& v, int* depth, int* run_scratch = nullptr);
 
 // Copy the visible rect out of the grid's pixel buffer, blending the near
 // terrain toward the plane on the way.

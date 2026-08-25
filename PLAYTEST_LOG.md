@@ -752,6 +752,49 @@ Step 11 re-run because the layer table changed shape; no seam at the pan limit.
 Symptoms only, as ever. What the numbers are and why they are those numbers is in
 TUNING.md's "Depth grading" section and at step 3 in ROADMAP_ITEMS.md.
 
+## Spot check — 2026-08-24 — V26's two scene paradigms, first human look
+
+The two checks V26 put on MANUAL_TESTING.md, run the day the mechanism landed.
+Neither is a numbered checklist step and neither names a regression that has
+happened — they are the first time either paradigm has been seen at all.
+Reported verbatim:
+
+```
+did manual checks looks fine
+```
+
+**Both came back, and the second one had a setup step the tester performed.**
+`empty` is the infinite scene and is what ships, so that half needed nothing; the
+fixed half had no active scene to walk, because the `large_canyon` row is
+archived commented-out in `assets/scenes.txt`. **The tester uncommented it, walked
+it, and put it back** — confirmed on a follow-up question rather than assumed,
+and the manifests are back to one active row. That question was worth asking:
+this file already records the 2026-08-24 session where four answers arrived
+about the wrong scene because a setup step was buried, and "looks fine" against a
+world with no fixed scene in it would have been the same failure with the roles
+reversed.
+
+**What was being watched for, so a later reader knows what a pass here covers.**
+On the infinite scene: that the camera keeps going past cell 1920 instead of
+stopping, and that the sky and mountains repeat with no vertical seam and no
+one-pixel gap where two copies meet. On the fixed scene: that the camera stops
+dead at each border, and that at the moment it stops the backdrop layer's own
+edge is flush with the window's — no repeat, no strip of the clear colour, no art
+running out.
+
+**What a pass here does not cover, and it is worth being exact rather than
+letting this read as broader than it is.** No seam was reported, but the tiling
+defect this is aimed at shows up hundreds of thousands of pixels from the origin
+where a float's spacing is no longer 1, not near the spawn — how far the tester
+actually walked is not recorded, and nobody asked. The arithmetic half is held by
+`backdrop_test`'s property sweeps, which is where that guarantee actually lives.
+And the fixed scene walked was fixture art at twice its own size, so most of that
+world is open air; it exercises the camera clamp and the backdrop pan, which is
+what it was for, and it says nothing about how a real authored panorama reads.
+
+Symptoms only. The mechanism, the numbers and the layout identity the shipped
+frame rests on are under V26 in ROADMAP.md.
+
 ## Gate screenshot — 2026-08-16 — does terrain fill the mid-ground band?
 
 V19's own precondition, asked before any band was authored. The question is the
@@ -1300,5 +1343,36 @@ thing in the file.
 **6. A direction arrived unasked**, as observations often do here: the scene is
 to be built up from hand-made layers, authored in Pixquare on iPad and
 LibreSprite on PC. That is scope, not a symptom, and it is in VISION.md.
+
+Symptoms only. What it closes is in ROADMAP.md.
+
+---
+
+## Session 15 - 2026-08-24: material below the horizon is not there
+
+### What came back
+
+Unprompted, on the `empty` scene:
+
+> any material placed or that falls under the horizon is invisible
+
+### What is in that
+
+**1. It is about material the tester put down, not about terrain.** The scene is
+`empty` and stamps no cells, so everything in the frame below the horizon is
+something the tester placed or dropped. The report is that it does not appear.
+
+**2. The horizon is named in it, and that is the whole of the locating
+information.** Above the horizon material shows; below it, it does not. The
+tester did not say whether thin material differs from thick, and that question
+was not put to them - so "invisible" is recorded as written and not narrowed to
+"its interior is invisible", which is what the analysis concluded and is not
+what was observed.
+
+**3. This is the first report taken against `empty` rather than against the
+fixture**, and it is the first symptom the scene rebuild has produced rather than
+inherited. Session 14's four answers were about a frame with no terrain in it and
+were not counted; this one is about a frame the tester filled themselves, which
+is what the rebuild is heading toward.
 
 Symptoms only. What it closes is in ROADMAP.md.

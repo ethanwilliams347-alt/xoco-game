@@ -114,7 +114,62 @@ int main() {
     }
     {
         const Result r = parse(GOOD + "extra - - - floor sixth\n");
-        check("a sixth field is an error, not something to ignore", r.rejected(), r.error);
+        check("a sixth field that is not a mode is an error, not something to ignore",
+              r.rejected(), r.error);
+    }
+
+    // --- V26's optional columns ----------------------------------------------
+    //
+    // **The thing being tested here is that "optional" did not become
+    // "tolerant".** The five required fields are all-or-nothing and the three
+    // new ones are absent-or-exact; a parser that fell back to the default on an
+    // unreadable mode or a lone width would produce a world of the wrong size
+    // that loads and says nothing, which is the failure every other check in
+    // this file is about, arriving through the newest door.
+    {
+        const Result r = parse("plain - - - floor\n");
+        check("a row written before the mode column existed is fixed",
+              r.scenes.size() == 1 && !r.scenes[0].is_infinite(), r.error);
+        check("and states no size, rather than inventing one",
+              r.scenes.size() == 1 && r.scenes[0].custom_width == 0 &&
+              r.scenes[0].custom_height == 0);
+    }
+    {
+        const Result r = parse("far - - - floor infinite\n");
+        check("a mode with no size parses", r.scenes.size() == 1 &&
+              r.scenes[0].is_infinite() && r.scenes[0].custom_width == 0, r.error);
+    }
+    {
+        const Result r = parse("big test_material.bmp test_albedo.bmp - terrain fixed 3840 1440\n");
+        check("a fixed row carries its own world size",
+              r.scenes.size() == 1 && !r.scenes[0].is_infinite() &&
+              r.scenes[0].custom_width == 3840 && r.scenes[0].custom_height == 1440,
+              r.error);
+    }
+    {
+        const Result r = parse("half - - - floor fixed 3840\n");
+        check("a width with no height is refused, because half a size is not a size",
+              r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("odd - - - floor sideways 100 100\n");
+        check("an unknown mode is refused rather than defaulted", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("zero - - - floor fixed 0 100\n");
+        check("a world of no cells is refused", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("neg - - - floor fixed -8 100\n");
+        check("and so is a negative one", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("wordy - - - floor fixed wide tall\n");
+        check("a size that is not a number is refused", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("toomuch - - - floor fixed 100 100 extra\n");
+        check("a ninth field is still an error", r.rejected(), r.error);
     }
     {
         const Result r = parse("fixture - - - floor\nfixture - - - floor\n");

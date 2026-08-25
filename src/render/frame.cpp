@@ -1,4 +1,6 @@
 ﻿#include "render/frame.h"
+
+#include <algorithm>
 #include "render/backdrop_layers.h"
 #include "render/backdrop_wrap.h"
 #include "render/player_sprite.h"
@@ -77,26 +79,83 @@ void draw_clear(SDL_Renderer* renderer, const Params&, const Grade& g) {
 // V11. Full-texture draws with a negative destination offset rather than a
 // cropped source rect: the art is static, so there is nothing to re-upload per
 // frame, only where it is drawn needs to move.
-void draw_backdrop_layer(SDL_Renderer* renderer, const Camera& camera,
+//
+// **Two layouts, and they agree wherever the shipped art is concerned.** That
+// is the fact worth having in front of you before editing either branch, and it
+// is arithmetic rather than a hope:
+//
+//   `tools/generate_backdrop.py` sizes a pan-sized layer as
+//   `window + pan_range * factor`, where `pan_range = (world_w - padded_w) *
+//   SCALE`. So `w - window_w` *is* `pan_range * factor`, and the fixed branch's
+//   `u_x * span_x` expands to `view_fx * SCALE * factor` - which is
+//   `Camera::parallax_origin_x` exactly. The normalized form is the same pan,
+//   stated as a fraction of the world instead of as a factor on the camera.
+//
+// They stop agreeing exactly where the old form was wrong: a layer that is *not*
+// sized to the pan range. The factor form keeps sliding and runs off the end of
+// the image, leaving the clear colour at the pan limit; the normalized form maps
+// whatever width the image has across the whole pan, so the left edge is flush
+// at the left border and the right edge flush at the right one whatever the art
+// happens to be. That is what makes a large authored fixed scene possible
+// without re-deriving a factor per image.
+//
+// The infinite branch is the one that cannot be stated as a fraction at all,
+// because there is no `max_cam_x` to divide by. It keeps the factor form and
+// tiles the result through `backdrop_wrap::wrap_axis`, the same call the ground
+// plane already makes.
+void draw_backdrop_layer(SDL_Renderer* renderer, const Params& p,
                          SDL_Texture* tex, int w, int h,
                          const backdrop_layers::Layer& layer, const Grade& g) {
     if (!tex) return;
     apply_grade(tex, g);
+
+    const Camera& camera = *p.camera;
+    const int window_w = p.padded_w * Camera::SCALE;
+    const int window_h = p.padded_h * Camera::SCALE;
+
+    if (p.is_infinite) {
+        const backdrop_wrap::Tiling t = backdrop_wrap::wrap_axis(
+            camera.parallax_origin_x(layer.parallax_x), w, window_w);
+        const float origin_y = camera.parallax_origin_y(layer.parallax_y);
+        for (int c = 0; c < t.count; ++c) {
+            const SDL_FRect dst{
+                t.first + static_cast<float>(c * w), origin_y,
+                static_cast<float>(w), static_cast<float>(h)
+            };
+            SDL_RenderCopyF(renderer, tex, nullptr, &dst);
+        }
+        return;
+    }
+
+    // `max(1, ...)` and not `max(0, ...)`: this is a divisor, and a world no
+    // bigger than the viewport has a pan range of zero. Dividing by 1 there
+    // gives `u = 0` for every camera position the world can reach, which is the
+    // right answer - a world that cannot scroll shows the layer's left edge.
+    const float max_cam_x = static_cast<float>(std::max(1, p.world_w - p.padded_w));
+    const float max_cam_y = static_cast<float>(std::max(1, p.world_h - p.padded_h));
+
+    const float u_x = std::clamp(camera.view_fx() / max_cam_x, 0.0f, 1.0f);
+    const float u_y = std::clamp(camera.view_fy() / max_cam_y, 0.0f, 1.0f);
+
+    // A layer no larger than the window has nothing to pan across and is pinned
+    // at the origin, rather than being pulled off screen by a negative span.
+    const float span_x = static_cast<float>(std::max(0, w - window_w));
+    const float span_y = static_cast<float>(std::max(0, h - window_h));
+
     const SDL_FRect dst{
-        camera.parallax_origin_x(layer.parallax_x),
-        camera.parallax_origin_y(layer.parallax_y),
+        -u_x * span_x, -u_y * span_y,
         static_cast<float>(w), static_cast<float>(h)
     };
     SDL_RenderCopyF(renderer, tex, nullptr, &dst);
 }
 
 void draw_sky(SDL_Renderer* renderer, const Params& p, const Grade& g) {
-    draw_backdrop_layer(renderer, *p.camera, p.backdrop.sky,
+    draw_backdrop_layer(renderer, p, p.backdrop.sky,
                         p.backdrop.sky_w, p.backdrop.sky_h, backdrop_layers::SKY, g);
 }
 
 void draw_mountains(SDL_Renderer* renderer, const Params& p, const Grade& g) {
-    draw_backdrop_layer(renderer, *p.camera, p.backdrop.mountains,
+    draw_backdrop_layer(renderer, p, p.backdrop.mountains,
                         p.backdrop.mountain_w, p.backdrop.mountain_h,
                         backdrop_layers::MOUNTAINS, g);
 }

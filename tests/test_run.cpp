@@ -569,5 +569,43 @@ int main() {
               "different world than it was recorded in");
     }
 
+    // --- V26: a reset may change the world's size ----------------------------
+    //
+    // **The check that matters is the *absence* of a change**, not the presence
+    // of one. `reset(seed)` is what every existing caller and every recorded
+    // session goes through, and the size arguments default to 0 meaning "keep
+    // it"; a defaulted resize would silently reallocate the grid on every restart
+    // and quietly drop `Grid::reset`'s documented `vent_radius` exception with it.
+    {
+        Run r(120, 80, 909);
+        r.reset(909);
+        check("a reset with no size stated keeps the size",
+              r.grid.get_width() == 120 && r.grid.get_height() == 80);
+
+        r.reset(909, 120, 80);
+        check("and so does a reset to the size it already has",
+              r.grid.get_width() == 120 && r.grid.get_height() == 80);
+
+        r.reset(909, 300, 150);
+        check("a stated size resizes the grid",
+              r.grid.get_width() == 300 && r.grid.get_height() == 150,
+              std::to_string(r.grid.get_width()) + "x" +
+                  std::to_string(r.grid.get_height()));
+        check("and the resized world is a fresh one, not a stretched one",
+              input_log::fingerprint(r.grid) ==
+                  input_log::fingerprint(Grid(300, 150, 909)));
+        // The body is re-placed against the *new* world rather than left at a
+        // coordinate the old one happened to have. Left alone, a scene switch to
+        // a smaller world spawns the player outside it.
+        check("the body is re-placed inside the new world",
+              r.player.center_x() >= 0 && r.player.center_x() < 300 &&
+                  r.player.center_y() >= 0 && r.player.center_y() < 150);
+
+        // Half a size is not a size, at this boundary as well as at the parser's.
+        r.reset(909, 0, 400);
+        check("a height with no width changes nothing",
+              r.grid.get_width() == 300 && r.grid.get_height() == 150);
+    }
+
     return report();
 }

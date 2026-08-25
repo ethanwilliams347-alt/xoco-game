@@ -335,5 +335,29 @@ int main() {
         check("sweeping the window never writes past the buffer", ok);
     }
 
+    // --- the aliased run buffer ---------------------------------------------
+    //
+    // `apply` hands `depth_map` the last row of its own scratch as the running
+    // counter, which is only correct because the pass writes each output row
+    // once, top to bottom. Nothing else in this suite exercises that path -- the
+    // cases above all pass nullptr and get a private buffer -- so the aliasing
+    // is pinned here against the unaliased answer, sweeping the window so the
+    // partly-off-grid and far-below-surface shapes are both covered.
+    {
+        const int GW = 24, GH = 500;
+        const std::vector<uint32_t> g = flat_world(GW, GH, 120);
+        bool same = true;
+        for (int top = -20; top + 60 < GH && same; top += 7) {
+            const View v{0, top, GW, 60};
+            const size_t n_cells = static_cast<size_t>(v.w) * v.h;
+            std::vector<int> plain(n_cells, -99), aliased(n_cells, -99);
+            depth_map(g.data(), GW, GH, v, plain.data());
+            depth_map(g.data(), GW, GH, v, aliased.data(),
+                      aliased.data() + static_cast<size_t>(v.h - 1) * v.w);
+            same = (plain == aliased);
+        }
+        check("the aliased run buffer gives the same depths as a private one", same);
+    }
+
     return report();
 }

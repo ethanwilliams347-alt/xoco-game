@@ -2,7 +2,22 @@
 
 ## Questions
 
-**Nothing is owed to the tester right now, and that is a change made on
+**Nothing is owed to the tester right now.** V26's two checks were the last
+thing on this list and **both came back passed on 2026-08-24**, the day the
+mechanism landed — the infinite scene walked past the old world edge with the
+camera unclamped and the layers tiling, and a fixed scene walked to both borders
+with the camera stopping dead and the backdrop edge flush with the window's. The
+tester uncommented the archived `large_canyon` row to do the second one and put
+it back afterwards, so `empty` is again the only active scene. The words, and
+**what that pass does and does not cover**, are in
+[PLAYTEST_LOG.md](PLAYTEST_LOG.md#spot-check--2026-08-24--v26s-two-scene-paradigms-first-human-look)
+— the short version being that no seam was seen but nobody recorded how far was
+walked, and the arithmetic guarantee lives in `backdrop_test`, not here.
+
+*The paragraph below stood before V26 and is left as written, because what it
+withdrew is unrelated to what came back above.*
+
+**Nothing else is owed to the tester right now, and that is a change made on
 2026-08-24 rather than a quiet gap.** The five questions that stood here
 asked whether the ground reads as one continuous receding surface, and they
 are withdrawn on both of the grounds that can withdraw a question. **They

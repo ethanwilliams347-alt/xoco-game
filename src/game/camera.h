@@ -27,8 +27,36 @@ public:
     // fractional array index. The leftover is handed to the renderer as
     // `frac_x()` and paid out in screen pixels when the texture is drawn.
     void follow(float center_x, float center_y, int viewport_w, int viewport_h, int world_w, int world_h) {
-        view_fx_ = clamp_view(center_x - static_cast<float>(viewport_w) / 2.0f, viewport_w, world_w);
-        view_fy_ = clamp_view(center_y - static_cast<float>(viewport_h) * VERTICAL_ANCHOR, viewport_h, world_h);
+        follow_mode(center_x, center_y, viewport_w, viewport_h, world_w, world_h, false);
+    }
+
+    // The same framing, told which of `scene_list::SceneMode`'s two paradigms
+    // the world is - and it takes a `bool` rather than the enum on purpose,
+    // because `src/game/` must not start depending on the scene loader to
+    // position a viewport. The caller reads `SceneDef::is_infinite()` and hands
+    // over the answer.
+    //
+    // **Only the horizontal clamp is dropped, and never the vertical one.** An
+    // infinite scene is unbounded in travel, not in depth: the world still has
+    // a floor and a ceiling, and the texture upload in `main.cpp` reads rows
+    // out of the grid, so a view that scrolled off the top would be reading
+    // outside it. The horizontal case is different only because the upload
+    // already clamps its own source rect and the backdrop tiles.
+    //
+    // `follow` keeps its old signature and delegates here with `false`, so
+    // every existing caller and every recorded session frames identically -
+    // the bounded path below is the pre-existing two lines, unchanged.
+    void follow_mode(float center_x, float center_y,
+                     int viewport_w, int viewport_h,
+                     int world_w, int world_h,
+                     bool is_infinite) {
+        const float desired_y = center_y - static_cast<float>(viewport_h) * VERTICAL_ANCHOR;
+        if (is_infinite) {
+            view_fx_ = center_x - static_cast<float>(viewport_w) / 2.0f;
+        } else {
+            view_fx_ = clamp_view(center_x - static_cast<float>(viewport_w) / 2.0f, viewport_w, world_w);
+        }
+        view_fy_ = clamp_view(desired_y, viewport_h, world_h);
     }
 
     // **The vertical framing is not centred, and it is a constant rather than
@@ -115,6 +143,14 @@ public:
     // so the cell named here is always the one the fractional view sits inside
     // rather than the nearest one, which is what makes frac_x() below
     // non-negative and the render offset a shift in one direction only.
+    // The continuous view position, which is what a parallax layer that has to
+    // be *placed* rather than *offset* needs - the fixed-scene backdrop pan in
+    // frame.cpp divides it by the pan range. Exposed rather than reassembled by
+    // the caller from `view_x() + frac_x()`, for the reason
+    // `parallax_origin_x` already gives.
+    float view_fx() const { return view_fx_; }
+    float view_fy() const { return view_fy_; }
+
     int view_x() const { return floor_to_int(view_fx_); }
     int view_y() const { return floor_to_int(view_fy_); }
 

@@ -811,7 +811,25 @@ private:
     // what a collision costs.
     uint8_t next_piece_tag = 1;
 
+    // Hands out the next tag, skipping any that a piece still in the air is
+    // wearing. The bare counter was enough only while 255 landings could not
+    // happen inside one piece's flight; a long cascade makes that reachable,
+    // and the collision does not look like a bug - it silently welds two
+    // unrelated bodies into one piece, which is the failure Element::piece_tag
+    // warns about. Deterministic: it reads only `pending_support` and the
+    // counter, both of which are part of the simulation state.
+    uint8_t alloc_piece_tag();
+
     std::vector<int> fracture_component; // scratch, reused across breaks
+
+    // Column-lowest footprint scratch for fracture_landing(). A member rather
+    // than a local for the same reason as fracture_component: a slab landing
+    // re-enters this per piece, on the one step where the most work is already
+    // happening, and a fresh vector per call is a heap round trip on the
+    // simulation's critical path. Safe as a member because fracture_landing()
+    // is not re-entrant - it runs only from fall_if_unsupported(), which runs
+    // only from resolve_support(), and neither recurses.
+    std::vector<int> fracture_lowest;   // scratch, reused across breaks
 
     // True if (x, y) is held up from directly below - by the floor of the world,
     // or by something solid that is not part of the same structure. Powders
@@ -860,6 +878,15 @@ private:
     std::vector<int> pending_support;
     std::vector<int> support_stack;     // scratch, reused across fills
     std::vector<int> support_component; // scratch, reused across fills
+
+    // The two working queues of resolve_support(): the seeds taken for the pass
+    // in hand, and the ones too slow for it. Members rather than locals so the
+    // capacity survives the step - a structural cascade calls this every step
+    // and would otherwise allocate both from scratch each time. Both are
+    // cleared at the top of resolve_support(), so nothing carries between
+    // steps; only the storage does.
+    std::vector<int> support_seeds;
+    std::vector<int> support_deferred;
 
     // Per-cell "seen this pass" marker. One byte and an epoch counter rather
     // than a bool array that would need clearing every time; the whole thing is

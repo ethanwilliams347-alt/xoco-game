@@ -318,6 +318,21 @@ Newest first. One line per retune: what moved, and what was being fixed.
   `session_4_digging_fluids_fire.rec` survives. **Owed to a playtest**, and it is
   the gate question a seventh time.
 
+- **2026-08-24** — **V26: the golden checksum moves and nothing was tuned.**
+  Frame `0x26881784d76b594f`, overlay `0xd23935ff7e756900`. **This is the entry
+  that says a checksum move is not always a retune**, which is why it is here at
+  all: no constant in this file changed, and the *shipped* frame is
+  pixel-identical. V26 gave the backdrop a second layout for bounded scenes —
+  each layer panned across its own width once instead of offset by a parallax
+  factor — and the two are algebraically the same for a layer sized `window +
+  pan_range * factor`, which is every layer `tools/generate_backdrop.py` writes.
+  `golden_frame_test`'s fixture deliberately uses layers that are *not* sized
+  that way, so the fixture moved and the game did not. **Do not read this pair of
+  numbers as a visual change**, and do not go looking for the row that produced
+  it. The identity is asserted in numbers in `camera_test`; the argument is at
+  `draw_backdrop_layer` in [frame.cpp](src/render/frame.cpp) and under V26 in
+  ROADMAP.md. **No `.rec` cost** — nothing simulation-side was touched.
+
 - **2026-08-22** — **V22 part 3: the terrain gets the ramp the ground plane
   has had since V19.** `apply_depth_ramp` in [pixel_art.py](tools/pixel_art.py) at
   `lit_depth` 4 / `fade_depth` 24, nine new palette rungs, and

@@ -118,6 +118,19 @@ struct Params {
     int padded_w = 0;
     int padded_h = 0;
 
+    // Which paradigm the loaded scene is, and how big its world is - the two
+    // things the backdrop layout cannot be decided without.
+    //
+    // **These are here rather than read off the `Camera` because they are facts
+    // about the scene, not about the viewport**, and the camera is deliberately
+    // stateless about which world it is looking at (see `Camera::follow_mode`).
+    // The defaults are the engine's historical world size, so a caller built
+    // before this field existed - the golden frame fixture included - composes
+    // exactly the frame it did before.
+    bool is_infinite = false;
+    int world_w = 1920;
+    int world_h = 1080;
+
     Backdrop backdrop;
     const std::vector<Prop>* props = nullptr;
 

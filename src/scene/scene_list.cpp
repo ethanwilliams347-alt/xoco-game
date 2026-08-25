@@ -142,9 +142,56 @@ std::vector<SceneDef> load_scene_list(const std::string& path, std::string* erro
                         "' names no material map, so it has no terrain to stand on; "
                         "its spawn must be floor");
 
+        // --- the optional trailing fields ------------------------------------
+        //
+        // **Optional, and still read.** The header's rule is that a field the
+        // loader ignores is one an author eventually tunes for nothing; an
+        // *absent* field is a different thing, and the two are kept apart here
+        // by refusing every spelling that is neither. A sixth token that is not
+        // a mode is an error, and a seventh that arrives without an eighth is
+        // an error, rather than either being skipped back to the default.
+        std::string mode;
+        if (fields >> mode) {
+            if (mode == "fixed") def.mode = SceneMode::Fixed;
+            else if (mode == "infinite") def.mode = SceneMode::Infinite;
+            else return fail("'" + mode + "' is not a scene mode (fixed or infinite)");
+
+            // **The size is a pair or it is absent.** Half a size is not a size,
+            // and the failure from accepting one is a world that is as wide as
+            // the author said and as tall as the engine guessed.
+            std::string w_raw, h_raw;
+            if (fields >> w_raw) {
+                if (!(fields >> h_raw))
+                    return fail("scene '" + def.name +
+                                "' gives a width with no height; state both or neither");
+
+                // Accumulated by hand rather than through `std::stoi`, because
+                // the build compiles with exceptions off (C4530 is on every
+                // translation unit here) and `stoi`'s failure mode is a throw.
+                // Six digits is the cap, which cannot overflow an `int` and is
+                // four times the largest world anything here has ever built.
+                auto positive_int = [](const std::string& raw, int& out) -> bool {
+                    if (raw.empty() || raw.size() > 6) return false;
+                    int v = 0;
+                    for (char c : raw) {
+                        if (c < '0' || c > '9') return false;
+                        v = v * 10 + (c - '0');
+                    }
+                    if (v <= 0) return false;
+                    out = v;
+                    return true;
+                };
+
+                if (!positive_int(w_raw, def.custom_width))
+                    return fail("'" + w_raw + "' is not a usable world width");
+                if (!positive_int(h_raw, def.custom_height))
+                    return fail("'" + h_raw + "' is not a usable world height");
+            }
+        }
+
         std::string extra;
         if (fields >> extra)
-            return fail("unexpected sixth field '" + extra + "'");
+            return fail("unexpected extra field '" + extra + "'");
 
         scenes.push_back(def);
     }

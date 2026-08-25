@@ -6,8 +6,16 @@ Run::Run(int width, int height, uint64_t seed)
 {
 }
 
-void Run::reset(uint64_t seed) {
-    grid.reset(seed);
+void Run::reset(uint64_t seed, int new_width, int new_height) {
+    // Both or neither, and only when it is actually a different size - a resize
+    // to the size already held would throw away the allocation for nothing and
+    // would also silently drop `vent_radius`, which a plain wipe keeps.
+    if (new_width > 0 && new_height > 0 &&
+        (new_width != grid.get_width() || new_height != grid.get_height())) {
+        grid = Grid(new_width, new_height, seed);
+    } else {
+        grid.reset(seed);
+    }
     player = Player(grid.get_width() / 2, grid.get_height() / 4);
     dig_tool = DigTool();
     run_outcome = Outcome::Playing;
