@@ -48,8 +48,8 @@ constexpr char CHR_NL[] = {10, 0};
 
 // The 1920x1080 viewport in cells. Stated here rather than included so the
 // probe does not drag the SDL shell's header in for two integers.
-constexpr int VIEW_W = 1920 / Camera::SCALE;
-constexpr int VIEW_H = 1080 / Camera::SCALE;
+constexpr int VIEW_W = 1920 / Camera::DEFAULT_SCALE;
+constexpr int VIEW_H = 1080 / Camera::DEFAULT_SCALE;
 
 // The shipped mountains BMP's height. `ground_horizon_y` in frame.cpp reads it
 // off the loaded texture for a reason recorded there; here there is no texture,

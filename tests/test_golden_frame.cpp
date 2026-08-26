@@ -211,7 +211,7 @@ int main() {
     // No SDL_Init(SDL_INIT_VIDEO): a software renderer over a surface needs no
     // display, which is what lets this run headless on a build machine.
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
-        0, PADDED_W * Camera::SCALE, PADDED_H * Camera::SCALE, 32,
+        0, PADDED_W * Camera::DEFAULT_SCALE, PADDED_H * Camera::DEFAULT_SCALE, 32,
         SDL_PIXELFORMAT_ARGB8888);
     check("surface created", surface != nullptr, SDL_GetError());
     if (!surface) return report();
@@ -705,8 +705,8 @@ int main() {
     // per-block sensitivity checks after it are what say that is true rather
     // than assumed.
     overlay::Params op;
-    op.window_w = PADDED_W * Camera::SCALE;
-    op.window_h = PADDED_H * Camera::SCALE;
+    op.window_w = PADDED_W * Camera::DEFAULT_SCALE;
+    op.window_h = PADDED_H * Camera::DEFAULT_SCALE;
     // **2 rather than this surface's own `window_h / 270`, which is 1.** No
     // shipped mode produces a UI scale of 1 - the smallest is 720 high, giving
     // 2 - and a checksum over a scale that never ships is the null-texture

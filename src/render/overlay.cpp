@@ -186,8 +186,8 @@ void draw(SDL_Renderer* renderer, const Params& p) {
             } else {
                 const DisplayMode& m = p.modes[i];
                 label = std::to_string(m.window_w) + "X" + std::to_string(m.window_h) +
-                        "  " + std::to_string(m.viewport_w()) + "X" +
-                        std::to_string(m.viewport_h()) + " CELLS";
+                        "  " + std::to_string(m.viewport_w(p.view_scale)) + "X" +
+                        std::to_string(m.viewport_h(p.view_scale)) + " CELLS";
                 if (i == p.current_mode) label += "  *";
                 // Unavailable modes are shown greyed rather than hidden.
                 // A menu that silently omits a mode on one machine and

@@ -18,6 +18,7 @@
 // which is precisely what V23a found it had not.
 
 #include "game/camera.h"
+#include <string>
 #include "test_util.h"
 
 #include <cmath>
@@ -25,7 +26,7 @@
 namespace {
 
 constexpr int VIEWPORT_W = 480;
-constexpr int VIEWPORT_H = 270;   // 1080 / Camera::SCALE, the shipped mode
+constexpr int VIEWPORT_H = 270;   // 1080 / Camera::DEFAULT_SCALE, the shipped mode
 constexpr int WORLD_W = 1920;
 constexpr int WORLD_H = 1080;
 
@@ -191,8 +192,8 @@ int main() {
     // A shipped backdrop therefore moved by nothing when the branch was added.
     {
         constexpr float FACTOR = 0.15f;
-        const int window_w = VIEWPORT_W * Camera::SCALE;
-        const int pan_px = (WORLD_W - VIEWPORT_W) * Camera::SCALE;
+        const int window_w = VIEWPORT_W * Camera::DEFAULT_SCALE;
+        const int pan_px = (WORLD_W - VIEWPORT_W) * Camera::DEFAULT_SCALE;
         const int layer_w = window_w + static_cast<int>(static_cast<float>(pan_px) * FACTOR);
         const float max_cam_x = static_cast<float>(WORLD_W - VIEWPORT_W);
         const float span_x = static_cast<float>(layer_w - window_w);
@@ -212,6 +213,69 @@ int main() {
         }
         check("the normalized pan and the parallax factor agree on a pan-sized layer",
               agree, "worst disagreement " + std::to_string(worst) + " px");
+    }
+
+    // --- V28: a world-sized authored layer never runs out ---------------------
+    //
+    // **The one inequality the `bg1` backdrop rests on**, and the reason its art
+    // is exactly world-sized rather than merely large. For a bounded world of
+    // `W` cells shown through a viewport of `V`, a layer `W` cells wide drawn at
+    // `parallax_origin_*(f)` covers the whole viewport at every reachable camera
+    // position exactly when `f <= 1` - so nothing has to tile, and nothing gaps.
+    //
+    // Checked at every camera position rather than at the extremes alone: the
+    // binding case is the far edge, but a formula that was right at both ends
+    // and wrong in between is exactly the sort of thing an extremes-only test
+    // reports as passing. `f = 1.0` is included on purpose - it is the cap the
+    // foreground rocks sit at, so it is the case with no slack in it at all.
+    //
+    // If this fails, the fix is the art or the factor, never a wider tolerance:
+    // a gap here is the clear colour showing through a backdrop.
+    {
+        constexpr int SCALE = 10;      // bg1's scale
+        constexpr int W = 344;         // world cells, and the art's own width
+        constexpr int V = 193;         // padded viewport at 1920x1080, 10 px/cell
+        const float factors[] = {0.04f, 0.12f, 0.20f, 0.42f, 0.70f, 1.00f};
+
+        bool covered = true;
+        std::string detail;
+        for (float f : factors) {
+            for (int centre = 0; centre <= W; ++centre) {
+                Camera c;
+                c.set_scale(SCALE);
+                c.follow(static_cast<float>(centre), 0.0f, V, V, W, W);
+                const float left  = c.parallax_origin_x(f);
+                const float right = left + static_cast<float>(W * SCALE);
+                if (left > 0.001f || right < static_cast<float>(V * SCALE) - 0.001f) {
+                    covered = false;
+                    detail = "factor " + std::to_string(f) + " at centre " +
+                             std::to_string(centre) + ": layer spans " +
+                             std::to_string(left) + ".." + std::to_string(right) +
+                             " for a window of 0.." + std::to_string(V * SCALE);
+                    break;
+                }
+            }
+            if (!covered) break;
+        }
+        check("a world-sized authored layer at factor <= 1 covers the viewport everywhere",
+              covered, detail);
+    }
+
+    // The other half of the same fact, stated as the thing that would go wrong:
+    // above 1.0 it *does* gap, which is why the foreground rocks are capped at
+    // 1.00 rather than given the art README's 1.20. A test that only proved the
+    // safe case would leave "so raise it a bit" looking free.
+    {
+        constexpr int SCALE = 10;
+        constexpr int W = 344;
+        constexpr int V = 193;
+        Camera c;
+        c.set_scale(SCALE);
+        c.follow(static_cast<float>(W), 0.0f, V, V, W, W);   // hard against the right edge
+        const float right = c.parallax_origin_x(1.20f) + static_cast<float>(W * SCALE);
+        check("and a factor above 1 gaps there, which is why 1.00 is the cap",
+              right < static_cast<float>(V * SCALE),
+              "right edge " + std::to_string(right) + " vs window " + std::to_string(V * SCALE));
     }
 
     return report();

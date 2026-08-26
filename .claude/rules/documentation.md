@@ -83,13 +83,16 @@ consequences for writing here:
 ## Per-file conventions
 
 **ROADMAP.md** — the one live plan: what is next, how big it is, and why it is
-ordered that way, **one entry per item**. **382 KB**, so search it rather than
+ordered that way, **one entry per item**. **422 KB**, so search it rather than
 reading it through — except its **The plan** block at the top, which is the only
 part that has to be re-read to know what to do. *(This line said 280 KB, then 399
 KB; `W4` took it to 346 KB, against a 319 KB archive, by moving closed work out.
-It is back to 382 KB as of 2026-08-22 on `V22`'s three parts alone, which is the
-signal `W4` set this check up to give: **the next item to close is the next
-candidate to archive**, and `V22` closing is when that gets done.)*
+It went back to 382 KB on 2026-08-22 on `V22`'s three parts alone, and to 422 KB
+on 2026-08-25 on `V28`. That is the signal `W4` set this check up to give, given
+twice now and not acted on either time: **the next item to close is the next
+candidate to archive**. The V-track's closed steps — V17, V11, V19's shipped
+parts, V23/V23a/V23b, V24 — are the standing candidate, and `V22` closing is
+still the trigger.)*
 **Both figures are checked by `docs_test`, to within 10%** — enough slack that
 ordinary editing does not touch this line, tight enough to catch the file
 doubling.
@@ -169,8 +172,8 @@ paragraph belongs in MANUAL_TESTING.md.
 - **`## General Testing` stays and stays short.** `W6` was not licence to move it,
   and neither is the next trim.
 
-**MANUAL_TESTING.md** — the Manual Tester Checklist in full, **thirteen steps as
-of 2026-08-17** (split out
+**MANUAL_TESTING.md** — the Manual Tester Checklist in full, **fourteen steps as
+of 2026-08-25** (split out
 of README on 2026-08-16). Each checklist step names the regression it exists to
 catch, most of which have actually happened once. When a new class of regression
 is found by hand, add the step; when a step's expectation is wrong, fix the

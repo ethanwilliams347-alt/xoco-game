@@ -24,12 +24,15 @@
 // planting test against a made-up width would pass over art that had changed
 // shape. One BMP pixel is one world cell, so `bmp::read` gives exactly the
 // number `SDL_QueryTexture` gives the game.
+#include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 #include "game/boot.h"
 #include "game/display.h"
 #include "game/run.h"
 #include "physics/grid.h"
+#include "render/bg1_backdrop.h"
 #include "scene/bmp.h"
 #include "scene/props.h"
 #include "scene/scene.h"
@@ -322,6 +325,86 @@ void test_shipped_fixture() {
               std::to_string(r.no_texture.size()) + " without a sprite");
 }
 
+
+// --- V28c: the `bg1` ground plane's band table, against the art --------------
+//
+// **This is the only enforcement V28c has, and the reason it is worth having is
+// that the numbers it guards look arbitrary and are not.** `bg1`'s ground layer
+// scrolls as three bands at three different rates. A boundary between two bands
+// is a horizontal discontinuity in scroll offset, so it is invisible only where
+// the art either side of it is flat: the rows meeting at the cut must be uniform
+// across every column *and* the same colour as each other, or a step appears in
+// the shoreline and slides as the camera moves.
+//
+// No headless suite composes an authored frame, so nothing can check what the
+// band table *looks* like. What can be checked is the property the boundaries
+// were chosen for - which is the one a later edit would break without noticing,
+// because moving a boundary two rows costs nothing and shows nothing until
+// somebody walks.
+void test_bg1_ground_bands() {
+    bmp::Image img;
+    std::string err;
+    const bool read_ok =
+        bmp::read("assets/bg1/bg1_08_ground.bmp", img, &err);
+    check("bg1: the ground layer's BMP reads", read_ok, err);
+    if (!read_ok) return;
+
+    check("bg1: the ground layer is the size the band table is stated in",
+          img.width == bg1::NATIVE_W && img.height == bg1::NATIVE_H,
+          std::to_string(img.width) + "x" + std::to_string(img.height));
+    if (img.width != bg1::NATIVE_W || img.height != bg1::NATIVE_H) return;
+
+    const int n = static_cast<int>(std::size(bg1::GROUND_BANDS));
+
+    // Contiguous, in order, covering every row exactly once. A gap would leave a
+    // strip of the sky showing through the plane; an overlap would draw one
+    // range twice at two offsets.
+    bool contiguous = bg1::GROUND_BANDS[0].row0 == 0 &&
+                      bg1::GROUND_BANDS[n - 1].row1 == img.height;
+    for (int i = 1; i < n; ++i)
+        contiguous = contiguous && bg1::GROUND_BANDS[i].row0 == bg1::GROUND_BANDS[i - 1].row1;
+    check("bg1: the ground bands tile the layer with no gap and no overlap", contiguous);
+
+    // Nearer is faster, and nothing exceeds 1.0 - `draw_backdrop_layer`'s
+    // coverage inequality, which `camera_test` pins, and which a factor above
+    // 1.0 breaks by leaving the clear colour at the world's edge.
+    bool ordered = true;
+    for (int i = 0; i < n; ++i) {
+        const float f = bg1::GROUND_BANDS[i].parallax_x;
+        ordered = ordered && f > 0.0f && f <= 1.0f;
+        if (i > 0) ordered = ordered && f > bg1::GROUND_BANDS[i - 1].parallax_x;
+    }
+    check("bg1: the ground bands' factors increase toward the viewer and cap at 1.0",
+          ordered);
+
+    // The one that names the defect. For every interior boundary, the last row
+    // of the band above and the first row of the band below must each be one
+    // colour across all 344 columns, and the same colour.
+    auto uniform_colour = [&](int row, uint32_t& out) {
+        out = img.pixels[static_cast<size_t>(row) * static_cast<size_t>(img.width)];
+        for (int x = 1; x < img.width; ++x)
+            if (img.pixels[static_cast<size_t>(row) * static_cast<size_t>(img.width) + static_cast<size_t>(x)] != out)
+                return false;
+        return true;
+    };
+
+    for (int i = 1; i < n; ++i) {
+        const int cut = bg1::GROUND_BANDS[i].row0;
+        uint32_t above = 0, below = 0;
+        const bool a = uniform_colour(cut - 1, above);
+        const bool b = uniform_colour(cut, below);
+        const bool flat = a && b && above == below;
+        check("bg1: every ground band boundary falls on flat paint, so its "
+              "scroll step cannot be seen",
+              flat,
+              flat ? std::string()
+                   : "art row " + std::to_string(cut) + ": " +
+                         (!a ? "the row above the cut is not uniform"
+                             : (!b ? "the row below the cut is not uniform"
+                                   : "the two rows differ in colour")));
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -333,5 +416,6 @@ int main() {
     test_stand_player_on_floor();
     test_choose_display_mode();
     test_shipped_fixture();
+    test_bg1_ground_bands();
     return report();
 }

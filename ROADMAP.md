@@ -18,7 +18,7 @@ live in their own documents:
   controls, and the short `## General Testing` fundamentals pass. **A front door
   since `W6`**: everything longer links out.
 - **[MANUAL_TESTING.md](MANUAL_TESTING.md)** — the Manual Tester Checklist in
-  full (**thirteen steps as of 2026-08-17**), and the list of what is currently
+  full (**fourteen steps as of 2026-08-25**), and the list of what is currently
   owed to the tester.
 - **[PLAYTEST_LOG.md](PLAYTEST_LOG.md)** — what was asked at each playtest and
   what came back. **Questions and answers only.** No plan, no root causes, no
@@ -117,7 +117,7 @@ has to be re-read to know what to do.***
 | ~~7~~ | ~~**E10 — Powders come to rest**~~ | ~~days~~ | ⏸️ **held 2026-08-16, deliberately, in favour of the V-track block below.** Nothing about E10 changed and neither blocker came back; it was unblocked and ready and got out-prioritised. See the note under the table |
 | 8 | **V-track: the renderer block** | ~2 weeks | ⛔ **suspended in part 2026-08-24 by item 10** — the value-tuning chain it ends in (V20, V21, V22, V25, V19 4c/4d) was tuning generated art that is being replaced; V12, V13 and V16 come out of it and go to item 10. *(Prior state, unchanged for the steps that survive:)* ⏸️ **steps 0–3, 4a and 4b done. V23/V23a shipped and V23b deleted them again** on 2026-08-17 at the tester's direction, so the camera contributes nothing to the block's outcome and step 7 (V22) is unblocked but back to its original constraint — see the V23b row and the note below |
 | 9 | **W-track: the workbench** | ~3 days | ✅ **closed 2026-08-18** — `W1`–`W4` shipped 2026-08-17, `W5`'s three parts 2026-08-17/18, **`W6` 2026-08-18**. **The one thing left open in it was closed as a decision on 2026-08-18: `W5` gets no part 4** — see the end of that entry. **`V22` is next**, and the tester's UI look came back good the same day, so it is unblocked. **`W4` chose the strict archive boundary** — *finished and nothing open depends on the reasoning* — so `ROADMAP_ITEMS.md` is gone and this file is the whole plan |
-| 10 | **The scene rebuild — hand-made layers** | ~2 weeks, unsized past V12/V13 | ▶️ **next, new 2026-08-24.** The owner retired every scene built before `empty` and started the hand-made-layer direction that [VISION.md](VISION.md) had recorded but not scheduled. **V12 then V13 first** — they are what a Pixquare/LibreSprite export needs in order to load at all — then V16. See the block at the head of [V — Visual identity](#v--visual-identity), which is where this item's argument lives |
+| 10 | **The scene rebuild — hand-made layers** | ~2 weeks, unsized past V12/V13 | ▶️ **in progress. `V28` shipped 2026-08-25, `V28b` the same day, `V28c` on 2026-08-26** — the nine-layer `bg1` set now loads at one art pixel to one world cell, with a per-scene render scale, its own floor, and bounded (non-tiling) parallax. **`V28b` locks the stack to one vertical factor, `V28c` bands the ground plane horizontally** after the tester saw the shared land plane shear apart while climbing. **Owed: MANUAL_TESTING step 14**, which is the only thing that can close it, since the previous two attempts passed every suite and were rejected by eye. *(Original entry, new 2026-08-24:)* The owner retired every scene built before `empty` and started the hand-made-layer direction that [VISION.md](VISION.md) had recorded but not scheduled. **V12 then V13 first** — they are what a Pixquare/LibreSprite export needs in order to load at all — then V16. See the block at the head of [V — Visual identity](#v--visual-identity), which is where this item's argument lives |
 
 **Item 8 in detail, because it is a block rather than an item.** Started
 2026-08-16 on a request for a split-view and parallax backdrop system. Run
@@ -2891,6 +2891,248 @@ what it makes possible.*
     > system delivers six things that are currently separate gaps:
 
 ### V — Visual identity
+
+#### V28c — the ground plane is a surface, so it gets three factors
+
+**Shipped 2026-08-26. Suites 19/19, golden checksum unmoved. Owed to the tester:
+still MANUAL_TESTING step 14, amended a second time.**
+
+**The report, immediately after V28b.** *"The midground layers look like they
+move horizontally on the ground plane."*
+
+**This is V28b's argument on the other axis, and V28's own open question
+answered.** V28b said the nine images share one painted land plane. That fact
+does not stop at the vertical: the plane is a *surface*, a surface recedes, and a
+receding surface has no single depth — so a single horizontal factor makes
+everything standing on it slide. V28 gave it `0.52` while the hills standing on
+it run 0.20 to 0.70; over the world's 152 cells of horizontal travel (1520 px at
+10x) that is up to **334 px of slip between a hill's foot and the ground under
+it**, a tenth of the scene's width.
+
+**What made it fixable is a measurement, and it is the whole entry.**
+`bg1_08_ground` is uniform across all 344 columns on **61 of its 81 opaque
+rows**. The only horizontal detail is three wavy shore contours — rows 70..77,
+87..97 and 102..106 — and only two of them have anything standing on them
+(`hills_midfar`'s foot at row 73, `hills_near`'s at row 89). So the plane is cut
+into three bands, one contour each, each at the factor of whatever stands on it:
+`0.30`, `0.70`, `1.00`.
+
+**Every cut is placed inside a run of rows that is uniform in colour**, which is
+what makes three factors invisible as two seams. A band boundary is a
+discontinuity in scroll offset; where both sides are the same flat colour there
+is nothing for it to reveal, at any camera position. Rows 78..86 and 98..101 are
+those runs, which is why the boundaries are **82 and 100** and not round numbers.
+
+**A smooth ramp was the obvious alternative and it is worse, by a number.** The
+contacts demand about 0.025 of factor per art row between rows 73 and 89, so a
+contour ten rows thick would have its top and bottom scrolling 0.25 apart —
+**380 px of shear across its own thickness** over the world's travel. The
+shorelines would tear sideways. V19's generated plane can ramp smoothly because
+its texture is a noise field with no feature wide enough to shear; **this art has
+features, so the factor has to change where the art does not.** That is the
+transferable sentence.
+
+**The third band is 1.00** because the near field is where the foreground rocks
+and the diggable terrain are, and both are locked to the world — V28b's argument
+again, and the same cap: `draw_backdrop_layer`'s coverage inequality needs every
+factor at or under 1.
+
+**The numbers are in a header so that a suite can check them, and one does.**
+`src/render/bg1_backdrop.h` knows no SDL, so `boot_test` — the only suite that
+already links `SCENE_PROP_SOURCES` *and* runs from the source dir — includes it,
+reads the BMP it describes, and asserts the bands tile the layer with no gap, that
+the factors increase toward the viewer and cap at 1.0, and **that each boundary
+lands on two rows that are each uniform across all 344 columns and equal to each
+other.** That last one is the defect, stated as an assertion. It was verified
+against a deliberately broken table first: moving the boundary from 82 to 90 puts
+it inside shore 2 and fails with *"the row above the cut is not uniform"*.
+
+**What it cannot check, and this is the honest half.** No headless suite composes
+an authored frame, so nothing can see what the bands *look* like — only that the
+boundaries sit where a step is invisible. Whether three bands read as one
+receding surface while walking is step 14's judgement, and it is now the third
+thing that step is owed.
+
+**⚠️ What is left open.** The art README's `0.28x - 0.52x` request is not
+implemented and is now believed wrong for this composition: the contacts say
+`0.20` to `1.00`, and `0.52` is inside neither end. If the tester reports the
+bands still sliding, the next thing to try is **more bands, not a ramp** — every
+uniform run in the table above is a legal cut, and rows 63..69 and 107..143 are
+long ones.
+
+#### V28b — one land plane, one vertical factor
+
+**Shipped 2026-08-25. Suites 19/19, golden checksum unmoved — `bg1` is the only
+scene with an authored stack and no headless suite composes one, so this is a
+one-line change with no test able to see it. Owed to the tester: it rides on
+MANUAL_TESTING step 14, which was already owed for V28.**
+
+**The report.** At 1920x1080: *"you can see under and behind objects that are
+supposed to be on the same land plane as the player."*
+
+**What V28 assumed.** Each layer got its authored factor on **both** axes, on
+the reasoning that a factor is one over a depth and a depth does not care which
+way the camera moved. That holds for a stack of layers each painted with its own
+horizon. `bg1` is not that stack.
+
+**The nine images share one painted land plane, and the pixels say so.**
+`bg1_08_ground` is opaque from art row 63 to 143. Every hill silhouette bottoms
+out on it (rows 67..89). The foreground rocks are painted into it (rows
+126..143). And `assets/bg1_albedo.bmp` — the terrain the body actually stands
+on, rows 132..143, world-locked at 1.00 because it *is* the world — is a
+flattened copy of that same band with the rocks composited in. The plane is not
+one layer of nine; it is one surface that nine images each draw a piece of.
+
+**Spread across a vertical ladder, the pieces of one surface shear apart, and
+the number is large.** The world is 144 cells against a 108-cell viewport, so
+the camera travels 36 cells = 360 px. Over that travel the ground band rises
+`0.52 * 360 = 187` px while the rocks and the terrain rise the full 360:
+**173 px — seventeen art rows — of plane opening up underneath objects painted
+as resting on it**, with the hills shearing the other way at up to 0.70. That is
+the report, in arithmetic.
+
+**Why the fix is 1.00 flat and not a gentler ladder.** *Any* two different
+vertical factors reopen the gap; the only question a retune answers is how fast
+it opens. And the shared value cannot be less than 1.00 either, because one
+piece of the surface is the terrain itself, which is world-locked by definition
+— anything below 1.00 slides the painting off the collision floor. So the
+constraint has exactly one solution. 1.00 is also the largest safe value, by the
+same inequality V28 pinned horizontally in `camera_test`: a world-sized layer at
+`f <= 1` covers the viewport at every camera position, and at 1.00 exactly the
+layer spans the world and the window is a plain pan over it.
+
+**What it costs, stated rather than hidden.** The vertical depth cue is gone —
+climbing no longer separates the bands. It buys a composition that is the
+painting at every camera height instead of only at the top of the world. **The
+cue cannot come back through this column**; it needs art whose layers do not
+share a plane, and that is a re-authoring job, not a retune.
+
+**This narrows V28's open question below.** That question asks whether the
+ground plane's single `0.52` should become the art README's `0.28-0.52` ramp.
+Whatever is decided, it is now a **horizontal** ramp only — a vertical one is
+the defect this entry just fixed.
+
+#### V28 — `bg1`: one art pixel is one world cell
+
+**Shipped 2026-08-25. Suites 19/19, golden checksum unmoved. Owed to the
+tester: MANUAL_TESTING step 14, which is the whole point of the entry** — the
+same feature was rejected by eye twice while passing every suite both times, so
+the numbers are not the question.
+
+**What V27 got wrong, and it was three separate things.** V27 loaded the nine
+`art_src/Background_1` layers and shipped them green. The tester rejected it
+twice: *"the scale is off and the old scene is still there"*, then *"still looks
+wrong ... also there are weird issues with boundaries"*. All three faults were
+found by decoding the tester's reference `IMG_0195.PNG` against the assets rather
+than by reasoning about the code, which is the method note worth keeping.
+
+1. **The depth order.** `bg1_08_ground` was second from the *front*. It fills art
+   rows 63..143 at 56% coverage, so from there it paints over the whole hill
+   range — the grey mass in both rejected screenshots. The correct order is
+   strict numeric-descending filename order, which is the art README's
+   front-to-back table read the other way, and it is confirmed by pixels: that
+   order composites to `IMG_0195.PNG` **exactly**, everywhere the player is not.
+2. **The scale.** V27 derived a scale from the *window* — 33x at one point, then
+   8x — because it was fitting art to a window. The reference is the art at
+   exactly 10x, and 10 is not a fitting factor: it is what makes one art pixel
+   one world cell.
+3. **The boundaries.** `bg1` was declared `infinite` purely to reach the branch
+   that reads parallax factors, which brought horizontal tiling with it. The art
+   does not tile: `03_hills_midnear` mismatches its own left and right edges on
+   33 of 144 rows. Nine layers tiled at nine factors is nine seams sliding at
+   nine speeds.
+
+**The one forced decision, and it is why this is a V-track item rather than a bug
+fix.** The player-to-scene ratio the tester asked for is fixed by the
+art-pixel-to-cell mapping alone — the screen scale cancels out of it. The
+reference gives 12 opaque player columns against 344, which is one art pixel to
+one cell; at two cells per art pixel the player is half that size, at four a
+quarter. So the world is 344x144 cells — and for a 1920x1080 window to be a view
+*into* that world rather than larger than it, the scale has to be at least 8.
+**`Camera::SCALE` was 4 and had to stop being a constant.**
+
+**Moving the global 4 to 10 was refused**, and the refusal is this entry's main
+argument: `display.h` argues 4 px/cell as art direction measured off a reference
+with `Player::WIDTH` sized to match, `test_golden_frame` would change checksum,
+`docs_test` asserts that checksum from prose, and both `session_*.rec` recordings
+would replay at a different framing. Instead the scale became a **per-scene**
+value with `Camera::DEFAULT_SCALE = 4`. A default-constructed `Camera` is exactly
+the old one, and that is what `test_golden_frame` builds — so **the checksum is
+unaffected by construction rather than by luck**, and phase 1 shipped as a pure
+refactor against the old number before anything visible moved. That is this
+project's house style for a change with a no-op half, used a fourth time.
+
+**`DisplayMode`'s viewport methods take the scale, and it is deliberately not
+defaulted.** A default would let one of fifteen call sites in `main.cpp` silently
+frame a 10x scene at 4. Making the compiler name them was the cheap half.
+
+**Reading the factors and tiling are now two questions.** `draw_backdrop_layer`
+takes an `authored` flag; tiling stays keyed to `is_infinite`. An authored
+world-sized layer in a bounded world needs no tiling and leaves no gap, and that
+is arithmetic rather than luck: for a world `W`, a viewport `V` and a layer `W`
+wide at factor `f`, the right edge at the far camera position covers the window
+exactly when `f <= 1`. **`camera_test` pins both sides of it** — that `f <= 1`
+covers at every reachable position, and that `1.20` gaps — so "just raise the
+foreground a bit" cannot look free.
+
+**`bg1` gained a floor, and this is the part that came out better than planned.**
+A `floor` spawn puts the body on the world's bottom border, which the vertical
+clamp then pins to the bottom edge of the window at every resolution. So the
+scene gets a material/albedo pair generated by
+`tools/convert_background_layers.py`: rows 132..143 Wall, everything above Empty,
+albedo from the composited art. Row 132 is measured off the reference — the
+sprite occupies rows 106..131 there. **The engine's own terrain scan then prints
+`Spawn: standing at y=112 (feet on row 132)`**, and 112 is exactly what
+`OFFSET_Y == FRAME_H - Player::HEIGHT` predicts. Nobody typed it. Framing lands
+at 0.900 of window height at 1080p against the reference's 0.917, with
+`VERTICAL_ANCHOR` untouched. The bottom band is now real diggable matter, which
+makes this the first authored scene where the backdrop's foreground and the
+simulation's floor are the same thing.
+
+**Two things this produced that were not in the plan.**
+
+- **The hard-coded objective column is off the edge of this world.**
+  `boot::OBJECTIVE_X` is 1700 and `bg1` is 344 wide, so the first scene narrower
+  than S0's objective now exists. The warning was split in two rather than
+  reused: "no ground under the column" reads as a hole in the terrain, which is a
+  bug, where this is a scene the hard-coded objective does not fit — which
+  `boot.h` already states is S0's limit rather than an oversight. **No objective
+  is invented for it.**
+- **The V25 terrain tint is switched off project-wide, and this item's plan was
+  wrong about why it was safe.** The plan said the tint was inert because `bg1`
+  had no terrain, and expected phase 4 to make it live. In fact `main.cpp` holds
+  `constexpr bool PLANE_ON_NEAR_TERRAIN = false`, so the loop that fills
+  `plane_row_scale` is dead and `surface_plane::apply` blends nothing for *any*
+  scene. What remains true is that the pass reads the generated plane's geometry
+  (`ground_horizon_y`, `backdrop.ground_h`) and does not early-return on an
+  authored stack — so **whoever turns that flag back on inherits this**, and the
+  question it has to answer is what the tint should follow when the plane it was
+  derived from is not on screen.
+
+**⚠️ Open question, and it is the one thing in the frame that is not settled.**
+The ground plane's art README asks for a `0.28x - 0.52x` **ramp** and it is given
+a single `0.52`, because one factor is not a ramp. V27 had the same number but
+drew the layer near the front, where it produced a visible inversion — a plane
+moving slower than the hills standing in front of it. Drawn near the back that
+particular inversion is gone, but a single factor is still not what the art asked
+for. **Answered on 2026-08-26: it read wrong, and the answer was neither of the two
+options offered here.** The tester reported the midground sliding on the plane;
+`V28c` above cuts the plane into three bands at flat rows rather than ramping it
+per row, and records why a per-row ramp is the worse of the two.
+
+**⚠️ The foreground rocks are 1.00 where the art README offers "1.00x - 1.20x".**
+Capped by the inequality above. 1.00 is inside the art's own range, so nothing is
+being overruled — but **if 1.20 is wanted, the fix is a wider foreground image
+(344 * 1.20 = 413 px), never a bigger number here.** `camera_test` fails on it.
+
+**📌 One reopen trigger elsewhere has fired.**
+`.claude/rules/assets-and-formats.md` records the deleted mid-ground band as
+reopenable on "a zoomed-out camera once `Camera::SCALE` is runtime". It is
+runtime now. That does not reopen the band by itself — `bg1` is authored with its
+own mid-ground, and the trigger's real subject is a location whose terrain does
+not fill the band — but the precondition is spent, and the next person reading
+that bullet should know it.
+
 
 > **The scene rebuild reorders this track, 2026-08-24.** The owner retired
 > the `fixture` scene and every scene made before `empty`, and is rebuilding

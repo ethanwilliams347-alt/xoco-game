@@ -2,9 +2,31 @@
 
 ## Questions
 
-**Nothing is owed to the tester right now.** V26's two checks were the last
-thing on this list and **both came back passed on 2026-08-24**, the day the
-mechanism landed — the infinite scene walked past the old world edge with the
+**Step 14 is owed (`V28`, asked 2026-08-25; amended twice since, by `V28b` on
+the 25th and `V28c` on the 26th), and it is the only thing on this list.** Both
+amendments are the same finding on two axes — the nine `bg1` images are pieces of
+**one painted land plane**, so the factor ladder that separates them was pulling
+that plane apart. `V28b` locked the stack vertically after *"you can see under
+and behind objects that are supposed to be on the same land plane as the
+player"*; `V28c` cut the plane into three horizontal bands after *"the midground
+layers look like they move horizontally on the ground plane"*. **Neither fix is
+one a headless suite can see**, so step 14 is the only check on both. The authored `bg1` backdrop has now been rejected by eye twice while
+passing all 19 suites both times, so the question is specifically *does it look
+like `IMG_0195.PNG`* — the numbers are all pinned and all agree. Step 14 carries
+what to read on stdout first and the three failure modes that have each already
+shipped once. **It also asks for one thing that has been skipped before: walk to
+both world edges.** The world is 344 cells wide, so that is seconds rather than
+minutes, and the edges are where the tiling seams were.
+
+One question inside it is a judgement rather than a pass or a fail, like step
+10's: the ground plane is given a single parallax factor where its art asks for
+a ramp, and whether that reads wrong while walking is the thing only a person
+can say.
+
+*The paragraph below is the record of V26's checks and is history from here.*
+
+**V26's two checks were the last thing on this list before that and **both came
+back passed on 2026-08-24**, the day the mechanism landed — the infinite scene walked past the old world edge with the
 camera unclamped and the layers tiling, and a fixed scene walked to both borders
 with the camera stopping dead and the backdrop edge flush with the window's. The
 tester uncommented the archived `large_canyon` row to do the second one and put
@@ -387,6 +409,94 @@ has ever had.*
     constraint is still sitting there, and the answer will have to be something
     other than moving the player down the frame. The argument is in ROADMAP.md
     under V23 / V23a / V23b.
+
+14. **The authored backdrop stack (`V28`, new 2026-08-25).**
+    **This step exists because the same feature was rejected twice by eye after
+    passing all 19 suites both times.** `golden_frame_test` composes the
+    *generated* three-layer backdrop; `bg1` uses neither that path nor that art,
+    so nothing in `ctest` has ever seen this frame. The arithmetic underneath it
+    is pinned (`camera_test` holds the coverage inequality, `scene_list_test` the
+    column, `docs_test` the numbers) — what is not pinned is whether it looks
+    like the reference.
+
+    **Getting there.** Press `F7` until the HUD says `bg1`. Read four lines on
+    stdout before judging anything in the window:
+
+        Scale: 10x (344x144 cells)
+        Backdrop: 9 of 9 bg1 layers at 10x (3440x1440 px over a 344x144 world)
+        Scene: bg1, 344x144, 4128 cells placed
+        Spawn: standing at y=112 (feet on row 132)
+
+    **Each of those four is a check, not decoration.** `9 of 9` matters most:
+    `layers.empty()` silently restores the generated three, so a total load
+    failure looks like the old backdrop *working* rather than the new one
+    missing — which is exactly what was being looked at in the second rejected
+    screenshot. `4128` is `344 * 12`; a different order of magnitude means the
+    legend and the material map have come apart. `y=112` is the number the whole
+    scene's geometry rests on and nobody typed it — it is where the terrain scan
+    landed, and it matches the reference `IMG_0195.PNG` exactly.
+
+    **What should be true in the window.** A coherent landscape: sky, a flat
+    ground plane behind the hills, hills stacked in depth, and foreground rocks
+    in front of the player's feet. Walking should separate the bands visibly —
+    the sky barely moves, the mountains a little, the near hills a lot, the
+    foreground rocks most.
+
+    **The three failure modes, each of which has actually shipped.** A grey mass
+    covering the hills means the ground plane is drawn near the front again (it
+    belongs second from the back). Enormous blocky art means a scale derived from
+    the window instead of from the world. **Vertical seams sliding past at
+    different speeds mean the scene is tiling art that does not tile** — that is
+    the "weird issues with boundaries", and it means the scene has gone back to
+    `infinite`.
+
+    **Climb, and watch the land plane. New on 2026-08-25 (`V28b`) and it is
+    the newest of the failure modes, because it is the one the tester found at
+    1920x1080:** *"you can see under and behind objects that are supposed to be
+    on the same land plane as the player."* The nine images share **one** painted
+    ground surface — the hills bottom out on it, the foreground rocks are painted
+    into it, and the diggable terrain is a flattened copy of it — so the whole
+    stack is now locked vertically at 1.00 and the composition must be identical
+    at every camera height. **If any band slides vertically against another while
+    you go up or down, that lock has come undone.** The bands separating
+    *horizontally* while walking is correct and expected; separating *vertically*
+    while climbing is the defect.
+
+    **Walk to both world edges, and this is the half most likely to be skipped.**
+    The world is only 344 cells wide, so both edges are about fifteen seconds
+    away — there is no excuse for the V26 outcome where nobody recorded how far
+    they walked. At each edge the camera should stop dead with **no gap and no
+    clear colour** anywhere in the frame. A sliver of flat purple at one side is
+    a parallax factor above 1.0.
+
+    **Walk, and watch the shorelines. New on 2026-08-26 (`V28c`), and it
+    replaces the open question that used to close this step.** That question
+    asked whether one parallax factor on the ground plane read wrong while
+    walking; it did — *"the midground layers look like they move horizontally on
+    the ground plane"* — so the plane now scrolls as **three bands** at 0.30,
+    0.70 and 1.00, each carrying one of the art's three wavy shore contours at
+    the speed of whatever hill stands on it.
+
+    Two things to look for, and they are different failures:
+
+    - **A hill's foot drifting along the shoreline it stands on.** That is the
+      original defect, and it means a band's factor no longer matches what is
+      standing on it.
+    - **A horizontal step in a shoreline, sliding as you walk.** That is the new
+      failure this construction can produce, and it means a band boundary has
+      moved off the flat paint it was placed on. `boot_test` asserts the
+      boundaries land on uniform rows, so this should be unreachable without a
+      failing suite — if you see it and `ctest` is green, say so, because then
+      the assertion is checking the wrong thing.
+
+    **The near ground is now locked to the world** (the third band is 1.00, like
+    the terrain and the rocks), so it should feel planted rather than drifting.
+
+    **What this step still cannot settle.** Whether three bands read as one
+    receding surface, or as three flat strips, is a judgement only a person can
+    make. If they still slide, the fix is **more bands, not a ramp** — the
+    reasoning is in ROADMAP.md's V28c entry. Say what you see rather than a
+    verdict.
 ---
 
 ## Where results go

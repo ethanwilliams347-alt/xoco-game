@@ -103,15 +103,52 @@ void draw_clear(SDL_Renderer* renderer, const Params&, const Grade& g) {
 // because there is no `max_cam_x` to divide by. It keeps the factor form and
 // tiles the result through `backdrop_wrap::wrap_axis`, the same call the ground
 // plane already makes.
+// **`authored` splits a question V27 answered with the wrong flag** (V28). Two
+// things vary here and they are not the same thing:
+//
+//   - *Does this layer read its parallax factors?* An authored stack is nothing
+//     but factors - nine images of one identical size, whose only difference is
+//     the rate each moves at - so it always does. A generated layer is *sized*
+//     to its pan range instead, which is what the normalized branch below
+//     exists for.
+//   - *Does this layer tile?* That is a property of the world, not the layer:
+//     an unbounded world has no right-hand edge to run out at, and a bounded
+//     one does.
+//
+// V27 declared `bg1` `infinite` in order to reach the factor branch, and got
+// the tiling with it - nine images that do not tile, repeated at nine different
+// factors, which is nine seams sliding at nine speeds. The art is one 344-pixel
+// scene, not a tile.
+//
+// **An authored layer in a bounded world needs no tiling and leaves no gap, and
+// that is arithmetic rather than luck.** For a world of `W` cells, a viewport of
+// `V`, and a layer `W` cells wide at factor `f`, the right edge at the rightmost
+// camera position is `-(W - V) * scale * f + W * scale`, which covers the window
+// exactly when `W - (W - V) * f >= V`, i.e. when `f <= 1`. That is why `bg1`'s
+// art is exactly world-sized and why its foreground factor is capped at 1.00.
+// `test_frame` pins the inequality at both camera extremes.
 void draw_backdrop_layer(SDL_Renderer* renderer, const Params& p,
                          SDL_Texture* tex, int w, int h,
-                         const backdrop_layers::Layer& layer, const Grade& g) {
+                         const backdrop_layers::Layer& layer, const Grade& g,
+                         bool authored) {
     if (!tex) return;
     apply_grade(tex, g);
 
     const Camera& camera = *p.camera;
-    const int window_w = p.padded_w * Camera::SCALE;
-    const int window_h = p.padded_h * Camera::SCALE;
+    const int window_w = p.padded_w * camera.scale();
+    const int window_h = p.padded_h * camera.scale();
+
+    if (authored && !p.is_infinite) {
+        // Bounded and authored: the factors, placed once. No wrap call, because
+        // there is nothing to wrap onto.
+        const SDL_FRect dst{
+            camera.parallax_origin_x(layer.parallax_x),
+            camera.parallax_origin_y(layer.parallax_y),
+            static_cast<float>(w), static_cast<float>(h)
+        };
+        SDL_RenderCopyF(renderer, tex, nullptr, &dst);
+        return;
+    }
 
     if (p.is_infinite) {
         const backdrop_wrap::Tiling t = backdrop_wrap::wrap_axis(
@@ -149,15 +186,111 @@ void draw_backdrop_layer(SDL_Renderer* renderer, const Params& p,
     SDL_RenderCopyF(renderer, tex, nullptr, &dst);
 }
 
+// **V27's two authored passes, and the early return in the generated three.**
+//
+// A scene has one backdrop system or the other, never a blend: an authored
+// stack is a whole depth ladder that was painted together, and drawing the
+// generated sky behind it would put two horizons in one frame at two unrelated
+// factors. The switch is `layers.empty()` and it is tested in three places
+// rather than hoisted into `compose`, because the layer table is the thing that
+// declares what is drawn and a pass that silently skips itself is still a row
+// in it - which is what keeps the static_asserts below meaningful.
+//
+// **`draw_ground` gets the early return too, and the reason this comment
+// originally said it should not was simply wrong.** The claim was that an
+// authored set wanting no plane says so by loading no ground BMP - but the
+// ground BMP is loaded once at startup for the whole process, not per scene, so
+// that switch does not exist and never did. Shipped without the return, the
+// generated plane drew *over* the authored stack from the horizon down and the
+// tester reported the old backdrop still being there; the screenshot's plane
+// pixels matched `ground_far` times this row's grade exactly.
+//
+// What does *not* early-return is `render/surface_plane.cpp`'s terrain tint,
+// which reads the same geometry to blend near terrain toward the plane. It is a
+// separate pass over the cell texture rather than a layer here, and an authored
+// scene with no terrain gives it nothing to tint - so it is inert rather than
+// wrong today. It becomes wrong the day an authored backdrop is put behind a
+// scene that has terrain, and that is written down in ROADMAP.md rather than
+// guarded here, because guarding it means deciding what the tint should follow
+// when the plane it was derived from is not on screen.
+// An authored layer that is a *surface*, drawn as horizontal bands each at its
+// own factor (`V28c`, 2026-08-26). See `frame::Band` for what a band is and
+// `main.cpp`'s `GROUND_BANDS` for where `bg1`'s three come from.
+//
+// **The vertical is 1:1 and the whole layer's `parallax_y` is used for every
+// band**, so the bands are still one image vertically - they are cut apart only
+// in how fast they scroll sideways. Nothing here shrinks or stretches a source
+// row; `V28b` locked the authored stack's vertical factor to 1.00 precisely so
+// that the composition is the painting at every camera height, and a band that
+// scaled its rows would undo that one layer at a time.
+//
+// **Destination edges are computed per boundary, not per band**, which is the
+// same construction `backdrop_wrap::plane_src_row` exists for and for the same
+// reason: band i's bottom edge and band i+1's top edge have to be one number
+// evaluated once, or the rounding leaves a one-pixel line of whatever was
+// behind the layer between two bands that are supposed to touch.
+void draw_authored_bands(SDL_Renderer* renderer, const Params& p,
+                         const ParallaxLayer& l) {
+    if (l.tex_h <= 0) return;
+
+    int tex_w = 0;
+    SDL_QueryTexture(l.texture, nullptr, nullptr, &tex_w, nullptr);
+    if (tex_w <= 0) return;
+
+    const Camera& camera = *p.camera;
+    const float origin_y = camera.parallax_origin_y(l.parallax_y);
+    const float rows_to_px = static_cast<float>(l.h) / static_cast<float>(l.tex_h);
+
+    // Boundary `r` of the layer, in screen pixels, rounded once. Called for both
+    // edges of every band, so band i's bottom and band i+1's top are the same
+    // expression on the same argument and cannot disagree.
+    const auto edge = [&](int row) {
+        return std::floor(origin_y + static_cast<float>(row) * rows_to_px + 0.5f);
+    };
+
+    for (const Band& b : l.bands) {
+        if (b.row1 <= b.row0) continue;
+        const float top = edge(b.row0);
+        const SDL_Rect src{0, b.row0, tex_w, b.row1 - b.row0};
+        const SDL_FRect dst{camera.parallax_origin_x(b.parallax_x), top,
+                            static_cast<float>(l.w), edge(b.row1) - top};
+        SDL_RenderCopyF(renderer, l.texture, &src, &dst);
+    }
+}
+
+void draw_custom_background_layers(SDL_Renderer* renderer, const Params& p, const Grade&) {
+    for (const ParallaxLayer& l : p.backdrop.layers) {
+        if (l.is_foreground || !l.texture) continue;
+        if (!l.bands.empty()) { apply_grade(l.texture, l.grade); draw_authored_bands(renderer, p, l); continue; }
+        // A per-layer spec built here rather than stored: `backdrop_layers::Layer`
+        // is the generated table's row type and carries a generated size, which
+        // an authored layer has none of. Passing its own w/h through as the size
+        // keeps one draw path for both systems.
+        const backdrop_layers::Layer spec{l.parallax_x, l.parallax_y, l.w, l.h};
+        draw_backdrop_layer(renderer, p, l.texture, l.w, l.h, spec, l.grade, true);
+    }
+}
+
+void draw_custom_foreground_layers(SDL_Renderer* renderer, const Params& p, const Grade&) {
+    for (const ParallaxLayer& l : p.backdrop.layers) {
+        if (!l.is_foreground || !l.texture) continue;
+        if (!l.bands.empty()) { apply_grade(l.texture, l.grade); draw_authored_bands(renderer, p, l); continue; }
+        const backdrop_layers::Layer spec{l.parallax_x, l.parallax_y, l.w, l.h};
+        draw_backdrop_layer(renderer, p, l.texture, l.w, l.h, spec, l.grade, true);
+    }
+}
+
 void draw_sky(SDL_Renderer* renderer, const Params& p, const Grade& g) {
+    if (!p.backdrop.layers.empty()) return; // the authored stack owns the sky
     draw_backdrop_layer(renderer, p, p.backdrop.sky,
-                        p.backdrop.sky_w, p.backdrop.sky_h, backdrop_layers::SKY, g);
+                        p.backdrop.sky_w, p.backdrop.sky_h, backdrop_layers::SKY, g, false);
 }
 
 void draw_mountains(SDL_Renderer* renderer, const Params& p, const Grade& g) {
+    if (!p.backdrop.layers.empty()) return; // the authored stack owns the skyline
     draw_backdrop_layer(renderer, p, p.backdrop.mountains,
                         p.backdrop.mountain_w, p.backdrop.mountain_h,
-                        backdrop_layers::MOUNTAINS, g);
+                        backdrop_layers::MOUNTAINS, g, false);
 }
 
 // **A mid-ground band was built here, deleted, and the deletion's own reopen
@@ -255,13 +388,14 @@ constexpr int GROUND_STRIPS = 24;
 // comment directly above this line and does not move.
 
 void draw_ground(SDL_Renderer* renderer, const Params& p, const Grade& g) {
+    if (!p.backdrop.layers.empty()) return; // the authored stack owns the plane
     SDL_Texture* tex = p.backdrop.ground;
     if (!tex || p.backdrop.ground_w <= 0 || p.backdrop.ground_h <= 0) return;
     apply_grade(tex, g);
 
     const Camera& camera = *p.camera;
-    const int window_w = p.padded_w * Camera::SCALE;
-    const int window_h = p.padded_h * Camera::SCALE;
+    const int window_w = p.padded_w * camera.scale();
+    const int window_h = p.padded_h * camera.scale();
 
     // The horizon moves with the camera at the **mountains'** vertical factor
     // and not the plane's own, which is the second half of the same correction.
@@ -392,10 +526,10 @@ void draw_cells(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     const Camera& camera = *p.camera;
     apply_grade(p.cells, g);
     const SDL_FRect world_dst{
-        -camera.frac_x() * Camera::SCALE,
-        -camera.frac_y() * Camera::SCALE,
-        static_cast<float>(p.padded_w * Camera::SCALE),
-        static_cast<float>(p.padded_h * Camera::SCALE)
+        -camera.frac_x() * camera.scale(),
+        -camera.frac_y() * camera.scale(),
+        static_cast<float>(p.padded_w * camera.scale()),
+        static_cast<float>(p.padded_h * camera.scale())
     };
     SDL_RenderCopyF(renderer, p.cells, nullptr, &world_dst);
 }
@@ -559,10 +693,10 @@ void draw_light(SDL_Renderer* renderer, const Params& p, const Grade& g) {
     const Camera& camera = *p.camera;
     apply_grade(p.light_texture, g);
     const SDL_FRect light_dst{
-        -camera.frac_x() * Camera::SCALE,
-        -camera.frac_y() * Camera::SCALE,
-        static_cast<float>(p.light->cols() * LightField::BLOCK * Camera::SCALE),
-        static_cast<float>(p.light->rows() * LightField::BLOCK * Camera::SCALE)
+        -camera.frac_x() * camera.scale(),
+        -camera.frac_y() * camera.scale(),
+        static_cast<float>(p.light->cols() * LightField::BLOCK * camera.scale()),
+        static_cast<float>(p.light->rows() * LightField::BLOCK * camera.scale())
     };
     SDL_RenderCopyF(renderer, p.light_texture, nullptr, &light_dst);
 }
@@ -610,17 +744,26 @@ constexpr Grade PLAIN{};   // 255,255,255 - drawn as authored
 // than for want of trying: the sky is the reference the rest is judged against,
 // and the world's own spread (Oil 38 to Sand 171) is already the widest in the
 // frame - grading it would compress the one band that does not need help.
+//
+// **The two `custom_*` rows carry `PLAIN` and that is not an oversight.** An
+// authored layer brings its own `Grade` with it - the value is per *layer*, not
+// per row, because eight of them share one row - so a grade here would multiply
+// on top of the one the art was authored against and neither number would say
+// so. The row's grade is left identity for the same reason the `Lighting::Grade`
+// row's is, and the static_assert below is the guard on that one, not this one.
 constexpr Layer TABLE[] = {
-    {"clear",     Lighting::Lit,   PLAIN,           draw_clear},
-    {"sky",       Lighting::Lit,   PLAIN,           draw_sky},
-    {"mountains", Lighting::Lit,   {153, 153, 153}, draw_mountains},
-    {"ground",    Lighting::Lit,   {135, 135, 135}, draw_ground},
-    {"props",     Lighting::Lit,   PLAIN,           draw_props},
-    {"cells",     Lighting::Lit,   PLAIN,           draw_cells},
-    {"objective", Lighting::Lit,   PLAIN,           draw_objective},
-    {"player",    Lighting::Lit,   PLAIN,           draw_player},
-    {"grade",     Lighting::Grade, PLAIN,           draw_grade},
-    {"light",     Lighting::Light, PLAIN,           draw_light},
+    {"clear",             Lighting::Lit,   PLAIN,           draw_clear},
+    {"sky",               Lighting::Lit,   PLAIN,           draw_sky},
+    {"mountains",         Lighting::Lit,   {153, 153, 153}, draw_mountains},
+    {"custom_background", Lighting::Lit,   PLAIN,           draw_custom_background_layers},
+    {"ground",            Lighting::Lit,   {135, 135, 135}, draw_ground},
+    {"props",             Lighting::Lit,   PLAIN,           draw_props},
+    {"cells",             Lighting::Lit,   PLAIN,           draw_cells},
+    {"objective",         Lighting::Lit,   PLAIN,           draw_objective},
+    {"player",            Lighting::Lit,   PLAIN,           draw_player},
+    {"custom_foreground", Lighting::Lit,   PLAIN,           draw_custom_foreground_layers},
+    {"grade",             Lighting::Grade, PLAIN,           draw_grade},
+    {"light",             Lighting::Light, PLAIN,           draw_light},
     // Nothing `Unlit` yet, and that is not an omission: the UI drawn after the
     // light pass lives in main.cpp and stays there. The value exists so that
     // the first thing to cross the boundary declares which side it is on

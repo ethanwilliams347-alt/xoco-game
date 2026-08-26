@@ -198,7 +198,7 @@ Each has a longer argument at the code or in [ENGINEERING_NOTES.md](ENGINEERING_
    fundamentals pass and carries none of the reasoning. **MANUAL_TESTING.md opens
    with the list of what is owed to the tester; put an item on it the moment you
    ask for one, and take it off the moment it comes back.** Each of its
-   **thirteen** steps names a regression that has actually
+   **fourteen** steps names a regression that has actually
    happened — **except step 10, whose first result is a design decision rather
    than a pass or a fail.** Step 13 was the second such step and is not one any
    more: it covered V23's moving camera framing, and **V23b deleted that

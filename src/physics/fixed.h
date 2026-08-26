@@ -18,7 +18,7 @@
 // **16 fractional bits, and the split is not arbitrary.** The fractional half
 // has to resolve a sub-cell remainder finely enough that motion below one cell
 // per step is smooth - 1/65536 of a cell is ~1/16000 of a screen pixel at
-// Camera::SCALE, which is far past visible. The integer half has to hold a
+// Camera's scale, which is far past visible. The integer half has to hold a
 // velocity in cells *per second*, which is how every constant in TUNING.md is
 // written and is ~500 at its largest, against a range of +/-32767. Neither half
 // is close to its limit, which is what makes 16/16 the boring choice rather

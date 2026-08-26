@@ -2,11 +2,6 @@
 
 A barebones, performant pixel-art destructible physics engine (cellular automata) built from scratch in C++ and SDL2.
 
-## Lore & Premise
-Set in a dystopian United States where a Clippy-like AI chat bot took over the government and outlawed humans from participating in the economy. Humans are treated as beasts of burden. Because humans are deemed inefficient and untrustworthy, all intellectual work must be done by AI agents.
-
-To survive, you must use mysterious ancient science to access different worlds. By completing gameplay objectives in these worlds (games like poker, comabt, puzzles), you generate training data for your illegal pet ML agents, allowing them to perform "proof-of-work" tasks on the dark AI economy to earn coins.
-
 ## Tech Stack
 - **Engine:** Custom C++ Cellular Automata Engine
 - **Rendering:** SDL2 (Hardware accelerated textures)

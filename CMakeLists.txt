@@ -270,6 +270,13 @@ if(BUILD_TESTING)
     # One suite rather than two, with `choose_display_mode` in it, because the
     # two are one extraction: they are the decisions startup takes before the
     # first frame, split from the SDL that answers questions for them.
+    #
+    # **V28c added a check that is neither a boot decision nor the fixture**, and
+    # it is here rather than in a twentieth suite for a stated reason: it needs
+    # `SCENE_PROP_SOURCES` to read a BMP and `WORKING_DIRECTORY` to find it, and
+    # this is the only suite that already has both. It checks `bg1`'s ground band
+    # table against the art the table describes - `render/bg1_backdrop.h` is a
+    # header with no SDL in it precisely so that this is possible.
     add_executable(boot_test tests/test_boot.cpp ${ENGINE_SOURCES} ${SCENE_PROP_SOURCES})
     target_include_directories(boot_test PRIVATE src tests)
     add_test(NAME boot_test COMMAND boot_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

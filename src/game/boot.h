@@ -34,7 +34,7 @@
 namespace boot {
 
 // The simulated world's size, in cells - independent of the window since F3.1.
-// Not equal to any window size divided by Camera::SCALE: that was only ever a
+// Not equal to any window size divided by the camera's scale: that was only ever a
 // coincidence of nothing having needed them to differ yet, and F4's scene is
 // authored at 1920x1080 cells (the fixture's original 640x400 rescaled with the
 // player body - see generate_test_scene.py), bigger than every viewport in the

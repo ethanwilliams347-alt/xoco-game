@@ -309,6 +309,28 @@ list — are named per scene, and `src/scene/scene_list.h` carries the format.
 
 ## Rendering constraints
 
+- **A layer that is a *surface* gets bands, and a band boundary must land on
+  flat paint** (`V28c`, 2026-08-26). An authored layer painted as a receding
+  ground plane has no single depth, so a single parallax factor makes everything
+  standing on it slide sideways — which is exactly what the tester reported of
+  `bg1`. The fix is `frame::Band`: horizontal slices of one texture, each at its
+  own factor, vertical always 1:1. **The constraint that makes it work is where
+  the cuts go.** A boundary is a discontinuity in scroll offset, so it is
+  invisible only where the rows either side of it are uniform across every column
+  *and* the same colour — put one through a painted feature and that feature
+  steps sideways and slides as the camera moves. `bg1`'s table and its derivation
+  are in [src/render/bg1_backdrop.h](../../src/render/bg1_backdrop.h), and
+  **`boot_test` asserts the boundaries against the BMP**, so this is enforced
+  rather than remembered.
+- **Do not reach for `backdrop_wrap.h`'s plane strips for authored art.** That
+  machinery ramps its factor smoothly *and* compresses source rows toward the
+  horizon, because it synthesises perspective from one repeating tile. Painted
+  art already has the perspective in it, so the row compression applies it twice
+  — and the smooth ramp shears any feature wider than a strip. On `bg1` the
+  contacts demand ~0.025 of factor per art row, which would tear a ten-row
+  shoreline sideways by 380 px over the world's travel. **Smooth ramps are for
+  textures with no features; bands at flat rows are for paint.**
+
 - The renderer stays `SDL_Renderer`. The shader path has been examined and
   refused twice, most recently because **every scheduled item has a named route
   through the renderer as it stands** (`SDL_ComposeCustomBlendMode`,

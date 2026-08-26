@@ -2,6 +2,7 @@
 #include <SDL.h>
 #include <vector>
 #include "game/camera.h"
+#include "render/backdrop_wrap.h"
 #include "render/light.h"
 
 // The world layers of one frame, in the order they are drawn - V17's half of
@@ -35,6 +36,76 @@ struct Prop {
     int w, h;         // native size, in world cells (1 BMP pixel = 1 cell)
     float anchor_x;   // world cell, bottom-centre of the sprite
     float anchor_y;
+};
+
+// A multiply. 255 is "unchanged", 128 is "half", 0 is "black" - V11's fourth
+// bullet, the half of it that the light pass could never do.
+//
+// **The light pass only ever adds, and that is the whole defect.** V7 lights hot
+// things by compositing one full-screen texture with SDL_BLENDMODE_ADD, so every
+// biome, every depth band and every time of day is at least as bright as the art
+// was authored, and nothing on screen can be made darker than the pixel that was
+// drawn. Night, underground, fog and aerial perspective are all the same missing
+// operation, and it is this one.
+//
+// A struct of three bytes rather than one exposure number because the useful
+// version is a *tint*: a distant band does not just dim, it drifts toward the
+// colour of the air between you and it. One number would have to be tuned three
+// times over as soon as anything wanted that.
+//
+// **Applied by SDL_SetTextureColorMod for a textured layer**, which is a
+// multiply the renderer already does for free - a graded layer costs no extra
+// draw call and no extra texture. The world-wide grade in `Params` is the one
+// that costs a quad, and it is skipped entirely when it is identity.
+struct Grade {
+    unsigned char r = 255, g = 255, b = 255;
+
+    constexpr bool identity() const { return r == 255 && g == 255 && b == 255; }
+};
+
+// One layer of an *authored* multi-layer backdrop - V27, and the difference
+// from the three fields below is where the numbers come from, not how many
+// there are.
+//
+// `Backdrop`'s sky/mountains/ground are generated: tools/generate_backdrop.py
+// derives their factors and sizes together and writes backdrop_layers.h, which
+// is why they can be constants in a header. **A hand-painted set has no such
+// generator**, so its factors arrive with the art and have to be carried
+// per-layer at runtime. That is this struct's entire reason to exist; it is
+// deliberately not a fourth generated layer.
+//
+// **`w`/`h` are the layer's size on screen, not its texture's size**, and the
+// two differ on purpose. `draw_backdrop_layer` puts the texture into a dst rect
+// of exactly `w` x `h`, so authored art at its native pixel size (344 x 144 for
+// the Background_1 set) is stretched by an integer factor at draw time and the
+// texture stays small in VRAM. Sized as textures instead, eight layers with
+// enough vertical headroom to pan would cost over 150 MB; sized as dst rects
+// they cost under 2 MB, and the scaling is nearest-neighbour so an integer
+// factor is exact.
+// One horizontal slice of an authored layer, scrolling at its own rate
+// (`V28c`, 2026-08-26). The type and the argument for it live in
+// render/backdrop_wrap.h, which knows no SDL - so a band table can be checked
+// against the BMP it describes by a headless suite. `bg1`'s is in
+// render/bg1_backdrop.h.
+using Band = backdrop_wrap::Band;
+
+struct ParallaxLayer {
+    SDL_Texture* texture = nullptr;
+    int w = 0, h = 0;
+    float parallax_x = 1.0f;
+    float parallax_y = 1.0f;
+    Grade grade{};
+    bool is_foreground = false; // drawn in front of the player and the cells
+
+    // The texture's own height in pixels, which `w`/`h` above deliberately are
+    // not. Needed only by `bands`: a band names texture rows, and turning those
+    // into destination rows is exactly `h / tex_h`.
+    int tex_h = 0;
+
+    // Empty for every layer that is an object. Non-empty only for a surface -
+    // see `Band`. When set, `parallax_x` above is unused and each band carries
+    // its own.
+    std::vector<Band> bands;
 };
 
 // V8's two static parallax layers.
@@ -78,32 +149,21 @@ struct Backdrop {
     int sky_w = 0, sky_h = 0;
     int mountain_w = 0, mountain_h = 0;
     int ground_w = 0, ground_h = 0;
+
+    // V27's authored stack. **Empty means "this scene uses the three generated
+    // layers above", and that is the whole switch** - the two mechanisms are
+    // never both live in one frame, because `draw_sky` and `draw_mountains`
+    // return early when this is non-empty. A scene therefore gets one backdrop
+    // system or the other and never a half-composed blend of the two, which is
+    // what a per-layer flag would have made representable.
+    //
+    // Drawn in vector order, so the vector *is* the depth ordering: index 0 is
+    // furthest back. `is_foreground` is the one exception and it is not a
+    // reordering - it moves a layer past the player into the second of the two
+    // passes, and nothing else in the table changes.
+    std::vector<ParallaxLayer> layers;
 };
 
-// A multiply. 255 is "unchanged", 128 is "half", 0 is "black" - V11's fourth
-// bullet, the half of it that the light pass could never do.
-//
-// **The light pass only ever adds, and that is the whole defect.** V7 lights hot
-// things by compositing one full-screen texture with SDL_BLENDMODE_ADD, so every
-// biome, every depth band and every time of day is at least as bright as the art
-// was authored, and nothing on screen can be made darker than the pixel that was
-// drawn. Night, underground, fog and aerial perspective are all the same missing
-// operation, and it is this one.
-//
-// A struct of three bytes rather than one exposure number because the useful
-// version is a *tint*: a distant band does not just dim, it drifts toward the
-// colour of the air between you and it. One number would have to be tuned three
-// times over as soon as anything wanted that.
-//
-// **Applied by SDL_SetTextureColorMod for a textured layer**, which is a
-// multiply the renderer already does for free - a graded layer costs no extra
-// draw call and no extra texture. The world-wide grade in `Params` is the one
-// that costs a quad, and it is skipped entirely when it is identity.
-struct Grade {
-    unsigned char r = 255, g = 255, b = 255;
-
-    constexpr bool identity() const { return r == 255 && g == 255 && b == 255; }
-};
 
 // Everything one composed frame reads, and nothing else.
 //
@@ -114,7 +174,9 @@ struct Params {
     const Camera* camera = nullptr;
 
     // The padded viewport, in cells. What the cell texture and the world rect
-    // are sized to; not the window, which is Camera::SCALE times this.
+    // are sized to; not the window, which is the camera's scale times this.
+    // Read the scale off `camera` rather than off `Camera` - since V28 it is a
+    // per-scene value and `Params` deliberately does not keep a second copy.
     int padded_w = 0;
     int padded_h = 0;
 

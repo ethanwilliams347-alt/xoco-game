@@ -7,7 +7,29 @@
 // the window could only ever show its top-left corner.
 class Camera {
 public:
-    static constexpr int SCALE = 4; // each world cell is SCALE x SCALE screen pixels
+    // **The default, not a constant - and the distinction is V28's whole
+    // structural change.** Four screen pixels per cell is still the art
+    // direction for every generated-backdrop scene and every recorded session,
+    // and a default-constructed `Camera` is still exactly the old one, which is
+    // what keeps `test_golden_frame`'s checksum meaningful rather than lucky.
+    //
+    // What changed is that a *scene* may now state its own. `bg1` is authored at
+    // one art pixel to one world cell (344x144 of art, 344x144 of world), and at
+    // 4 px/cell that world would be 1376x576 screen pixels - smaller than the
+    // window, so the window could not be a view *into* it. It needs 10. The
+    // argument is in gemini_plans/bg1_world_scale_and_geometry_plan.md section 2,
+    // including why the alternative - moving the global 4 to 10 - was refused.
+    //
+    // `src/physics/` must never learn this exists. The scale is a rendering
+    // property; the simulation is in cells and always was.
+    static constexpr int DEFAULT_SCALE = 4;
+
+    int scale() const { return scale_; }
+
+    // Set once per scene activation, before the viewport is computed from it.
+    // Refuses a non-positive value rather than propagating a division by zero
+    // into every coordinate conversion in the project.
+    void set_scale(int scale) { scale_ = scale > 0 ? scale : DEFAULT_SCALE; }
 
     // Centers the viewport on (center_x, center_y) - normally the player -
     // clamped so it never scrolls past the world's edges. A world no bigger
@@ -100,15 +122,15 @@ public:
     // a fractional screen position, and rounding it here would put the jitter
     // straight back for anything drawn through it. Callers that need a pixel
     // hand these to SDL's float-rect calls.
-    float world_to_screen_x(float world_x) const { return (world_x - view_fx_) * SCALE; }
-    float world_to_screen_y(float world_y) const { return (world_y - view_fy_) * SCALE; }
+    float world_to_screen_x(float world_x) const { return (world_x - view_fx_) * static_cast<float>(scale_); }
+    float world_to_screen_y(float world_y) const { return (world_y - view_fy_) * static_cast<float>(scale_); }
 
     // Still integers, and deliberately: this direction answers "which cell is
     // under the mouse", and there is no fractional answer to that question.
     // Floored rather than truncated, since a negative intermediate would
     // otherwise round towards zero and pick the cell on the wrong side.
-    int screen_to_world_x(int screen_x) const { return floor_to_int(static_cast<float>(screen_x) / SCALE + view_fx_); }
-    int screen_to_world_y(int screen_y) const { return floor_to_int(static_cast<float>(screen_y) / SCALE + view_fy_); }
+    int screen_to_world_x(int screen_x) const { return floor_to_int(static_cast<float>(screen_x) / static_cast<float>(scale_) + view_fx_); }
+    int screen_to_world_y(int screen_y) const { return floor_to_int(static_cast<float>(screen_y) / static_cast<float>(scale_) + view_fy_); }
 
     // Where a parallax layer's top-left corner goes, in screen pixels, for a
     // layer that moves at `factor` times the camera's speed (V11). A factor of
@@ -127,16 +149,16 @@ public:
     // expression the composition used before V11, kept so the restructure is a
     // no-op the golden checksum can confirm rather than a claim.
     float parallax_origin_x(float factor) const {
-        return -(static_cast<float>(view_x()) + frac_x()) * SCALE * factor;
+        return -(static_cast<float>(view_x()) + frac_x()) * static_cast<float>(scale_) * factor;
     }
     float parallax_origin_y(float factor) const {
-        return -(static_cast<float>(view_y()) + frac_y()) * SCALE * factor;
+        return -(static_cast<float>(view_y()) + frac_y()) * static_cast<float>(scale_) * factor;
     }
 
     // A length, not a position, so it is never shifted by the viewport's
     // offset - only ever scaled. Also covers the on-screen size of one world
     // cell, as scale_length(1).
-    int scale_length(int world_length) const { return world_length * SCALE; }
+    int scale_length(int world_length) const { return world_length * scale_; }
 
     // World-cell coordinates of the viewport's top-left corner - what the
     // texture upload in main.cpp reads the visible rect's pixels from. Floored,
@@ -174,6 +196,7 @@ private:
         return desired;
     }
 
+    int scale_ = DEFAULT_SCALE;
     float view_fx_ = 0.0f;
     float view_fy_ = 0.0f;
 };

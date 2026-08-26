@@ -18,9 +18,10 @@
 //
 // Format, one record per line, `#` to end-of-line is a comment:
 //
-//     # name     material           albedo            props           spawn    mode      w     h
+//     # name    material           albedo            props           spawn    mode      w     h    scale
 //     fixture    test_material.bmp  test_albedo.bmp   test_props.txt  terrain
 //     empty      -                  -                 -               floor    infinite  1920  1080
+//     bg1        bg1_material.bmp   bg1_albedo.bmp    -               terrain  fixed      344   144  10
 //
 // Five fields required, `-` meaning "none" for the three filenames. Blank lines
 // are fine. Anything else is an error with a line number, never a silently
@@ -90,6 +91,20 @@ struct SceneDef {
     // never invents a size it did not read.
     int custom_width = 0;
     int custom_height = 0;
+
+    // Screen pixels per world cell for this scene, `Camera::DEFAULT_SCALE`
+    // when the row does not say (V28).
+    //
+    // **Unlike the size, this one is pre-filled with the default**, and the
+    // difference is not an inconsistency. A size the loader invented would be a
+    // fact about the world that no file states, which is what the comment above
+    // refuses; a scale is a *rendering* choice with a project-wide default that
+    // this file can name without knowing anything about the scene. `4` rather
+    // than `Camera::DEFAULT_SCALE` because `src/scene/` does not include
+    // `src/game/`, and a scene loader that had to know what a camera is would
+    // be the wrong dependency to add for one integer. `scene_list_test` pins
+    // the two to each other so the duplication cannot drift.
+    int scale = 4;
     int line = 0;           // 1-based source line, for diagnostics
 
     // A scene that names no material map places no cells. Stated as a question

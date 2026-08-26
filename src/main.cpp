@@ -14,6 +14,7 @@
 #include "game/run.h"
 #include "game/settings_menu.h"
 #include "render/backdrop_layers.h"
+#include "render/bg1_backdrop.h"
 #include "render/backdrop_wrap.h"
 #include "render/frame.h"
 #include "render/light.h"
@@ -42,7 +43,7 @@ constexpr int GRID_HEIGHT = boot::GRID_HEIGHT;
 // whole window (two null rects). **This used to warn that a grid not matching
 // the window's proportions renders squashed or cropped, and that stopped being
 // true when F3.3 sized the texture to the viewport rather than to the grid**:
-// the texture is the padded viewport and the window is exactly Camera::SCALE
+// the texture is the padded viewport and the window is exactly the scale
 // times that, so the blit is 1:1 whatever size the world is - and, now, at
 // whatever size the window is. The warning outlived the problem and read as a
 // known defect in code that is correct. Camera (F3.2) owns every
@@ -130,18 +131,23 @@ struct RenderTargets {
 // thing that went wrong is a setting they can change back. On failure nothing
 // has been destroyed and nothing has been reassigned, so the caller keeps
 // playing at the mode it already had.
+// **`scale` joins `mode` here because the render targets are sized in cells,
+// and how many cells a window holds is now a question about both** (V28). It is
+// therefore called on a scene change as well as a mode change, whenever either
+// half of the pair moves; the window resize at the bottom is idempotent when
+// only the scale did.
 bool apply_mode(SDL_Window* window, SDL_Renderer* renderer,
-                const DisplayMode& mode, RenderTargets& targets) {
+                const DisplayMode& mode, int scale, RenderTargets& targets) {
     SDL_Texture* cells = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-        mode.padded_w(), mode.padded_h());
+        mode.padded_w(scale), mode.padded_h(scale));
     if (!cells) {
         std::fprintf(stderr, "Could not create a %dx%d cell texture: %s\n",
-                     mode.padded_w(), mode.padded_h(), SDL_GetError());
+                     mode.padded_w(scale), mode.padded_h(scale), SDL_GetError());
         return false;
     }
 
-    LightField light(mode.padded_w(), mode.padded_h());
+    LightField light(mode.padded_w(scale), mode.padded_h(scale));
     SDL_Texture* light_texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
         light.cols(), light.rows());
@@ -192,8 +198,8 @@ bool apply_mode(SDL_Window* window, SDL_Renderer* renderer,
     // than at startup now that textures are created more than once.
     {
         const std::vector<uint32_t> blank(
-            static_cast<size_t>(mode.padded_w()) * mode.padded_h(), 0);
-        SDL_UpdateTexture(cells, nullptr, blank.data(), mode.padded_w() * sizeof(uint32_t));
+            static_cast<size_t>(mode.padded_w(scale)) * mode.padded_h(scale), 0);
+        SDL_UpdateTexture(cells, nullptr, blank.data(), mode.padded_w(scale) * sizeof(uint32_t));
     }
 
     if (targets.cells) SDL_DestroyTexture(targets.cells);
@@ -263,11 +269,21 @@ int main(int argc, char* argv[]) {
     }
     DisplayMode mode = DISPLAY_MODES[mode_index];
 
+    // **How many screen pixels one world cell covers, for the scene that is
+    // loaded right now** (V28). It starts at the default and `activate_scene`
+    // moves it, so it is deliberately *not* `const` and deliberately not read
+    // off `Camera` - the camera is told this value, it does not decide it.
+    //
+    // Everything sized in cells is a function of the pair (mode, view_scale):
+    // the two render targets, the light field, the camera's viewport, and the
+    // upload rect. When either half moves, `apply_mode` rebuilds all of it.
+    int view_scale = Camera::DEFAULT_SCALE;
+
     // Printed for the same reason the seed below is: a mode chosen by a
     // fallback path is invisible otherwise, and "it opened smaller than I asked
     // for" is not something a player can debug from the window alone.
     std::printf("Display: %dx%d (%dx%d cells at %dx)\n", mode.window_w, mode.window_h,
-                mode.viewport_w(), mode.viewport_h(), Camera::SCALE);
+                mode.viewport_w(view_scale), mode.viewport_h(view_scale), view_scale);
 
     SDL_Window* window = SDL_CreateWindow(
         "SLOP Pixel Physics",
@@ -294,7 +310,7 @@ int main(int argc, char* argv[]) {
     // this same call whenever the mode changes. Here a failure is fatal, unlike
     // in the menu: there is no earlier mode to fall back to.
     RenderTargets targets;
-    if (!apply_mode(window, renderer, mode, targets)) {
+    if (!apply_mode(window, renderer, mode, view_scale, targets)) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -720,7 +736,16 @@ int main(int argc, char* argv[]) {
         if (!boot::stand_player_on_ground(run).placed) {
             std::fprintf(stderr, "WARNING: no ground under the spawn column; "
                                  "the player starts in mid-air and will fall.\n");
+            return;
         }
+        // **The launch check for an authored floor** (V28). `bg1`'s art puts the
+        // player's feet on row 132, and `player_sprite.h`'s
+        // OFFSET_Y == FRAME_H - Player::HEIGHT makes that a `pos_y` of 112. That
+        // this scan lands on 112 without anyone typing it is the evidence the
+        // material map's floor row is the row the art was drawn around - and
+        // eyeballing the window cannot tell 112 from 118.
+        std::printf("Spawn: standing at y=%d (feet on row %d)\n",
+                    run.player.cell_y(), run.player.cell_y() + Player::HEIGHT);
     };
 
     // S0's objective, planted on whatever terrain is actually at
@@ -739,9 +764,25 @@ int main(int argc, char* argv[]) {
         run.clear_objective();
         if (def.declared_empty()) return;   // nothing to plant it on, and none is owed
         if (!boot::place_objective(run).placed) {
-            std::fprintf(stderr, "WARNING: no ground under the objective column x=%d; "
-                                 "this run has no objective and cannot be won.\n",
-                         boot::OBJECTIVE_X);
+            // **Two different failures, and telling them apart is the point**
+            // (V28). `boot::OBJECTIVE_X` is hard-coded at 1700, which `boot.h`
+            // states is S0's limit rather than an oversight - and V28 produced
+            // the first scene narrower than it, so the column is not merely
+            // unsupported, it is off the edge of the world. Reported as the same
+            // sentence those read as "the terrain generator left a hole", which
+            // is a bug, where this is a scene the hard-coded objective does not
+            // fit. A warning either way, because a run that cannot be won is
+            // something the player has to be told; but not the same warning.
+            if (boot::OBJECTIVE_X >= run.grid.get_width()) {
+                std::fprintf(stderr, "WARNING: scene '%s' is %d cells wide and the objective "
+                                     "column is hard-coded at x=%d, so this run has no "
+                                     "objective and cannot be won.\n",
+                             def.name.c_str(), run.grid.get_width(), boot::OBJECTIVE_X);
+            } else {
+                std::fprintf(stderr, "WARNING: no ground under the objective column x=%d; "
+                                     "this run has no objective and cannot be won.\n",
+                             boot::OBJECTIVE_X);
+            }
             return;
         }
         // Printed for the same reason the seed and the scene count are: an
@@ -833,6 +874,203 @@ int main(int argc, char* argv[]) {
                     static_cast<int>(prop_defs.size()));
     };
 
+    // Centred, and deliberately not configurable from here. V23 gave this a
+    // moving vertical anchor and session 9 asked for the centring back; the
+    // whole mechanism went with it, so there is nothing left to hold. See
+    // ROADMAP.md's V23b entry before adding a second framing.
+    Camera camera;
+
+    // **Declared above the scene lambdas rather than below them, and that is a
+    // requirement rather than a tidy-up** (V28): they capture by reference, so
+    // `activate_scene` can only tell the camera a scene's scale, and
+    // `load_bg1_layers` can only read it back, if the camera is already in scope
+    // where those lambdas are written.
+
+    // --- V27/V28: the authored backdrop stack --------------------------------
+    //
+    // `frame::Backdrop::layers` is owned here and by nothing else, so every path
+    // that changes scene goes through these two. **The clear destroys before it
+    // empties**, which is the whole reason it is a function: F7 cycles scenes
+    // for as long as the player likes, and a `layers.clear()` that only dropped
+    // the pointers would leak nine textures a cycle with nothing on screen ever
+    // saying so.
+    auto clear_custom_layers = [&]() {
+        for (frame::ParallaxLayer& l : backdrop.layers)
+            if (l.texture) SDL_DestroyTexture(l.texture);
+        backdrop.layers.clear();
+    };
+
+    // The Background_1 set: nine images, all 344x144, listed back to front.
+    //
+    // **The factors are the art's own, from art_src/Background_1/README.md**,
+    // and they are carried here rather than in backdrop_layers.h because that
+    // header is generated from the tool that *derives* factors and sizes
+    // together. This art arrived with its factors already chosen by whoever
+    // painted it; there is nothing to derive, so there is nothing to generate.
+    //
+    // Everything else about this table is argued at the table itself, because
+    // three of its columns were shipped wrong in V27 and each correction names
+    // what it is correcting.
+    auto load_bg1_layers = [&]() {
+        struct Spec { const char* file; float parallax; bool fg; };
+
+        // **Back to front, in strict numeric-descending filename order.** That
+        // is what the art README's "Layer Order & Depth Breakdown (Front to
+        // Back)" table says read the other way round, and it is confirmed by
+        // pixels rather than trusted: compositing in this order reproduces the
+        // tester's reference IMG_0195.PNG exactly, everywhere the player is not.
+        //
+        // **V27 had `bg1_08_ground` second from the front and that was the worst
+        // of its errors.** The ground plane fills art rows 63..143 at 56%
+        // coverage, so from near the front it paints over the entire hill range
+        // - which is the grey mass that filled the lower half of two rejected
+        // screenshots.
+        //
+        // **One factor per layer, and it is the *horizontal* one. Every layer
+        // in this stack is locked to the world vertically, at 1.00.** (V28b,
+        // 2026-08-25.)
+        //
+        // V28 gave each layer its authored factor on both axes, on the
+        // reasoning that a layer's factor is one over its depth and depth does
+        // not care which way the camera moved. That is true of a stack of
+        // layers each painted with its own horizon. It is false of this one,
+        // and the way it is false is what the tester reported at 1920x1080:
+        // *"you can see under and behind objects that are supposed to be on the
+        // same land plane as the player."*
+        //
+        // **The nine images share one painted land plane, and the pixels say
+        // so.** `bg1_08_ground` is opaque from art row 63 to 143; every hill's
+        // silhouette bottoms out on it (rows 67..89), the foreground rocks are
+        // painted into it (rows 126..143), and `assets/bg1_albedo.bmp` - the
+        // terrain the player actually stands on, rows 132..143, world-locked at
+        // 1.00 by definition - is a flattened copy of that same band with the
+        // rocks composited into it. So the plane is not a layer among nine; it
+        // is one surface that nine images each draw a piece of.
+        //
+        // Spread across a vertical factor ladder, the pieces of one surface
+        // shear apart. The world is 144 cells tall against a 108-cell viewport,
+        // so the camera travels 36 cells = 360 px, and over that travel the
+        // ground band rises 0.52 * 360 = 187 px while the rocks and the terrain
+        // rise the full 360: **173 px, seventeen art rows, of plane opening up
+        // underneath objects painted as resting on it.** The hills shear against
+        // it in the other direction at up to 0.70. No amount of retuning the
+        // ladder fixes that - any two different vertical factors reopen it -
+        // which is why this is 1.00 flat and not a gentler set of numbers.
+        //
+        // **1.00 is also the largest value that is safe, and it is safe for the
+        // same reason the horizontal cap is.** The layer is world-sized, so at
+        // f <= 1 it covers the viewport at every camera position with no gap -
+        // the inequality is at `draw_backdrop_layer`. At 1.00 exactly the layer
+        // spans the world and the window is a plain pan over it.
+        //
+        // What it costs is the vertical depth cue, and that is a real loss
+        // stated rather than hidden: climbing no longer separates the bands.
+        // It buys back a composition that is the painting at every camera
+        // height instead of only at the top of the world. If the cue is wanted
+        // later, it cannot come from this column - it needs art whose layers do
+        // not share a plane.
+        //
+        // **No grades, and that is measured rather than preferred.** V27 shipped
+        // nine multiply values (255/220/200/190/180/170/160/255/255) that nobody
+        // authored. The reference composites to an exact match with no grading
+        // at all, so the art already carries its own aerial perspective. If depth
+        // cueing is wanted on top of it, that is a tuning pass with the tester
+        // recorded in TUNING.md - not a guess restored here.
+        //
+        // **The foreground is 1.00 and the README offers "1.00x - 1.20x".** A
+        // world-sized layer gaps at the right edge above 1.00; the inequality is
+        // at `draw_backdrop_layer` and `camera_test` pins both sides of it. 1.00
+        // is the low end of the art's own range, so nothing is being overruled -
+        // but if 1.20 is genuinely wanted, the fix is a wider foreground image
+        // (344 * 1.20 = 413 px), never a bigger number here.
+        //
+        // **The ground plane's 0.52 is the one number still unresolved.** Its
+        // README row asks for a 0.28-0.52 ramp, which one factor cannot express.
+        // It gets the near end. Unlike V27 it is now drawn near the *back*,
+        // where the inversion V27 created (a plane moving slower than the hills
+        // in front of it) does not arise - but a single factor is still not a
+        // ramp. Open question in ROADMAP.md's V28 entry.
+        // **`bg1_08_ground` is a surface, not an object, and V28c is what
+        // that costs.** (2026-08-26.) The tester, after V28b: *"the midground
+        // layers look like they move horizontally on the ground plane."*
+        //
+        // The table, the measurement it is derived from, and the argument
+        // against a smooth ramp are all in render/bg1_backdrop.h - a header
+        // rather than three literals here, so that `boot_test` can check the
+        // boundaries against the BMP they describe. Nothing about them is
+        // restated here; read that file.
+        static constexpr Spec SPECS[] = {
+            {"bg1_09_sky.bmp",           0.04f, false},
+            // 0.00 because it is never read: this layer is banded, and
+            // `GROUND_BANDS` above carries a factor per band. A number here
+            // would be a fourth copy of one that is already stated three times.
+            {"bg1_08_ground.bmp",        0.00f, false},
+            {"bg1_07_mountains.bmp",     0.12f, false},
+            {"bg1_06_hills_far.bmp",     0.20f, false},
+            {"bg1_05_hills_midfar.bmp",  0.30f, false},
+            {"bg1_04_hills_mid.bmp",     0.42f, false},
+            {"bg1_03_hills_midnear.bmp", 0.55f, false},
+            {"bg1_02_hills_near.bmp",    0.70f, false},
+            {"bg1_01_fg_rocks.bmp",      1.00f, true},
+        };
+        constexpr int NATIVE_W = bg1::NATIVE_W, NATIVE_H = bg1::NATIVE_H;
+
+        // **One art pixel is one world cell, so the on-screen size of a layer is
+        // the world's size in screen pixels and nothing else** - no fitting, no
+        // deriving from the window. V27 computed a scale here from the window
+        // height and got 33x at one point, because it was sizing art to a window
+        // rather than to a world. The window's job is to be a view *into* this,
+        // which is what the scene's `scale` column buys.
+        //
+        // Read off the camera rather than off `def.scale` so that a scene whose
+        // requested scale could not be applied (the `apply_mode` failure path
+        // above) draws its backdrop at the scale actually in use, instead of at
+        // the one it asked for and did not get.
+        const int scale = camera.scale();
+        const int layer_w = NATIVE_W * scale;
+        const int layer_h = NATIVE_H * scale;
+
+        clear_custom_layers();
+        backdrop.layers.reserve(sizeof(SPECS) / sizeof(SPECS[0]));
+        int missing = 0;
+        for (const Spec& sp : SPECS) {
+            const std::string path = std::string("assets/bg1/") + sp.file;
+            // Only the sky is opaque; everything else is a silhouette and keys.
+            const bool keyed = std::string(sp.file) != "bg1_09_sky.bmp";
+            SDL_Texture* tex = load_art_texture(renderer, path.c_str(), keyed);
+            if (!tex) { ++missing; continue; }
+            frame::ParallaxLayer l;
+            l.texture = tex;
+            l.w = layer_w;
+            l.h = layer_h;
+            l.parallax_x = sp.parallax;
+            l.parallax_y = 1.0f;   // one shared plane; see the note above
+            l.tex_h = NATIVE_H;
+            // The one banded layer. Keyed off the filename rather than an index
+            // so that reordering SPECS - which V28 had to do once already, and
+            // which is the cheapest thing to get wrong here - cannot silently
+            // band the wrong image.
+            if (std::string(sp.file) == "bg1_08_ground.bmp")
+                l.bands.assign(std::begin(bg1::GROUND_BANDS), std::end(bg1::GROUND_BANDS));
+            l.grade = frame::Grade{};   // identity; see the note above
+            l.is_foreground = sp.fg;
+            backdrop.layers.push_back(l);
+        }
+        // Printed for the same reason `Scene:` and `Props:` are - a backdrop
+        // that half-loaded is otherwise a frame you have to recognise by eye,
+        // and `layers.empty()` is the switch that silently restores the
+        // generated three, so a total failure looks like the old backdrop
+        // working rather than like the new one missing.
+        std::printf("Backdrop: %d of %d bg1 layers at %dx (%dx%d px over a %dx%d world)\n",
+                    static_cast<int>(backdrop.layers.size()),
+                    static_cast<int>(sizeof(SPECS) / sizeof(SPECS[0])),
+                    scale, layer_w, layer_h, world_w, world_h);
+        if (missing)
+            std::fprintf(stderr, "WARNING: %d bg1 layer(s) failed to load - rerun "
+                                 "python tools/convert_background_layers.py and rebuild.\n",
+                         missing);
+    };
+
     // **Everything building a world is, in the order it has to happen** - and
     // the only caller of the five steps above. Boot calls it once, F7 calls it
     // to switch scenes, and `restart_run` calls it on a win or a loss. There is
@@ -863,6 +1101,38 @@ int main(int argc, char* argv[]) {
         world_h = def.custom_height > 0 ? def.custom_height
                 : (scene.height > 0 ? scene.height : GRID_HEIGHT);
 
+        // **The scene's screen scale, applied before anything that is measured
+        // in cells** (V28). Both the render targets and the camera's viewport
+        // are functions of it, so it has to move first or they are rebuilt to
+        // the previous scene's framing.
+        //
+        // `apply_mode` is re-run only when the scale actually changed, because
+        // it destroys and rebuilds two textures and a light field - free once,
+        // wasteful on every F7 press between two scenes that share a scale. A
+        // failure here is reported and then *ignored*: the old targets are
+        // untouched on failure (that is `apply_mode`'s contract), so the scene
+        // still loads, framed at the previous scale. That is wrong-looking and
+        // playable, which beats a black window.
+        if (def.scale != view_scale) {
+            const int previous = view_scale;
+            view_scale = def.scale;
+            if (!apply_mode(window, renderer, mode, view_scale, targets)) {
+                std::fprintf(stderr, "WARNING: could not rebuild render targets at %dx "
+                                     "for scene '%s'; staying at %dx.\n",
+                             view_scale, def.name.c_str(), previous);
+                view_scale = previous;
+            }
+            camera.set_scale(view_scale);
+            std::printf("Scale: %dx (%dx%d cells)\n", view_scale,
+                        mode.viewport_w(view_scale), mode.viewport_h(view_scale));
+        }
+
+        // After the size and the scale, and before anything is stamped: the
+        // stack is drawn in screen pixels, which the line above has just
+        // settled, and nothing below this reads the backdrop.
+        if (def.name == "bg1") load_bg1_layers();
+        else clear_custom_layers();
+
         run.reset(world_seed, world_w, world_h);
         stamp_scene(def);
         spawn_player(def);
@@ -885,12 +1155,6 @@ int main(int argc, char* argv[]) {
         recording_full = false;
     };
     activate_scene(active_scene);
-
-    // Centred, and deliberately not configurable from here. V23 gave this a
-    // moving vertical anchor and session 9 asked for the centring back; the
-    // whole mechanism went with it, so there is nothing left to hold. See
-    // ROADMAP.md's V23b entry before adding a second framing.
-    Camera camera;
 
     bool running = true;
     SDL_Event e;
@@ -1113,7 +1377,7 @@ int main(int argc, char* argv[]) {
                     // the switch, on a window, and report which way it went.
                     if (out.act == menu::Act::ApplyMode) {
                         const DisplayMode& wanted = DISPLAY_MODES[out.mode];
-                        if (apply_mode(window, renderer, wanted, targets)) {
+                        if (apply_mode(window, renderer, wanted, view_scale, targets)) {
                             mode = wanted;
                             mode_index = out.mode;
                             // Persisted at the point it takes effect, not on the
@@ -1217,7 +1481,7 @@ int main(int argc, char* argv[]) {
                         // could put the view somewhere it was not.
                         debug.detach_camera(static_cast<float>(run.player.center_x()),
                                             static_cast<float>(run.player.center_y()),
-                                            mode.padded_w(), mode.padded_h(),
+                                            mode.padded_w(view_scale), mode.padded_h(view_scale),
                                             world_w, world_h);
                     }
                 }
@@ -1333,7 +1597,7 @@ int main(int argc, char* argv[]) {
             const float speed = DebugView::PAN_CELLS_PER_SECOND *
                                 (fast ? DebugView::PAN_FAST_MULTIPLIER : 1.0f) *
                                 static_cast<float>(frame_time);
-            debug.pan(pan_x * speed, pan_y * speed, mode.padded_w(), mode.padded_h(),
+            debug.pan(pan_x * speed, pan_y * speed, mode.padded_w(view_scale), mode.padded_h(view_scale),
                       world_w, world_h);
         }
 
@@ -1352,10 +1616,10 @@ int main(int argc, char* argv[]) {
             // disagree with the thing feeding it. T1's camera is for inspecting
             // the world that exists.
             camera.follow(debug.cam_x, debug.cam_y,
-                          mode.padded_w(), mode.padded_h(), world_w, world_h);
+                          mode.padded_w(view_scale), mode.padded_h(view_scale), world_w, world_h);
         } else {
             camera.follow_mode(static_cast<float>(run.player.center_x()), static_cast<float>(run.player.center_y()),
-                               mode.padded_w(), mode.padded_h(), world_w, world_h, world_infinite);
+                               mode.padded_w(view_scale), mode.padded_h(view_scale), world_w, world_h, world_infinite);
         }
 
         // Handle continuous mouse pressing
@@ -1462,7 +1726,7 @@ int main(int argc, char* argv[]) {
             // one rendered frame, and a framing rule applied at one of them and
             // not the other tears the backdrop against the world every frame.
             camera.follow_mode(draw_player_x + Player::WIDTH / 2.0f, draw_player_y + Player::HEIGHT / 2.0f,
-                               mode.padded_w(), mode.padded_h(), world_w, world_h, world_infinite);
+                               mode.padded_w(view_scale), mode.padded_h(view_scale), world_w, world_h, world_infinite);
         }
 
         // Upload only the visible rect (F3.3), not the whole grid, starting
@@ -1485,8 +1749,8 @@ int main(int argc, char* argv[]) {
         // plane, which is every row above the horizon, is a straight copy, and
         // when the tile failed to load the whole pass is one.
         const std::vector<uint32_t>& pixels = run.grid.get_pixels();
-        const int visible_w = std::min(mode.padded_w(), run.grid.get_width());
-        const int visible_h = std::min(mode.padded_h(), run.grid.get_height());
+        const int visible_w = std::min(mode.padded_w(view_scale), run.grid.get_width());
+        const int visible_h = std::min(mode.padded_h(view_scale), run.grid.get_height());
         const SDL_Rect visible_rect{0, 0, visible_w, visible_h};
 
         // Which tile row each window row of cells is looking at, or -1 for the
@@ -1539,7 +1803,7 @@ int main(int argc, char* argv[]) {
             // the texture this feeds. Sampling the top edge instead would bias
             // every row half a cell toward the horizon.
             const float screen_y =
-                (static_cast<float>(wy) + 0.5f - camera.frac_y()) * Camera::SCALE;
+                (static_cast<float>(wy) + 0.5f - camera.frac_y()) * static_cast<float>(view_scale);
             if (band <= 0.0f || screen_y < plane.horizon_y) continue;
             const float t = (screen_y - plane.horizon_y) / band;
             const int scale = surface_plane::row_scale_at(t);
@@ -1597,8 +1861,8 @@ int main(int argc, char* argv[]) {
         // drawn after it is deliberately not lit.
         frame::Params fp;
         fp.camera = &camera;
-        fp.padded_w = mode.padded_w();
-        fp.padded_h = mode.padded_h();
+        fp.padded_w = mode.padded_w(view_scale);
+        fp.padded_h = mode.padded_h(view_scale);
         fp.is_infinite = world_infinite;
         fp.world_w = world_w;
         fp.world_h = world_h;
@@ -1636,6 +1900,7 @@ int main(int argc, char* argv[]) {
         op.window_w = mode.window_w;
         op.window_h = mode.window_h;
         op.ui_scale = mode.ui_scale();
+        op.view_scale = view_scale;
 
         // Only while the pointer is actually over this window.
         // `SDL_GetMouseState` keeps reporting the last position inside the
@@ -1768,6 +2033,7 @@ int main(int argc, char* argv[]) {
     // and `props` holding several borrowed copies of each is not a double free.
     for (auto& entry : prop_textures)
         if (entry.second) SDL_DestroyTexture(entry.second);
+    clear_custom_layers();
     if (backdrop.ground) SDL_DestroyTexture(backdrop.ground);
     if (backdrop.mountains) SDL_DestroyTexture(backdrop.mountains);
     if (backdrop.sky) SDL_DestroyTexture(backdrop.sky);

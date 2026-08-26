@@ -6,28 +6,41 @@
 // The window sizes the game can be run at, and the one place that knows how a
 // window size turns into a viewport.
 //
-// **Camera::SCALE stays a compile-time constant and the window does not.** Four
-// screen pixels per cell is the art direction - it is measured off the
-// reference in resources/video_screenshots/test_location.jpg and the player
-// body is sized to match it (Player::WIDTH) - so a mode switch changes *how
-// much world is on screen*, never how big a cell is. That is the same bargain
-// the reference itself makes, and it has a consequence worth stating rather
-// than discovering: a player on an ultrawide genuinely sees more of the world
-// than one at 1920x1080. The alternative, holding the framing constant across
-// modes, needs a scale of 2.23 at 1080p to match 3440x1440's framing, and a
-// fractional scale destroys the pixel grid that everything in assets/ is drawn
-// on. Seeing more is the lesser cost.
+// **A mode switch changes how much world is on screen, never how big a cell
+// is.** Four screen pixels per cell is the art direction for the generated
+// backdrop - measured off the reference in
+// resources/video_screenshots/test_location.jpg, with the player body sized to
+// match it (Player::WIDTH) - and that is the same bargain the reference itself
+// makes. It has a consequence worth stating rather than discovering: a player
+// on an ultrawide genuinely sees more of the world than one at 1920x1080. The
+// alternative, holding the framing constant across modes, needs a scale of 2.23
+// at 1080p to match 3440x1440's framing, and a fractional scale destroys the
+// pixel grid that everything in assets/ is drawn on. Seeing more is the lesser
+// cost.
 //
 // At 4 px/cell: 1920x1080 shows 480x270 cells, 2560x1440 shows 640x360, and
 // 3440x1440 shows 860x360 - which is exactly the reference's own framing,
 // because that is the resolution it was captured at.
+//
+// **The 4 is a default rather than a constant since V28, and that is why every
+// method here takes the scale as an argument instead of reading
+// `Camera::SCALE`.** A scene may state its own - `bg1` is authored at one art
+// pixel to one world cell and needs 10 - so the pair (window, scale) decides a
+// viewport and neither half decides it alone. **The parameter is deliberately
+// not defaulted**: a default would let a call site silently frame a 10x scene
+// at 4, and there are fifteen such sites in main.cpp. Making the compiler name
+// them was the cheaper half of V28.
+//
+// At 10 px/cell `bg1`'s 344x144 world gives: 1920x1080 shows 192x108 cells (a
+// window into the scene), 2560x1440 shows 256x144, and 3440x1440 shows 344x144
+// - the whole scene exactly, which is the reference IMG_0195.PNG.
 struct DisplayMode {
     int window_w;
     int window_h;
 
     // How many whole cells fit on screen.
-    constexpr int viewport_w() const { return window_w / Camera::SCALE; }
-    constexpr int viewport_h() const { return window_h / Camera::SCALE; }
+    constexpr int viewport_w(int scale) const { return window_w / scale; }
+    constexpr int viewport_h(int scale) const { return window_h / scale; }
 
     // One extra cell on each axis, uploaded and drawn but never quite fully on
     // screen. The camera scrolls in fractions of a cell (defect A1), so the
@@ -36,13 +49,13 @@ struct DisplayMode {
     // fills. Everything downstream uses the padded size; the camera is told its
     // viewport is the padded size too, so its clamp keeps the upload inside the
     // grid.
-    constexpr int padded_w() const { return viewport_w() + 1; }
-    constexpr int padded_h() const { return viewport_h() + 1; }
+    constexpr int padded_w(int scale) const { return viewport_w(scale) + 1; }
+    constexpr int padded_h(int scale) const { return viewport_h(scale) + 1; }
 
     // Pixels per glyph cell for the HUD and the settings menu.
     //
     // **Deliberately not fixed, and deliberately unlike the world's scale.**
-    // The world is locked at Camera::SCALE because a cell is art; UI text is
+    // The world is locked at the scene's scale because a cell is art; UI text is
     // not art, it is something to read, and the thing that makes it readable is
     // how much of the window it covers. Derived from the height so it holds a
     // constant fraction of the screen: 4 at 1080p, 5 at 1440p. The reticle is

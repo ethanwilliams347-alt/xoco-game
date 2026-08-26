@@ -10,6 +10,7 @@
 // empty scene asking for a spawn it has no terrain for.
 
 #include "scene/scene_list.h"
+#include "game/camera.h"
 #include "test_util.h"
 
 #include <cstdio>
@@ -169,7 +170,40 @@ int main() {
     }
     {
         const Result r = parse("toomuch - - - floor fixed 100 100 extra\n");
-        check("a ninth field is still an error", r.rejected(), r.error);
+        check("a ninth field that is not a scale is an error", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("toomuch2 - - - floor fixed 100 100 8 extra\n");
+        check("a tenth field is still an error", r.rejected(), r.error);
+    }
+
+    // --- V28 s scale column ---------------------------------------------
+    //
+    // The same absent-or-exact rule as the two columns above, plus one check
+    // that the default the header states really is the camera s: `SceneDef`
+    // spells the 4 itself rather than including `src/game/camera.h`, and that
+    // duplication is only safe while something pins the two together.
+    {
+        const Result r = parse("noscale - - - floor fixed 100 100\n");
+        check("a row that states no scale gets the engine default",
+              r.scenes.size() == 1 && r.scenes[0].scale == Camera::DEFAULT_SCALE, r.error);
+    }
+    {
+        const Result r = parse("scaled - - - floor fixed 344 144 10\n");
+        check("a stated scale is read",
+              r.scenes.size() == 1 && r.scenes[0].scale == 10, r.error);
+    }
+    {
+        const Result r = parse("zeroscale - - - floor fixed 100 100 0\n");
+        check("a scale of zero is refused, not defaulted", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("bigscale - - - floor fixed 100 100 65\n");
+        check("a scale past the cap is refused", r.rejected(), r.error);
+    }
+    {
+        const Result r = parse("wordscale - - - floor fixed 100 100 huge\n");
+        check("a scale that is not a number is refused", r.rejected(), r.error);
     }
     {
         const Result r = parse("fixture - - - floor\nfixture - - - floor\n");

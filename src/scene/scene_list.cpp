@@ -186,6 +186,26 @@ std::vector<SceneDef> load_scene_list(const std::string& path, std::string* erro
                     return fail("'" + w_raw + "' is not a usable world width");
                 if (!positive_int(h_raw, def.custom_height))
                     return fail("'" + h_raw + "' is not a usable world height");
+
+                // **The ninth field, and it is nested inside the size on
+                // purpose rather than out of laziness** (V28). These fields are
+                // positional, so a row reading `... infinite 10` cannot be told
+                // from one meaning a width of 10; the only unambiguous place a
+                // scale can sit is after a size that is already stated. A row
+                // wanting a scale therefore states its size too, which every
+                // row that would want one already does - `bg1`'s whole point is
+                // that its world size and its scale are the same fact seen
+                // twice.
+                //
+                // The cap is 64 rather than unbounded because this multiplies
+                // into every screen coordinate in the renderer, and a typo of
+                // 1000 is a window-sized cell rather than a diagnosable error.
+                std::string scale_raw;
+                if (fields >> scale_raw) {
+                    if (!positive_int(scale_raw, def.scale) || def.scale > 64)
+                        return fail("'" + scale_raw +
+                                    "' is not a usable screen scale (1 to 64 pixels per cell)");
+                }
             }
         }
 

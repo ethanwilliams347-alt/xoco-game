@@ -39,7 +39,7 @@ public:
     // Body size in cells. Matched to Noita's wizard measured off
     // resources/video_screenshots/test_location.jpg: at that game's 4 screen
     // pixels per cell the body is ~8 cells across and ~20 tall below the hat,
-    // and Camera::SCALE is 4 here too, so these numbers put a character of the
+    // and the camera's scale is 4 for that scene too, so these numbers put a character of the
     // same apparent size on screen *built from the same number of cells*. That
     // second half is the point. The body was 4x8 before, which looked close
     // enough at a glance but resolved the character roughly 2.5x more coarsely

@@ -5,7 +5,7 @@
 // **Every scenario is run at two world sizes** (P2). The bench used to run one,
 // 960x540, justified by a comment that said "1920x1080 at a 2px scale = 960x540
 // cells". That arithmetic described a world that no longer exists in two
-// separate ways: `Camera::SCALE` is 4 rather than 2, and - more to the point -
+// separate ways: the camera's scale is 4 rather than 2, and - more to the point -
 // since F3.1 the world's size is not a window size divided by anything at all.
 // `GRID_WIDTH`/`GRID_HEIGHT` in main.cpp are a cell count the camera pans
 // across, and no scale factor applies to them. The comment stayed true-looking
@@ -403,8 +403,8 @@ void run(const char* name, const WorldSize& size,
 // Whatever this reads is the cost the widest mode pays; every other mode pays
 // less.
 constexpr DisplayMode WIDEST = DISPLAY_MODES[DISPLAY_MODE_COUNT - 1];
-constexpr int LIGHT_VIEW_W = WIDEST.padded_w();
-constexpr int LIGHT_VIEW_H = WIDEST.padded_h();
+constexpr int LIGHT_VIEW_W = WIDEST.padded_w(Camera::DEFAULT_SCALE);
+constexpr int LIGHT_VIEW_H = WIDEST.padded_h(Camera::DEFAULT_SCALE);
 constexpr int LIGHT_FRAMES = 300;
 
 void run_light(const char* name, const WorldSize& size,

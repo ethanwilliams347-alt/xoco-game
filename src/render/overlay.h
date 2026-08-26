@@ -50,6 +50,15 @@ struct Params {
     int window_h = 0;
     int ui_scale = 1;
 
+    // The active scene's screen pixels per world cell, which the settings menu
+    // needs in order to say how many cells each resolution shows.
+    //
+    // **Passed in rather than read off `Camera::DEFAULT_SCALE`, because since
+    // V28 the answer depends on the scene** - the same 1920x1080 row means 480
+    // cells wide in a 4x scene and 192 in `bg1`. A menu quoting the default
+    // would be quietly wrong in exactly the scene V28 was built for.
+    int view_scale = 4;
+
     // V10/B1's reticle. `show` is false when the pointer is not over this
     // window - SDL_GetMouseState keeps reporting the last position inside it
     // after the mouse leaves, and the caller is the only one that can tell.

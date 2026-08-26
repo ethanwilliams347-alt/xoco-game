@@ -28,6 +28,31 @@
 
 namespace backdrop_wrap {
 
+// --- V28c: one authored layer cut into bands ------------------------------
+//
+// **A receding *surface* has no single depth, so it has no single parallax
+// factor** - the same sentence the plane construction below opens with, and it
+// is true of a painted surface as much as of a generated one. What differs is
+// what may be done about it. A generated plane is a repeating noise tile with no
+// feature wide enough to shear, so it can ramp its factor smoothly, one strip
+// per row-range. **Painted art has features, so its factor has to change where
+// the art does not** - across a run of rows that is uniform in colour, where a
+// discontinuity in scroll offset has nothing to reveal.
+//
+// `row0`/`row1` are rows of the layer's texture, half-open, top-down. Vertical
+// is always 1:1: the perspective is already in the paint, and V28b locked the
+// authored stack's vertical factor at 1.00 so the composition is the painting at
+// every camera height.
+//
+// **Here rather than in frame.h because it is arithmetic about art and knows no
+// SDL**, which is what lets `boot_test` check a band table against the BMP it
+// describes. The same split `wrap_axis` below already has with the draw call.
+struct Band {
+    int row0 = 0, row1 = 0;
+    float parallax_x = 1.0f;
+};
+
+
 // Where the first copy of a tile goes, and how many copies cover the window.
 //
 // `first` is always in (-tile, 0]: the leftmost copy starts at or before the
